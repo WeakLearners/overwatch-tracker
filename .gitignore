@@ -1,0 +1,30 @@
+# deps
+node_modules/
+
+# env / secrets
+.env
+.env.local
+.env*.local
+server/.env
+
+# SQLite
+*.db
+*.db-shm
+*.db-wal
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+
+# Claude Code local settings (machine-specific permissions)
+.claude/settings.local.json
+
+# build artifacts
+dist/
+*.tsbuildinfo
+
+# large binary source files
+*.numbers
