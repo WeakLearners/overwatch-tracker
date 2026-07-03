@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { useApi } from '../hooks/useApi';
 import { Overview, Streaks, TrendPoint, ModeComparison, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS } from '../types';
 import StatCard from '../components/StatCard';
@@ -170,6 +170,16 @@ export default function Dashboard() {
   // Display a long run of history (newest first) to fill the row; the headline
   // percentage still reads only from last25/last100 above.
   const recentGames = [...(trends ?? [])].slice(-60).reverse();
+  // Group consecutive tiles by calendar day (newest-first order preserved).
+  const gamesByDay = recentGames.reduce<{ dateStr: string; games: TrendPoint[] }[]>((acc, g) => {
+    const day = g.date.slice(0, 10);
+    if (acc.length === 0 || acc[acc.length - 1].dateStr !== day) {
+      acc.push({ dateStr: day, games: [g] });
+    } else {
+      acc[acc.length - 1].games.push(g);
+    }
+    return acc;
+  }, []);
 
   return (
     <div>
@@ -202,20 +212,33 @@ export default function Dashboard() {
             maskImage: 'linear-gradient(to right, #000 72%, transparent)',
           }}
         >
-          {recentGames.map(g => (
-            <button
-              key={g.id}
-              type="button"
-              onClick={() => openEdit(g)}
-              title={`${g.win ? 'Win' : 'Loss'} · ${g.hero} on ${g.map} (${format(parseISO(g.date), 'MMM d')}) — tap to edit`}
-              className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-xs font-black border transition-all duration-150 cursor-pointer hover:-translate-y-0.5 hover:ring-2 hover:ring-offset-1 hover:ring-offset-transparent ${
-                g.win
-                  ? 'bg-emerald-100 text-emerald-700 border-emerald-300 hover:ring-emerald-400/60 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/40'
-                  : 'bg-rose-100 text-rose-700 border-rose-300 hover:ring-rose-400/60 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-500/40'
-              }`}
-            >
-              {MODE_LETTER[g.queue_mode] ?? '·'}
-            </button>
+          {gamesByDay.map((group, i) => (
+            <Fragment key={group.dateStr}>
+              {i > 0 && (
+                <div className="flex flex-col items-center shrink-0 gap-0.5 self-stretch justify-center mx-0.5">
+                  <div className="w-px flex-1 bg-ow-border opacity-60" />
+                  <span className="text-[8px] leading-none text-[var(--faint)]">
+                    {format(parseISO(group.dateStr), 'M/d')}
+                  </span>
+                  <div className="w-px flex-1 bg-ow-border opacity-60" />
+                </div>
+              )}
+              {group.games.map(g => (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => openEdit(g)}
+                  title={`${g.win ? 'Win' : 'Loss'} · ${g.hero} on ${g.map} (${format(parseISO(g.date), 'MMM d')}) — tap to edit`}
+                  className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-xs font-black border transition-all duration-150 cursor-pointer hover:-translate-y-0.5 hover:ring-2 hover:ring-offset-1 hover:ring-offset-transparent ${
+                    g.win
+                      ? 'bg-emerald-100 text-emerald-700 border-emerald-300 hover:ring-emerald-400/60 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/40'
+                      : 'bg-rose-100 text-rose-700 border-rose-300 hover:ring-rose-400/60 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-500/40'
+                  }`}
+                >
+                  {MODE_LETTER[g.queue_mode] ?? '·'}
+                </button>
+              ))}
+            </Fragment>
           ))}
           {recentGames.length === 0 && (
             <EmptyState
