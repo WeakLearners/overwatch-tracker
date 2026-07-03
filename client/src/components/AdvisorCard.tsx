@@ -1,8 +1,16 @@
-import { MAPS, Recommendation, AxisPayload } from '../types';
+import { MAPS, Recommendation, AxisPayload, TankArchetype } from '../types';
+
+const ARCHETYPE_COLORS: Record<string, string> = {
+  dive:   'bg-blue-500/15 text-blue-700 dark:text-blue-400',
+  brawl:  'bg-red-500/15 text-red-700 dark:text-red-400',
+  anchor: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
+};
 
 interface Props {
   map: string;
   queueLabel: string;
+  alliedTank?: string;
+  tankArchetype?: TankArchetype;
   rec: Recommendation | null;
   loading: boolean;
   error: string | null;
@@ -46,7 +54,7 @@ function AxisBar({ name, segs }: { name: string; segs: Seg[] }) {
   );
 }
 
-export default function AdvisorCard({ map, queueLabel, rec, loading, error, onRefresh, onOpenHero, bare = false }: Props) {
+export default function AdvisorCard({ map, queueLabel, alliedTank, tankArchetype, rec, loading, error, onRefresh, onOpenHero, bare = false }: Props) {
   return (
     <div className={bare ? '' : 'rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-3'}>
       {!bare && (
@@ -144,6 +152,17 @@ export default function AdvisorCard({ map, queueLabel, rec, loading, error, onRe
             </div>
           ) : (
             <div className="text-[10px] text-[var(--faint-2)] mb-2.5">No death tags yet — log a few matches with the new death tagger to unlock patterns.</div>
+          )}
+
+          {/* Allied tank context badge */}
+          {alliedTank && tankArchetype && (
+            <div className="flex items-center gap-1.5 mb-2">
+              <span className="text-[10px] text-[var(--faint)]">with</span>
+              <span className={`pill text-[10px] ${ARCHETYPE_COLORS[tankArchetype] ?? ''}`}>
+                {tankArchetype}
+              </span>
+              <span className="text-[10px] text-[var(--faint)]">{alliedTank}</span>
+            </div>
           )}
 
           {/* One grounded coaching insight */}

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useApi } from '../hooks/useApi';
-import { MAPS, QUEUE_MODES, ROLE_COLORS, TYPE_COLORS, MapVotingRow } from '../types';
+import { MAPS, HEROES, QUEUE_MODES, ROLE_COLORS, TYPE_COLORS, TANK_ARCHETYPES, MapVotingRow } from '../types';
 import AdvisorCard from '../components/AdvisorCard';
 import EmptyState from '../components/EmptyState';
 import { useMapDrawer } from '../contexts/MapDrawerContext';
@@ -30,7 +30,18 @@ interface PrematchData {
 export default function Prematch() {
   // Shared, single-instance match state (queue mode, map, advisor) lives here
   // and is consumed by the Log Match section too.
-  const { queueMode, map, setMap, mapType, rec, recLoading, recError, refreshRec, setPendingHero, matchLoggedSignal } = useMatch();
+  const { queueMode, map, setMap, mapType, alliedTank, setAlliedTank, rec, recLoading, recError, refreshRec, setPendingHero, matchLoggedSignal } = useMatch();
+
+  const TANK_LIST = Object.entries(HEROES)
+    .filter(([, role]) => role === 'Tank')
+    .map(([name]) => name)
+    .sort();
+
+  const ARCHETYPE_COLORS: Record<string, string> = {
+    dive:   'bg-blue-500/15 text-blue-700 dark:text-blue-400',
+    brawl:  'bg-red-500/15 text-red-700 dark:text-red-400',
+    anchor: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
+  };
 
   const params = new URLSearchParams();
   if (map) params.set('map', map);
@@ -222,7 +233,7 @@ export default function Prematch() {
               <span className="text-xs text-[var(--faint)] bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">pick a map</span>
             </div>
             {map && (
-              <button onClick={() => setMap('')} className="text-xs text-[var(--faint)] hover:text-[var(--ink)] transition-colors">
+              <button onClick={() => { setMap(''); setAlliedTank(''); }} className="text-xs text-[var(--faint)] hover:text-[var(--ink)] transition-colors">
                 clear
               </button>
             )}
@@ -241,6 +252,25 @@ export default function Prematch() {
             </select>
           </div>
           {mapType && <span className={`pill ${TYPE_COLORS[mapType] ?? ''}`}>{mapType}</span>}
+
+          <div className="mt-3">
+            <label className="block text-xs text-[var(--muted)] mb-1.5">Ally Tank <span className="text-[var(--faint-2)]">— optional</span></label>
+            <select
+              value={alliedTank}
+              onChange={e => setAlliedTank(e.target.value)}
+              className="w-full field px-3 py-2 text-sm"
+            >
+              <option value="">— No tank selected —</option>
+              {TANK_LIST.map(t => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+            {alliedTank && TANK_ARCHETYPES[alliedTank] && (
+              <span className={`pill mt-1.5 ${ARCHETYPE_COLORS[TANK_ARCHETYPES[alliedTank]] ?? ''}`}>
+                {TANK_ARCHETYPES[alliedTank]}
+              </span>
+            )}
+          </div>
         </div>
 
       </div>
@@ -306,6 +336,8 @@ export default function Prematch() {
               bare
               map={map}
               queueLabel={queueLabel}
+              alliedTank={alliedTank || undefined}
+              tankArchetype={alliedTank ? TANK_ARCHETYPES[alliedTank] : undefined}
               rec={rec}
               loading={recLoading}
               error={recError}

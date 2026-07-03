@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { HEROES, ROLE_COLORS, TYPE_COLORS, DeathRecord, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS } from '../types';
+import { HEROES, ROLE_COLORS, TYPE_COLORS, TANK_ARCHETYPES, DeathRecord, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS } from '../types';
 import { useMatch } from '../contexts/MatchContext';
 import EmptyState from '../components/EmptyState';
 import ModeWatermark from '../components/ModeWatermark';
@@ -11,7 +11,13 @@ interface FormState {
   time: string;
   hero: string;
   win: '' | '1' | '0';
+  alliedTank: string;
 }
+
+const TANK_LIST = Object.entries(HEROES)
+  .filter(([, role]) => role === 'Tank')
+  .map(([name]) => name)
+  .sort();
 
 const HERO_LIST = Object.entries(HEROES).sort((a, b) => a[0].localeCompare(b[0]));
 
@@ -66,7 +72,7 @@ const PENDING_KEY = 'ow-pending-match';
 export default function LogMatch() {
   // Map + queue mode are shared with the Pre-Match section via context; this
   // section only owns date/time/hero/win plus the death tags.
-  const { queueMode, setQueueMode, map, setMap, mapType, pendingHero, setPendingHero, revalidateRec, notifyMatchLogged } = useMatch();
+  const { queueMode, setQueueMode, map, setMap, mapType, alliedTank: contextTank, pendingHero, setPendingHero, revalidateRec, notifyMatchLogged } = useMatch();
   const [form, setForm] = useState<FormState>(() => {
     const n = new Date();
     let pending: { hero?: string } = {};
@@ -78,8 +84,14 @@ export default function LogMatch() {
       time: format(n, 'HH:mm'),
       hero: pending.hero ?? '',
       win: '',
+      alliedTank: '',
     };
   });
+
+  // Pre-fill ally tank from pre-match context when it changes.
+  useEffect(() => {
+    setForm(f => ({ ...f, alliedTank: contextTank }));
+  }, [contextTank]);
 
   // A hero tapped in the Pre-Match hero list pre-fills the form here, then we
   // centre the Coaching → Match Details block so the auto-fill is visible.
@@ -92,16 +104,13 @@ export default function LogMatch() {
     }
   }, [pendingHero, setPendingHero]);
 
-  // Picking a map from the Hero Advisor dropdown brings the Coaching → Match
-  // Details block into a centred view, ready to review and log. The short delay
-  // lets the map's hero list finish loading so the block is at full height
-  // before we measure and centre it.
+  // Scroll into view when the ally tank is chosen — that's now the final
+  // pre-match step, so the coaching + form should centre once it's set.
   useEffect(() => {
-    if (!map) return;
+    if (!contextTank) return;
     const t = setTimeout(centerLogArea, 350);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map]);
+  }, [contextTank]);
 
   // Persist hero selection until it's logged or cleared.
   useEffect(() => {
@@ -173,6 +182,7 @@ export default function LogMatch() {
           win: form.win === '1',
           deaths: completeDeaths.length > 0 ? { v: 2, deaths: completeDeaths } : null,
           queue_mode: queueMode,
+          allied_tank: form.alliedTank || null,
         }),
       });
       if (!res.ok) throw new Error('Failed');
@@ -180,7 +190,7 @@ export default function LogMatch() {
       const loggedWin = form.win === '1';
       setStatus('success');
       setDeaths([]);
-      setForm(f => ({ ...f, hero: '', win: '', time: format(new Date(), 'HH:mm') }));
+      setForm(f => ({ ...f, hero: '', win: '', time: format(new Date(), 'HH:mm'), alliedTank: '' }));
       // Clear the carried-over match intent: the Hero Advisor map selector and
       // its dependent advisor reset so nothing lingers from the logged match.
       setMap('');
@@ -383,6 +393,31 @@ export default function LogMatch() {
                   );
                 })}
               </div>
+            </div>
+
+            <div>
+              <label className="block text-xs text-[var(--muted)] mb-1.5">
+                Ally Tank <span className="text-[var(--faint-2)]">— optional</span>
+              </label>
+              <select
+                value={form.alliedTank}
+                onChange={set('alliedTank')}
+                className="w-full field px-3 py-2 text-sm"
+              >
+                <option value="">— None / unknown —</option>
+                {TANK_LIST.map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+              {form.alliedTank && TANK_ARCHETYPES[form.alliedTank] && (
+                <span className={`pill mt-1.5 ${
+                  TANK_ARCHETYPES[form.alliedTank] === 'dive'   ? 'bg-blue-500/15 text-blue-700 dark:text-blue-400' :
+                  TANK_ARCHETYPES[form.alliedTank] === 'brawl'  ? 'bg-red-500/15 text-red-700 dark:text-red-400' :
+                  'bg-amber-500/15 text-amber-700 dark:text-amber-400'
+                }`}>
+                  {TANK_ARCHETYPES[form.alliedTank]}
+                </span>
+              )}
             </div>
 
             <div>

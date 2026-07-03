@@ -58,8 +58,17 @@ export interface Match {
   game_type: string;
   win: 0 | 1;
   queue_mode: QueueMode | null;
+  allied_tank: string | null;
   created_at: string;
 }
+
+export type TankArchetype = 'dive' | 'brawl' | 'anchor';
+
+export const TANK_ARCHETYPES: Record<string, TankArchetype> = {
+  'D.Va': 'dive', 'Doomfist': 'dive', 'Winston': 'dive', 'Wrecking Ball': 'dive',
+  'Domina': 'brawl', 'Hazard': 'brawl', 'Junker Queen': 'brawl', 'Mauga': 'brawl', 'Reinhardt': 'brawl',
+  'Orisa': 'anchor', 'Ramattra': 'anchor', 'Roadhog': 'anchor', 'Sigma': 'anchor', 'Zarya': 'anchor',
+};
 
 export interface DeathSlice {
   reason: string;

@@ -53,6 +53,10 @@ function initSchema(db: DatabaseSync) {
     db.exec(`CREATE INDEX IF NOT EXISTS idx_matches_queue_mode ON matches(queue_mode)`);
   }
 
+  if (!cols.find(c => c.name === 'allied_tank')) {
+    db.exec(`ALTER TABLE matches ADD COLUMN allied_tank TEXT`);
+  }
+
   // Cache for LLM-generated tactical recommendations, keyed by map+queue_mode.
   db.exec(`
     CREATE TABLE IF NOT EXISTS advisor_cache (
