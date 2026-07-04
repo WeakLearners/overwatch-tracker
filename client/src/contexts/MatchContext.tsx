@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
-import { MAPS, QUEUE_MODES, QueueMode, Recommendation } from '../types';
+import { MAPS, QUEUE_MODES, QueueMode, Recommendation, DeathRecord } from '../types';
 
 const QUEUE_MODE_KEY = 'ow-last-queue-mode';
+const DEATH_BUFFER_KEY = 'ow-death-buffer';
 
 // The shared "current match" intent for the single-page Dashboard: one queue
 // mode, one selected map, one advisor recommendation, consumed by both the
@@ -28,6 +29,12 @@ interface MatchContextValue {
   // matching mode tile. `seq` rises each log so a repeat result re-triggers.
   lastLog: { mode: QueueMode; win: boolean; seq: number } | null;
   notifyMatchLogged: (info?: { mode: QueueMode; win: boolean }) => void;
+  // In-match death buffer: accumulated via the floating DeathLogger during a
+  // match, then flushed to the match record on submit.
+  deathBuffer: DeathRecord[];
+  addDeathToBuffer: (r: DeathRecord) => void;
+  removeDeathFromBuffer: (i: number) => void;
+  clearDeathBuffer: () => void;
 }
 
 const MatchContext = createContext<MatchContextValue | null>(null);
@@ -45,6 +52,31 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   const [pendingHero, setPendingHero] = useState<string | null>(null);
   const [matchLoggedSignal, setMatchLoggedSignal] = useState(0);
   const [lastLog, setLastLog] = useState<{ mode: QueueMode; win: boolean; seq: number } | null>(null);
+
+  const [deathBuffer, setDeathBuffer] = useState<DeathRecord[]>(() => {
+    try { return JSON.parse(localStorage.getItem(DEATH_BUFFER_KEY) ?? '[]'); } catch { return []; }
+  });
+
+  const addDeathToBuffer = useCallback((r: DeathRecord) => {
+    setDeathBuffer(prev => {
+      const updated = [...prev, r];
+      localStorage.setItem(DEATH_BUFFER_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  const removeDeathFromBuffer = useCallback((i: number) => {
+    setDeathBuffer(prev => {
+      const updated = prev.filter((_, j) => j !== i);
+      localStorage.setItem(DEATH_BUFFER_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  const clearDeathBuffer = useCallback(() => {
+    setDeathBuffer([]);
+    localStorage.removeItem(DEATH_BUFFER_KEY);
+  }, []);
 
   const [rec, setRec] = useState<Recommendation | null>(null);
   const [recLoading, setRecLoading] = useState(false);
@@ -82,6 +114,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
       pendingHero, setPendingHero,
       matchLoggedSignal,
       lastLog,
+      deathBuffer, addDeathToBuffer, removeDeathFromBuffer, clearDeathBuffer,
       notifyMatchLogged: (info) => {
         setMatchLoggedSignal(s => s + 1);
         if (info) setLastLog(prev => ({ mode: info.mode, win: info.win, seq: (prev?.seq ?? 0) + 1 }));

@@ -8,6 +8,7 @@ import HeroDrawer from './components/HeroDrawer';
 import { MatchProvider } from './contexts/MatchContext';
 import { MatchEditDrawerProvider } from './contexts/MatchEditDrawerContext';
 import MatchEditDrawer from './components/MatchEditDrawer';
+import DeathLogger from './components/DeathLogger';
 
 /**
  * Root application component. Sets up context providers (hero/map drawers),
@@ -91,6 +92,7 @@ export default function App() {
         </main>
       </div>
     </BrowserRouter>
+    <DeathLogger />
     <MapDrawer />
     <HeroDrawer />
     <MatchEditDrawer />

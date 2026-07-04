@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { HEROES, ROLE_COLORS, TYPE_COLORS, DeathRecord, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS } from '../types';
+import { HEROES, ROLE_COLORS, TYPE_COLORS, DEATH_SCENARIOS, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS } from '../types';
 import { useMatch } from '../contexts/MatchContext';
 import EmptyState from '../components/EmptyState';
 import ModeWatermark from '../components/ModeWatermark';
@@ -14,8 +14,6 @@ interface FormState {
 }
 
 const HERO_LIST = Object.entries(HEROES).sort((a, b) => a[0].localeCompare(b[0]));
-
-const MAX_DEATHS = 3;
 
 // Two-line labels for the in-form mode toggle (the full names are too wide for
 // three narrow columns).
@@ -33,14 +31,6 @@ const MODE_ROW_BG: Record<string, string> = {
   comp_open: 'bg-pink-500/10',
 };
 
-// Factual death axes — the player records observable facts post-match, not a
-// felt verdict mid-match. Each axis is a quick, decidable choice.
-const DEATH_AXES: { key: keyof DeathRecord; label: string; hint: string; options: { value: string; label: string }[] }[] = [
-  { key: 'trade',     label: 'Trade',     hint: 'Kill, cooldown, or space?', options: [{ value: 'traded', label: 'Got Value' }, { value: 'free', label: 'Wasted' }] },
-  { key: 'timing',    label: 'Timing',    hint: 'When in the fight?',       options: [{ value: 'first', label: 'First' }, { value: 'middle', label: 'Middle' }, { value: 'last', label: 'Last' }] },
-  { key: 'grouping',  label: 'Grouping',  hint: 'With team or alone?',      options: [{ value: 'grouped', label: 'Grouped' }, { value: 'alone', label: 'Alone' }] },
-  { key: 'awareness', label: 'Awareness', hint: 'Full read or missed info?', options: [{ value: 'saw', label: 'Read it' }, { value: 'caught', label: 'Caught out' }] },
-];
 
 function getDayOfWeek(dateStr: string) {
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -66,7 +56,7 @@ const PENDING_KEY = 'ow-pending-match';
 export default function LogMatch() {
   // Map + queue mode are shared with the Pre-Match section via context; this
   // section only owns date/time/hero/win plus the death tags.
-  const { queueMode, setQueueMode, map, setMap, mapType, pendingHero, setPendingHero, revalidateRec, notifyMatchLogged } = useMatch();
+  const { queueMode, setQueueMode, map, setMap, mapType, pendingHero, setPendingHero, revalidateRec, notifyMatchLogged, deathBuffer, removeDeathFromBuffer, clearDeathBuffer } = useMatch();
   const [form, setForm] = useState<FormState>(() => {
     const n = new Date();
     let pending: { hero?: string } = {};
@@ -87,7 +77,6 @@ export default function LogMatch() {
     if (pendingHero) {
       setForm(f => ({ ...f, hero: pendingHero }));
       setPendingHero(null);
-      setDeaths(ds => (ds.length === 0 ? [{}] : ds)); // open the first death's options
       centerLogArea();
     }
   }, [pendingHero, setPendingHero]);
@@ -109,13 +98,6 @@ export default function LogMatch() {
     else localStorage.removeItem(PENDING_KEY);
   }, [form.hero]);
   const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
-  // Post-match death logging: up to 3 notable deaths, each tagged on 4 factual axes.
-  const [deaths, setDeaths] = useState<Partial<DeathRecord>[]>([]);
-  const setAxis = (i: number, key: keyof DeathRecord, value: string) =>
-    setDeaths(ds => ds.map((d, j) => (j === i ? { ...d, [key]: value } : d)));
-  const addDeath = () => setDeaths(ds => (ds.length < MAX_DEATHS ? [...ds, {}] : ds));
-  const removeDeath = (i: number) => setDeaths(ds => ds.filter((_, j) => j !== i));
-  const completeDeaths = deaths.filter(d => d.trade && d.timing && d.grouping && d.awareness) as DeathRecord[];
 
   // "Recently Logged" reads today's matches straight from the DB — the single
   // source of truth — so it's always accurate and resets on its own when the
@@ -171,7 +153,7 @@ export default function LogMatch() {
           map,
           game_type: mapType,
           win: form.win === '1',
-          deaths: completeDeaths.length > 0 ? { v: 2, deaths: completeDeaths } : null,
+          deaths: deathBuffer.length > 0 ? { v: 2, deaths: deathBuffer } : null,
           queue_mode: queueMode,
         }),
       });
@@ -179,7 +161,7 @@ export default function LogMatch() {
       const loggedMode = queueMode;
       const loggedWin = form.win === '1';
       setStatus('success');
-      setDeaths([]);
+      clearDeathBuffer();
       setForm(f => ({ ...f, hero: '', win: '', time: format(new Date(), 'HH:mm') }));
       // Clear the carried-over match intent: the Hero Advisor map selector and
       // its dependent advisor reset so nothing lingers from the logged match.
@@ -211,85 +193,51 @@ export default function LogMatch() {
 
   return (
     <div className="mt-6">
-      {/* Notable Deaths — logged post-match on factual axes (no in-match counter) */}
+      {/* Deaths buffered via the floating 💀 button during the match */}
       <div id="notable-deaths" className="card mb-6 scroll-mt-24">
         <div className="flex items-center justify-between mb-1">
-          <h2 className="text-sm heading-display text-[var(--ink)]">Notable Deaths</h2>
-          {deaths.length > 0 && (
+          <h2 className="text-sm heading-display text-[var(--ink)]">Deaths</h2>
+          {deathBuffer.length > 0 && (
             <button
               type="button"
-              onClick={() => setDeaths([])}
+              onClick={clearDeathBuffer}
               className="text-xs text-[var(--faint)] hover:text-red-600 transition-colors"
             >
-              Clear
+              Clear all
             </button>
           )}
         </div>
-        <p className="text-xs text-[var(--faint)] mb-4">
-          After the match, log up to {MAX_DEATHS} deaths that stuck out — just the facts, not how it felt. Optional.
-        </p>
 
-        <div className="space-y-3">
-          {deaths.map((d, i) => {
-            const complete = d.trade && d.timing && d.grouping && d.awareness;
-            return (
-              <div key={i} className={`rounded-xl border px-3 py-3 ${complete ? 'border-ow-border bg-ow-darker/40' : 'border-ow-accent/40 bg-ow-accent/5'}`}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-[var(--ink-2)]">
-                    Death {i + 1}
-                    {!complete && <span className="text-ow-accent/80 font-normal"> · pick all four</span>}
-                  </span>
+        {deathBuffer.length === 0 ? (
+          <p className="text-xs text-[var(--faint)]">
+            Tap 💀 during the match to log each death as it happens.
+          </p>
+        ) : (
+          <div className="space-y-1.5">
+            {deathBuffer.map((d, i) => {
+              const scenario = DEATH_SCENARIOS.find(s =>
+                s.record.trade === d.trade && s.record.timing === d.timing &&
+                s.record.grouping === d.grouping && s.record.awareness === d.awareness
+              );
+              return (
+                <div key={i} className="flex items-center justify-between gap-2 py-2 px-3 rounded-lg bg-ow-darker border border-ow-border">
+                  <div>
+                    <span className="text-xs text-[var(--faint-2)] mr-2">{i + 1}</span>
+                    <span className="text-sm text-[var(--ink)]">{scenario?.label ?? 'Death'}</span>
+                    {scenario && <span className="text-xs text-[var(--faint)] ml-2">{scenario.hint}</span>}
+                  </div>
                   <button
                     type="button"
-                    onClick={() => removeDeath(i)}
-                    className="text-[var(--faint-2)] hover:text-red-600 text-base leading-none px-1"
-                    aria-label="Remove death"
+                    onClick={() => removeDeathFromBuffer(i)}
+                    className="text-[var(--faint)] hover:text-red-500 transition-colors text-base leading-none px-1 shrink-0"
+                    aria-label="Remove"
                   >
                     ×
                   </button>
                 </div>
-                <div className="space-y-2">
-                  {DEATH_AXES.map(axis => (
-                    <div key={axis.key} className="flex items-center gap-2">
-                      <div className="w-[5.5rem] shrink-0">
-                        <div className="text-[11px] text-[var(--ink-2)] leading-tight">{axis.label}</div>
-                        <div className="text-[9px] text-[var(--faint-2)] leading-tight">{axis.hint}</div>
-                      </div>
-                      <div className="flex gap-1.5 flex-1">
-                        {axis.options.map(opt => {
-                          const active = d[axis.key] === opt.value;
-                          return (
-                            <button
-                              key={opt.value}
-                              type="button"
-                              onClick={() => setAxis(i, axis.key, opt.value)}
-                              className={`flex-1 py-1.5 rounded-lg border text-xs font-medium transition-all ${
-                                active
-                                  ? 'border-ow-accent/60 bg-ow-accent/15 text-[var(--ink)]'
-                                  : 'border-ow-border bg-ow-darker text-[var(--muted)] hover:text-[var(--ink)] hover:border-gray-500'
-                              }`}
-                            >
-                              {opt.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {deaths.length < MAX_DEATHS && (
-          <button
-            type="button"
-            onClick={addDeath}
-            className="mt-3 w-full py-2 rounded-lg border border-dashed border-ow-border text-xs text-[var(--muted)] hover:text-[var(--ink)] hover:border-gray-500 transition-colors"
-          >
-            + Add a death
-          </button>
+              );
+            })}
+          </div>
         )}
       </div>
 

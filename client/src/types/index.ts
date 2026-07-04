@@ -103,6 +103,26 @@ export interface DeathRecord {
   awareness: Awareness;
 }
 
+export interface DeathScenario {
+  label: string;
+  hint: string;
+  record: DeathRecord;
+}
+
+// 8 scenarios covering the most common death patterns. Each maps to a full
+// 4-axis DeathRecord so the advisor's existing aggregation works unchanged.
+// Pairs are drawn randomly at log time — the player picks whichever is closer.
+export const DEATH_SCENARIOS: DeathScenario[] = [
+  { label: 'Caught out alone',       hint: "Away from team, didn't see it coming",    record: { trade: 'free',   timing: 'first',  grouping: 'alone',   awareness: 'caught' } },
+  { label: 'Dove in, got nothing',   hint: 'Entered before the team — no trade',      record: { trade: 'free',   timing: 'first',  grouping: 'grouped', awareness: 'saw'    } },
+  { label: 'Held on too long',       hint: "Should've disengaged, didn't",            record: { trade: 'free',   timing: 'last',   grouping: 'alone',   awareness: 'saw'    } },
+  { label: 'Stranded after team wiped', hint: 'Last alive with nowhere to go',        record: { trade: 'free',   timing: 'last',   grouping: 'grouped', awareness: 'caught' } },
+  { label: 'Flanked mid-fight',      hint: "An angle I didn't check hit me",          record: { trade: 'free',   timing: 'middle', grouping: 'grouped', awareness: 'caught' } },
+  { label: 'Lost the duel I chose',  hint: 'Full read, just got outplayed',           record: { trade: 'free',   timing: 'middle', grouping: 'alone',   awareness: 'saw'    } },
+  { label: 'Traded — got value',     hint: 'Kill, cooldown, or real pressure gained', record: { trade: 'traded', timing: 'middle', grouping: 'grouped', awareness: 'saw'    } },
+  { label: 'Burned in to open space', hint: 'Sacrificed to create a fight',           record: { trade: 'traded', timing: 'first',  grouping: 'grouped', awareness: 'saw'    } },
+];
+
 // Axis distributions (percentages of total deaths) for a scope, from the advisor.
 export interface AxisPayload {
   deaths: number;
