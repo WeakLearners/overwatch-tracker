@@ -332,23 +332,13 @@ Stretch pick — you may be given two pools:
 
 Queue context:
 - Open queue = 6v6, no role lock, expect double tank.
-- Role queue = 5v5, one tank.
-
-Allied tank context (when provided):
-- If allied_tank is present, you have the player's friendly tank and its archetype.
-- Weave ONE short, concrete sentence about how the player's primary hero synergises with (or compensates for) that tank archetype's style. Prioritise the stretch pick toward heroes that complement that archetype.
-- Do NOT invent specific tank interactions outside of archetype-level advice. Keep it behavioral.`;
+- Role queue = 5v5, one tank.`;
 
 router.get('/recommend', async (req: Request, res: Response) => {
   const db = getDb();
   const map = (req.query.map as string | undefined)?.trim();
   const mode = (req.query.queue_mode as QueueMode | undefined) ?? 'comp_role';
   const refresh = req.query.refresh === '1';
-  const alliedTank = (req.query.allied_tank as string | undefined)?.trim() || null;
-  const tankArchetype = alliedTank ? (TANK_ARCHETYPES[alliedTank] ?? null) : null;
-  // Always bypass cache when a specific allied tank is provided — the insight
-  // is tank-specific and stale cache would give wrong coaching context.
-  const skipCache = refresh || alliedTank != null;
 
   if (!map) {
     res.status(400).json({ error: 'map is required' });
@@ -381,8 +371,8 @@ router.get('/recommend', async (req: Request, res: Response) => {
     user_map_stats: { games: mapCtx.games, win_rate: mapCtx.win_rate },
   };
 
-  // Cache check (skip on refresh or when allied_tank is set)
-  if (!skipCache) {
+  // Cache check (skip on refresh)
+  if (!refresh) {
     const cached = readCachedInsight(db, map, mode);
     if (cached) {
       res.json({
@@ -435,16 +425,6 @@ router.get('/recommend', async (req: Request, res: Response) => {
     user_map_win_rate: mapCtx.win_rate,
     user_map_games: mapCtx.games,
   };
-
-  if (alliedTank && tankArchetype) {
-    userPayload.allied_tank = alliedTank;
-    userPayload.allied_tank_archetype = ARCHETYPE_LABELS[tankArchetype] ?? tankArchetype;
-    userPayload.allied_tank_coaching_note = tankArchetype === 'dive'
-      ? 'Dive tank: your primary should be able to follow dives or punish from off-angle while attention is drawn by the tank. Stretch pick should complement dive tempo.'
-      : tankArchetype === 'brawl'
-      ? 'Brawl tank: your primary should stay grouped and add burst or cleave damage while the tank brawls. Stretch pick should thrive in close-range fights.'
-      : 'Anchor tank: your primary benefits from playing through or behind the tank\'s space. Stretch pick should excel at mid-range poke or burst to capitalize on held angles.';
-  }
   if (hasDeathData) {
     userPayload.deaths_here = { scope: scopeLabel, ...toAxisPayload(axes) };
     if (overallAxes.deaths > 0) userPayload.deaths_overall = toAxisPayload(overallAxes);
@@ -508,18 +488,6 @@ router.get('/recommend', async (req: Request, res: Response) => {
     res.status(502).json({ error: `Advisor LLM call failed: ${err?.message ?? 'unknown error'}` });
   }
 });
-
-const TANK_ARCHETYPES: Record<string, string> = {
-  'D.Va': 'dive', 'Doomfist': 'dive', 'Winston': 'dive', 'Wrecking Ball': 'dive',
-  'Domina': 'brawl', 'Hazard': 'brawl', 'Junker Queen': 'brawl', 'Mauga': 'brawl', 'Reinhardt': 'brawl',
-  'Orisa': 'anchor', 'Ramattra': 'anchor', 'Roadhog': 'anchor', 'Sigma': 'anchor', 'Zarya': 'anchor',
-};
-
-const ARCHETYPE_LABELS: Record<string, string> = {
-  dive:   'Dive (mobile backline — D.Va/Winston/Ball/Doomfist)',
-  brawl:  'Brawl (frontline close-range — Rein/JQ/Mauga/Hazard/Domina)',
-  anchor: 'Anchor (mid-range space-hold — Orisa/Sigma/Ramattra/Zarya/Roadhog)',
-};
 
 // Static list of all heroes by role — kept in sync with the client's HEROES map.
 // (Server-side so we don't depend on importing client code.)

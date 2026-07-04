@@ -13,8 +13,6 @@ interface MatchContextValue {
   map: string;
   setMap: (m: string) => void;
   mapType: string;
-  alliedTank: string;
-  setAlliedTank: (t: string) => void;
   rec: Recommendation | null;
   recLoading: boolean;
   recError: string | null;
@@ -44,7 +42,6 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   }, [queueMode]);
 
   const [map, setMap] = useState('');
-  const [alliedTank, setAlliedTank] = useState('');
   const [pendingHero, setPendingHero] = useState<string | null>(null);
   const [matchLoggedSignal, setMatchLoggedSignal] = useState(0);
   const [lastLog, setLastLog] = useState<{ mode: QueueMode; win: boolean; seq: number } | null>(null);
@@ -58,8 +55,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     setRecLoading(true);
     setRecError(null);
     try {
-      const tankParam = alliedTank ? `&allied_tank=${encodeURIComponent(alliedTank)}` : '';
-      const url = `/api/advisor/recommend?map=${encodeURIComponent(map)}&queue_mode=${queueMode}${tankParam}${refresh ? '&refresh=1' : ''}`;
+      const url = `/api/advisor/recommend?map=${encodeURIComponent(map)}&queue_mode=${queueMode}${refresh ? '&refresh=1' : ''}`;
       const res = await fetch(url);
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
@@ -70,7 +66,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     } finally {
       setRecLoading(false);
     }
-  }, [map, queueMode, alliedTank]);
+  }, [map, queueMode]);
 
   // Refetch whenever the map or queue mode changes.
   useEffect(() => { fetchRec(false); }, [fetchRec]);
@@ -80,7 +76,6 @@ export function MatchProvider({ children }: { children: ReactNode }) {
       queueMode, setQueueMode,
       map, setMap,
       mapType: map ? MAPS[map] : '',
-      alliedTank, setAlliedTank,
       rec, recLoading, recError,
       refreshRec: () => fetchRec(true),
       revalidateRec: () => fetchRec(false),
