@@ -56,6 +56,11 @@ export default function Prematch() {
     setOpen(false);
   }, [matchLoggedSignal]);
 
+  // Keep focus on the map search whenever the app is idle (no map selected).
+  useEffect(() => {
+    if (!map) inputRef.current?.focus();
+  }, [map]);
+
   const scoreMap = Object.fromEntries((votingData ?? []).map(r => [r.map, r]));
 
   const results = query.length > 0
