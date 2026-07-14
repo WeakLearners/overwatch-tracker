@@ -20,9 +20,15 @@ export default function SensNav() {
     );
   };
   return (
-    <div className="flex gap-2 mb-5">
+    <div className="flex items-center gap-2 mb-5">
       {tab('/sens', 'Study')}
       {tab('/sens/analysis', 'Analysis')}
+      <Link
+        to="/"
+        className="ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold border border-ow-border text-[var(--faint)] hover:text-[var(--ink)] hover:border-gray-500 transition-all"
+      >
+        ← Match Tracker
+      </Link>
     </div>
   );
 }
