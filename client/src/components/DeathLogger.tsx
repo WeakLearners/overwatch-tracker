@@ -1,32 +1,39 @@
 import { useState } from 'react';
-import { DEATH_SCENARIOS, DeathRecord } from '../types';
+import { DEATH_AXES, DeathAxis, DeathAxisKey, DeathRecord } from '../types';
 import { useMatch } from '../contexts/MatchContext';
 
-function randomPair(): [number, number] {
-  const a = Math.floor(Math.random() * DEATH_SCENARIOS.length);
-  let b = Math.floor(Math.random() * (DEATH_SCENARIOS.length - 1));
-  if (b >= a) b++;
-  return [a, b];
+const AXIS_BY_KEY: Record<DeathAxisKey, DeathAxis> =
+  Object.fromEntries(DEATH_AXES.map(a => [a.key, a])) as Record<DeathAxisKey, DeathAxis>;
+
+// Worded lean for a buffer entry: which pole the value leans toward, or neutral.
+function leanLabel(axis: DeathAxisKey, value: number): string {
+  const a = AXIS_BY_KEY[axis];
+  if (value < 0.4) return a.lowShort;
+  if (value > 0.6) return a.highShort;
+  return 'Neutral';
 }
 
 export default function DeathLogger() {
-  const { deathBuffer, addDeathToBuffer, removeDeathFromBuffer } = useMatch();
+  const { deathBuffer, addDeathToBuffer, removeDeathFromBuffer, nextDeathAxis } = useMatch();
   const [open, setOpen] = useState(false);
-  const [pair, setPair] = useState<[number, number]>([0, 1]);
+  const [axis, setAxis] = useState<DeathAxisKey>('trade');
+  const [pos, setPos] = useState(50); // slider position 0–100 (→ value 0.0–1.0)
   const [showBuffer, setShowBuffer] = useState(false);
 
   function openLogger() {
-    setPair(randomPair());
+    setAxis(nextDeathAxis());
+    setPos(50); // start centred / neutral
     setShowBuffer(false);
     setOpen(true);
   }
 
-  function pick(record: DeathRecord) {
-    addDeathToBuffer(record);
+  function confirm() {
+    addDeathToBuffer({ axis, value: +(pos / 100).toFixed(2) });
     setOpen(false);
   }
 
   const count = deathBuffer.length;
+  const spec = AXIS_BY_KEY[axis];
 
   return (
     // Anchor point — everything positions relative to this fixed corner
@@ -41,7 +48,7 @@ export default function DeathLogger() {
           <div className="w-72 bg-ow-card border border-ow-border rounded-2xl shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between px-4 pt-3 pb-2">
               <span className="text-xs font-semibold text-[var(--faint)] uppercase tracking-widest">
-                Death {count + 1} · closer to?
+                Death {count + 1} · {spec.label}
               </span>
               <button
                 type="button"
@@ -53,21 +60,29 @@ export default function DeathLogger() {
               </button>
             </div>
 
-            <div className="flex flex-col gap-2 px-3 pb-3">
-              {pair.map(idx => {
-                const s = DEATH_SCENARIOS[idx];
-                return (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => pick(s.record)}
-                    className="w-full text-left rounded-xl border border-ow-border bg-ow-darker hover:border-ow-accent/60 hover:bg-ow-accent/5 active:scale-[0.98] transition-all px-3 py-2.5"
-                  >
-                    <div className="text-sm font-semibold text-[var(--ink)]">{s.label}</div>
-                    <div className="text-xs text-[var(--faint)] mt-0.5">{s.hint}</div>
-                  </button>
-                );
-              })}
+            <div className="px-4 pb-3">
+              {/* Slider: drag between the two poles of this one axis */}
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={pos}
+                onChange={e => setPos(Number(e.target.value))}
+                className="w-full accent-ow-accent cursor-pointer"
+                aria-label={`${spec.label}: ${spec.low} to ${spec.high}`}
+              />
+              <div className="flex justify-between gap-3 mt-1.5">
+                <span className="text-xs text-[var(--faint)] leading-snug max-w-[45%]">{spec.low}</span>
+                <span className="text-xs text-[var(--faint)] leading-snug max-w-[45%] text-right">{spec.high}</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={confirm}
+                className="w-full mt-3 rounded-xl bg-ow-accent/15 border border-ow-accent/50 text-[var(--ink)] text-sm font-semibold py-2.5 hover:bg-ow-accent/25 active:scale-[0.98] transition-all"
+              >
+                Log it
+              </button>
             </div>
 
             <button
@@ -86,27 +101,21 @@ export default function DeathLogger() {
         <div className="w-64 bg-ow-card border border-ow-border rounded-xl shadow-xl p-3">
           <p className="text-xs text-[var(--ink-2)] font-semibold mb-2">Deaths this match</p>
           <div className="space-y-1">
-            {deathBuffer.map((d, i) => {
-              const scenario = DEATH_SCENARIOS.find(s =>
-                s.record.trade === d.trade && s.record.timing === d.timing &&
-                s.record.grouping === d.grouping && s.record.awareness === d.awareness
-              );
-              return (
-                <div key={i} className="flex items-center justify-between gap-2 py-1 px-2 rounded-lg bg-ow-darker">
-                  <span className="text-xs text-[var(--ink)] truncate">
-                    {i + 1}. {scenario?.label ?? 'Death'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => removeDeathFromBuffer(i)}
-                    className="text-[var(--faint)] hover:text-red-500 transition-colors shrink-0 text-sm leading-none"
-                    aria-label="Remove"
-                  >
-                    ×
-                  </button>
-                </div>
-              );
-            })}
+            {deathBuffer.map((d, i) => (
+              <div key={i} className="flex items-center justify-between gap-2 py-1 px-2 rounded-lg bg-ow-darker">
+                <span className="text-xs text-[var(--ink)] truncate">
+                  {i + 1}. {AXIS_BY_KEY[d.axis].label} · {leanLabel(d.axis, d.value)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removeDeathFromBuffer(i)}
+                  className="text-[var(--faint)] hover:text-red-500 transition-colors shrink-0 text-sm leading-none"
+                  aria-label="Remove"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       )}

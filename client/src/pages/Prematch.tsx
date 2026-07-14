@@ -1,11 +1,22 @@
 import { useState, useRef, useEffect } from 'react';
+import { format } from 'date-fns';
 import { useApi } from '../hooks/useApi';
-import { MAPS, QUEUE_MODES, ROLE_COLORS, TYPE_COLORS, MapVotingRow } from '../types';
+import { MAPS, QUEUE_MODES, ROLE_COLORS, TYPE_COLORS, MapVotingRow, Streaks } from '../types';
 import AdvisorCard from '../components/AdvisorCard';
 import EmptyState from '../components/EmptyState';
 import { useMapDrawer } from '../contexts/MapDrawerContext';
 import { useHeroDrawer } from '../contexts/HeroDrawerContext';
 import { useMatch } from '../contexts/MatchContext';
+import { Link } from 'react-router-dom';
+import Odometer from '../components/Odometer';
+
+// Blind-trial HUD state — the two wheels on the dashboard read this live.
+interface BlindHud {
+  active: {
+    batch_size: number; games_on_stage: number; last_click_count: number;
+    scramble_done: boolean; resolved: boolean;
+  } | null;
+}
 
 const ALL_MAPS = Object.keys(MAPS).sort();
 
@@ -31,6 +42,10 @@ export default function Prematch() {
   // Shared, single-instance match state (queue mode, map, advisor) lives here
   // and is consumed by the Log Match section too.
   const { queueMode, map, setMap, mapType, rec, recLoading, recError, refreshRec, setPendingHero, matchLoggedSignal } = useMatch();
+  const { data: blindHud } = useApi<BlindHud>('/api/blind/state');
+  const bt = blindHud?.active ?? null;
+  const btClicks = bt?.last_click_count ?? 0;
+  const btGamesLeft = bt ? Math.max(0, bt.batch_size - bt.games_on_stage) : 0;
 
   const params = new URLSearchParams();
   if (map) params.set('map', map);
@@ -41,6 +56,12 @@ export default function Prematch() {
   const { openMap } = useMapDrawer();
   const { openHero } = useHeroDrawer();
   const { data: votingData } = useApi<MapVotingRow[]>('/api/stats/map-voting');
+
+  // Idle-state filler data for the Map Voting / Hero Advisor cards.
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const { data: todayMatches } = useApi<{ rows: { win: 0 | 1 }[] }>(`/api/matches?from=${today}&to=${today}&limit=100`);
+  const { data: streaksData } = useApi<Streaks>('/api/stats/streaks');
+  const { data: byHour } = useApi<{ hour: number; games: number; wins: number; win_rate: number }[]>('/api/stats/by-hour');
   const [selected, setSelected] = useState<string[]>([]);
   const [query, setQuery]       = useState('');
   const [open, setOpen]         = useState(false);
@@ -62,6 +83,21 @@ export default function Prematch() {
   }, [map]);
 
   const scoreMap = Object.fromEntries((votingData ?? []).map(r => [r.map, r]));
+
+  // Best & worst maps by win rate (min games), for the idle Map Voting card.
+  const rankedMaps = (votingData ?? [])
+    .filter(m => m.total_games >= 5)
+    .sort((a, b) => b.historical_rate - a.historical_rate);
+  const bestMaps = rankedMaps.slice(0, 3);
+  const worstMaps = rankedMaps.slice(-3).reverse().filter(m => !bestMaps.includes(m));
+
+  // Session & timing snapshot for the idle Hero Advisor card.
+  const todayRows = todayMatches?.rows ?? [];
+  const todayW = todayRows.filter(r => r.win === 1).length;
+  const todayL = todayRows.length - todayW;
+  const curHour = new Date().getHours();
+  const hourRow = (byHour ?? []).find(h => h.hour === curHour);
+  const hourLabel = format(new Date(), 'h a');
 
   const results = query.length > 0
     ? ALL_MAPS.filter(m => m.toLowerCase().includes(query.toLowerCase()) && !selected.includes(m))
@@ -116,11 +152,43 @@ export default function Prematch() {
   return (
     <div>
 
-      {/* Map Voting + Hero Advisor — 2-col row */}
-      <div className="grid grid-cols-2 gap-4 mb-4">
+      {/* Blind trial (square) + Map Voting + Hero Advisor row */}
+      <div className="flex items-stretch gap-4 mb-4">
+
+        {/* Blind trial HUD — the repurposed odometer, now two live wheels: how
+            many DPI-button clicks start the current round, and how many games
+            remain in the sample before the next switch. Drives off the same blind
+            state the Sens page loop does. Sits where the sens picker used to. */}
+        <div className="card aspect-square shrink-0 flex flex-col self-stretch">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm heading-display text-[var(--ink)] whitespace-nowrap">Blind Trial</h2>
+            <Link to="/sens" className="text-[10px] text-[var(--faint)] hover:text-ow-accent transition-colors whitespace-nowrap">Sens →</Link>
+          </div>
+          {bt ? (
+            <div className="flex-1 grid grid-cols-[auto_auto] items-center gap-x-3 gap-y-5 place-content-center">
+              <Odometer value={btClicks} />
+              <div className="leading-tight">
+                <div className="text-sm text-[var(--ink)]">clicks</div>
+                <div className="text-[10px] text-[var(--faint-2)]">to start the round</div>
+              </div>
+              <Odometer value={btGamesLeft} />
+              <div className="leading-tight">
+                <div className="text-sm text-[var(--ink)]">games left</div>
+                <div className="text-[10px] text-[var(--faint-2)]">in this sample</div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 grid place-items-center text-center px-2">
+              <div>
+                <div className="text-xs text-[var(--faint)]">No blind trial running</div>
+                <div className="text-[10px] text-[var(--faint-2)] mt-1">Start one on the Sens page →</div>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Map Voting */}
-        <div className="card">
+        <div className="card flex-1 min-w-0 flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <h2 className="text-sm heading-display text-[var(--ink)] whitespace-nowrap">Map Voting</h2>
@@ -166,6 +234,31 @@ export default function Prematch() {
               </div>
             )}
           </div>
+
+          {/* Idle: best & worst maps by win rate — tap one to add it to your
+              picks (which swaps this block for the chips + vote below). */}
+          {selected.length === 0 && rankedMaps.length > 0 && (
+            <div className="flex-1 grid grid-cols-2 gap-x-4 content-center">
+              {([
+                { label: 'Best maps', color: 'text-emerald-600', pct: 'text-emerald-500', list: bestMaps },
+                { label: 'Worst maps', color: 'text-red-500', pct: 'text-red-500', list: worstMaps },
+              ] as const).map(col => (
+                <div key={col.label}>
+                  <div className={`text-[10px] uppercase tracking-wider mb-1.5 ${col.color}`}>{col.label}</div>
+                  {col.list.map(m => (
+                    <button
+                      key={m.map}
+                      onClick={() => selectMap(m.map)}
+                      className="flex items-center justify-between w-full text-left py-1 px-1 -mx-1 rounded hover:bg-white/5 transition-colors group"
+                    >
+                      <span className="text-sm text-[var(--ink)] truncate group-hover:text-ow-accent transition-colors">{m.map}</span>
+                      <span className={`text-xs font-semibold shrink-0 ml-2 ${col.pct}`}>{Math.round(m.historical_rate)}%</span>
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Selected chips */}
           {selected.length > 0 && (
@@ -220,7 +313,7 @@ export default function Prematch() {
         </div>
 
         {/* Hero Advisor — Map selector */}
-        <div className="card">
+        <div className="card flex-1 min-w-0 flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <h2 className="text-sm heading-display text-[var(--ink)] whitespace-nowrap">Hero Advisor</h2>
@@ -246,6 +339,45 @@ export default function Prematch() {
             </select>
           </div>
           {mapType && <span className={`pill ${TYPE_COLORS[mapType] ?? ''}`}>{mapType}</span>}
+
+          {/* Idle: session & timing snapshot — how you're doing right now */}
+          {!map && (
+            <div className="flex-1 grid grid-cols-3 gap-2 content-center mt-1">
+              <div className="rounded-lg bg-ow-darker border border-ow-border p-2.5">
+                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] mb-1">Today</div>
+                {todayRows.length > 0 ? (
+                  <div className="text-lg num-display leading-none">
+                    <span className="text-emerald-500">{todayW}W</span> <span className="text-red-500">{todayL}L</span>
+                  </div>
+                ) : (
+                  <div className="text-sm text-[var(--faint)]">No games</div>
+                )}
+              </div>
+              <div className="rounded-lg bg-ow-darker border border-ow-border p-2.5">
+                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] mb-1">Streak</div>
+                {streaksData && streaksData.currentStreak > 0 ? (
+                  <div className={`text-lg num-display leading-none ${streaksData.currentStreakType === 1 ? 'text-emerald-500' : 'text-red-500'}`}>
+                    {streaksData.currentStreak}{streaksData.currentStreakType === 1 ? 'W' : 'L'}
+                  </div>
+                ) : (
+                  <div className="text-sm text-[var(--faint)]">—</div>
+                )}
+              </div>
+              <div className="rounded-lg bg-ow-darker border border-ow-border p-2.5">
+                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] mb-1">This hour</div>
+                {hourRow ? (
+                  <>
+                    <div className={`text-lg num-display leading-none ${hourRow.win_rate >= 50 ? 'text-emerald-500' : 'text-red-500'}`}>
+                      {Math.round(hourRow.win_rate)}%
+                    </div>
+                    <div className="text-[9px] text-[var(--faint-2)] mt-1">{hourLabel} · {hourRow.games}g</div>
+                  </>
+                ) : (
+                  <div className="text-sm text-[var(--faint)]">—</div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
       </div>

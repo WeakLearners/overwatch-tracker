@@ -1,4 +1,4 @@
-import { MAPS, Recommendation, AxisPayload } from '../types';
+import { MAPS, Recommendation, AxisPayload, DEATH_AXES } from '../types';
 
 interface Props {
   map: string;
@@ -26,22 +26,27 @@ function scopeCaption(rec: Recommendation, map: string, a: AxisPayload): string 
   return `Too few games here — your overall pattern · ${g}, ${d}`;
 }
 
-type Seg = { label: string; pct: number; cls: string };
-
-// One death axis as a labeled segmented bar, with the dominant side called out.
-function AxisBar({ name, segs }: { name: string; segs: Seg[] }) {
-  const top = [...segs].sort((a, b) => b.pct - a.pct)[0];
+// One death axis as a spectrum: a marker sits at the mean position (0–1)
+// between the two poles. Faint "no data" until that axis has been sampled.
+function SpectrumBar({ label, low, high, mean, n }: { label: string; low: string; high: string; mean: number; n: number }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[11px] w-16 shrink-0 text-[var(--muted)]">{name}</span>
-      <div className="flex-1 h-2.5 rounded-full overflow-hidden flex bg-ow-darker">
-        {segs.map(s => s.pct > 0 && (
-          <div key={s.label} className={s.cls} style={{ width: `${s.pct}%` }} title={`${s.label} ${s.pct}%`} />
-        ))}
-      </div>
-      <span className="text-[10px] text-[var(--muted)] w-24 text-right tabular-nums truncate">
-        {top.label} {top.pct}%
-      </span>
+      <span className="text-[11px] w-16 shrink-0 text-[var(--muted)]">{label}</span>
+      {n === 0 ? (
+        <span className="flex-1 text-[10px] text-[var(--faint-2)] italic">no data yet</span>
+      ) : (
+        <>
+          <span className="text-[10px] text-[var(--muted)] w-14 shrink-0 text-right truncate" title={low}>{low}</span>
+          <div className="relative flex-1 h-2.5 rounded-full bg-ow-darker" title={`mean ${mean.toFixed(2)} · ${n} logged`}>
+            <div
+              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-ow-accent border-2 border-ow-card shadow"
+              style={{ left: `${Math.round(mean * 100)}%` }}
+            />
+          </div>
+          <span className="text-[10px] text-[var(--muted)] w-14 shrink-0 truncate" title={high}>{high}</span>
+          <span className="text-[10px] text-[var(--faint-2)] w-5 shrink-0 text-right tabular-nums">{n}</span>
+        </>
+      )}
     </div>
   );
 }
@@ -118,27 +123,19 @@ export default function AdvisorCard({ map, queueLabel, rec, loading, error, onRe
                 {scopeCaption(rec, map, rec.death_axes)}
               </div>
               <div className="space-y-1">
-                <AxisBar name="Trade" segs={[
-                  { label: 'Wasted', pct: rec.death_axes.trade.free, cls: 'bg-red-400' },
-                  { label: 'Got value', pct: rec.death_axes.trade.traded, cls: 'bg-emerald-400/70' },
-                ]} />
-                <AxisBar name="Timing" segs={[
-                  { label: 'First', pct: rec.death_axes.timing.first, cls: 'bg-ow-accent' },
-                  { label: 'Mid', pct: rec.death_axes.timing.middle, cls: 'bg-ow-accent/50' },
-                  { label: 'Last', pct: rec.death_axes.timing.last, cls: 'bg-amber-300/70' },
-                ]} />
-                <AxisBar name="Grouping" segs={[
-                  { label: 'Alone', pct: rec.death_axes.grouping.alone, cls: 'bg-red-400' },
-                  { label: 'Grouped', pct: rec.death_axes.grouping.grouped, cls: 'bg-emerald-400/70' },
-                ]} />
-                <AxisBar name="Awareness" segs={[
-                  { label: 'Caught out', pct: rec.death_axes.awareness.caught, cls: 'bg-red-400' },
-                  { label: 'Read it', pct: rec.death_axes.awareness.saw, cls: 'bg-emerald-400/70' },
-                ]} />
+                {DEATH_AXES.map(a => {
+                  const ax = rec.death_axes!.axes[a.key];
+                  return (
+                    <SpectrumBar key={a.key} label={a.label} low={a.lowShort} high={a.highShort}
+                      mean={ax?.mean ?? 0} n={ax?.n ?? 0} />
+                  );
+                })}
               </div>
-              {rec.death_axes.top_pattern && (
+              {rec.death_axes.strongest_lean && (
                 <div className="text-[10px] text-[var(--faint)] mt-1.5">
-                  Most common: <span className="text-[var(--ink-2)]">{rec.death_axes.top_pattern.label}</span> ({rec.death_axes.top_pattern.count}×)
+                  Strongest lean: <span className="text-[var(--ink-2)]">
+                    {DEATH_AXES.find(a => a.key === rec.death_axes!.strongest_lean!.axis)?.label} — {rec.death_axes.strongest_lean.label}
+                  </span> ({rec.death_axes.strongest_lean.n} logged)
                 </div>
               )}
             </div>

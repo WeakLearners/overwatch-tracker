@@ -27,31 +27,46 @@ type DeathScope = 'map' | 'map_type' | 'overall';
 // Factual death axes (v2 logging). Replaces the old subjective reason tags: the
 // player records observable facts about a death, not a felt verdict at the moment
 // of dying (which was biased toward "overextended" because that's how it felt).
+// v3: the player rates ONE axis per death on a 0–1 spectrum. Each axis is
+// aggregated independently (its own mean + sample count), so a short match that
+// only touched one axis still contributes clean data.
+type DeathAxisKey = 'trade' | 'timing' | 'grouping' | 'awareness';
+interface DeathRecord { axis: DeathAxisKey; value: number }
+
+// Legacy v2: fully-specified 4-axis record. Still read, decomposed into one
+// endpoint sample (0 or 1, or 0.5 for mid timing) per axis — no data loss.
 type Trade = 'traded' | 'free';
 type Timing = 'first' | 'middle' | 'last';
 type Grouping = 'grouped' | 'alone';
 type Awareness = 'saw' | 'caught';
-interface DeathRecord { trade: Trade; timing: Timing; grouping: Grouping; awareness: Awareness }
+interface LegacyDeathRecord { trade: Trade; timing: Timing; grouping: Grouping; awareness: Awareness }
+
+const AXIS_KEYS: DeathAxisKey[] = ['trade', 'timing', 'grouping', 'awareness'];
+// Endpoint wording, value→0 (low) and value→1 (high), for the strongest-lean label.
+const AXIS_POLES: Record<DeathAxisKey, { low: string; high: string }> = {
+  trade:     { low: 'wasted',     high: 'got value' },
+  timing:    { low: 'died first', high: 'died last (stagger)' },
+  grouping:  { low: 'alone',      high: 'grouped' },
+  awareness: { low: 'caught out', high: 'read it' },
+};
+// An axis needs this many samples, and a mean this far from neutral (0.5),
+// before we call it the player's strongest lean.
+const STRONG_LEAN_MIN_N = 3;
+const STRONG_LEAN_MIN_DIST = 0.1;
 
 interface AxisStats {
   games: number;   // matches that contributed at least one factual death
-  deaths: number;  // total factual death records
-  trade: Record<Trade, number>;
-  timing: Record<Timing, number>;
-  grouping: Record<Grouping, number>;
-  awareness: Record<Awareness, number>;
-  topPattern: { record: DeathRecord; count: number } | null;
+  deaths: number;  // total factual death records (v2 + v3)
+  sums: Record<DeathAxisKey, number>;   // sum of values per axis
+  counts: Record<DeathAxisKey, number>; // samples per axis
 }
 
-// UI/LLM-facing shape: axis distributions as percentages of total deaths.
+// UI/LLM-facing shape: per-axis mean position (0–1) + sample count.
 interface AxisPayload {
   deaths: number;
   games: number;
-  trade: { free: number; traded: number };
-  timing: { first: number; middle: number; last: number };
-  grouping: { alone: number; grouped: number };
-  awareness: { caught: number; saw: number };
-  top_pattern: { label: string; count: number } | null;
+  axes: Record<DeathAxisKey, { mean: number; n: number }>;
+  strongest_lean: { axis: DeathAxisKey; mean: number; n: number; label: string } | null;
 }
 
 function getComfortPool(db: ReturnType<typeof getDb>, mode: QueueMode): HeroStat[] {
@@ -91,47 +106,68 @@ const TIMINGS: Timing[] = ['first', 'middle', 'last'];
 const GROUPINGS: Grouping[] = ['grouped', 'alone'];
 const AWARENESSES: Awareness[] = ['saw', 'caught'];
 
-function isDeathRecord(r: any): r is DeathRecord {
+function isV3Record(r: any): r is DeathRecord {
+  return !!r && AXIS_KEYS.includes(r.axis)
+    && typeof r.value === 'number' && r.value >= 0 && r.value <= 1;
+}
+
+function isLegacyRecord(r: any): r is LegacyDeathRecord {
   return !!r && TRADES.includes(r.trade) && TIMINGS.includes(r.timing)
     && GROUPINGS.includes(r.grouping) && AWARENESSES.includes(r.awareness);
 }
 
-// Tally the player's factual death axes over a slice of matches. ONLY reads v2
-// records — legacy {reasons} rows are deliberately ignored so coaching never
-// reasons over the old, bias-prone self-labels we retired.
+// Decompose a legacy 4-axis record into one 0–1 sample per axis, so historical
+// v2 data keeps contributing to the same per-axis means as new v3 data.
+function legacyToSamples(r: LegacyDeathRecord): Record<DeathAxisKey, number> {
+  return {
+    trade: r.trade === 'free' ? 0 : 1,
+    timing: r.timing === 'first' ? 0 : r.timing === 'last' ? 1 : 0.5,
+    grouping: r.grouping === 'alone' ? 0 : 1,
+    awareness: r.awareness === 'caught' ? 0 : 1,
+  };
+}
+
+// Aggregate the player's factual death axes over a slice of matches. Reads both
+// v3 (one axis per death) and v2 (full record, decomposed) rows. Legacy {reasons}
+// rows are ignored so coaching never reasons over the old, bias-prone self-labels.
 function axisStats(db: ReturnType<typeof getDb>, where: string, params: unknown[]): AxisStats {
   const rows = db.prepare(
     `SELECT deaths FROM matches WHERE deaths IS NOT NULL ${where}`
   ).all(...(params as any[])) as { deaths: string }[];
   const s: AxisStats = {
     games: 0, deaths: 0,
-    trade: { traded: 0, free: 0 },
-    timing: { first: 0, middle: 0, last: 0 },
-    grouping: { grouped: 0, alone: 0 },
-    awareness: { saw: 0, caught: 0 },
-    topPattern: null,
+    sums: { trade: 0, timing: 0, grouping: 0, awareness: 0 },
+    counts: { trade: 0, timing: 0, grouping: 0, awareness: 0 },
   };
-  const combos: Record<string, { count: number; record: DeathRecord }> = {};
+  const addSample = (axis: DeathAxisKey, value: number) => {
+    s.sums[axis] += value;
+    s.counts[axis] += 1;
+  };
   for (const r of rows) {
     let d: any;
     try { d = JSON.parse(r.deaths); } catch { continue; }
-    if (d?.v !== 2 || !Array.isArray(d.deaths)) continue; // skip legacy reason-format rows
+    if (!Array.isArray(d?.deaths)) continue;
     let contributed = false;
-    for (const rec of d.deaths) {
-      if (!isDeathRecord(rec)) continue;
-      s.deaths++;
-      s.trade[rec.trade]++;
-      s.timing[rec.timing]++;
-      s.grouping[rec.grouping]++;
-      s.awareness[rec.awareness]++;
-      const key = `${rec.trade}|${rec.timing}|${rec.grouping}|${rec.awareness}`;
-      (combos[key] ??= { count: 0, record: rec }).count++;
-      contributed = true;
+    if (d.v === 3) {
+      for (const rec of d.deaths) {
+        if (!isV3Record(rec)) continue;
+        s.deaths++;
+        addSample(rec.axis, rec.value);
+        contributed = true;
+      }
+    } else if (d.v === 2) {
+      for (const rec of d.deaths) {
+        if (!isLegacyRecord(rec)) continue;
+        s.deaths++;
+        const samples = legacyToSamples(rec);
+        for (const k of AXIS_KEYS) addSample(k, samples[k]);
+        contributed = true;
+      }
+    } else {
+      continue; // legacy reason-format rows
     }
     if (contributed) s.games++;
   }
-  const top = Object.values(combos).sort((a, b) => b.count - a.count)[0];
-  s.topPattern = top && top.count >= 2 ? top : null; // only surface a pattern that recurs
   return s;
 }
 
@@ -147,28 +183,34 @@ function scopedAxis(db: ReturnType<typeof getDb>, map: string, gameType: string 
   return { scope: 'overall', stats: axisStats(db, '', []) };
 }
 
-// Plain-English summary of one death pattern, for the prompt and the UI.
-function describeRecord(r: DeathRecord): string {
-  const trade = r.trade === 'free' ? 'wasted' : 'got value';
-  const timing = r.timing === 'first' ? 'died first' : r.timing === 'last' ? 'died last (stagger)' : 'died mid-fight';
-  const group = r.grouping === 'alone' ? 'alone' : 'grouped';
-  const aware = r.awareness === 'caught' ? 'caught out' : 'read it';
-  return `${trade}, ${timing}, ${group}, ${aware}`;
+// Word an axis mean toward its nearer pole (or "balanced" near 0.5).
+function leanPhrase(axis: DeathAxisKey, mean: number): string {
+  const poles = AXIS_POLES[axis];
+  if (mean > 0.55) return poles.high;
+  if (mean < 0.45) return poles.low;
+  return 'balanced';
 }
 
-function pct(n: number, total: number): number { return total ? Math.round((n / total) * 100) : 0; }
-
 function toAxisPayload(s: AxisStats): AxisPayload {
-  const t = s.deaths;
-  return {
-    deaths: s.deaths,
-    games: s.games,
-    trade: { free: pct(s.trade.free, t), traded: pct(s.trade.traded, t) },
-    timing: { first: pct(s.timing.first, t), middle: pct(s.timing.middle, t), last: pct(s.timing.last, t) },
-    grouping: { alone: pct(s.grouping.alone, t), grouped: pct(s.grouping.grouped, t) },
-    awareness: { caught: pct(s.awareness.caught, t), saw: pct(s.awareness.saw, t) },
-    top_pattern: s.topPattern ? { label: describeRecord(s.topPattern.record), count: s.topPattern.count } : null,
-  };
+  const axes = {} as Record<DeathAxisKey, { mean: number; n: number }>;
+  for (const k of AXIS_KEYS) {
+    const n = s.counts[k];
+    axes[k] = { mean: n ? +(s.sums[k] / n).toFixed(2) : 0, n };
+  }
+  // Strongest lean = the axis whose mean sits furthest from neutral, given
+  // enough samples and a meaningful tilt.
+  let strongest_lean: AxisPayload['strongest_lean'] = null;
+  let bestDist = STRONG_LEAN_MIN_DIST;
+  for (const k of AXIS_KEYS) {
+    const { mean, n } = axes[k];
+    if (n < STRONG_LEAN_MIN_N) continue;
+    const dist = Math.abs(mean - 0.5);
+    if (dist >= bestDist) {
+      bestDist = dist;
+      strongest_lean = { axis: k, mean, n, label: leanPhrase(k, mean) };
+    }
+  }
+  return { deaths: s.deaths, games: s.games, axes, strongest_lean };
 }
 
 function getMapContext(db: ReturnType<typeof getDb>, map: string): { games: number; win_rate: number | null; game_type: string | null } {
@@ -290,7 +332,7 @@ function buildSchema(hasStretchPool: boolean) {
   const props: any = {
     insight: {
       type: 'string',
-      description: "One plain-English coaching insight, max 35 words, grounded in the player's death AXIS numbers. Name the dominant pattern with a percentage (e.g. 'X% of your deaths are wasted' or 'you die first in Y% of fights'), say whether it's a recurring habit or map-specific (compare deaths_here vs deaths_overall), and give one concrete BEHAVIORAL adjustment. If note_no_death_data is present, instead return one sentence saying death coaching unlocks once they tag a few matches. Never invent map geometry.",
+      description: "One plain-English coaching insight, max 35 words, grounded in the player's death AXIS numbers. Each axis has a mean from 0.0 to 1.0 and a sample count n. Name the strongest lean in words (e.g. 'your deaths lean wasted' or 'you tend to die first'), say whether it's a recurring habit or map-specific (compare deaths_here vs deaths_overall), and give one concrete BEHAVIORAL adjustment. If note_no_death_data is present, instead return one sentence saying death coaching unlocks once they tag a few matches. Never invent map geometry.",
     },
   };
   const required = ['insight'];
@@ -311,19 +353,19 @@ function buildSchema(hasStretchPool: boolean) {
 const SYSTEM_PROMPT = `You are an Overwatch 2 coach writing ONE grounded insight for an intermediate-rank player before a match. You are given REAL statistics computed from this player's own logged deaths — use them.
 
 HARD RULES — these override everything else:
-- Ground every claim in the death AXIS numbers provided. Quote a percentage from the data.
+- Ground every claim in the death AXIS numbers provided. Each axis is a mean from 0.0 to 1.0 with a sample count n; describe the lean in words, and trust an axis less when its n is small.
 - Do NOT invent map geometry: no lanes, rooms, ledges, high-ground callouts, choke names, or "slide to X" spots. You have no reliable map knowledge and the player found invented callouts useless and confusing.
 - Coach the BEHAVIOR the axes point to, not a location.
-- Compare deaths_here against deaths_overall: if the dominant pattern matches their overall pattern, name it a recurring habit; if it spikes only here, say it's map-specific.
-- Plain, readable English. One full sentence. No cryptic shorthand.
+- Compare deaths_here against deaths_overall: if the dominant lean matches their overall lean, name it a recurring habit; if it spikes only here, say it's map-specific.
+- Plain, readable English. One full sentence. No cryptic shorthand. Do not quote raw decimals at the player — translate them ("lean heavily toward…", "slightly more often…").
 - If note_no_death_data is present, do NOT invent any death analysis — return one short sentence telling the player death coaching unlocks once they tag a few matches with the new death logger.
 
-Death axes (objective facts the player logged about each death — read them, do not relabel):
-- trade: "traded" = the death GOT VALUE — a kill, real damage, a forced enemy cooldown/ult, OR space/pressure the team gained from the play (including a deliberate sacrifice like ulting to take space); "free" = WASTED — died and nothing shifted. A high free% means deaths are costing you for nothing. In your insight, call these "wasted" / "got value", not "free" / "traded".
-- timing: "first" = died first in the fight (entering before the team / over-eager); "middle" = died mid-trade; "last" = died last or staggered (fighting a lost fight / bad disengage).
-- grouping: "alone" = split off from the team when you died (isolated); "grouped" = died with the team around you.
-- awareness: "caught" = died to information they did NOT have (an unseen flanker, a hidden teammate, an angle they never checked); "saw" = they HAD the full read and died anyway (lost a fair duel, or knowingly took a risky play).
-Interpretation hints: free+alone+caught = dying isolated to info gaps (work pre-fight information and staying with the team); high first% = entry timing; high last% = disengage discipline; high caught% = recurring information/awareness gaps; high saw% = the reads were there — the loss was on fight selection or execution.
+Death axes (each is a spectrum the player rated 0.0–1.0, with a sample count n; strongest_lean flags the axis furthest from neutral):
+- trade (0 = wasted, 1 = got value): "got value" = the death earned a kill, real damage, a forced enemy cooldown/ult, OR space/pressure for the team (including a deliberate sacrifice like ulting to take space); "wasted" = died and nothing shifted. A low mean means deaths are costing you for nothing.
+- timing (0 = died first, 0.5 = mid-fight, 1 = died last): low = entering before the team / over-eager; high = died last or staggered (fighting a lost fight / bad disengage).
+- grouping (0 = alone, 1 = grouped): low = split off from the team when you died (isolated); high = died with the team around you.
+- awareness (0 = caught out, 1 = read it): low = died to information you did NOT have (an unseen flanker, a hidden teammate, an angle you never checked); high = you HAD the full read and died anyway (lost a fair duel, or knowingly took a risky play).
+Interpretation hints: low trade + low grouping + low awareness = dying isolated to info gaps (work pre-fight information and staying with the team); low timing = entry timing; high timing = disengage discipline; low awareness = recurring information/awareness gaps; high awareness = the reads were there, the loss was on fight selection or execution.
 
 Stretch pick — you may be given two pools:
 - candidate_stretch_pool (PREFERRED): heroes the player has actually played but doesn't main. Each entry has their own stats: career_games, career_win_rate, map_games (games on THIS map), map_win_rate (win rate on THIS map, null if none). Rank by performance ON THIS MAP first — highest map_win_rate backed by a meaningful map_games sample; fall back to career_win_rate when map sample is thin. This is grounded in real data; always prefer it.
