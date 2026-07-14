@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { HEROES, ROLE_COLORS, TYPE_COLORS, DEATH_SCENARIOS, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS } from '../types';
+import { useState, useEffect, useRef } from 'react';
+import { HEROES, ROLE_COLORS, TYPE_COLORS, DEATH_AXES, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS } from '../types';
 import { useMatch } from '../contexts/MatchContext';
 import EmptyState from '../components/EmptyState';
 import ModeWatermark from '../components/ModeWatermark';
@@ -56,7 +56,7 @@ const PENDING_KEY = 'ow-pending-match';
 export default function LogMatch() {
   // Map + queue mode are shared with the Pre-Match section via context; this
   // section only owns date/time/hero/win plus the death tags.
-  const { queueMode, setQueueMode, map, setMap, mapType, pendingHero, setPendingHero, revalidateRec, notifyMatchLogged, deathBuffer, removeDeathFromBuffer, clearDeathBuffer } = useMatch();
+  const { queueMode, setQueueMode, map, setMap, mapType, sens, pendingHero, setPendingHero, revalidateRec, notifyMatchLogged, deathBuffer, removeDeathFromBuffer, clearDeathBuffer } = useMatch();
   const [form, setForm] = useState<FormState>(() => {
     const n = new Date();
     let pending: { hero?: string } = {};
@@ -70,6 +70,47 @@ export default function LogMatch() {
       win: '',
     };
   });
+
+  // The date field defaults to the current day but stays editable for backfill.
+  // Once the user manually picks a date we stop auto-advancing it so their choice
+  // sticks; a successful log clears this back to "follow the clock".
+  const dateTouched = useRef(false);
+  // Same story for time: once the user hand-edits it (backfill), stop following
+  // the clock so their choice sticks; a successful log clears this back.
+  const timeTouched = useRef(false);
+
+  // Keep the log date pinned to the current wall-clock day while the app stays
+  // open. Without this, a session left running past midnight logs the new day's
+  // matches under yesterday's date (and they'd stay there — the date is written
+  // to the DB at log time, so a later refresh can't move them). The 60s interval
+  // catches the rollover with the tab open; focus/visibility catches a return.
+  useEffect(() => {
+    const syncNow = () => {
+      const now = new Date();
+      setForm(f => {
+        const today = format(now, 'yyyy-MM-dd');
+        const clock = format(now, 'HH:mm');
+        const nextDate = dateTouched.current ? f.date : today;
+        // Keep the visible time honest too. Without this the field holds a stale
+        // value across an idle gap or midnight rollover, so the first match of the
+        // next session gets a fresh date but last session's time — sorting it into
+        // the wrong slot in the Recent Matches bar.
+        const nextTime = timeTouched.current ? f.time : clock;
+        if (f.date === nextDate && f.time === nextTime) return f;
+        return { ...f, date: nextDate, time: nextTime };
+      });
+    };
+    const onVisible = () => { if (document.visibilityState === 'visible') syncNow(); };
+    window.addEventListener('focus', syncNow);
+    document.addEventListener('visibilitychange', onVisible);
+    const id = window.setInterval(syncNow, 60_000);
+    syncNow();
+    return () => {
+      window.removeEventListener('focus', syncNow);
+      document.removeEventListener('visibilitychange', onVisible);
+      clearInterval(id);
+    };
+  }, []);
 
   // A hero tapped in the Pre-Match hero list pre-fills the form here, then we
   // centre the Coaching → Match Details block so the auto-fill is visible.
@@ -126,18 +167,27 @@ export default function LogMatch() {
       .catch(() => {});
   }, [mapKey]);
 
-  const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) =>
+  const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
+    if (k === 'date') dateTouched.current = true;
+    if (k === 'time') timeTouched.current = true;
     setForm(f => ({ ...f, [k]: e.target.value }));
+  };
 
   const heroRole = form.hero ? HEROES[form.hero] : '';
-  const valid = form.hero && map && form.win !== '' && form.date;
+  const valid = form.hero && map && form.win !== '' && form.date && parseFloat(sens) > 0;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!valid) return;
     setStatus('saving');
     try {
-      const [datePart, timePart] = [form.date, form.time];
+      // Unless the user hand-picked a date, stamp the log with the current day
+      // as of this exact moment — guards the edge where a match is logged in the
+      // first seconds after midnight, before the 60s sync tick has fired.
+      const datePart = dateTouched.current ? form.date : format(new Date(), 'yyyy-MM-dd');
+      // Mirror the date guard: unless hand-edited, stamp the true current time so a
+      // field left stale across an idle gap can never be written to the DB.
+      const timePart = timeTouched.current ? form.time : format(new Date(), 'HH:mm');
       const hour = timePart ? parseInt(timePart.split(':')[0]) : null;
       const day_of_week = getDayOfWeek(datePart);
       const res = await fetch('/api/matches', {
@@ -153,8 +203,9 @@ export default function LogMatch() {
           map,
           game_type: mapType,
           win: form.win === '1',
-          deaths: deathBuffer.length > 0 ? { v: 2, deaths: deathBuffer } : null,
+          deaths: deathBuffer.length > 0 ? { v: 3, deaths: deathBuffer } : null,
           queue_mode: queueMode,
+          sens: parseFloat(sens),
         }),
       });
       if (!res.ok) throw new Error('Failed');
@@ -162,7 +213,9 @@ export default function LogMatch() {
       const loggedWin = form.win === '1';
       setStatus('success');
       clearDeathBuffer();
-      setForm(f => ({ ...f, hero: '', win: '', time: format(new Date(), 'HH:mm') }));
+      dateTouched.current = false;
+      timeTouched.current = false;
+      setForm(f => ({ ...f, hero: '', win: '', date: datePart, time: format(new Date(), 'HH:mm') }));
       // Clear the carried-over match intent: the Hero Advisor map selector and
       // its dependent advisor reset so nothing lingers from the logged match.
       setMap('');
@@ -215,16 +268,15 @@ export default function LogMatch() {
         ) : (
           <div className="space-y-1.5">
             {deathBuffer.map((d, i) => {
-              const scenario = DEATH_SCENARIOS.find(s =>
-                s.record.trade === d.trade && s.record.timing === d.timing &&
-                s.record.grouping === d.grouping && s.record.awareness === d.awareness
-              );
+              const axis = DEATH_AXES.find(a => a.key === d.axis);
+              // Word the spectrum position toward the nearer pole (or neutral).
+              const lean = !axis ? '' : d.value < 0.4 ? axis.low : d.value > 0.6 ? axis.high : 'Neutral';
               return (
                 <div key={i} className="flex items-center justify-between gap-2 py-2 px-3 rounded-lg bg-ow-darker border border-ow-border">
                   <div>
                     <span className="text-xs text-[var(--faint-2)] mr-2">{i + 1}</span>
-                    <span className="text-sm text-[var(--ink)]">{scenario?.label ?? 'Death'}</span>
-                    {scenario && <span className="text-xs text-[var(--faint)] ml-2">{scenario.hint}</span>}
+                    <span className="text-sm text-[var(--ink)]">{axis?.label ?? 'Death'}</span>
+                    {axis && <span className="text-xs text-[var(--faint)] ml-2">{lean}</span>}
                   </div>
                   <button
                     type="button"
@@ -255,7 +307,7 @@ export default function LogMatch() {
             </button>
           </div>
           <form onSubmit={submit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs text-[var(--muted)] mb-1.5">Date</label>
                 <input
@@ -273,6 +325,13 @@ export default function LogMatch() {
                   onChange={set('time')}
                   className="w-full field px-3 py-2 text-sm"
                 />
+              </div>
+              <div>
+                <label className="block text-xs text-[var(--muted)] mb-1.5">Sensitivity</label>
+                {/* Read-only — frozen at the study's in-game value (2.5). */}
+                <div className="w-full field px-3 py-2 text-sm num-display text-[var(--ink)] whitespace-nowrap overflow-hidden">
+                  {parseFloat(sens) > 0 ? parseFloat(sens).toFixed(2) : '—'}
+                </div>
               </div>
             </div>
 

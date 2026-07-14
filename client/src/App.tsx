@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
+import SensLog from './pages/SensLog';
+import SensAnalysis from './pages/SensAnalysis';
 import { MapDrawerProvider } from './contexts/MapDrawerContext';
 import MapDrawer from './components/MapDrawer';
 import { HeroDrawerProvider } from './contexts/HeroDrawerContext';
@@ -88,6 +90,10 @@ export default function App() {
             <Route path="/prematch" element={<Dashboard />} />
             <Route path="/log" element={<Dashboard />} />
             <Route path="/trends" element={<Dashboard />} />
+            {/* Sensitivity study — a separate, intentionally unlinked page that
+                shares the same backend/DB. Not woven into the Dashboard. */}
+            <Route path="/sens" element={<SensLog />} />
+            <Route path="/sens/analysis" element={<SensAnalysis />} />
           </Routes>
         </main>
       </div>

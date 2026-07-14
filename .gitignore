@@ -26,5 +26,9 @@ Thumbs.db
 dist/
 *.tsbuildinfo
 
+# logs
+dev.log
+*.log
+
 # large binary source files
 *.numbers

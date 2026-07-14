@@ -218,7 +218,7 @@ export default function Dashboard() {
                 <div className="flex flex-col items-center shrink-0 gap-0.5 self-stretch justify-center mx-0.5">
                   <div className="w-px flex-1 bg-ow-border opacity-60" />
                   <span className="text-[8px] leading-none text-[var(--faint)]">
-                    {format(parseISO(group.dateStr), 'M/d')}
+                    {format(parseISO(gamesByDay[i - 1].dateStr), 'M/d')}
                   </span>
                   <div className="w-px flex-1 bg-ow-border opacity-60" />
                 </div>
@@ -266,7 +266,17 @@ export default function Dashboard() {
       </div>
 
       <div className="mt-8 border-t border-ow-border pt-6">
-        <PageHeader title="Match" sub="Prep with the advisor, then log the result." />
+        <PageHeader title="Match" sub="Prep with the advisor, then log the result.">
+          {/* Links to the (otherwise unlinked) sensitivity-study pages, on the
+              right of the section header. Open in a new tab so the dashboard
+              stays put while stats are logged. */}
+          <a
+            href="/sens" target="_blank" rel="noreferrer"
+            className="shrink-0 bg-ow-card rounded-2xl px-4 py-2 text-sm heading-display text-[var(--ink)] hover:text-ow-accent transition-colors shadow-[var(--card-shadow)]"
+          >
+            Log sens stats
+          </a>
+        </PageHeader>
         <Prematch />
         <LogMatch />
       </div>

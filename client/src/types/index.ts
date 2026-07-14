@@ -90,48 +90,43 @@ export interface DeathInsights {
   has_outcome_split: boolean;
 }
 
-// Factual death axes (v2 logging) — the player records observable facts, not a
-// felt verdict. Shared by the Log Match tagger and the advisor's death analysis.
-export type Trade = 'traded' | 'free';
-export type Timing = 'first' | 'middle' | 'last';
-export type Grouping = 'grouped' | 'alone';
-export type Awareness = 'saw' | 'caught';
+// Factual death axes (v3 logging) — the player rates ONE axis per death on a
+// 0.0–1.0 spectrum, rather than picking a fully-specified 4-axis scenario. Only
+// one axis is asked per death (time is short at respawn), and the four axes are
+// sampled evenly over time via a persistent least-sampled tally (see MatchContext).
+export type DeathAxisKey = 'trade' | 'timing' | 'grouping' | 'awareness';
+
 export interface DeathRecord {
-  trade: Trade;
-  timing: Timing;
-  grouping: Grouping;
-  awareness: Awareness;
+  axis: DeathAxisKey;
+  value: number; // 0.0 (low end) → 1.0 (high end)
 }
 
-export interface DeathScenario {
+// Axis metadata — drives both the slider (DeathLogger) and the spectrum bars
+// (AdvisorCard). Endpoint convention: value→0 is the "low" pole, value→1 the
+// "high" pole. Where an axis has a clear worse end, it sits at 0 (rendered red).
+export interface DeathAxis {
+  key: DeathAxisKey;
   label: string;
-  hint: string;
-  record: DeathRecord;
+  low: string;   // full label for value → 0
+  high: string;  // full label for value → 1
+  lowShort: string;
+  highShort: string;
 }
 
-// 8 scenarios covering the most common death patterns. Each maps to a full
-// 4-axis DeathRecord so the advisor's existing aggregation works unchanged.
-// Pairs are drawn randomly at log time — the player picks whichever is closer.
-export const DEATH_SCENARIOS: DeathScenario[] = [
-  { label: 'Caught out alone',       hint: "Away from team, didn't see it coming",    record: { trade: 'free',   timing: 'first',  grouping: 'alone',   awareness: 'caught' } },
-  { label: 'Dove in, got nothing',   hint: 'Entered before the team — no trade',      record: { trade: 'free',   timing: 'first',  grouping: 'grouped', awareness: 'saw'    } },
-  { label: 'Held on too long',       hint: "Should've disengaged, didn't",            record: { trade: 'free',   timing: 'last',   grouping: 'alone',   awareness: 'saw'    } },
-  { label: 'Stranded after team wiped', hint: 'Last alive with nowhere to go',        record: { trade: 'free',   timing: 'last',   grouping: 'grouped', awareness: 'caught' } },
-  { label: 'Flanked mid-fight',      hint: "An angle I didn't check hit me",          record: { trade: 'free',   timing: 'middle', grouping: 'grouped', awareness: 'caught' } },
-  { label: 'Lost the duel I chose',  hint: 'Full read, just got outplayed',           record: { trade: 'free',   timing: 'middle', grouping: 'alone',   awareness: 'saw'    } },
-  { label: 'Traded — got value',     hint: 'Kill, cooldown, or real pressure gained', record: { trade: 'traded', timing: 'middle', grouping: 'grouped', awareness: 'saw'    } },
-  { label: 'Burned in to open space', hint: 'Sacrificed to create a fight',           record: { trade: 'traded', timing: 'first',  grouping: 'grouped', awareness: 'saw'    } },
+export const DEATH_AXES: DeathAxis[] = [
+  { key: 'trade',     label: 'Trade',     low: 'Wasted — nothing gained', high: 'Traded — got value',    lowShort: 'Wasted',    highShort: 'Got value' },
+  { key: 'timing',    label: 'Timing',    low: 'Died first (over-eager)', high: 'Died last (staggered)',  lowShort: 'First',     highShort: 'Last'      },
+  { key: 'grouping',  label: 'Grouping',  low: 'Alone / isolated',        high: 'With the team',          lowShort: 'Alone',     highShort: 'Grouped'   },
+  { key: 'awareness', label: 'Awareness', low: 'Caught by surprise',      high: 'Full read, lost anyway', lowShort: 'Caught out', highShort: 'Read it'  },
 ];
 
-// Axis distributions (percentages of total deaths) for a scope, from the advisor.
+// Per-axis mean position (0–1) and sample count for a scope, from the advisor.
 export interface AxisPayload {
-  deaths: number;
+  deaths: number; // total death records counted
   games: number;
-  trade: { free: number; traded: number };
-  timing: { first: number; middle: number; last: number };
-  grouping: { alone: number; grouped: number };
-  awareness: { caught: number; saw: number };
-  top_pattern: { label: string; count: number } | null;
+  axes: Record<DeathAxisKey, { mean: number; n: number }>;
+  // The axis leaning furthest from neutral (0.5), with enough samples to trust.
+  strongest_lean: { axis: DeathAxisKey; mean: number; n: number; label: string } | null;
 }
 
 export interface Recommendation {
