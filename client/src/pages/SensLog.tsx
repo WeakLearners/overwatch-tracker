@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useApi, revalidateAll } from '../hooks/useApi';
 import { cm360, eDPI } from '../lib/aim';
 import {
@@ -342,6 +342,13 @@ function BackfillPanel({ pending, loading, knownLabels, labelFor }: {
   const [stats, setStats] = useState<StatFieldsT>(EMPTY_STATS);
   const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const selected = pending.find(m => m.id === selectedId) ?? null;
+  const durationRef = useRef<HTMLInputElement>(null);
+
+  // Selecting a card should land the cursor on Duration — the required field and
+  // the whole point of the backfill — so it's type-ready without a second click.
+  useEffect(() => {
+    if (selectedId != null) durationRef.current?.focus();
+  }, [selectedId]);
 
   function selectMatch(m: PendingMatch) {
     setSelectedId(m.id);
@@ -427,7 +434,7 @@ function BackfillPanel({ pending, loading, knownLabels, labelFor }: {
                     </>
                   )}
                   <label className="text-[11px] font-semibold text-[var(--ink)] ml-auto">Duration <span className="text-violet-500">*</span></label>
-                  <input type="number" min="0" step="1" inputMode="numeric" value={stats.duration_min} onChange={e => setStats(s => ({ ...s, duration_min: e.target.value }))} className={`w-16 field px-2 py-1.5 text-sm num-display ${parseFloat(stats.duration_min) > 0 ? '' : 'ring-1 ring-violet-500/60'}`} placeholder="min" aria-label="Duration in minutes" required />
+                  <input ref={durationRef} type="number" min="0" step="1" inputMode="numeric" value={stats.duration_min} onChange={e => setStats(s => ({ ...s, duration_min: e.target.value }))} className={`w-16 field px-2 py-1.5 text-sm num-display ${parseFloat(stats.duration_min) > 0 ? '' : 'ring-1 ring-violet-500/60'}`} placeholder="min" aria-label="Duration in minutes" required />
                 </div>
               </div>
               <StatFields s={stats} upd={(k, v) => setStats(s => ({ ...s, [k]: v }))} knownLabels={knownLabels} />
