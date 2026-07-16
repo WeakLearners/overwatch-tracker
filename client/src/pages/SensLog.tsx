@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useApi, revalidateAll } from '../hooks/useApi';
-import { cm360, eDPI } from '../lib/aim';
+import { eDPI, MOUSE_DPI } from '../lib/aim';
 import {
   QueueMode, QUEUE_MODE_COLORS, MODE_TAG, HEROES, ROLE_COLORS,
 } from '../types';
@@ -36,7 +36,7 @@ interface StatFieldsT {
   feel: number | null; notes: string;
 }
 
-const FEEL_MIN = 1, FEEL_MAX = 9, FEEL_MID = 5;
+const FEEL_MIN = 0, FEEL_MAX = 10, FEEL_MID = 5;
 const EMPTY_STATS: StatFieldsT = {
   overall_acc: '', crit_acc: '', hero_stat_label: '', hero_stat_value: '',
   elims: '', final_blows: '', deaths: '', damage: '', duration_min: '', feel: FEEL_MID, notes: '',
@@ -94,7 +94,7 @@ function StatFields({ s, upd, knownLabels }: {
       <div>
         <label className="block text-xs text-[var(--muted)] mb-1.5">Feel <span className="text-[var(--faint-2)]">— did the sens feel slow or fast?</span></label>
         <input type="range" min={FEEL_MIN} max={FEEL_MAX} step={1} value={s.feel ?? FEEL_MID} onChange={e => upd('feel', Number(e.target.value))} className="w-full accent-violet-500" aria-label="Feel — slow to fast" />
-        <div className="flex justify-between text-[10px] text-[var(--faint-2)] mt-1 px-0.5"><span>Slow</span><span>Just right</span><span>Fast</span></div>
+        <div className="flex justify-between text-[10px] text-[var(--faint-2)] mt-1 px-0.5"><span>Slow</span><span>Medium</span><span>Fast</span></div>
       </div>
       <div>
         <label className="block text-xs text-[var(--muted)] mb-1.5">Notes</label>
@@ -311,7 +311,7 @@ function AnswerTable({ stages }: { stages: AnswerStage[] }) {
       <table className="w-full text-xs">
         <thead>
           <tr className="text-[var(--faint-2)] text-left">
-            {['Stage', 'DPI', 'Δ%', 'eDPI', 'cm/360', 'Trials', 'Feel avg', 'Feel var'].map(h => <th key={h} className="py-1.5 pr-3">{h}</th>)}
+            {['Stage', 'DPI', 'Δ%', 'eDPI', 'Sens @1600', 'Trials', 'Feel avg', 'Feel var'].map(h => <th key={h} className="py-1.5 pr-3">{h}</th>)}
           </tr>
         </thead>
         <tbody className="num-display">
@@ -319,9 +319,9 @@ function AnswerTable({ stages }: { stages: AnswerStage[] }) {
             <tr key={s.stage_index} className="border-t border-ow-border">
               <td className="py-1.5 pr-3">#{s.stage_index}</td>
               <td className="py-1.5 pr-3">{s.dpi}</td>
-              <td className={`py-1.5 pr-3 ${s.pct_delta > 0 ? 'text-emerald-500' : s.pct_delta < 0 ? 'text-red-400' : 'text-[var(--faint)]'}`}>{s.pct_delta > 0 ? '+' : ''}{s.pct_delta}%</td>
+              <td className={`py-1.5 pr-3 ${s.pct_delta > 0 ? 'text-emerald-700 dark:text-emerald-500' : s.pct_delta < 0 ? 'text-red-700 dark:text-red-400' : 'text-[var(--faint)]'}`}>{s.pct_delta > 0 ? '+' : ''}{s.pct_delta}%</td>
               <td className="py-1.5 pr-3">{s.eDPI}</td>
-              <td className="py-1.5 pr-3">{s.cm360.toFixed(1)}</td>
+              <td className="py-1.5 pr-3">{(s.eDPI / MOUSE_DPI).toFixed(2)}</td>
               <td className="py-1.5 pr-3">{s.n}</td>
               <td className="py-1.5 pr-3">{s.feelMean != null ? s.feelMean.toFixed(1) : '—'}</td>
               <td className="py-1.5 pr-3">{s.feelVar != null ? s.feelVar.toFixed(2) : '—'}</td>
@@ -430,7 +430,7 @@ function BackfillPanel({ pending, loading, knownLabels, labelFor }: {
                     <>
                       <label className="text-[11px] text-[var(--faint)]">Sens</label>
                       <input type="number" step="0.01" min="0" inputMode="decimal" value={sens} onChange={e => setSens(e.target.value)} className="w-16 field px-2 py-1 text-sm num-display" placeholder="—" aria-label="Sensitivity" />
-                      {parseFloat(sens) > 0 && <span className="text-[11px] text-[var(--faint)]">{cm360(parseFloat(sens)).toFixed(1)} cm/360 · {Math.round(eDPI(parseFloat(sens)))} eDPI</span>}
+                      {parseFloat(sens) > 0 && <span className="text-[11px] text-[var(--faint)]">{Math.round(eDPI(parseFloat(sens)))} eDPI</span>}
                     </>
                   )}
                   <label className="text-[11px] font-semibold text-[var(--ink)] ml-auto">Duration <span className="text-violet-500">*</span></label>

@@ -87,8 +87,9 @@ function initSchema(db: DatabaseSync) {
   db.exec(`UPDATE matches SET revealed = 1 WHERE revealed IS NULL OR blind_trial = 0 OR blind_trial IS NULL`);
 
   // Per-match aim stats for the sensitivity study. One-to-one with a match,
-  // entered separately at match end via the /sens app. feel = subjective 1-5
-  // rating of how the sens felt — the crux of the feel-vs-data comparison.
+  // entered separately at match end via the /sens app. feel = perceived speed
+  // of the sens, 0 (felt slow) to 10 (felt fast) — not a quality rating. The
+  // feel-vs-data comparison is whether perceived speed tracks accuracy.
   db.exec(`
     CREATE TABLE IF NOT EXISTS aim_stats (
       match_id INTEGER PRIMARY KEY REFERENCES matches(id) ON DELETE CASCADE,

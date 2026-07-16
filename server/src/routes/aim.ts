@@ -73,10 +73,14 @@ router.get('/analysis', (_req: Request, res: Response) => {
   // Per-hero baseline = that hero's mean overall accuracy across logged matches.
   // Normalizing each match against it keeps cross-hero pooling honest, so a
   // sens doesn't look better just because more easy-to-aim heroes were played on it.
+  // Crit gets its own baseline since not every match logs a crit stat.
   const heroMeans = new Map<string, number>();
+  const heroCritMeans = new Map<string, number>();
   for (const [hero, hrows] of groupBy(rows, r => r.hero)) {
     const m = mean(hrows.map(r => r.overall_acc));
     if (m != null) heroMeans.set(hero as string, m);
+    const c = mean(hrows.filter(r => r.crit_acc != null).map(r => r.crit_acc as number));
+    if (c != null) heroCritMeans.set(hero as string, c);
   }
 
   const pts = rows.map(r => ({
@@ -84,6 +88,7 @@ router.get('/analysis', (_req: Request, res: Response) => {
     cm360: cm360(r.sens, r.dpi ?? MOUSE_DPI),
     archetype: archetypeOf(r.hero),
     delta: heroMeans.has(r.hero) ? r.overall_acc - heroMeans.get(r.hero)! : 0,
+    critDelta: (r.crit_acc != null && heroCritMeans.has(r.hero)) ? r.crit_acc - heroCritMeans.get(r.hero)! : null,
     cold: (posById.get(r.id) ?? 1) === 1,
     fresh: (sinceById.get(r.id) ?? 0) <= 2,
   }));
@@ -105,6 +110,7 @@ router.get('/analysis', (_req: Request, res: Response) => {
         avgCrit: mean(ps.filter(p => p.crit_acc != null).map(p => p.crit_acc as number)),
         avgFeel: mean(ps.filter(p => p.feel != null).map(p => p.feel as number)),
         avgDelta: mean(ps.map(p => p.delta)),
+        avgCritDelta: mean(ps.filter(p => p.critDelta != null).map(p => p.critDelta as number)),
       }))
       .sort((a, b) => a.cm360 - b.cm360);
 
@@ -142,13 +148,22 @@ router.get('/analysis', (_req: Request, res: Response) => {
       bucket(pts.filter(p => !p.fresh), 'Settled (3+ since change)'),
     ],
     heroes: [...groupBy(pts, p => p.hero).entries()]
-      .map(([hero, ps]) => ({
-        hero: hero as string,
-        archetype: ps[0].archetype,
-        n: ps.length,
-        avgOverall: mean(ps.map(p => p.overall_acc)),
-        avgCrit: mean(ps.filter(p => p.crit_acc != null).map(p => p.crit_acc as number)),
-      }))
+      .map(([hero, ps]) => {
+        // Best-performing scale for this hero alone — same byScale bucketing,
+        // just scoped to one hero's matches instead of the whole roster.
+        const bestScale = byScale(ps).reduce((a, b) => ((b.avgOverall ?? -Infinity) > (a.avgOverall ?? -Infinity) ? b : a));
+        return {
+          hero: hero as string,
+          archetype: ps[0].archetype,
+          n: ps.length,
+          avgOverall: mean(ps.map(p => p.overall_acc)),
+          avgCrit: mean(ps.filter(p => p.crit_acc != null).map(p => p.crit_acc as number)),
+          bestScaleEDPI: bestScale.eDPI,
+          bestScaleN: bestScale.n,
+          bestScaleOverallDelta: bestScale.avgDelta,
+          bestScaleCritDelta: bestScale.avgCritDelta,
+        };
+      })
       .sort((a, b) => b.n - a.n),
   });
 });
