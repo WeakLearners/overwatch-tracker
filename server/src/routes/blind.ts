@@ -33,7 +33,7 @@ router.post('/sets', (req: Request, res: Response) => {
   const base_dpi = Number(req.body.base_dpi ?? 1600);
   const pct_range = Number(req.body.pct_range ?? 10);
   const n_stages = Number(req.body.n_stages ?? 5);
-  const batch_size = Number(req.body.batch_size ?? 6);
+  const batch_size = Number(req.body.batch_size ?? 5);
   if (!(in_game_sens > 0) || !(base_dpi > 0) || !(n_stages >= 2) || !(batch_size >= 1)) {
     res.status(400).json({ error: 'invalid set params' });
     return;

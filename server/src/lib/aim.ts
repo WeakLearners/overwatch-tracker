@@ -38,6 +38,7 @@ export const HERO_ARCHETYPE: Record<string, Archetype> = {
   'Soldier: 76': 'hitscan',
   Sojourn: 'hitscan',
   Sombra: 'hitscan',
+  Tracer: 'hitscan',
   Widowmaker: 'hitscan',
   // Projectile — leads/arcs, accuracy is prediction-heavy but still sens-linked.
   Echo: 'projectile',

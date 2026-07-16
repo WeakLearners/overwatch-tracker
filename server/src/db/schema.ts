@@ -135,7 +135,7 @@ function initSchema(db: DatabaseSync) {
       base_dpi INTEGER NOT NULL,
       active INTEGER NOT NULL DEFAULT 1,
       note TEXT,
-      batch_size INTEGER NOT NULL DEFAULT 6,
+      batch_size INTEGER NOT NULL DEFAULT 5,
       cur_rel INTEGER NOT NULL DEFAULT 0,
       games_on_stage INTEGER NOT NULL DEFAULT 0,
       scramble_done INTEGER NOT NULL DEFAULT 0,
