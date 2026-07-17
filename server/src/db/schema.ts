@@ -152,7 +152,7 @@ function initSchema(db: DatabaseSync) {
       base_dpi INTEGER NOT NULL,
       active INTEGER NOT NULL DEFAULT 1,
       note TEXT,
-      batch_size INTEGER NOT NULL DEFAULT 5,
+      batch_size INTEGER NOT NULL DEFAULT 10,
       cur_rel INTEGER NOT NULL DEFAULT 0,
       games_on_stage INTEGER NOT NULL DEFAULT 0,
       scramble_done INTEGER NOT NULL DEFAULT 0,
@@ -173,7 +173,7 @@ function initSchema(db: DatabaseSync) {
   // Migrate blind_stage_sets created before the guided-loop columns existed.
   const setCols = db.prepare(`PRAGMA table_info(blind_stage_sets)`).all() as { name: string }[];
   for (const [col, ddl] of [
-    ['batch_size', `ALTER TABLE blind_stage_sets ADD COLUMN batch_size INTEGER NOT NULL DEFAULT 6`],
+    ['batch_size', `ALTER TABLE blind_stage_sets ADD COLUMN batch_size INTEGER NOT NULL DEFAULT 10`],
     ['cur_rel', `ALTER TABLE blind_stage_sets ADD COLUMN cur_rel INTEGER NOT NULL DEFAULT 0`],
     ['games_on_stage', `ALTER TABLE blind_stage_sets ADD COLUMN games_on_stage INTEGER NOT NULL DEFAULT 0`],
     ['scramble_done', `ALTER TABLE blind_stage_sets ADD COLUMN scramble_done INTEGER NOT NULL DEFAULT 0`],

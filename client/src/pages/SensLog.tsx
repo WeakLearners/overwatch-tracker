@@ -148,7 +148,7 @@ export default function SensLog() {
 // ── Blind guided-loop panel ──────────────────────────────────────────────────
 function BlindPanel({ blind }: { blind: BlindState | null }) {
   const active = blind?.active ?? null;
-  const [createForm, setCreateForm] = useState({ in_game_sens: '2.50', base_dpi: '1600', pct_range: '10', n_stages: '5', batch_size: '5' });
+  const [createForm, setCreateForm] = useState({ in_game_sens: '2.50', base_dpi: '1600', pct_range: '10', n_stages: '5', batch_size: '10' });
   const [busy, setBusy] = useState(false);
   // While non-null, we're mid stage-switch: the odometer counts down the DPI-
   // button presses. The server has already advanced (cur_rel moved, batch reset)
