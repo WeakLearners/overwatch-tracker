@@ -542,9 +542,13 @@ export default function SensAnalysis() {
               </div>
               <div className="flex-1 min-w-0">
                 <ResponsiveContainer width="100%" height={280}>
-                  <ScatterChart data={spread.points} margin={{ top: 16, right: 16, bottom: 4, left: 0 }}>
+                  <ScatterChart data={spread.points} margin={{ top: 16, right: 16, bottom: 8, left: 0 }}>
                     <CartesianGrid stroke="var(--ow-border)" />
-                    <XAxis dataKey="sens" type="number" domain={spreadXDomain} tick={false} tickLine={false} axisLine={false} />
+                    <XAxis
+                      dataKey="sens" type="number" name="Sens" domain={spreadXDomain}
+                      tick={axisStyle} tickFormatter={(v: number) => v.toFixed(2)} tickLine={false}
+                      axisLine={{ stroke: 'var(--ow-border)' }}
+                    />
                     <YAxis dataKey="delta" type="number" domain={spreadYDomain} tick={false} tickLine={false} axisLine={false} width={4} />
                     <Tooltip content={<SpreadTooltip />} cursor={{ strokeDasharray: '3 3' }} />
                     {spread.anchor != null && Number.isFinite(spread.threshold) && (
