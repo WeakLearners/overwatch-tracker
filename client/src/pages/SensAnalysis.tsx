@@ -542,9 +542,9 @@ export default function SensAnalysis() {
                   <XAxis
                     dataKey="sens" type="number" name="Sens" domain={spreadXDomain}
                     ticks={spreadSensValues} tickFormatter={(v: number) => v.toFixed(2)}
-                    tick={axisStyle} tickLine={false} axisLine={{ stroke: 'var(--ow-border)' }}
+                    tick={axisStyle} tickLine={{ stroke: 'var(--ow-border)' }} axisLine={{ stroke: 'var(--ow-border)' }}
                   />
-                  <YAxis dataKey="delta" type="number" domain={spreadYDomain} tick={false} tickLine={false} axisLine={false} width={4} />
+                  <YAxis dataKey="delta" type="number" domain={spreadYDomain} tick={false} tickLine={{ stroke: 'var(--ow-border)' }} axisLine={{ stroke: 'var(--ow-border)' }} width={4} />
                   <Tooltip content={<SpreadTooltip />} cursor={{ strokeDasharray: '3 3' }} />
                   {spread.anchor != null && Number.isFinite(spread.threshold) && (
                     <ReferenceArea x1={spread.anchor - spread.threshold} x2={spread.anchor + spread.threshold} fill="var(--ow-accent)" fillOpacity={0.08} stroke="none" />
