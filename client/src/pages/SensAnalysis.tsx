@@ -115,7 +115,7 @@ function SpreadTooltip({ active, payload }: { active?: boolean; payload?: { payl
     <div style={{ background: 'rgb(var(--ow-card))', border: '1px solid rgb(var(--ow-border))', borderRadius: 8, fontSize: 12, padding: '6px 10px' }}>
       <div style={{ fontWeight: 600 }}>{p.label}{p.archetype ? ` (${p.archetype})` : ''}</div>
       <div>{p.sens.toFixed(2)} sens @ {MOUSE_DPI} DPI</div>
-      <div>Accuracy Δ: {signed(p.delta)}</div>
+      <div>Accuracy: {f1(p.raw)}% ({signed(p.delta)} vs. baseline)</div>
       <div style={{ opacity: 0.7 }}>n={p.n}</div>
     </div>
   );
@@ -232,7 +232,7 @@ function sensGapThreshold(reliable: (ScaleRow & { sensAt1600: number })[]): numb
 
 interface SpreadPoint {
   label: string; kind: 'overall' | 'hitscan' | 'projectile' | 'hero';
-  sens: number; delta: number | null; n: number; archetype?: string;
+  sens: number; raw: number | null; delta: number | null; n: number; archetype?: string;
 }
 interface SensSpread {
   verdict: 'insufficient' | 'grouped' | 'scattered';
@@ -240,13 +240,26 @@ interface SensSpread {
   points: SpreadPoint[];
   anchor: number | null;
   threshold: number;
+  baseline: number | null;
+}
+
+// n-weighted grand mean of every hero's own average accuracy — the single
+// "overall mean accuracy" reference line for the chart. Each hero's
+// avgOverall is already that hero's mean across all of its own points, so
+// weighting by hero n here reconstructs the true grand mean across every
+// logged point (same trick as wMean, just over heroes instead of scales).
+function grandMeanAccuracy(heroes: HeroRow[]): number | null {
+  const valid = heroes.filter(h => h.avgOverall != null);
+  const totalN = valid.reduce((s, h) => s + h.n, 0);
+  return totalN ? valid.reduce((s, h) => s + (h.avgOverall as number) * h.n, 0) / totalN : null;
 }
 
 // One point per category (Overall, Hitscan, Projectile, each hero) — the
 // scale where that category's own accuracy peaks, whatever its sample size.
-// Plotting only the peaks, not every tested scale, answers "does this
-// category want its own sens" directly: a tight cluster means one sens
-// covers everything, a scatter means a split is worth testing.
+// "Peak" is still selected by highest DELTA (accuracy vs. each match's own
+// hero baseline) — the fairness normalization the whole page uses — but the
+// plotted/labeled value is the RAW accuracy at that peak scale, so the chart
+// reads in real percentages instead of an abstract delta.
 function buildSensSpread(data: Analysis): SensSpread {
   const allOverall = bySpeed(data.byScale);
   const threshold = sensGapThreshold(allOverall);
@@ -254,28 +267,32 @@ function buildSensSpread(data: Analysis): SensSpread {
 
   if (allOverall.length > 0) {
     const best = allOverall.reduce((a, b) => ((b.avgDelta ?? -Infinity) > (a.avgDelta ?? -Infinity) ? b : a));
-    points.push({ label: 'Overall', kind: 'overall', sens: best.sensAt1600, delta: best.avgDelta, n: best.n });
+    points.push({ label: 'Overall', kind: 'overall', sens: best.sensAt1600, raw: best.avgOverall, delta: best.avgDelta, n: best.n });
   }
 
   const hit = bySpeed(data.byArchetype.hitscan);
   if (hit.length > 0) {
     const best = hit.reduce((a, b) => ((b.avgDelta ?? -Infinity) > (a.avgDelta ?? -Infinity) ? b : a));
-    points.push({ label: 'Hitscan', kind: 'hitscan', sens: best.sensAt1600, delta: best.avgDelta, n: best.n });
+    points.push({ label: 'Hitscan', kind: 'hitscan', sens: best.sensAt1600, raw: best.avgOverall, delta: best.avgDelta, n: best.n });
   }
 
   const proj = bySpeed(data.byArchetype.projectile);
   if (proj.length > 0) {
     const best = proj.reduce((a, b) => ((b.avgDelta ?? -Infinity) > (a.avgDelta ?? -Infinity) ? b : a));
-    points.push({ label: 'Projectile', kind: 'projectile', sens: best.sensAt1600, delta: best.avgDelta, n: best.n });
+    points.push({ label: 'Projectile', kind: 'projectile', sens: best.sensAt1600, raw: best.avgOverall, delta: best.avgDelta, n: best.n });
   }
 
   for (const h of data.heroes) {
+    // A hero's raw peak accuracy isn't stored directly — reconstruct it from
+    // the hero's own baseline (avgOverall) plus its best scale's delta.
+    const raw = h.avgOverall != null && h.bestScaleOverallDelta != null ? h.avgOverall + h.bestScaleOverallDelta : null;
     points.push({
       label: h.hero, kind: 'hero', n: h.bestScaleN, archetype: h.archetype,
-      sens: h.bestScaleEDPI / MOUSE_DPI, delta: h.bestScaleOverallDelta,
+      sens: h.bestScaleEDPI / MOUSE_DPI, raw, delta: h.bestScaleOverallDelta,
     });
   }
 
+  const baseline = grandMeanAccuracy(data.heroes);
   const anchorPoint = points.find(p => p.kind === 'overall') ?? points[0] ?? null;
   const anchor = anchorPoint ? anchorPoint.sens : null;
 
@@ -283,7 +300,7 @@ function buildSensSpread(data: Analysis): SensSpread {
     return {
       verdict: 'insufficient',
       headline: `Not enough categories yet to judge whether sens should split — keep logging.`,
-      points, anchor, threshold,
+      points, anchor, threshold, baseline,
     };
   }
 
@@ -293,14 +310,14 @@ function buildSensSpread(data: Analysis): SensSpread {
     return {
       verdict: 'grouped',
       headline: `All ${points.length} categories peak within ${threshold.toFixed(2)} sens of each other — one sens looks like it covers everything.`,
-      points, anchor, threshold,
+      points, anchor, threshold, baseline,
     };
   }
 
   return {
     verdict: 'scattered',
     headline: `${outliers.length} of ${points.length} categories peak more than ${threshold.toFixed(2)} sens from the rest (${outliers.map(o => o.label).join(', ')}) — worth testing a dedicated sens for ${outliers.length === 1 ? 'it' : 'them'}.`,
-    points, anchor, threshold,
+    points, anchor, threshold, baseline,
   };
 }
 
@@ -431,11 +448,19 @@ export default function SensAnalysis() {
   const spreadXDomain: [number, number] = spreadSensValues.length
     ? [Math.min(...spreadSensValues) - 0.05, Math.max(...spreadSensValues) + 0.05]
     : [0, 1];
-  // Y domain runs from the mean (0 — every peak is a deviation from its own
-  // category's baseline, see the "peak >= mean" note above) up to the
-  // highest peak plus a 5% buffer, not a symmetric ± range.
-  const maxSpreadDelta = spread.points.reduce((m, p) => Math.max(m, p.delta ?? 0), 0);
-  const spreadYDomain: [number, number] = [0, (maxSpreadDelta * 1.05) || 1];
+  // Y domain hugs the actual raw-accuracy values (plus the baseline, so the
+  // reference line is always in view) instead of starting from 0 — these are
+  // real percentages that cluster in a narrow band, not deltas anchored at a
+  // fixed origin.
+  const spreadRawValues = [...spread.points.map(p => p.raw), spread.baseline].filter((v): v is number => v != null);
+  const spreadYDomain: [number, number] = spreadRawValues.length
+    ? (() => {
+        const lo = Math.min(...spreadRawValues);
+        const hi = Math.max(...spreadRawValues);
+        const pad = (hi - lo) * 0.15 || 1;
+        return [lo - pad, hi + pad];
+      })()
+    : [0, 1];
   // Gridlines every 0.1 sens / 5 accuracy points — denser than the sparse,
   // label-driven axis ticks (one per category), so the plot area isn't bare.
   const spreadGridX = gridTicks(spreadXDomain[0], spreadXDomain[1], 0.1);
@@ -571,27 +596,36 @@ export default function SensAnalysis() {
                       drops CartesianGrid's horizontalValues lines entirely in
                       this Recharts version — render an empty tick instead. */}
                   <YAxis
-                    dataKey="delta" type="number" domain={spreadYDomain} tick={() => <g />}
+                    dataKey="raw" type="number" domain={spreadYDomain} tick={() => <g />}
                     tickLine={{ stroke: 'rgb(var(--ow-border))' }} axisLine={{ stroke: 'rgb(var(--ow-border))' }} width={60}
-                    label={{ value: 'Accuracy Δ vs. baseline', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: 'var(--faint)', fontSize: 11 } }}
+                    label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: 'var(--faint)', fontSize: 11 } }}
                   />
                   <Tooltip content={<SpreadTooltip />} cursor={{ strokeDasharray: '3 3' }} />
                   {spread.anchor != null && Number.isFinite(spread.threshold) && (
                     <ReferenceArea x1={spread.anchor - spread.threshold} x2={spread.anchor + spread.threshold} fill={FEEL} fillOpacity={0.08} stroke="none" />
                   )}
                   {spread.anchor != null && <ReferenceLine x={spread.anchor} stroke="var(--faint-2)" strokeDasharray="4 4" />}
-                  {/* Drop line from each point down to the baseline (y=0), so its
+                  {/* Baseline = the overall mean accuracy across every logged
+                      point (n-weighted across heroes) — the reference every
+                      category's peak is measured against. */}
+                  {spread.baseline != null && (
+                    <ReferenceLine
+                      y={spread.baseline} stroke="var(--faint-2)" strokeDasharray="4 4"
+                      label={{ value: `Baseline ${f1(spread.baseline)}%`, position: 'insideBottomRight', fill: 'var(--faint)', fontSize: 10 }}
+                    />
+                  )}
+                  {/* Drop line from each point down to the baseline, so its
                       x-axis tick reads as "this category's peak lands here." */}
-                  {spread.points.map((p, i) => p.delta != null && (
-                    <ReferenceLine key={i} segment={[{ x: p.sens, y: 0 }, { x: p.sens, y: p.delta }]} stroke={spreadColor(p)} strokeOpacity={0.5} strokeDasharray="3 3" />
+                  {spread.points.map((p, i) => p.raw != null && spread.baseline != null && (
+                    <ReferenceLine key={i} segment={[{ x: p.sens, y: spread.baseline }, { x: p.sens, y: p.raw }]} stroke={spreadColor(p)} strokeOpacity={0.5} strokeDasharray="3 3" />
                   ))}
-                  <Scatter dataKey="delta">
+                  <Scatter dataKey="raw">
                     {spread.points.map((p, i) => <Cell key={i} fill={spreadColor(p)} />)}
                     {/* insideTopRight measures "inside" against the scatter
                         symbol's own tiny bounding box, landing the label
                         almost exactly on the dot — position="right" + a
                         negative dy gives a real top-right offset instead. */}
-                    <LabelList dataKey="delta" position="right" dy={-6} formatter={(v: number) => signed(v)} style={{ fontSize: 10, fill: 'var(--faint)' }} />
+                    <LabelList dataKey="raw" position="right" dy={-6} formatter={(v: number) => `${v.toFixed(1)}%`} style={{ fontSize: 10, fill: 'var(--faint)' }} />
                   </Scatter>
                 </ScatterChart>
               </ResponsiveContainer>
