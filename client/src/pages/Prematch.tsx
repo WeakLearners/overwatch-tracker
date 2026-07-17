@@ -490,24 +490,29 @@ export default function Prematch() {
           </div>
         )}
 
-        {/* Your heroes by role — the full breakdown */}
+        {/* Your heroes by role — the full breakdown, and the actual hero-select
+            control (tapping a hero pre-fills the Match Log). Styled as its own
+            selection panel — bordered, tinted, chip buttons — rather than a
+            trailing stats list, so it doesn't get missed after Coaching above it. */}
         <div className="mt-4 pt-4 border-t border-ow-border/40">
+        <div className="rounded-xl border border-violet-500/30 bg-violet-500/[0.06] px-4 py-3.5">
+        <h3 className="text-sm grad-brand font-black uppercase tracking-widest mb-3">Select Your Hero</h3>
         {topOnMap.length > 0 ? (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {(['DPS', 'Tank', 'Support'] as const).map(role => {
               const { top, other } = byRole[role];
               return (
                 <div key={role}>
                   <div className={`text-xs font-bold uppercase tracking-widest mb-2 ${ROLE_COLORS[role].split(' ')[1]}`}>{role}</div>
-                  <div className="divide-y divide-ow-border/30">
+                  <div className="flex flex-col gap-1.5">
                     {top.map(h => (
                       <button
                         key={h.hero}
                         onClick={() => setPendingHero(h.hero)}
-                        className="flex items-center gap-3 w-full text-left py-2 hover:bg-white/5 transition-colors group rounded px-1 -mx-1"
+                        className="flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-lg border border-ow-border bg-ow-darker hover:border-violet-500/70 hover:bg-violet-500/10 active:scale-[0.98] transition-all group"
                       >
                         <span className={`text-sm ${h.win_rate >= 50 ? 'text-emerald-700' : 'text-red-500'}`}>{h.win_rate >= 50 ? '↑' : '↓'}</span>
-                        <span className="flex-1 text-sm font-medium text-[var(--ink)] group-hover:text-ow-accent transition-colors">{h.hero}</span>
+                        <span className="flex-1 text-sm font-semibold text-[var(--ink)] group-hover:text-violet-500 transition-colors">{h.hero}</span>
                         <span className={`text-sm font-semibold ${h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
                         <span className="text-xs text-[var(--faint-2)] w-7 text-right">{h.games}g</span>
                       </button>
@@ -519,7 +524,7 @@ export default function Prematch() {
                         <>
                           <button
                             onClick={() => setExpandedOther(isOpen ? null : role)}
-                            className="flex items-center gap-3 w-full text-left py-2 px-1 -mx-1 hover:bg-white/5 transition-colors rounded group"
+                            className="flex items-center gap-3 w-full text-left px-3 py-2 rounded-lg border border-dashed border-ow-border/70 hover:border-violet-500/50 hover:bg-white/5 transition-colors group"
                           >
                             <span className={`text-sm transition-transform ${isOpen ? 'rotate-90' : ''} text-[var(--faint-2)]`}>›</span>
                             <span className="flex-1 text-sm font-medium text-[var(--faint)] italic group-hover:text-[var(--ink)] transition-colors">
@@ -532,10 +537,10 @@ export default function Prematch() {
                             <button
                               key={h.hero}
                               onClick={() => setPendingHero(h.hero)}
-                              className="flex items-center gap-3 w-full text-left py-1.5 pl-5 pr-1 -mx-1 hover:bg-white/5 transition-colors group rounded"
+                              className="flex items-center gap-3 w-full text-left pl-6 pr-3 py-2 ml-2 rounded-lg border border-ow-border/60 bg-ow-darker/60 hover:border-violet-500/70 hover:bg-violet-500/10 active:scale-[0.98] transition-all group"
                             >
                               <span className={`text-sm ${h.win_rate >= 50 ? 'text-emerald-700' : 'text-red-500'}`}>{h.win_rate >= 50 ? '↑' : '↓'}</span>
-                              <span className="flex-1 text-sm text-[var(--muted)] group-hover:text-ow-accent transition-colors">{h.hero}</span>
+                              <span className="flex-1 text-sm text-[var(--muted)] group-hover:text-violet-500 transition-colors">{h.hero}</span>
                               <span className={`text-sm font-semibold ${h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
                               <span className="text-xs text-[var(--faint-2)] w-7 text-right">{h.games}g</span>
                             </button>
@@ -560,6 +565,7 @@ export default function Prematch() {
               : 'Select a map above and this fills with your strongest picks for it, broken out by role.'}
           />
         )}
+        </div>
         </div>
       </div>
     </div>
