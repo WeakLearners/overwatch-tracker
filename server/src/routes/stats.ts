@@ -77,6 +77,21 @@ router.get('/map-counts', (req: Request, res: Response) => {
   res.json({ counts });
 });
 
+// Per-hero match counts for a single day (used to annotate hero names in the UI
+// with "played N times today"). No HAVING floor — a single game still counts.
+router.get('/hero-counts', (req: Request, res: Response) => {
+  const db = getDb();
+  const date = (req.query.date as string) ?? '';
+  const rows = db.prepare(`
+    SELECT hero, COUNT(*) as n
+    FROM matches
+    WHERE date = :date
+    GROUP BY hero
+  `).all({ date }) as { hero: string; n: number }[];
+  const counts = Object.fromEntries(rows.map(r => [r.hero, r.n]));
+  res.json({ counts });
+});
+
 router.get('/by-hour', (req: Request, res: Response) => {
   const db = getDb();
   const [where, params] = whereClause(req.query as Record<string, string>);
@@ -650,6 +665,540 @@ router.get('/death-trends', (_req: Request, res: Response) => {
   }).sort((a, b) => (b.loss_multiplier ?? 0) - (a.loss_multiplier ?? 0));
 
   res.json({ total_matches: rows.length, win_matches: winMatches, loss_matches: lossMatches, reasons });
+});
+
+// ── Death-axis vs. outcome ──────────────────────────────────────────────────
+// The factual death axes (v2/v3 logging) only ever render as an aggregate mean
+// elsewhere (AdvisorCard's spectrum bars) — never cross-tabbed against whether
+// the match was actually won. This finds, per axis, whether leaning toward one
+// pole in a match correlates with winning or losing that match.
+type DeathAxisKey = 'trade' | 'timing' | 'grouping' | 'awareness';
+const DEATH_AXIS_KEYS: DeathAxisKey[] = ['trade', 'timing', 'grouping', 'awareness'];
+const DEATH_AXIS_META: Record<DeathAxisKey, { label: string; low: string; high: string }> = {
+  trade:     { label: 'Trade',     low: 'Wasted',     high: 'Got value' },
+  timing:    { label: 'Timing',    low: 'Died first', high: 'Died last' },
+  grouping:  { label: 'Grouping',  low: 'Alone',       high: 'Grouped' },
+  awareness: { label: 'Awareness', low: 'Caught out',  high: 'Read it' },
+};
+// Each bucket (low-pole games, high-pole games) needs this many matches before
+// its win rate is trusted enough to report.
+const DEATH_OUTCOME_MIN_GAMES = 5;
+
+// Per-match mean value (0–1) for each axis, from whichever deaths that match
+// logged. Reads both v3 (one axis per death) and v2 (full record, decomposed) —
+// mirrors advisor.ts's axisStats, but per-match instead of aggregated across
+// matches, since here we need to pair each match's lean with its own win/loss.
+function matchAxisMeans(deathsJson: string): Partial<Record<DeathAxisKey, number>> {
+  let d: any;
+  try { d = JSON.parse(deathsJson); } catch { return {}; }
+  if (!Array.isArray(d?.deaths)) return {};
+
+  const sums: Partial<Record<DeathAxisKey, number>> = {};
+  const counts: Partial<Record<DeathAxisKey, number>> = {};
+  const add = (k: DeathAxisKey, v: number) => {
+    sums[k] = (sums[k] ?? 0) + v;
+    counts[k] = (counts[k] ?? 0) + 1;
+  };
+
+  if (d.v === 3) {
+    for (const rec of d.deaths) {
+      if (!rec || !DEATH_AXIS_KEYS.includes(rec.axis) || typeof rec.value !== 'number') continue;
+      add(rec.axis, rec.value);
+    }
+  } else if (d.v === 2) {
+    for (const rec of d.deaths) {
+      if (!rec) continue;
+      const samples: Partial<Record<DeathAxisKey, number>> = {
+        trade: rec.trade === 'free' ? 0 : rec.trade === 'traded' ? 1 : undefined,
+        timing: rec.timing === 'first' ? 0 : rec.timing === 'last' ? 1 : rec.timing === 'middle' ? 0.5 : undefined,
+        grouping: rec.grouping === 'alone' ? 0 : rec.grouping === 'grouped' ? 1 : undefined,
+        awareness: rec.awareness === 'caught' ? 0 : rec.awareness === 'saw' ? 1 : undefined,
+      };
+      for (const k of DEATH_AXIS_KEYS) {
+        const v = samples[k];
+        if (v !== undefined) add(k, v);
+      }
+    }
+  } else {
+    return {}; // legacy {reasons} rows carry no axis data
+  }
+
+  const means: Partial<Record<DeathAxisKey, number>> = {};
+  for (const k of DEATH_AXIS_KEYS) {
+    const c = counts[k];
+    if (c) means[k] = sums[k]! / c;
+  }
+  return means;
+}
+
+function computeDeathOutcome(db: ReturnType<typeof getDb>) {
+  const rows = db.prepare('SELECT deaths, win FROM matches WHERE deaths IS NOT NULL').all({}) as { deaths: string; win: number }[];
+
+  const buckets: Record<DeathAxisKey, { lowGames: number; lowWins: number; highGames: number; highWins: number }> = {
+    trade:     { lowGames: 0, lowWins: 0, highGames: 0, highWins: 0 },
+    timing:    { lowGames: 0, lowWins: 0, highGames: 0, highWins: 0 },
+    grouping:  { lowGames: 0, lowWins: 0, highGames: 0, highWins: 0 },
+    awareness: { lowGames: 0, lowWins: 0, highGames: 0, highWins: 0 },
+  };
+
+  for (const row of rows) {
+    const means = matchAxisMeans(row.deaths);
+    for (const k of DEATH_AXIS_KEYS) {
+      const m = means[k];
+      if (m === undefined || m === 0.5) continue; // exact-tie matches don't lean either way
+      const b = buckets[k];
+      if (m < 0.5) { b.lowGames++; if (row.win) b.lowWins++; }
+      else { b.highGames++; if (row.win) b.highWins++; }
+    }
+  }
+
+  const axes = DEATH_AXIS_KEYS.map(k => {
+    const b = buckets[k];
+    const lowWinRate  = b.lowGames  > 0 ? Math.round((b.lowWins  / b.lowGames)  * 1000) / 10 : null;
+    const highWinRate = b.highGames > 0 ? Math.round((b.highWins / b.highGames) * 1000) / 10 : null;
+    const reliable = b.lowGames >= DEATH_OUTCOME_MIN_GAMES && b.highGames >= DEATH_OUTCOME_MIN_GAMES;
+    const gap = reliable && lowWinRate !== null && highWinRate !== null
+      ? Math.round((highWinRate - lowWinRate) * 10) / 10
+      : null;
+    return {
+      key: k, ...DEATH_AXIS_META[k],
+      lowGames: b.lowGames, lowWinRate,
+      highGames: b.highGames, highWinRate,
+      reliable, gap,
+    };
+  });
+
+  // The single most striking, trustworthy split — leads the card.
+  const headline = axes
+    .filter(a => a.reliable && a.gap !== null)
+    .sort((a, b) => Math.abs(b.gap!) - Math.abs(a.gap!))[0] ?? null;
+
+  return { axes, headline };
+}
+
+// ── Hot hand ─────────────────────────────────────────────────────────────────
+// Does winning actually predict winning your next game, beyond what a coin
+// flip would produce — or does losing compound? Splits same-day games by
+// whether the immediately prior game (same session) was a win or a loss, and
+// compares win rates. The existing tilt check in /prematch only looks at a
+// specific 2-loss pattern for a live nudge; this is the general, all-history
+// version of the same question, reported as a trend rather than a live flag.
+const HOT_HAND_MIN_GAMES = 10;
+function computeHotHand(db: ReturnType<typeof getDb>) {
+  const row = db.prepare(`
+    WITH numbered AS (
+      SELECT win, LAG(win,1) OVER (PARTITION BY date ORDER BY time) AS prev1
+      FROM matches
+    )
+    SELECT
+      ROUND(AVG(CASE WHEN prev1 = 1 THEN win END)*100,1) AS after_win_wr,
+      COUNT(CASE WHEN prev1 = 1 THEN 1 END)              AS after_win_games,
+      ROUND(AVG(CASE WHEN prev1 = 0 THEN win END)*100,1) AS after_loss_wr,
+      COUNT(CASE WHEN prev1 = 0 THEN 1 END)              AS after_loss_games
+    FROM numbered WHERE prev1 IS NOT NULL
+  `).get({}) as { after_win_wr: number | null; after_win_games: number; after_loss_wr: number | null; after_loss_games: number };
+
+  const reliable = row.after_win_games >= HOT_HAND_MIN_GAMES && row.after_loss_games >= HOT_HAND_MIN_GAMES;
+  const gap = reliable && row.after_win_wr !== null && row.after_loss_wr !== null
+    ? Math.round((row.after_win_wr - row.after_loss_wr) * 10) / 10
+    : null;
+
+  return {
+    after_win:  { win_rate: row.after_win_wr,  games: row.after_win_games },
+    after_loss: { win_rate: row.after_loss_wr, games: row.after_loss_games },
+    reliable,
+    gap,
+  };
+}
+
+// ── Performance-outcome mismatch ────────────────────────────────────────────
+// How much of winning is actually in your control? For every match with
+// combat stats logged, compares accuracy, damage/10min, elims/10min, and
+// final-blows/10min against your own personal average on each — then checks
+// how often playing above your own average on most of them still lost, and
+// playing below still won. Also reports which single feature actually tracks
+// winning best, since raw accuracy is assumed to matter most but may not be
+// the real driver — elims/10min turns out to separate wins/losses far harder.
+interface PerfRow { win: number; overall_acc: number; damage: number; elims: number; final_blows: number; duration_min: number }
+const PERF_FEATURES = [
+  { key: 'overall_acc', label: 'Accuracy' },
+  { key: 'dmg10',   label: 'Damage /10min' },
+  { key: 'elims10', label: 'Elims /10min' },
+  { key: 'fb10',    label: 'Final Blows /10min' },
+] as const;
+type PerfFeatureKey = typeof PERF_FEATURES[number]['key'];
+const PERF_MIN_GAMES = 8;
+
+function computePerformanceOutcome(db: ReturnType<typeof getDb>) {
+  const rows = db.prepare(`
+    SELECT m.win, a.overall_acc, a.damage, a.elims, a.final_blows, a.duration_min
+    FROM aim_stats a JOIN matches m ON m.id = a.match_id
+    WHERE a.overall_acc IS NOT NULL AND a.damage IS NOT NULL AND a.elims IS NOT NULL
+      AND a.final_blows IS NOT NULL AND a.duration_min IS NOT NULL AND a.duration_min > 0
+  `).all({}) as unknown as PerfRow[];
+
+  if (rows.length === 0) return { features: [], strongest: null, mismatch: null, sample_size: 0 };
+
+  // Normalize output-volume stats by game length so a long grindy win doesn't
+  // just look "better" than a short decisive one on raw totals.
+  const derived = rows.map(r => ({
+    win: r.win,
+    overall_acc: r.overall_acc,
+    dmg10:   r.damage      / r.duration_min * 10,
+    elims10: r.elims       / r.duration_min * 10,
+    fb10:    r.final_blows / r.duration_min * 10,
+  }));
+
+  const baseline = {} as Record<PerfFeatureKey, number>;
+  for (const f of PERF_FEATURES) {
+    baseline[f.key] = derived.reduce((s, r) => s + r[f.key], 0) / derived.length;
+  }
+
+  const features = PERF_FEATURES.map(f => {
+    const above = derived.filter(r => r[f.key] > baseline[f.key]);
+    const below = derived.filter(r => r[f.key] <= baseline[f.key]);
+    const aboveWinRate = above.length ? Math.round((above.filter(r => r.win).length / above.length) * 1000) / 10 : null;
+    const belowWinRate = below.length ? Math.round((below.filter(r => r.win).length / below.length) * 1000) / 10 : null;
+    const reliable = above.length >= PERF_MIN_GAMES && below.length >= PERF_MIN_GAMES;
+    const gap = reliable && aboveWinRate !== null && belowWinRate !== null
+      ? Math.round((aboveWinRate - belowWinRate) * 10) / 10
+      : null;
+    return {
+      key: f.key, label: f.label,
+      baseline: Math.round(baseline[f.key] * 10) / 10,
+      aboveGames: above.length, aboveWinRate,
+      belowGames: below.length, belowWinRate,
+      reliable, gap,
+    };
+  });
+
+  const strongest = features
+    .filter(f => f.reliable && f.gap !== null)
+    .sort((a, b) => Math.abs(b.gap!) - Math.abs(a.gap!))[0] ?? null;
+
+  // Mismatch: played above your own average on most tracked features but
+  // still lost, or below average on most but still won — the direct measure
+  // of how much of the outcome was actually in your hands.
+  const aboveCounts = derived.map(r => PERF_FEATURES.filter(f => r[f.key] > baseline[f.key]).length);
+  const playedWell = derived.filter((_, i) => aboveCounts[i] >= 3);
+  const playedPoor = derived.filter((_, i) => aboveCounts[i] <= 1);
+  const mismatchReliable = playedWell.length >= PERF_MIN_GAMES && playedPoor.length >= PERF_MIN_GAMES;
+
+  const mismatch = {
+    played_well_games: playedWell.length,
+    played_well_losses: playedWell.filter(r => !r.win).length,
+    played_well_loss_rate: playedWell.length
+      ? Math.round((playedWell.filter(r => !r.win).length / playedWell.length) * 1000) / 10 : null,
+    played_poor_games: playedPoor.length,
+    played_poor_wins: playedPoor.filter(r => r.win).length,
+    played_poor_win_rate: playedPoor.length
+      ? Math.round((playedPoor.filter(r => r.win).length / playedPoor.length) * 1000) / 10 : null,
+    reliable: mismatchReliable,
+  };
+
+  return { features, strongest, mismatch, sample_size: rows.length };
+}
+
+// ── Queue-mode switch tax ───────────────────────────────────────────────────
+// Context-switching cost: win rate on the first game after switching queue
+// mode (qp/comp/open) mid-session, vs. staying in the same mode as the prior
+// same-day game. Session openers (no prior game) are excluded from both sides.
+const QUEUE_SWITCH_MIN_GAMES = 10;
+function computeQueueSwitchTax(db: ReturnType<typeof getDb>) {
+  const row = db.prepare(`
+    WITH numbered AS (
+      SELECT win, queue_mode, LAG(queue_mode) OVER (PARTITION BY date ORDER BY time) AS prev_mode
+      FROM matches
+    )
+    SELECT
+      ROUND(AVG(CASE WHEN prev_mode = queue_mode THEN win END)*100,1)                          AS same_wr,
+      COUNT(CASE WHEN prev_mode = queue_mode THEN 1 END)                                       AS same_games,
+      ROUND(AVG(CASE WHEN prev_mode IS NOT NULL AND prev_mode != queue_mode THEN win END)*100,1) AS switch_wr,
+      COUNT(CASE WHEN prev_mode IS NOT NULL AND prev_mode != queue_mode THEN 1 END)             AS switch_games
+    FROM numbered
+  `).get({}) as { same_wr: number | null; same_games: number; switch_wr: number | null; switch_games: number };
+
+  const reliable = row.same_games >= QUEUE_SWITCH_MIN_GAMES && row.switch_games >= QUEUE_SWITCH_MIN_GAMES;
+  const gap = reliable && row.same_wr !== null && row.switch_wr !== null
+    ? Math.round((row.same_wr - row.switch_wr) * 10) / 10
+    : null;
+
+  return {
+    same:    { win_rate: row.same_wr,   games: row.same_games },
+    switched: { win_rate: row.switch_wr, games: row.switch_games },
+    reliable, gap,
+  };
+}
+
+// ── Crit accuracy vs. outcome ───────────────────────────────────────────────
+// A standalone check outside the normalized-rate performance features: does
+// crit accuracy above your own average actually correlate with winning?
+const CRIT_ACC_MIN_GAMES = 10;
+function computeCritAccuracy(db: ReturnType<typeof getDb>) {
+  const rows = db.prepare(`
+    SELECT m.win, a.crit_acc FROM aim_stats a JOIN matches m ON m.id = a.match_id
+    WHERE a.crit_acc IS NOT NULL
+  `).all({}) as { win: number; crit_acc: number }[];
+  if (rows.length === 0) return { reliable: false, baseline: null, aboveWinRate: null, aboveGames: 0, belowWinRate: null, belowGames: 0, gap: null };
+
+  const avg = rows.reduce((s, r) => s + r.crit_acc, 0) / rows.length;
+  const above = rows.filter(r => r.crit_acc > avg);
+  const below = rows.filter(r => r.crit_acc <= avg);
+  const aboveWinRate = above.length ? Math.round((above.filter(r => r.win).length / above.length) * 1000) / 10 : null;
+  const belowWinRate = below.length ? Math.round((below.filter(r => r.win).length / below.length) * 1000) / 10 : null;
+  const reliable = above.length >= CRIT_ACC_MIN_GAMES && below.length >= CRIT_ACC_MIN_GAMES;
+  const gap = reliable && aboveWinRate !== null && belowWinRate !== null
+    ? Math.round((aboveWinRate - belowWinRate) * 10) / 10 : null;
+
+  return { reliable, baseline: Math.round(avg * 10) / 10, aboveWinRate, aboveGames: above.length, belowWinRate, belowGames: below.length, gap };
+}
+
+// ── Kill-secure rate vs. outcome ────────────────────────────────────────────
+// final_blows ÷ elims — how much of your own kill participation you personally
+// close out, vs. how often that correlates with winning. Not assumed to be
+// "more closing = better" going in; the ratio is just compared to your own
+// average like the other splits.
+const KILL_SECURE_MIN_GAMES = 10;
+function computeKillSecure(db: ReturnType<typeof getDb>) {
+  const rows = db.prepare(`
+    SELECT m.win, a.final_blows, a.elims FROM aim_stats a JOIN matches m ON m.id = a.match_id
+    WHERE a.elims IS NOT NULL AND a.elims > 0 AND a.final_blows IS NOT NULL
+  `).all({}) as { win: number; final_blows: number; elims: number }[];
+  if (rows.length === 0) return { reliable: false, baseline: null, aboveWinRate: null, aboveGames: 0, belowWinRate: null, belowGames: 0, gap: null };
+
+  const derived = rows.map(r => ({ win: r.win, ratio: r.final_blows / r.elims }));
+  const avg = derived.reduce((s, r) => s + r.ratio, 0) / derived.length;
+  const above = derived.filter(r => r.ratio > avg);
+  const below = derived.filter(r => r.ratio <= avg);
+  const aboveWinRate = above.length ? Math.round((above.filter(r => r.win).length / above.length) * 1000) / 10 : null;
+  const belowWinRate = below.length ? Math.round((below.filter(r => r.win).length / below.length) * 1000) / 10 : null;
+  const reliable = above.length >= KILL_SECURE_MIN_GAMES && below.length >= KILL_SECURE_MIN_GAMES;
+  const gap = reliable && aboveWinRate !== null && belowWinRate !== null
+    ? Math.round((aboveWinRate - belowWinRate) * 10) / 10 : null;
+
+  return { reliable, baseline: Math.round(avg * 1000) / 1000, aboveWinRate, aboveGames: above.length, belowWinRate, belowGames: below.length, gap };
+}
+
+// ── Best/worst session window ───────────────────────────────────────────────
+// The existing by-hour view only shows the marginal (averaged across every
+// day). This finds the single best and worst day+hour cell directly, which
+// can look nothing like the marginal pattern — a bad hour overall can still
+// be a great hour on one specific day.
+const DAY_HOUR_MIN_GAMES = 10;
+function formatHour(h: number): string {
+  const period = h < 12 ? 'AM' : 'PM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12} ${period}`;
+}
+function computeDayHourWindow(db: ReturnType<typeof getDb>) {
+  const rows = db.prepare(`
+    SELECT day_of_week, hour, COUNT(*) AS n, ROUND(AVG(win)*100,1) AS wr
+    FROM matches WHERE day_of_week IS NOT NULL AND hour IS NOT NULL
+    GROUP BY day_of_week, hour HAVING n >= ${DAY_HOUR_MIN_GAMES}
+  `).all({}) as { day_of_week: string; hour: number; n: number; wr: number }[];
+
+  if (rows.length < 2) return { reliable: false, best: null, worst: null };
+  const sorted = [...rows].sort((a, b) => b.wr - a.wr);
+  return { reliable: true, best: sorted[0], worst: sorted[sorted.length - 1] };
+}
+
+// ── Blind-trial slot bias ───────────────────────────────────────────────────
+// A confound check on the DPI study itself: performance by scrambled mouse
+// slot position, independent of which DPI eventually resolved there. If this
+// varies a lot, disorientation-after-scramble is contaminating the study's
+// sens→performance readings, not just the sens itself.
+const BLIND_SLOT_MIN_GAMES = 8;
+function computeBlindSlotBias(db: ReturnType<typeof getDb>) {
+  const rows = db.prepare(`
+    SELECT rel_pos, COUNT(*) AS n, ROUND(AVG(win)*100,1) AS wr
+    FROM matches WHERE blind_trial = 1 AND rel_pos IS NOT NULL
+    GROUP BY rel_pos
+  `).all({}) as { rel_pos: number; n: number; wr: number }[];
+
+  const qualifying = rows.filter(r => r.n >= BLIND_SLOT_MIN_GAMES);
+  if (qualifying.length < 2) return { reliable: false, best: null, worst: null, gap: null };
+  const sorted = [...qualifying].sort((a, b) => b.wr - a.wr);
+  const best = sorted[0];
+  const worst = sorted[sorted.length - 1];
+  return { reliable: true, best, worst, gap: Math.round((best.wr - worst.wr) * 10) / 10 };
+}
+
+// ── Trends insights ──────────────────────────────────────────────────────────
+// Pool of up to 10 one-sentence factoids for the Trends section's 4 random
+// cards, drawn from the three analyses above. Only reliable splits (enough
+// games on both sides) contribute a factoid — an unreliable one is silently
+// dropped from the pool rather than shown as noise. The client draws 4
+// distinct factoids from whatever the pool has on every page load.
+router.get('/insights', (_req: Request, res: Response) => {
+  const db = getDb();
+  const deathOutcome = computeDeathOutcome(db);
+  const hotHand = computeHotHand(db);
+  const perf = computePerformanceOutcome(db);
+  const queueSwitch = computeQueueSwitchTax(db);
+  const critAcc = computeCritAccuracy(db);
+  const killSecure = computeKillSecure(db);
+  const dayHour = computeDayHourWindow(db);
+  const slotBias = computeBlindSlotBias(db);
+
+  // Each factoid is a list of parts rather than one string, so the client can
+  // color just the stat numbers (green = the better outcome, red = the worse
+  // one) without tinting the whole sentence.
+  type Color = 'good' | 'bad';
+  type Part = { text: string; color?: Color };
+  const t = (text: string): Part => ({ text });
+  const c = (text: string, color: Color): Part => ({ text, color });
+  const factoids: { id: string; category: string; parts: Part[] }[] = [];
+
+  for (const a of deathOutcome.axes) {
+    if (!a.reliable || a.gap === null) continue;
+    const betterIsHigh = (a.highWinRate ?? 0) >= (a.lowWinRate ?? 0);
+    const better = betterIsHigh ? a.high : a.low;
+    const worse = betterIsHigh ? a.low : a.high;
+    const betterWr = betterIsHigh ? a.highWinRate : a.lowWinRate;
+    const worseWr = betterIsHigh ? a.lowWinRate : a.highWinRate;
+    factoids.push({
+      id: `death-${a.key}`,
+      category: `Death Pattern · ${a.label}`,
+      parts: [
+        t(`Deaths tagged "${better}" win `), c(`${betterWr}%`, 'good'),
+        t(` of matches — "${worse}" wins just `), c(`${worseWr}%`, 'bad'), t('.'),
+      ],
+    });
+  }
+
+  if (hotHand.reliable && hotHand.gap !== null) {
+    if (Math.abs(hotHand.gap) < 3) {
+      // No real difference — coloring one side over the other would misstate
+      // the finding, so both numbers stay neutral.
+      factoids.push({
+        id: 'hot-hand', category: 'Hot Hand',
+        parts: [
+          t(`Wins and losses don't carry over — about the same win rate whether the last game was a win (${hotHand.after_win.win_rate}%) or a loss (${hotHand.after_loss.win_rate}%).`),
+        ],
+      });
+    } else if (hotHand.gap > 0) {
+      factoids.push({
+        id: 'hot-hand', category: 'Hot Hand',
+        parts: [
+          t('Momentum carries over: '), c(`${hotHand.after_win.win_rate}%`, 'good'),
+          t(' win rate right after a win, vs. '), c(`${hotHand.after_loss.win_rate}%`, 'bad'),
+          t(` right after a loss (+${hotHand.gap}pp).`),
+        ],
+      });
+    } else {
+      factoids.push({
+        id: 'hot-hand', category: 'Hot Hand',
+        parts: [
+          t('Losses tend to compound: '), c(`${hotHand.after_loss.win_rate}%`, 'good'),
+          t(' win rate right after a loss, vs. '), c(`${hotHand.after_win.win_rate}%`, 'bad'),
+          t(` right after a win (${hotHand.gap}pp).`),
+        ],
+      });
+    }
+  }
+
+  const PERF_UNIT: Record<PerfFeatureKey, string> = { overall_acc: '%', dmg10: '', elims10: '', fb10: '' };
+  for (const f of perf.features) {
+    if (!f.reliable || f.gap === null || f.baseline === null) continue;
+    const aboveIsBetter = f.gap > 0;
+    factoids.push({
+      id: `perf-${f.key}`,
+      category: `Performance · ${f.label}`,
+      parts: [
+        t(`${f.label} tracks winning ${Math.abs(f.gap) >= 30 ? 'hardest' : 'clearly'}: `),
+        c(`${f.aboveWinRate}%`, aboveIsBetter ? 'good' : 'bad'),
+        t(` win rate above your average of ${f.baseline}${PERF_UNIT[f.key as PerfFeatureKey]}, vs. just `),
+        c(`${f.belowWinRate}%`, aboveIsBetter ? 'bad' : 'good'),
+        t(' below it.'),
+      ],
+    });
+  }
+
+  if (perf.mismatch?.reliable) {
+    const m = perf.mismatch;
+    factoids.push({
+      id: 'perf-mismatch',
+      category: 'Performance Mismatch',
+      parts: [
+        t('Played above your own average on most tracked stats and still lost '),
+        c(`${m.played_well_loss_rate}%`, 'bad'),
+        t(` of the time (${m.played_well_losses} of ${m.played_well_games}). Played below average and still won `),
+        c(`${m.played_poor_win_rate}%`, 'good'),
+        t(` of the time (${m.played_poor_wins} of ${m.played_poor_games}).`),
+      ],
+    });
+  }
+
+  if (queueSwitch.reliable && queueSwitch.gap !== null) {
+    factoids.push({
+      id: 'queue-switch-tax',
+      category: 'Queue-Mode Switch',
+      parts: [
+        t('Win rate drops after switching queue modes mid-session: '),
+        c(`${queueSwitch.switched.win_rate}%`, 'bad'),
+        t(' vs. '), c(`${queueSwitch.same.win_rate}%`, 'good'),
+        t(` when staying in the same mode (${queueSwitch.switched.games} vs. ${queueSwitch.same.games} games).`),
+      ],
+    });
+  }
+
+  if (critAcc.reliable && critAcc.gap !== null && critAcc.baseline !== null) {
+    const aboveIsBetter = critAcc.gap > 0;
+    factoids.push({
+      id: 'crit-accuracy',
+      category: 'Crit Accuracy',
+      parts: [
+        t(`Your average crit accuracy is ${critAcc.baseline}%. Games above that win `),
+        c(`${critAcc.aboveWinRate}%`, aboveIsBetter ? 'good' : 'bad'),
+        t(', games below win '),
+        c(`${critAcc.belowWinRate}%`, aboveIsBetter ? 'bad' : 'good'),
+        t(` (${critAcc.aboveGames}/${critAcc.belowGames} games) — LOWER accuracy wins more, likely because tougher fights demand more precision, not a target to chase.`),
+      ],
+    });
+  }
+
+  if (killSecure.reliable && killSecure.gap !== null && killSecure.baseline !== null) {
+    const aboveIsBetter = killSecure.gap > 0;
+    factoids.push({
+      id: 'kill-secure',
+      category: 'Kill-Secure Rate',
+      parts: [
+        t(`Your average kill-secure rate (final blows per elim) is ${Math.round(killSecure.baseline * 100)}%. Games above that win `),
+        c(`${killSecure.aboveWinRate}%`, aboveIsBetter ? 'good' : 'bad'),
+        t(', games below win '),
+        c(`${killSecure.belowWinRate}%`, aboveIsBetter ? 'bad' : 'good'),
+        t(` (${killSecure.aboveGames}/${killSecure.belowGames} games) — probably reflects solo-closing kills when the team isn't there, not a skill signal.`),
+      ],
+    });
+  }
+
+  if (dayHour.reliable && dayHour.best && dayHour.worst) {
+    factoids.push({
+      id: 'day-hour-window',
+      category: 'Session Window',
+      parts: [
+        t(`Your best session window is ${dayHour.best.day_of_week} at ${formatHour(dayHour.best.hour)} — `),
+        c(`${dayHour.best.wr}%`, 'good'),
+        t(` win rate over ${dayHour.best.n} games. Your worst is ${dayHour.worst.day_of_week} at ${formatHour(dayHour.worst.hour)} — `),
+        c(`${dayHour.worst.wr}%`, 'bad'),
+        t(` over ${dayHour.worst.n} games.`),
+      ],
+    });
+  }
+
+  if (slotBias.reliable && slotBias.best && slotBias.worst && slotBias.gap !== null) {
+    factoids.push({
+      id: 'blind-slot-bias',
+      category: 'Blind Trial · Slot Bias',
+      parts: [
+        t(`Mouse slot ${slotBias.best.rel_pos} wins `), c(`${slotBias.best.wr}%`, 'good'),
+        t(` vs. slot ${slotBias.worst.rel_pos} at `), c(`${slotBias.worst.wr}%`, 'bad'),
+        t(` (${slotBias.best.n}/${slotBias.worst.n} games) — a ${slotBias.gap}pp spread that shouldn't exist if the scramble is unbiased. Worth watching as the study grows.`),
+      ],
+    });
+  }
+
+  res.json({ factoids });
 });
 
 // Heroes and maps that have enough tagged-death data to analyze, each with its
