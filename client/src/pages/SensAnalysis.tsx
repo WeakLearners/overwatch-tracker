@@ -5,6 +5,7 @@ import {
 import { useApi } from '../hooks/useApi';
 import SensNav from '../components/SensNav';
 import { MOUSE_DPI } from '../lib/aim';
+import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 
 interface ScaleRow {
   cm360: number; eDPI: number; sens: number; n: number;
@@ -186,7 +187,7 @@ function buildRecommendation(data: Analysis): Recommendation {
 // Turns the analysis payload into a plain-language read, so the charts below
 // aren't the only way to find out what they say. Recomputed from the same
 // numbers on every load — nothing here is written per data point.
-function buildInsights(data: Analysis): string[] {
+function buildInsights(data: Analysis, heroCounts: Record<string, number>): string[] {
   const { byScale, byArchetype, coldWarm, adaptation, heroes } = data;
   const notes: string[] = [];
 
@@ -245,7 +246,7 @@ function buildInsights(data: Analysis): string[] {
     const projHero = heroes.find(h => h.archetype === 'projectile');
     const projGames = byArchetype.projectile.reduce((s, r) => s + r.n, 0);
     notes.push(
-      `Hitscan vs. projectile isn't a fair comparison yet — projectile is just ${projGames} game${projGames === 1 ? '' : 's'}${projHero ? ` (${projHero.hero})` : ''}, spread thin across scales.`,
+      `Hitscan vs. projectile isn't a fair comparison yet — projectile is just ${projGames} game${projGames === 1 ? '' : 's'}${projHero ? ` (${withHeroCount(projHero.hero, heroCounts)})` : ''}, spread thin across scales.`,
     );
   }
 
@@ -258,6 +259,7 @@ function buildInsights(data: Analysis): string[] {
 
 export default function SensAnalysis() {
   const { data, loading } = useApi<Analysis>('/api/aim/analysis');
+  const heroCounts = useTodayHeroCounts();
 
   const wrap = (children: React.ReactNode) => (
     <div className="mt-2">
@@ -325,7 +327,7 @@ export default function SensAnalysis() {
   const feelXDomain = centeredDomain(feelPts.map(r => r.avgFeel), meanFeel);
   const feelYDomain = centeredDomain(feelPts.map(r => r.avgDelta), meanDelta);
 
-  const insights = buildInsights(data);
+  const insights = buildInsights(data, heroCounts);
   const recommendation = buildRecommendation(data);
 
   return wrap(
@@ -523,7 +525,7 @@ export default function SensAnalysis() {
             <tbody>
               {heroes.map(h => (
                 <tr key={h.hero} className="border-t border-ow-border text-[var(--ink-2)]">
-                  <td className="py-1.5 pr-3 font-semibold text-[var(--ink)]">{h.hero}</td>
+                  <td className="py-1.5 pr-3 font-semibold text-[var(--ink)]">{withHeroCount(h.hero, heroCounts)}</td>
                   <td className="py-1.5 pr-3 capitalize text-[var(--faint)]">{h.archetype}</td>
                   <td className="py-1.5 pr-3">{h.n}</td>
                   <td className="py-1.5 pr-3">{f1(h.avgOverall)}%</td>

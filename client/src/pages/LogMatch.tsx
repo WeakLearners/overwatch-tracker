@@ -5,6 +5,7 @@ import EmptyState from '../components/EmptyState';
 import ModeWatermark from '../components/ModeWatermark';
 import { useApi, revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
+import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { format } from 'date-fns';
 
 interface FormState {
@@ -64,6 +65,7 @@ export default function LogMatch() {
   // section only owns date/time/hero/win plus the death tags.
   const { queueMode, setQueueMode, map, setMap, mapType, sens, pendingHero, setPendingHero, revalidateRec, notifyMatchLogged, deathBuffer, removeDeathFromBuffer, clearDeathBuffer } = useMatch();
   const mapCounts = useTodayMapCounts();
+  const heroCounts = useTodayHeroCounts();
   const [feel, setFeel] = useState(FEEL_MID);
   const [form, setForm] = useState<FormState>(() => {
     const n = new Date();
@@ -356,7 +358,7 @@ export default function LogMatch() {
                 {(['DPS', 'Tank', 'Support'] as const).map(role => (
                   <optgroup key={role} label={role}>
                     {HERO_LIST.filter(([, r]) => r === role).map(([h]) => (
-                      <option key={h} value={h}>{h}</option>
+                      <option key={h} value={h}>{withHeroCount(h, heroCounts)}</option>
                     ))}
                   </optgroup>
                 ))}
@@ -467,7 +469,7 @@ export default function LogMatch() {
                       {r.win ? 'W' : 'L'}
                     </div>
                     <div className="relative z-10 flex-1 min-w-0">
-                      <div className="text-sm font-medium text-[var(--ink)]">{r.hero}</div>
+                      <div className="text-sm font-medium text-[var(--ink)]">{withHeroCount(r.hero, heroCounts)}</div>
                       <div className="text-xs text-[var(--faint)]">{withMapCount(r.map, mapCounts)}</div>
                     </div>
                     <div className="relative z-10 flex flex-col items-end gap-0.5 shrink-0">

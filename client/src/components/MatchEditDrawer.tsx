@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMatchEditDrawer } from '../contexts/MatchEditDrawerContext';
 import { revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
+import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import {
   HEROES, MAPS, ROLE_COLORS, TYPE_COLORS,
   QUEUE_MODES, QUEUE_MODE_COLORS, QueueMode, TrendPoint,
@@ -38,6 +39,7 @@ function DrawerForm({ match }: { match: TrendPoint }) {
   const [status, setStatus] = useState<'idle' | 'saving' | 'error'>('idle');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const mapCounts = useTodayMapCounts();
+  const heroCounts = useTodayHeroCounts();
 
   const heroRole = form.hero ? HEROES[form.hero] : '';
   const mapType = form.map ? MAPS[form.map] : '';
@@ -116,7 +118,7 @@ function DrawerForm({ match }: { match: TrendPoint }) {
           {(['DPS', 'Tank', 'Support'] as const).map(role => (
             <optgroup key={role} label={role}>
               {HERO_LIST.filter(([, r]) => r === role).map(([h]) => (
-                <option key={h} value={h}>{h}</option>
+                <option key={h} value={h}>{withHeroCount(h, heroCounts)}</option>
               ))}
             </optgroup>
           ))}

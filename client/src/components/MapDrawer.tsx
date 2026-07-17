@@ -1,6 +1,7 @@
 import { useMapDrawer } from '../contexts/MapDrawerContext';
 import { useApi } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
+import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { MAPS, TYPE_COLORS, ROLE_COLORS, DeathInsights as DeathInsightsData } from '../types';
 import DeathInsights from './DeathInsights';
 
@@ -21,6 +22,7 @@ function WR({ rate }: { rate: number }) {
 function DrawerContent({ map }: { map: string }) {
   const { data } = useApi<MapDetail>(`/api/stats/map-detail/${encodeURIComponent(map)}`);
   const mapCounts = useTodayMapCounts();
+  const heroCounts = useTodayHeroCounts();
 
   if (!data) return <div className="p-5 text-sm text-[var(--faint)]">Loading…</div>;
 
@@ -77,7 +79,7 @@ function DrawerContent({ map }: { map: string }) {
                   <span className={`text-sm ${h.win_rate >= 50 ? 'text-emerald-700' : 'text-red-500'}`}>
                     {h.win_rate >= 50 ? '↑' : '↓'}
                   </span>
-                  <span className="flex-1 text-sm text-[var(--ink)]">{h.hero}</span>
+                  <span className="flex-1 text-sm text-[var(--ink)]">{withHeroCount(h.hero, heroCounts)}</span>
                   <WR rate={h.win_rate} />
                   <span className="text-xs text-[var(--faint-2)] w-7 text-right">{h.games}g</span>
                 </div>
@@ -98,7 +100,7 @@ function DrawerContent({ map }: { map: string }) {
             {data.recent5.map((m, i) => (
               <div
                 key={i}
-                title={`${m.win ? 'W' : 'L'} · ${m.hero}`}
+                title={`${m.win ? 'W' : 'L'} · ${withHeroCount(m.hero, heroCounts)}`}
                 className={`w-7 h-7 rounded flex items-center justify-center text-xs font-bold border ${
                   m.win
                     ? 'bg-emerald-500/20 text-emerald-600 border-emerald-500/30'

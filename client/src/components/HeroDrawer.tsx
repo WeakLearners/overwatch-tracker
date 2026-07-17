@@ -1,6 +1,7 @@
 import { useHeroDrawer } from '../contexts/HeroDrawerContext';
 import { useApi } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
+import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { ROLE_COLORS, TYPE_COLORS, DeathInsights as DeathInsightsData } from '../types';
 import DeathInsights from './DeathInsights';
 
@@ -25,6 +26,7 @@ function WR({ rate }: { rate: number }) {
 function DrawerContent({ hero, role }: { hero: string; role?: string }) {
   const { data } = useApi<HeroDetail>(`/api/stats/hero-detail/${encodeURIComponent(hero)}`);
   const mapCounts = useTodayMapCounts();
+  const heroCounts = useTodayHeroCounts();
 
   if (!data) return <div className="p-5 text-sm text-[var(--faint)]">Loading…</div>;
 
@@ -127,7 +129,7 @@ function DrawerContent({ hero, role }: { hero: string; role?: string }) {
       )}
 
       {/* Death patterns */}
-      <DeathInsights data={data.deaths} label={hero} />
+      <DeathInsights data={data.deaths} label={withHeroCount(hero, heroCounts)} />
 
       {/* Last 10 */}
       {data.recent10.length > 0 && (
@@ -156,6 +158,7 @@ function DrawerContent({ hero, role }: { hero: string; role?: string }) {
 
 export default function HeroDrawer() {
   const { activeHero, closeHero } = useHeroDrawer();
+  const heroCounts = useTodayHeroCounts();
 
   return (
     <>
@@ -166,7 +169,7 @@ export default function HeroDrawer() {
       <div className={`fixed inset-y-0 right-0 w-96 bg-ow-dark border-l border-ow-border z-50 flex flex-col transition-transform duration-300 ${activeHero ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="flex items-start justify-between p-5 border-b border-ow-border shrink-0">
           <div>
-            <h2 className="text-lg heading-display text-[var(--ink)] leading-tight">{activeHero ?? ''}</h2>
+            <h2 className="text-lg heading-display text-[var(--ink)] leading-tight">{activeHero ? withHeroCount(activeHero, heroCounts) : ''}</h2>
           </div>
           <button onClick={closeHero} className="text-[var(--faint)] hover:text-[var(--ink)] transition-colors text-2xl leading-none ml-4">
             ×

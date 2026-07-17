@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { format } from 'date-fns';
 import { useApi } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
+import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { MAPS, QUEUE_MODES, ROLE_COLORS, TYPE_COLORS, MapVotingRow, Streaks } from '../types';
 import AdvisorCard from '../components/AdvisorCard';
 import EmptyState from '../components/EmptyState';
@@ -50,6 +51,7 @@ export default function Prematch() {
   const { data: pendingData } = useApi<{ total: number }>('/api/aim/pending?limit=1');
   const backlogCount = pendingData?.total ?? 0;
   const mapCounts = useTodayMapCounts();
+  const heroCounts = useTodayHeroCounts();
 
   const params = new URLSearchParams();
   if (map) params.set('map', map);
@@ -139,7 +141,7 @@ export default function Prematch() {
     if (top.length < 3 && rest.length > 0) {
       const games = rest.reduce((s, h) => s + h.games, 0);
       const wins  = rest.reduce((s, h) => s + (h.wins ?? 0), 0);
-      const tooltip = rest.map(h => `${h.hero} ${h.win_rate}% (${h.games}g)`).join('\n');
+      const tooltip = rest.map(h => `${withHeroCount(h.hero, heroCounts)} ${h.win_rate}% (${h.games}g)`).join('\n');
       other = { games, wins, win_rate: games ? Math.round((wins / games) * 1000) / 10 : 0, count: rest.length, tooltip };
     }
     return { top, other };
@@ -372,7 +374,7 @@ export default function Prematch() {
             >
               <option value="">— Select map —</option>
               {(selected.length > 0 ? selected : Object.keys(MAPS)).sort().map(m => (
-                <option key={m} value={m}>{withMapCount(m, mapCounts)} ({MAPS[m]})</option>
+                <option key={m} value={m}>{withMapCount(m, mapCounts)}</option>
               ))}
             </select>
           </div>
@@ -457,7 +459,7 @@ export default function Prematch() {
             <div className="flex items-center gap-3">
               <div>
                 <button onClick={() => openHero(recommendation.hero)} className="text-xl font-black tracking-tight text-[var(--ink)] hover:text-ow-accent transition-colors text-left">
-                  {recommendation.hero}
+                  {withHeroCount(recommendation.hero, heroCounts)}
                 </button>
                 <span className={`pill ml-2 ${ROLE_COLORS[recommendation.role]}`}>{recommendation.role}</span>
               </div>
@@ -512,7 +514,7 @@ export default function Prematch() {
                         className="flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-lg border border-ow-border bg-ow-darker hover:border-violet-500/70 hover:bg-violet-500/10 active:scale-[0.98] transition-all group"
                       >
                         <span className={`text-sm ${h.win_rate >= 50 ? 'text-emerald-700' : 'text-red-500'}`}>{h.win_rate >= 50 ? '↑' : '↓'}</span>
-                        <span className="flex-1 text-sm font-semibold text-[var(--ink)] group-hover:text-violet-500 transition-colors">{h.hero}</span>
+                        <span className="flex-1 text-sm font-semibold text-[var(--ink)] group-hover:text-violet-500 transition-colors">{withHeroCount(h.hero, heroCounts)}</span>
                         <span className={`text-sm font-semibold ${h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
                         <span className="text-xs text-[var(--faint-2)] w-7 text-right">{h.games}g</span>
                       </button>
@@ -540,7 +542,7 @@ export default function Prematch() {
                               className="flex items-center gap-3 w-full text-left pl-6 pr-3 py-2 ml-2 rounded-lg border border-ow-border/60 bg-ow-darker/60 hover:border-violet-500/70 hover:bg-violet-500/10 active:scale-[0.98] transition-all group"
                             >
                               <span className={`text-sm ${h.win_rate >= 50 ? 'text-emerald-700' : 'text-red-500'}`}>{h.win_rate >= 50 ? '↑' : '↓'}</span>
-                              <span className="flex-1 text-sm text-[var(--muted)] group-hover:text-violet-500 transition-colors">{h.hero}</span>
+                              <span className="flex-1 text-sm text-[var(--muted)] group-hover:text-violet-500 transition-colors">{withHeroCount(h.hero, heroCounts)}</span>
                               <span className={`text-sm font-semibold ${h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
                               <span className="text-xs text-[var(--faint-2)] w-7 text-right">{h.games}g</span>
                             </button>

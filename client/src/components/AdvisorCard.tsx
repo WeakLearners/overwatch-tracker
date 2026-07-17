@@ -1,5 +1,6 @@
 import { MAPS, Recommendation, AxisPayload, DEATH_AXES } from '../types';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
+import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 
 interface Props {
   map: string;
@@ -55,6 +56,7 @@ function SpectrumBar({ label, low, high, mean, n }: { label: string; low: string
 
 export default function AdvisorCard({ map, queueLabel, rec, loading, error, onRefresh, onOpenHero, bare = false }: Props) {
   const mapCounts = useTodayMapCounts();
+  const heroCounts = useTodayHeroCounts();
   return (
     <div className={bare ? '' : 'rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-3'}>
       {!bare && (
@@ -85,7 +87,7 @@ export default function AdvisorCard({ map, queueLabel, rec, loading, error, onRe
               onClick={() => onOpenHero(rec.primary)}
               className="font-bold text-[var(--ink)] hover:text-ow-accent transition-colors"
             >
-              {rec.primary}
+              {withHeroCount(rec.primary, heroCounts)}
             </button>
             {rec.primary_stats && (
               <span className="text-[10px] text-[var(--faint)]">
@@ -103,7 +105,7 @@ export default function AdvisorCard({ map, queueLabel, rec, loading, error, onRe
                       : 'text-emerald-700 hover:text-emerald-200'
                   }`}
                 >
-                  {rec.stretch}
+                  {withHeroCount(rec.stretch, heroCounts)}
                 </button>
                 <span
                   className="text-[10px] text-[var(--faint-2)] italic"

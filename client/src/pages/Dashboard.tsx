@@ -1,6 +1,7 @@
 import { useState, useEffect, Fragment } from 'react';
 import { useApi } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
+import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { Overview, Streaks, TrendPoint, ModeComparison, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS } from '../types';
 import StatCard from '../components/StatCard';
 import AnimatedNumber from '../components/AnimatedNumber';
@@ -32,6 +33,7 @@ function ModeTile({ meta, m, selected, onSelect, openHero, lastLog }: {
   lastLog: LastLog;
 }) {
   const [flash, setFlash] = useState<null | 'win' | 'loss'>(null);
+  const heroCounts = useTodayHeroCounts();
   const c = QUEUE_MODE_COLORS[meta.value];
 
   // Trigger the sweep when the latest log was under this mode (skip on reduced
@@ -99,7 +101,7 @@ function ModeTile({ meta, m, selected, onSelect, openHero, lastLog }: {
                   onClick={e => { e.stopPropagation(); openHero(m.top_hero!.hero); }}
                   className="text-sm font-medium text-[var(--ink)] hover:text-ow-accent transition-colors truncate cursor-pointer"
                 >
-                  {m.top_hero.hero}
+                  {withHeroCount(m.top_hero.hero, heroCounts)}
                 </span>
                 <span className="text-xs text-[var(--muted)] dark:text-white/70 shrink-0 ml-2">
                   {m.top_hero.win_rate}% · {m.top_hero.games}g
@@ -158,6 +160,7 @@ export default function Dashboard() {
   const { data: modeComparison } = useApi<ModeComparison[]>('/api/stats/mode-comparison');
   const { openEdit } = useMatchEditDrawer();
   const mapCounts = useTodayMapCounts();
+  const heroCounts = useTodayHeroCounts();
   // Session tilt is map-independent, so a no-arg prematch fetch gives it to us.
   const { data: prematch } = useApi<{ session: { on_tilt: boolean; tilt_win_rate: number | null; tilt_games: number } | null }>('/api/stats/prematch');
   const tilt = prematch?.session;
@@ -230,7 +233,7 @@ export default function Dashboard() {
                   key={g.id}
                   type="button"
                   onClick={() => openEdit(g)}
-                  title={`${g.win ? 'Win' : 'Loss'} · ${g.hero} on ${withMapCount(g.map, mapCounts)} (${format(parseISO(g.date), 'MMM d')}) — tap to edit`}
+                  title={`${g.win ? 'Win' : 'Loss'} · ${withHeroCount(g.hero, heroCounts)} on ${withMapCount(g.map, mapCounts)} (${format(parseISO(g.date), 'MMM d')}) — tap to edit`}
                   className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-xs font-black border transition-all duration-150 cursor-pointer hover:-translate-y-0.5 hover:ring-2 hover:ring-offset-1 hover:ring-offset-transparent ${
                     g.win
                       ? 'bg-emerald-100 text-emerald-700 border-emerald-300 hover:ring-emerald-400/60 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/40'
