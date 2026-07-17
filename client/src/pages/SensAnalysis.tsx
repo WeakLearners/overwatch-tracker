@@ -537,8 +537,8 @@ export default function SensAnalysis() {
           {spread.points.length >= 2 ? (
             <div className="flex gap-2">
               <div className="flex flex-col justify-between text-[10px] text-[var(--faint-2)] py-3 w-12 shrink-0 text-right">
-                <span>More accurate</span>
-                <span>Less accurate</span>
+                <span>Bigger edge over baseline</span>
+                <span>Smaller edge over baseline</span>
               </div>
               <div className="flex-1 min-w-0">
                 <ResponsiveContainer width="100%" height={280}>
@@ -555,7 +555,6 @@ export default function SensAnalysis() {
                       <ReferenceArea x1={spread.anchor - spread.threshold} x2={spread.anchor + spread.threshold} fill="var(--ow-accent)" fillOpacity={0.08} stroke="none" />
                     )}
                     {spread.anchor != null && <ReferenceLine x={spread.anchor} stroke="var(--faint-2)" strokeDasharray="4 4" />}
-                    <ReferenceLine y={0} stroke="var(--faint-2)" strokeDasharray="4 4" />
                     <Scatter dataKey="delta">
                       {spread.points.map((p, i) => <Cell key={i} fill={spreadColor(p.kind)} />)}
                       <LabelList dataKey="label" position="top" style={{ fontSize: 10, fill: 'var(--faint)' }} />
