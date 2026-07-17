@@ -369,27 +369,30 @@ router.get('/map-voting', (req: Request, res: Response) => {
   const db = getDb();
   // "recent" = last 90 days; blended = 70% recent + 30% historical
   // Falls back to historical-only when fewer than 3 recent games on a map.
+  // Grouped by map alone (not map+game_type) — a handful of matches carry a
+  // mistagged game_type for their map, and splitting on it let the same map
+  // show up twice (once per game_type) with two different win rates, landing
+  // in both the Best and Worst lists at once.
   const rows = db.prepare(`
     WITH historical AS (
-      SELECT map, game_type,
+      SELECT map,
              COUNT(*) AS total_games,
              ROUND(AVG(win) * 100, 1) AS historical_rate
       FROM matches
       WHERE map NOT IN ('Hanaoka', 'Anubis')
-      GROUP BY map, game_type
+      GROUP BY map
       HAVING total_games >= 3
     ),
     recent AS (
-      SELECT map, game_type,
+      SELECT map,
              COUNT(*) AS recent_games,
              ROUND(AVG(win) * 100, 1) AS recent_rate
       FROM matches
       WHERE date >= date('now', '-90 days')
-      GROUP BY map, game_type
+      GROUP BY map
     )
     SELECT
       h.map,
-      h.game_type,
       h.total_games,
       h.historical_rate,
       COALESCE(r.recent_games, 0) AS recent_games,
@@ -400,7 +403,7 @@ router.get('/map-voting', (req: Request, res: Response) => {
         ELSE h.historical_rate
       END AS blended_score
     FROM historical h
-    LEFT JOIN recent r ON h.map = r.map AND h.game_type = r.game_type
+    LEFT JOIN recent r ON h.map = r.map
     ORDER BY blended_score DESC
   `).all({});
 

@@ -143,7 +143,6 @@ export interface Recommendation {
 
 export interface MapVotingRow {
   map: string;
-  game_type: string;
   total_games: number;
   historical_rate: number;
   recent_games: number;
