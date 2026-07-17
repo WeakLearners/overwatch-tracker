@@ -23,7 +23,7 @@ interface HeroRow {
   bestScaleOverallDelta: number | null; bestScaleCritDelta: number | null;
 }
 interface Analysis {
-  summary: { n: number; distinctScale: number; maskedPending: number };
+  summary: { n: number; distinctScale: number; maskedPending: number; lastUpdated: string | null };
   byScale: ScaleRow[];
   byArchetype: { hitscan: ScaleRow[]; projectile: ScaleRow[] };
   coldWarm: Bucket[];
@@ -34,6 +34,13 @@ interface Analysis {
 const HITSCAN = '#3b82f6';
 const PROJECTILE = '#ec4899';
 const FEEL = '#8b5cf6';
+
+// created_at is stored as a bare UTC datetime('now') string (no 'Z'); append
+// it before parsing so the browser doesn't mistake it for local time.
+const fmtUpdated = (iso: string | null) =>
+  iso == null ? null : new Date(iso + 'Z').toLocaleString(undefined, {
+    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+  });
 
 const f1 = (x: number | null | undefined) => (x == null ? '—' : x.toFixed(1));
 const signed = (x: number | null | undefined) =>
@@ -341,6 +348,11 @@ export default function SensAnalysis() {
             🔒 {summary.maskedPending} blind trial{summary.maskedPending === 1 ? '' : 's'} held out until revealed
           </span>
         )}
+        <br />
+        <span className="text-[var(--faint-2)]">
+          {fmtUpdated(summary.lastUpdated) ? `Last updated ${fmtUpdated(summary.lastUpdated)}` : 'Not yet updated'} —
+          {' '}refreshes whenever a study match's stats are submitted on the Enter Stats tab.
+        </span>
       </p>
 
       <p className="text-xs text-[var(--faint)] rounded-lg bg-ow-darker border border-ow-border px-3 py-2">

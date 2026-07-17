@@ -69,14 +69,22 @@ router.get('/analysis', (_req: Request, res: Response) => {
   // Unrevealed blind trials are excluded so nothing here can de-anonymize a
   // hidden stage before Sean chooses to reveal it.
   const rows = db.prepare(`
-    SELECT m.id, m.hero, m.sens, m.dpi, m.win, m.feel, a.overall_acc, a.crit_acc
+    SELECT m.id, m.hero, m.sens, m.dpi, m.win, m.feel, a.overall_acc, a.crit_acc, a.created_at
     FROM aim_stats a JOIN matches m ON m.id = a.match_id
     WHERE m.sens IS NOT NULL AND a.overall_acc IS NOT NULL
       AND (m.blind_trial = 0 OR m.blind_trial IS NULL OR m.revealed = 1)
   `).all() as unknown as {
     id: number; hero: string; sens: number; dpi: number | null; win: 0 | 1;
-    overall_acc: number; crit_acc: number | null; feel: number | null;
+    overall_acc: number; crit_acc: number | null; feel: number | null; created_at: string;
   }[];
+
+  // Most recent aim_stats write among the rows actually feeding this analysis —
+  // stat entries on still-masked blind trials don't count until revealed, same
+  // as maskedPending below. String comparison is safe: datetime('now') always
+  // formats as 'YYYY-MM-DD HH:MM:SS'.
+  const lastUpdated = rows.length
+    ? rows.reduce((latest, r) => (r.created_at > latest ? r.created_at : latest), rows[0].created_at)
+    : null;
 
   // Per-hero baseline = that hero's mean overall accuracy across logged matches.
   // Normalizing each match against it keeps cross-hero pooling honest, so a
@@ -141,6 +149,7 @@ router.get('/analysis', (_req: Request, res: Response) => {
       n: pts.length,
       distinctScale: new Set(pts.map(p => cmBucket(p.cm360))).size,
       maskedPending,
+      lastUpdated,
     },
     byScale: byScale(pts),
     byArchetype: {
@@ -223,7 +232,8 @@ router.post('/', (req: Request, res: Response) => {
       final_blows     = excluded.final_blows,
       deaths          = excluded.deaths,
       damage          = excluded.damage,
-      duration_min    = excluded.duration_min
+      duration_min    = excluded.duration_min,
+      created_at      = datetime('now')
   `).run({
     match_id,
     overall_acc: overall_acc ?? null,
