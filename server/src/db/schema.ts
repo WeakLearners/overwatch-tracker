@@ -87,9 +87,7 @@ function initSchema(db: DatabaseSync) {
   db.exec(`UPDATE matches SET revealed = 1 WHERE revealed IS NULL OR blind_trial = 0 OR blind_trial IS NULL`);
 
   // Per-match aim stats for the sensitivity study. One-to-one with a match,
-  // entered separately at match end via the /sens app. feel = perceived speed
-  // of the sens, 0 (felt slow) to 10 (felt fast) — not a quality rating. The
-  // feel-vs-data comparison is whether perceived speed tracks accuracy.
+  // entered separately at match end via the /sens app.
   db.exec(`
     CREATE TABLE IF NOT EXISTS aim_stats (
       match_id INTEGER PRIMARY KEY REFERENCES matches(id) ON DELETE CASCADE,
@@ -117,6 +115,24 @@ function initSchema(db: DatabaseSync) {
     if (!aimCols.find(c => c.name === col)) {
       db.exec(`ALTER TABLE aim_stats ADD COLUMN ${col} INTEGER`);
     }
+  }
+
+  // feel: perceived sens speed, 0 (felt slow) to 10 (felt fast) — not a quality
+  // rating. Captured live in the Match Log at log time (moved 2026-07-17 from a
+  // combat-detail backfilled at /sens; that flow lost the sensation by the time
+  // the next match started). Lives on the match itself, like sens/dpi, not on
+  // aim_stats — it's an immediate perception, not a post-hoc combat stat. The
+  // old aim_stats.feel column above is kept (harmless, additive-only migrations)
+  // but no longer written to — this is the column of record going forward.
+  if (!cols.find(c => c.name === 'feel')) {
+    db.exec(`ALTER TABLE matches ADD COLUMN feel INTEGER`);
+    // One-time carry-forward of anything already captured under the old flow.
+    db.exec(`
+      UPDATE matches SET feel = (SELECT feel FROM aim_stats WHERE aim_stats.match_id = matches.id)
+      WHERE feel IS NULL AND EXISTS (
+        SELECT 1 FROM aim_stats WHERE aim_stats.match_id = matches.id AND aim_stats.feel IS NOT NULL
+      )
+    `);
   }
 
   // Blind-trial stage sets. Each set is one shuffle of N DPI values across the

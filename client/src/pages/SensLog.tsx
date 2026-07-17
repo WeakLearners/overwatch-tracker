@@ -34,13 +34,12 @@ interface AnswerStage {
 interface StatFieldsT {
   overall_acc: string; crit_acc: string; hero_stat_label: string; hero_stat_value: string;
   elims: string; final_blows: string; deaths: string; damage: string; duration_min: string;
-  feel: number | null; notes: string;
+  notes: string;
 }
 
-const FEEL_MIN = 0, FEEL_MAX = 10, FEEL_MID = 5;
 const EMPTY_STATS: StatFieldsT = {
   overall_acc: '', crit_acc: '', hero_stat_label: '', hero_stat_value: '',
-  elims: '', final_blows: '', deaths: '', damage: '', duration_min: '', feel: FEEL_MID, notes: '',
+  elims: '', final_blows: '', deaths: '', damage: '', duration_min: '', notes: '',
 };
 
 const HERO_STAT_DEFAULT: Record<string, string> = {
@@ -93,11 +92,6 @@ function StatFields({ s, upd, knownLabels }: {
         </div>
       </div>
       <div>
-        <label className="block text-xs text-[var(--muted)] mb-1.5">Feel <span className="text-[var(--faint-2)]">— did the sens feel slow or fast?</span></label>
-        <input type="range" min={FEEL_MIN} max={FEEL_MAX} step={1} value={s.feel ?? FEEL_MID} onChange={e => upd('feel', Number(e.target.value))} className="w-full accent-violet-500" aria-label="Feel — slow to fast" />
-        <div className="flex justify-between text-[10px] text-[var(--faint-2)] mt-1 px-0.5"><span>Slow</span><span>Medium</span><span>Fast</span></div>
-      </div>
-      <div>
         <label className="block text-xs text-[var(--muted)] mb-1.5">Notes</label>
         <textarea value={s.notes} onChange={t('notes')} rows={2} className="w-full field px-3 py-2 text-sm resize-none" placeholder="fatigue, warmup, just switched stage…" />
       </div>
@@ -110,7 +104,7 @@ const statsBody = (match_id: number, s: StatFieldsT) => ({
   overall_acc: num(s.overall_acc), crit_acc: num(s.crit_acc),
   hero_stat_label: s.hero_stat_label.trim() || null, hero_stat_value: num(s.hero_stat_value),
   elims: num(s.elims), final_blows: num(s.final_blows), deaths: num(s.deaths), damage: num(s.damage),
-  duration_min: num(s.duration_min), feel: s.feel, notes: s.notes.trim() || null,
+  duration_min: num(s.duration_min), notes: s.notes.trim() || null,
 });
 
 export default function SensLog() {
@@ -360,7 +354,7 @@ function BackfillPanel({ pending, loading, knownLabels, labelFor }: {
   }
 
   async function save() {
-    if (!selected || !(parseFloat(stats.overall_acc) >= 0 && parseFloat(stats.duration_min) > 0 && stats.feel !== null)) return;
+    if (!selected || !(parseFloat(stats.overall_acc) >= 0 && parseFloat(stats.duration_min) > 0)) return;
     setStatus('saving');
     try {
       if (!selected.masked) {
@@ -440,7 +434,7 @@ function BackfillPanel({ pending, loading, knownLabels, labelFor }: {
                 </div>
               </div>
               <StatFields s={stats} upd={(k, v) => setStats(s => ({ ...s, [k]: v }))} knownLabels={knownLabels} />
-              <button type="button" onClick={save} disabled={!(parseFloat(stats.overall_acc) >= 0 && parseFloat(stats.duration_min) > 0 && stats.feel !== null) || status === 'saving'} className="btn-primary w-full py-2.5 text-sm">
+              <button type="button" onClick={save} disabled={!(parseFloat(stats.overall_acc) >= 0 && parseFloat(stats.duration_min) > 0) || status === 'saving'} className="btn-primary w-full py-2.5 text-sm">
                 {status === 'saving' ? 'Saving…' : status === 'success' ? '✓ Saved' : 'Save Stats'}
               </button>
               {status === 'error' && <p className="text-red-600 text-xs text-center">Failed to save — is the server running?</p>}

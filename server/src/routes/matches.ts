@@ -32,7 +32,7 @@ router.get('/', (req: Request, res: Response) => {
 
 router.post('/', (req: Request, res: Response) => {
   const db = getDb();
-  const { date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens } = req.body;
+  const { date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, feel } = req.body;
 
   if (!date || !hero || !role || !map || !game_type || win === undefined) {
     res.status(400).json({ error: 'Missing required fields' });
@@ -67,9 +67,9 @@ router.post('/', (req: Request, res: Response) => {
   }
 
   const result = db.prepare(`
-    INSERT INTO matches (date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, dpi, blind_trial, blind_set_id, rel_pos, revealed)
-    VALUES (:date, :time, :day_of_week, :hour, :hero, :role, :map, :game_type, :win, :deaths, :queue_mode, :sens, :dpi, :blind_trial, :blind_set_id, :rel_pos, :revealed)
-  `).run({ date, time: time ?? null, day_of_week: day_of_week ?? null, hour: hour ?? null, hero, role, map, game_type, win: win ? 1 : 0, deaths: deathsJson, queue_mode: queue_mode ?? 'comp_role', sens: finalSens, dpi: finalDpi, blind_trial: isBlind, blind_set_id: setId, rel_pos: relPos, revealed });
+    INSERT INTO matches (date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, dpi, blind_trial, blind_set_id, rel_pos, revealed, feel)
+    VALUES (:date, :time, :day_of_week, :hour, :hero, :role, :map, :game_type, :win, :deaths, :queue_mode, :sens, :dpi, :blind_trial, :blind_set_id, :rel_pos, :revealed, :feel)
+  `).run({ date, time: time ?? null, day_of_week: day_of_week ?? null, hour: hour ?? null, hero, role, map, game_type, win: win ? 1 : 0, deaths: deathsJson, queue_mode: queue_mode ?? 'comp_role', sens: finalSens, dpi: finalDpi, blind_trial: isBlind, blind_set_id: setId, rel_pos: relPos, revealed, feel: feel ?? null });
 
   if (isBlind && setId != null) {
     db.prepare('UPDATE blind_stage_sets SET games_on_stage = games_on_stage + 1 WHERE id = :id').run({ id: setId });
@@ -81,7 +81,7 @@ router.post('/', (req: Request, res: Response) => {
 // Partial update of a logged match. Only the columns present in the body are
 // touched, so callers can fix a single field (e.g. the queue mode) without
 // resending the whole record.
-const EDITABLE = ['date', 'time', 'day_of_week', 'hour', 'hero', 'role', 'map', 'game_type', 'win', 'queue_mode', 'sens'] as const;
+const EDITABLE = ['date', 'time', 'day_of_week', 'hour', 'hero', 'role', 'map', 'game_type', 'win', 'queue_mode', 'sens', 'feel'] as const;
 
 router.put('/:id', (req: Request, res: Response) => {
   const db = getDb();

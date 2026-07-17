@@ -16,6 +16,11 @@ interface FormState {
 
 const HERO_LIST = Object.entries(HEROES).sort((a, b) => a[0].localeCompare(b[0]));
 
+// Perceived sens speed, 0 (felt slow) to 10 (felt fast) — not a quality rating.
+// Captured here, live, rather than backfilled later on /sens: the sensation is
+// gone by the next match, so this is the only point it can honestly be logged.
+const FEEL_MIN = 0, FEEL_MAX = 10, FEEL_MID = 5;
+
 // Two-line labels for the in-form mode toggle (the full names are too wide for
 // three narrow columns).
 const MODE_COMPACT: Record<string, { top: string; bot: string }> = {
@@ -59,6 +64,7 @@ export default function LogMatch() {
   // section only owns date/time/hero/win plus the death tags.
   const { queueMode, setQueueMode, map, setMap, mapType, sens, pendingHero, setPendingHero, revalidateRec, notifyMatchLogged, deathBuffer, removeDeathFromBuffer, clearDeathBuffer } = useMatch();
   const mapCounts = useTodayMapCounts();
+  const [feel, setFeel] = useState(FEEL_MID);
   const [form, setForm] = useState<FormState>(() => {
     const n = new Date();
     let pending: { hero?: string } = {};
@@ -208,6 +214,7 @@ export default function LogMatch() {
           deaths: deathBuffer.length > 0 ? { v: 3, deaths: deathBuffer } : null,
           queue_mode: queueMode,
           sens: parseFloat(sens),
+          feel,
         }),
       });
       if (!res.ok) throw new Error('Failed');
@@ -215,6 +222,7 @@ export default function LogMatch() {
       const loggedWin = form.win === '1';
       setStatus('success');
       clearDeathBuffer();
+      setFeel(FEEL_MID);
       dateTouched.current = false;
       timeTouched.current = false;
       setForm(f => ({ ...f, hero: '', win: '', date: datePart, time: format(new Date(), 'HH:mm') }));
@@ -301,7 +309,7 @@ export default function LogMatch() {
             <h2 className="text-sm heading-display text-[var(--ink)]">Match Details</h2>
             <button
               type="button"
-              onClick={() => { setForm(f => ({ ...f, hero: '' })); setMap(''); }}
+              onClick={() => { setForm(f => ({ ...f, hero: '' })); setMap(''); setFeel(FEEL_MID); }}
               disabled={!form.hero && !map}
               className="text-xs text-[var(--faint)] hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--faint)]"
             >
@@ -392,6 +400,21 @@ export default function LogMatch() {
                   );
                 })}
               </div>
+            </div>
+
+            <div>
+              <label className="block text-xs text-[var(--muted)] mb-1.5">Feel <span className="text-[var(--faint-2)]">— did the sens feel slow or fast?</span></label>
+              <input
+                type="range"
+                min={FEEL_MIN}
+                max={FEEL_MAX}
+                step={1}
+                value={feel}
+                onChange={e => setFeel(Number(e.target.value))}
+                className="w-full accent-violet-500"
+                aria-label="Feel — slow to fast"
+              />
+              <div className="flex justify-between text-[10px] text-[var(--faint-2)] mt-1 px-0.5"><span>Slow</span><span>Just Right</span><span>Fast</span></div>
             </div>
 
             <div>

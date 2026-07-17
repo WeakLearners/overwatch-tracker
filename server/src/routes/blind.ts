@@ -149,8 +149,7 @@ router.get('/sets/:id', (req: Request, res: Response) => {
 
   const rows = stages.map(st => {
     const trials = db.prepare(`
-      SELECT a.feel FROM matches m LEFT JOIN aim_stats a ON a.match_id = m.id
-      WHERE m.blind_set_id = :sid AND m.stage_index = :si
+      SELECT feel FROM matches WHERE blind_set_id = :sid AND stage_index = :si
     `).all({ sid: set.id, si: st.stage_index }) as { feel: number | null }[];
     const feels = trials.map(t => t.feel).filter((f): f is number => f != null);
     const feelMean = feels.length ? feels.reduce((a, b) => a + b, 0) / feels.length : null;
