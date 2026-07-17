@@ -46,6 +46,8 @@ export default function Prematch() {
   const bt = blindHud?.active ?? null;
   const btClicks = bt?.last_click_count ?? 0;
   const btGamesLeft = bt ? Math.max(0, bt.batch_size - bt.games_on_stage) : 0;
+  const { data: pendingData } = useApi<{ total: number }>('/api/aim/pending?limit=1');
+  const backlogCount = pendingData?.total ?? 0;
 
   const params = new URLSearchParams();
   if (map) params.set('map', map);
@@ -160,12 +162,9 @@ export default function Prematch() {
             remain in the sample before the next switch. Drives off the same blind
             state the Sens page loop does. Sits where the sens picker used to. */}
         <div className="card aspect-square shrink-0 flex flex-col self-stretch">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm heading-display text-[var(--ink)] whitespace-nowrap">Blind Trial</h2>
-            <Link to="/sens" className="text-[10px] text-[var(--faint)] hover:text-ow-accent transition-colors whitespace-nowrap">Sens →</Link>
-          </div>
+          <h2 className="text-sm heading-display text-[var(--ink)] whitespace-nowrap">Blind Trial</h2>
           {bt ? (
-            <div className="flex-1 grid grid-cols-[auto_auto] items-center gap-x-3 gap-y-5 place-content-center">
+            <div className="flex-1 grid grid-cols-[auto_auto] items-center gap-x-3 gap-y-3 place-content-center">
               <Odometer value={btClicks} />
               <div className="leading-tight">
                 <div className="text-sm text-[var(--ink)]">clicks</div>
@@ -176,12 +175,49 @@ export default function Prematch() {
                 <div className="text-sm text-[var(--ink)]">games left</div>
                 <div className="text-[10px] text-[var(--faint-2)]">in this sample</div>
               </div>
+              {/* Backlog counter shares this grid's column tracks (rather than
+                  being its own grid) so its drum is guaranteed to land in the
+                  same x position as the two above — a separate grid re-centers
+                  independently and drifts whenever the label text width differs. */}
+              <Odometer value={backlogCount} />
+              <div className="leading-tight">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-[var(--ink)]">in backlog</span>
+                  <Link
+                    to="/sens"
+                    className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-gradient-to-r from-ow-accent to-ow-accentLight text-white shadow-md shadow-ow-accent/30 hover:brightness-110 active:brightness-95 transition-all whitespace-nowrap"
+                  >
+                    Go →
+                  </Link>
+                </div>
+                <div className="text-[10px] text-[var(--faint-2)]">matches awaiting stats</div>
+              </div>
             </div>
           ) : (
             <div className="flex-1 grid place-items-center text-center px-2">
               <div>
                 <div className="text-xs text-[var(--faint)]">No blind trial running</div>
                 <div className="text-[10px] text-[var(--faint-2)] mt-1">Start one on the Sens page →</div>
+              </div>
+            </div>
+          )}
+
+          {/* Idle state has no sibling drum row to align with, so the backlog
+              counter gets its own simple centered row here instead. */}
+          {!bt && (
+            <div className="flex items-center justify-center gap-3 pt-3 mt-2">
+              <Odometer value={backlogCount} />
+              <div className="leading-tight">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-[var(--ink)]">in backlog</span>
+                  <Link
+                    to="/sens"
+                    className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-gradient-to-r from-ow-accent to-ow-accentLight text-white shadow-md shadow-ow-accent/30 hover:brightness-110 active:brightness-95 transition-all whitespace-nowrap"
+                  >
+                    Go →
+                  </Link>
+                </div>
+                <div className="text-[10px] text-[var(--faint-2)]">matches awaiting stats</div>
               </div>
             </div>
           )}

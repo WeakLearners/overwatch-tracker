@@ -41,7 +41,15 @@ router.get('/pending', (req: Request, res: Response) => {
     ORDER BY m.id DESC
     LIMIT :limit
   `).all({ limit }) as Record<string, unknown>[]).map(maskMatchRow);
-  res.json({ rows });
+  // Total backlog size irrespective of `limit` — the Blind Trial HUD's backlog
+  // counter needs the true count, not just how many rows this page returned.
+  const { total } = db.prepare(`
+    SELECT COUNT(*) AS total
+    FROM matches m
+    LEFT JOIN aim_stats a ON a.match_id = m.id
+    WHERE a.match_id IS NULL AND (m.sens IS NOT NULL OR m.blind_trial = 1)
+  `).get() as { total: number };
+  res.json({ rows, total });
 });
 
 // Study analysis. Enriches each logged data point with derived fields (cm/360,
