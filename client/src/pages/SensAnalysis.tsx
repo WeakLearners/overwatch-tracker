@@ -203,16 +203,20 @@ function buildInsights(data: Analysis, heroCounts: Record<string, number>): stri
 
   if (reliable.length >= 2) {
     const bestByData = reliable.reduce((a, b) => ((b.avgDelta ?? -Infinity) > (a.avgDelta ?? -Infinity) ? b : a));
-    const bestByFeel = reliable.reduce((a, b) => ((b.avgFeel ?? -Infinity) > (a.avgFeel ?? -Infinity) ? b : a));
+    const fastestFeel = reliable.reduce((a, b) => ((b.avgFeel ?? -Infinity) > (a.avgFeel ?? -Infinity) ? b : a));
     const worst = reliable.reduce((a, b) => ((b.avgDelta ?? Infinity) < (a.avgDelta ?? Infinity) ? b : a));
 
-    if (bestByData.cm360 === bestByFeel.cm360) {
+    // Lead with the best performer on its own terms — it's the "just right"
+    // scale, not necessarily the fastest- or slowest-feeling one tested. Only
+    // call out the fastest-feeling scale when it's a DIFFERENT scale, and frame
+    // it as a correction ("feeling fast isn't the same as performing well"),
+    // never as a virtue in its own right.
+    notes.push(
+      `Your best performer is ${fmtScale(bestByData)} (${signed(bestByData.avgDelta)}% vs. baseline, n=${bestByData.n}), which felt ${f1(bestByData.avgFeel)}/10 for speed — accuracy peaks at the scale that's right for you, not at whichever end of the speed range you tested.`,
+    );
+    if (fastestFeel.cm360 !== bestByData.cm360 && fastestFeel.avgFeel != null) {
       notes.push(
-        `Feel and data agree: ${fmtScale(bestByData)} feels fastest to you and is your best performer (${signed(bestByData.avgDelta)}% vs. baseline, n=${bestByData.n}).`,
-      );
-    } else {
-      notes.push(
-        `Biggest feel-vs-data gap: ${fmtScale(bestByFeel)} feels fastest (${f1(bestByFeel.avgFeel)}/10), but ${fmtScale(bestByData)} is your actual best performer (${signed(bestByData.avgDelta)}% vs. baseline, n=${bestByData.n}) despite feeling only ${f1(bestByData.avgFeel)}/10 fast.`,
+        `${fmtScale(fastestFeel)} felt fastest to you (${f1(fastestFeel.avgFeel)}/10), but it isn't your top performer (${signed(fastestFeel.avgDelta)}% vs. baseline, n=${fastestFeel.n}) — feeling fast doesn't mean it's the right sens.`,
       );
     }
 
