@@ -558,10 +558,13 @@ export default function SensAnalysis() {
                     tick={axisStyle} tickLine={{ stroke: 'rgb(var(--ow-border))' }} axisLine={{ stroke: 'rgb(var(--ow-border))' }}
                     label={{ value: `In-game Sens (@${MOUSE_DPI} dpi)`, position: 'insideBottom', offset: -8, style: { fill: 'var(--faint)', fontSize: 11 } }}
                   />
+                  {/* tick={false} would hide the numbers, but it also silently
+                      drops CartesianGrid's horizontalValues lines entirely in
+                      this Recharts version — render an empty tick instead. */}
                   <YAxis
-                    dataKey="delta" type="number" domain={spreadYDomain} tick={false}
+                    dataKey="delta" type="number" domain={spreadYDomain} tick={() => <g />}
                     tickLine={{ stroke: 'rgb(var(--ow-border))' }} axisLine={{ stroke: 'rgb(var(--ow-border))' }} width={60}
-                    label={{ value: 'Accuracy', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: 'var(--faint)', fontSize: 11 } }}
+                    label={{ value: 'Accuracy Δ vs. baseline', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: 'var(--faint)', fontSize: 11 } }}
                   />
                   <Tooltip content={<SpreadTooltip />} cursor={{ strokeDasharray: '3 3' }} />
                   {spread.anchor != null && Number.isFinite(spread.threshold) && (
