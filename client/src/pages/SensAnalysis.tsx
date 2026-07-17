@@ -611,7 +611,7 @@ export default function SensAnalysis() {
                   {spread.baseline != null && (
                     <ReferenceLine
                       y={spread.baseline} stroke="var(--faint-2)" strokeDasharray="4 4"
-                      label={{ value: `Baseline ${f1(spread.baseline)}%`, position: 'insideBottomRight', fill: 'var(--faint)', fontSize: 10 }}
+                      label={{ value: `Baseline ${f1(spread.baseline)}%`, position: 'insideBottomLeft', fill: 'var(--faint)', fontSize: 10 }}
                     />
                   )}
                   {/* Drop line from each point down to the baseline, so its
