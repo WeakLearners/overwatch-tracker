@@ -191,6 +191,103 @@ function buildRecommendation(data: Analysis): Recommendation {
   };
 }
 
+// "Meaningfully different" bar for comparing two peak sens values: 20% of the
+// spread across all reliably-tested scales, floored at 0.05 sens so a couple
+// of thin, closely-tested scales don't read as "different" from rounding
+// noise alone. Undefined (Infinity) when there isn't a tested range to judge against.
+function sensGapThreshold(reliable: (ScaleRow & { sensAt1600: number })[]): number {
+  if (reliable.length < 2) return Infinity;
+  const spread = reliable[reliable.length - 1].sensAt1600 - reliable[0].sensAt1600;
+  return Math.max(spread * 0.2, 0.05);
+}
+
+interface SplitVerdict {
+  verdict: 'insufficient' | 'shared' | 'split';
+  headline: string;
+}
+
+// Answers "would hitscan and projectile benefit from separate sens" — not
+// "which one is better." Compares each aim type's own best-performing scale;
+// close peaks mean one setting covers both, far-apart peaks mean a split is
+// worth testing.
+function buildArchetypeVerdict(data: Analysis): SplitVerdict {
+  const hit = bySpeed(data.byArchetype.hitscan.filter(r => r.n >= RELIABLE_N));
+  const proj = bySpeed(data.byArchetype.projectile.filter(r => r.n >= RELIABLE_N));
+
+  if (hit.length === 0 || proj.length === 0) {
+    const which = hit.length === 0 && proj.length === 0 ? 'Hitscan and projectile both' : hit.length === 0 ? 'Hitscan' : 'Projectile';
+    return {
+      verdict: 'insufficient',
+      headline: `${which} still need more reps (n≥${RELIABLE_N} per scale) before a split can be judged.`,
+    };
+  }
+
+  const bestHit = hit.reduce((a, b) => ((b.avgDelta ?? -Infinity) > (a.avgDelta ?? -Infinity) ? b : a));
+  const bestProj = proj.reduce((a, b) => ((b.avgDelta ?? -Infinity) > (a.avgDelta ?? -Infinity) ? b : a));
+  const threshold = sensGapThreshold(bySpeed(data.byScale.filter(r => r.n >= RELIABLE_N)));
+  const diff = Math.abs(bestHit.sensAt1600 - bestProj.sensAt1600);
+
+  if (diff <= threshold) {
+    return {
+      verdict: 'shared',
+      headline: `Hitscan peaks at ${fmtScale(bestHit)} (${signed(bestHit.avgDelta)}%) and projectile at ${fmtScale(bestProj)} (${signed(bestProj.avgDelta)}%) — close enough that one sens looks like it covers both.`,
+    };
+  }
+  return {
+    verdict: 'split',
+    headline: `Hitscan peaks at ${fmtScale(bestHit)} (${signed(bestHit.avgDelta)}%) but projectile peaks at ${fmtScale(bestProj)} (${signed(bestProj.avgDelta)}%) — far enough apart that a dedicated sens per aim type may be worth testing.`,
+  };
+}
+
+interface HeroDivergenceRow { hero: string; archetype: string; sens: number; n: number; delta: number | null; diff: number }
+interface HeroDivergence {
+  verdict: 'insufficient' | 'uniform' | 'diverge';
+  headline: string;
+  diverging: HeroDivergenceRow[];
+}
+
+// Same split-worth-it question, one level below aim type: every hero aims
+// differently, so this checks each hero's OWN best-performing scale against
+// the overall best rather than assuming archetype is the only axis that matters.
+function buildHeroDivergence(data: Analysis): HeroDivergence {
+  const reliable = bySpeed(data.byScale.filter(r => r.n >= RELIABLE_N));
+  const eligible = data.heroes.filter(h => h.bestScaleN >= RELIABLE_N);
+
+  if (reliable.length < 2 || eligible.length === 0) {
+    return {
+      verdict: 'insufficient',
+      headline: `No hero has n≥${RELIABLE_N} on its own best scale yet — keep logging before drawing per-hero conclusions.`,
+      diverging: [],
+    };
+  }
+
+  const globalBest = reliable.reduce((a, b) => ((b.avgDelta ?? -Infinity) > (a.avgDelta ?? -Infinity) ? b : a));
+  const threshold = sensGapThreshold(reliable);
+
+  const diverging = eligible
+    .map(h => ({
+      hero: h.hero, archetype: h.archetype, n: h.bestScaleN,
+      sens: h.bestScaleEDPI / MOUSE_DPI, delta: h.bestScaleOverallDelta,
+      diff: Math.abs(h.bestScaleEDPI / MOUSE_DPI - globalBest.sensAt1600),
+    }))
+    .filter(h => h.diff > threshold)
+    .sort((a, b) => b.diff - a.diff);
+
+  if (diverging.length === 0) {
+    return {
+      verdict: 'uniform',
+      headline: `Every hero with enough data (n≥${RELIABLE_N}) peaks close to your overall best (${fmtScale(globalBest)}) — no hero is asking for its own sens yet.`,
+      diverging: [],
+    };
+  }
+
+  return {
+    verdict: 'diverge',
+    headline: `${diverging.length} hero${diverging.length === 1 ? '' : 'es'} peak${diverging.length === 1 ? 's' : ''} at a noticeably different sens than your overall best (${fmtScale(globalBest)}) — worth testing a dedicated sens for them.`,
+    diverging,
+  };
+}
+
 // Turns the analysis payload into a plain-language read, so the charts below
 // aren't the only way to find out what they say. Recomputed from the same
 // numbers on every load — nothing here is written per data point.
@@ -340,6 +437,8 @@ export default function SensAnalysis() {
 
   const insights = buildInsights(data, heroCounts);
   const recommendation = buildRecommendation(data);
+  const archetypeVerdict = buildArchetypeVerdict(data);
+  const heroDivergence = buildHeroDivergence(data);
 
   return wrap(
     <div className="space-y-6">
@@ -434,8 +533,14 @@ export default function SensAnalysis() {
         {hasArch && (
           <Section
             title="Hitscan vs. Projectile"
-            hint={`Each dot is a tested scale, split by aim type. The vertical crosshair sits at the mean sens tested; the horizontal sits at zero (your own baseline). If both series peak in the same quadrant, one setting serves everything — if they pull apart, a split may be worth it.`}
+            hint={`Not a leaderboard — the question is whether hitscan and projectile are worth separate sens. Each dot is a tested scale, split by aim type; the vertical crosshair sits at the mean sens tested, the horizontal at zero (your own baseline).`}
           >
+            <div className="flex items-start gap-3 flex-wrap mb-3">
+              <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${archetypeVerdict.verdict === 'split' ? 'bg-amber-500/15 text-amber-500' : archetypeVerdict.verdict === 'shared' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-violet-500/15 text-violet-500'}`}>
+                {archetypeVerdict.verdict === 'split' ? 'Split may help' : archetypeVerdict.verdict === 'shared' ? 'One sens fits both' : 'Not enough data'}
+              </span>
+              <p className="text-sm text-[var(--ink)] font-semibold flex-1 min-w-[200px]">{archetypeVerdict.headline}</p>
+            </div>
             <div className="flex gap-2">
               <div className="flex flex-col justify-between text-[10px] text-[var(--faint-2)] py-3 w-12 shrink-0 text-right">
                 <span>More accurate</span>
@@ -471,6 +576,28 @@ export default function SensAnalysis() {
           </Section>
         )}
       </div>
+
+      {/* Per-hero sens divergence — same split-worth-it question, one level deeper */}
+      <Section
+        title="Does Each Hero Need Its Own Sens?"
+        hint={`Every hero aims differently, so this goes past aim type: checks each hero's own best-performing scale (from By Hero below) against your overall best. Only heroes with n≥${RELIABLE_N} on their own best scale are judged — thin heroes are left out rather than guessed at.`}
+      >
+        <div className="flex items-start gap-3 flex-wrap">
+          <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${heroDivergence.verdict === 'diverge' ? 'bg-amber-500/15 text-amber-500' : heroDivergence.verdict === 'uniform' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-violet-500/15 text-violet-500'}`}>
+            {heroDivergence.verdict === 'diverge' ? 'Some heroes diverge' : heroDivergence.verdict === 'uniform' ? 'One sens fits all' : 'Not enough data'}
+          </span>
+          <p className="text-sm text-[var(--ink)] font-semibold flex-1 min-w-[200px]">{heroDivergence.headline}</p>
+        </div>
+        {heroDivergence.diverging.length > 0 && (
+          <ul className="space-y-2 text-sm text-[var(--ink-2)] list-disc list-inside marker:text-amber-500 mt-3">
+            {heroDivergence.diverging.map(h => (
+              <li key={h.hero}>
+                {withHeroCount(h.hero, heroCounts)} <span className="text-[var(--faint)] capitalize">({h.archetype})</span> peaks at {h.sens.toFixed(2)} sens ({signed(h.delta)}%, n={h.n}) — {h.diff.toFixed(2)} sens away from your overall best.
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
 
       {/* Cold vs Warm + Adaptation */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
