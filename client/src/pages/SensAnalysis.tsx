@@ -63,6 +63,15 @@ const centeredDomain = (vals: (number | null | undefined)[], center: number): [n
   return [center - pad, center + pad];
 };
 
+// Fixed-step gridline positions across a domain (independent of the axis's
+// own — often sparse, label-driven — ticks), rounded to kill float drift
+// from repeated addition (e.g. 2.2 + 0.1 + 0.1... landing on 2.4000000000000004).
+const gridTicks = (min: number, max: number, step: number): number[] => {
+  const start = Math.ceil(min / step) * step;
+  const count = Math.max(0, Math.floor((max - start) / step + 1e-9) + 1);
+  return Array.from({ length: count }, (_, i) => Math.round((start + i * step) * 1000) / 1000);
+};
+
 // n-weighted mean of a bucket field — reconstructs the grand mean across the
 // underlying matches from the per-scale aggregates (avg × n = bucket sum).
 const wMean = (rows: ScaleRow[], key: 'avgFeel' | 'avgDelta'): number => {
@@ -418,6 +427,10 @@ export default function SensAnalysis() {
   // highest peak plus a 5% buffer, not a symmetric ± range.
   const maxSpreadDelta = spread.points.reduce((m, p) => Math.max(m, p.delta ?? 0), 0);
   const spreadYDomain: [number, number] = [0, (maxSpreadDelta * 1.05) || 1];
+  // Gridlines every 0.1 sens / 5 accuracy points — denser than the sparse,
+  // label-driven axis ticks (one per category), so the plot area isn't bare.
+  const spreadGridX = gridTicks(spreadXDomain[0], spreadXDomain[1], 0.1);
+  const spreadGridY = gridTicks(spreadYDomain[0], spreadYDomain[1], 5);
 
   // Feel vs. Data quadrant: each scale plotted at (felt speed, accuracy delta),
   // with the crosshair sitting at Sean's own mean of each — so the four
@@ -538,7 +551,7 @@ export default function SensAnalysis() {
             <div className="flex-1 min-w-0">
               <ResponsiveContainer width="100%" height={280}>
                 <ScatterChart data={spread.points} margin={{ top: 16, right: 16, bottom: 24, left: 10 }}>
-                  <CartesianGrid stroke="rgb(var(--ow-border))" strokeOpacity={0.5} strokeDasharray="3 3" />
+                  <CartesianGrid stroke="rgb(var(--ow-border))" strokeOpacity={0.5} strokeDasharray="3 3" verticalValues={spreadGridX} horizontalValues={spreadGridY} />
                   <XAxis
                     dataKey="sens" type="number" name="Sens" domain={spreadXDomain}
                     ticks={spreadSensValues} tickFormatter={(v: number) => v.toFixed(2)}
