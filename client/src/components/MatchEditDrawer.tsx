@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMatchEditDrawer } from '../contexts/MatchEditDrawerContext';
 import { revalidateAll } from '../hooks/useApi';
+import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import {
   HEROES, MAPS, ROLE_COLORS, TYPE_COLORS,
   QUEUE_MODES, QUEUE_MODE_COLORS, QueueMode, TrendPoint,
@@ -36,6 +37,7 @@ function DrawerForm({ match }: { match: TrendPoint }) {
   });
   const [status, setStatus] = useState<'idle' | 'saving' | 'error'>('idle');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const mapCounts = useTodayMapCounts();
 
   const heroRole = form.hero ? HEROES[form.hero] : '';
   const mapType = form.map ? MAPS[form.map] : '';
@@ -131,7 +133,7 @@ function DrawerForm({ match }: { match: TrendPoint }) {
           className="w-full field px-3 py-2 text-sm"
         >
           {MAP_LIST.map(m => (
-            <option key={m} value={m}>{m} ({MAPS[m]})</option>
+            <option key={m} value={m}>{withMapCount(m, mapCounts)} ({MAPS[m]})</option>
           ))}
         </select>
         {mapType && <span className={`pill mt-1.5 ${TYPE_COLORS[mapType] ?? ''}`}>{mapType}</span>}

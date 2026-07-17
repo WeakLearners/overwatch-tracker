@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { format } from 'date-fns';
 import { useApi } from '../hooks/useApi';
+import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { MAPS, QUEUE_MODES, ROLE_COLORS, TYPE_COLORS, MapVotingRow, Streaks } from '../types';
 import AdvisorCard from '../components/AdvisorCard';
 import EmptyState from '../components/EmptyState';
@@ -48,6 +49,7 @@ export default function Prematch() {
   const btGamesLeft = bt ? Math.max(0, bt.batch_size - bt.games_on_stage) : 0;
   const { data: pendingData } = useApi<{ total: number }>('/api/aim/pending?limit=1');
   const backlogCount = pendingData?.total ?? 0;
+  const mapCounts = useTodayMapCounts();
 
   const params = new URLSearchParams();
   if (map) params.set('map', map);
@@ -263,7 +265,7 @@ export default function Prematch() {
                     onMouseDown={() => selectMap(m)}
                     className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-white/5 transition-colors text-left"
                   >
-                    <span className="text-[var(--ink)]">{m}</span>
+                    <span className="text-[var(--ink)]">{withMapCount(m, mapCounts)}</span>
                     <span className={`pill ${TYPE_COLORS[MAPS[m]] ?? ''}`}>{MAPS[m]}</span>
                   </button>
                 ))}
@@ -287,7 +289,7 @@ export default function Prematch() {
                       onClick={() => selectMap(m.map)}
                       className="flex items-center justify-between w-full text-left py-1 px-1 -mx-1 rounded hover:bg-white/5 transition-colors group"
                     >
-                      <span className="text-sm text-[var(--ink)] truncate group-hover:text-ow-accent transition-colors">{m.map}</span>
+                      <span className="text-sm text-[var(--ink)] truncate group-hover:text-ow-accent transition-colors">{withMapCount(m.map, mapCounts)}</span>
                       <span className={`text-xs font-semibold shrink-0 ml-2 ${col.pct}`}>{Math.round(m.historical_rate)}%</span>
                     </button>
                   ))}
@@ -310,7 +312,7 @@ export default function Prematch() {
                   }`}
                 >
                   {m === winner && <span className="text-xs">✓</span>}
-                  {m}
+                  {withMapCount(m, mapCounts)}
                   <span className="text-xs opacity-60">×</span>
                 </button>
               ))}
@@ -327,7 +329,7 @@ export default function Prematch() {
                   <div className="flex-1">
                     <div className="text-xs text-[var(--faint)] mb-1 uppercase tracking-wider">Vote for</div>
                     <button onClick={() => openMap(winner)} className="text-xl font-bold text-emerald-600 hover:text-emerald-700 transition-colors text-left">
-                      {winner}
+                      {withMapCount(winner, mapCounts)}
                     </button>
                     {scoreMap[winner] && (
                       <div className="text-xs text-[var(--faint)] mt-0.5">
@@ -338,7 +340,7 @@ export default function Prematch() {
                   <div className="text-right space-y-1">
                     {ranked.slice(1).map(m => (
                       <div key={m} className="text-sm text-[var(--faint)]">
-                        {m}{scoreMap[m] ? ` · ${scoreMap[m].blended_score}%` : ' · no data'}
+                        {withMapCount(m, mapCounts)}{scoreMap[m] ? ` · ${scoreMap[m].blended_score}%` : ' · no data'}
                       </div>
                     ))}
                   </div>
@@ -370,7 +372,7 @@ export default function Prematch() {
             >
               <option value="">— Select map —</option>
               {(selected.length > 0 ? selected : Object.keys(MAPS)).sort().map(m => (
-                <option key={m} value={m}>{m} ({MAPS[m]})</option>
+                <option key={m} value={m}>{withMapCount(m, mapCounts)} ({MAPS[m]})</option>
               ))}
             </select>
           </div>
@@ -427,7 +429,7 @@ export default function Prematch() {
           <div>
             <h2 className="text-sm heading-display text-[var(--ink-2)]">
               {map ? (
-                <>Your Heroes on <button onClick={() => openMap(map)} className="text-ow-accent hover:text-ow-accent/80 transition-colors">{map}</button></>
+                <>Your Heroes on <button onClick={() => openMap(map)} className="text-ow-accent hover:text-ow-accent/80 transition-colors">{withMapCount(map, mapCounts)}</button></>
               ) : 'Your Best Heroes Overall'}
             </h2>
             <p className="text-xs text-[var(--faint)] mt-0.5">By role · min 2 games · tap hero to pre-fill log</p>
@@ -552,7 +554,7 @@ export default function Prematch() {
         ) : (
           <EmptyState
             icon={map ? '⌖' : '☷'}
-            title={map ? `No games logged on ${map} yet` : 'Pick a map to see your heroes'}
+            title={map ? `No games logged on ${withMapCount(map, mapCounts)} yet` : 'Pick a map to see your heroes'}
             hint={map
               ? 'Once you log a match here, your best heroes for this map appear by role.'
               : 'Select a map above and this fills with your strongest picks for it, broken out by role.'}

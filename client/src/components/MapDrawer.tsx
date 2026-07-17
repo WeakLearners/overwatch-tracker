@@ -1,5 +1,6 @@
 import { useMapDrawer } from '../contexts/MapDrawerContext';
 import { useApi } from '../hooks/useApi';
+import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { MAPS, TYPE_COLORS, ROLE_COLORS, DeathInsights as DeathInsightsData } from '../types';
 import DeathInsights from './DeathInsights';
 
@@ -19,6 +20,7 @@ function WR({ rate }: { rate: number }) {
 
 function DrawerContent({ map }: { map: string }) {
   const { data } = useApi<MapDetail>(`/api/stats/map-detail/${encodeURIComponent(map)}`);
+  const mapCounts = useTodayMapCounts();
 
   if (!data) return <div className="p-5 text-sm text-[var(--faint)]">Loading…</div>;
 
@@ -86,7 +88,7 @@ function DrawerContent({ map }: { map: string }) {
       })}
 
       {/* Death patterns */}
-      <DeathInsights data={data.deaths} label={map} />
+      <DeathInsights data={data.deaths} label={withMapCount(map, mapCounts)} />
 
       {/* Last 5 */}
       {data.recent5.length > 0 && (
@@ -116,6 +118,7 @@ function DrawerContent({ map }: { map: string }) {
 export default function MapDrawer() {
   const { activeMap, closeMap } = useMapDrawer();
   const mapType = activeMap ? (MAPS[activeMap] ?? '') : '';
+  const mapCounts = useTodayMapCounts();
 
   return (
     <>
@@ -128,7 +131,7 @@ export default function MapDrawer() {
       <div className={`fixed inset-y-0 right-0 w-96 bg-ow-dark border-l border-ow-border z-50 flex flex-col transition-transform duration-300 ${activeMap ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="flex items-start justify-between p-5 border-b border-ow-border shrink-0">
           <div>
-            <h2 className="text-lg heading-display text-[var(--ink)] leading-tight">{activeMap ?? ''}</h2>
+            <h2 className="text-lg heading-display text-[var(--ink)] leading-tight">{activeMap ? withMapCount(activeMap, mapCounts) : ''}</h2>
             {mapType && <span className={`pill mt-1 ${TYPE_COLORS[mapType] ?? ''}`}>{mapType}</span>}
           </div>
           <button onClick={closeMap} className="text-[var(--faint)] hover:text-[var(--ink)] transition-colors text-2xl leading-none ml-4">

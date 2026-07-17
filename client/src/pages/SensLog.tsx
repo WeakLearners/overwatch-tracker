@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useApi, revalidateAll } from '../hooks/useApi';
+import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { eDPI, MOUSE_DPI } from '../lib/aim';
 import {
   QueueMode, QUEUE_MODE_COLORS, MODE_TAG, HEROES, ROLE_COLORS,
@@ -343,6 +344,7 @@ function BackfillPanel({ pending, loading, knownLabels, labelFor }: {
   const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const selected = pending.find(m => m.id === selectedId) ?? null;
   const durationRef = useRef<HTMLInputElement>(null);
+  const mapCounts = useTodayMapCounts();
 
   // Selecting a card should land the cursor on Duration — the required field and
   // the whole point of the backfill — so it's type-ready without a second click.
@@ -395,7 +397,7 @@ function BackfillPanel({ pending, loading, knownLabels, labelFor }: {
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className={`pill ${ROLE_COLORS[m.role] ?? ''}`}>{m.hero}</span>
-                          <span className="text-sm text-[var(--ink)] truncate">{m.map}</span>
+                          <span className="text-sm text-[var(--ink)] truncate">{withMapCount(m.map, mapCounts)}</span>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <span className={`text-xs font-bold ${m.win ? 'text-emerald-500' : 'text-red-500'}`}>{m.win ? 'W' : 'L'}</span>
@@ -420,7 +422,7 @@ function BackfillPanel({ pending, loading, knownLabels, labelFor }: {
               <div className="rounded-lg bg-ow-darker border border-ow-border px-3 py-2.5">
                 <div className="flex items-center gap-2">
                   <span className={`pill ${ROLE_COLORS[HEROES[selected.hero] ?? ''] ?? ''}`}>{selected.hero}</span>
-                  <span className="text-sm text-[var(--ink)]">@ {selected.map}</span>
+                  <span className="text-sm text-[var(--ink)]">@ {withMapCount(selected.map, mapCounts)}</span>
                   <span className={`text-xs font-bold ml-auto ${selected.win ? 'text-emerald-500' : 'text-red-500'}`}>{selected.win ? 'WIN' : 'LOSS'}</span>
                 </div>
                 <div className="flex items-center gap-2 mt-2">

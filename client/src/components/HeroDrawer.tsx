@@ -1,5 +1,6 @@
 import { useHeroDrawer } from '../contexts/HeroDrawerContext';
 import { useApi } from '../hooks/useApi';
+import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { ROLE_COLORS, TYPE_COLORS, DeathInsights as DeathInsightsData } from '../types';
 import DeathInsights from './DeathInsights';
 
@@ -23,6 +24,7 @@ function WR({ rate }: { rate: number }) {
 
 function DrawerContent({ hero, role }: { hero: string; role?: string }) {
   const { data } = useApi<HeroDetail>(`/api/stats/hero-detail/${encodeURIComponent(hero)}`);
+  const mapCounts = useTodayMapCounts();
 
   if (!data) return <div className="p-5 text-sm text-[var(--faint)]">Loading…</div>;
 
@@ -73,7 +75,7 @@ function DrawerContent({ hero, role }: { hero: string; role?: string }) {
               <div key={'b' + m.map} className="flex items-center gap-2 py-1.5">
                 <span className="text-sm text-emerald-700">↑</span>
                 <div className="flex-1 min-w-0">
-                  <span className="text-sm text-[var(--ink)] truncate">{m.map}</span>
+                  <span className="text-sm text-[var(--ink)] truncate">{withMapCount(m.map, mapCounts)}</span>
                   <span className={`pill ml-1 ${TYPE_COLORS[m.game_type] ?? ''}`}>{m.game_type}</span>
                 </div>
                 <WR rate={m.win_rate} />
@@ -84,7 +86,7 @@ function DrawerContent({ hero, role }: { hero: string; role?: string }) {
               <div key={'w' + m.map} className="flex items-center gap-2 py-1.5">
                 <span className="text-sm text-red-500">↓</span>
                 <div className="flex-1 min-w-0">
-                  <span className="text-sm text-[var(--ink)] truncate">{m.map}</span>
+                  <span className="text-sm text-[var(--ink)] truncate">{withMapCount(m.map, mapCounts)}</span>
                   <span className={`pill ml-1 ${TYPE_COLORS[m.game_type] ?? ''}`}>{m.game_type}</span>
                 </div>
                 <WR rate={m.win_rate} />
@@ -135,7 +137,7 @@ function DrawerContent({ hero, role }: { hero: string; role?: string }) {
             {data.recent10.map((m, i) => (
               <div
                 key={i}
-                title={`${m.win ? 'W' : 'L'} · ${m.map}`}
+                title={`${m.win ? 'W' : 'L'} · ${withMapCount(m.map, mapCounts)}`}
                 className={`w-7 h-7 rounded flex items-center justify-center text-xs font-bold border ${
                   m.win
                     ? 'bg-emerald-500/20 text-emerald-600 border-emerald-500/30'

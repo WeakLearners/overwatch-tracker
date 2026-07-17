@@ -4,6 +4,7 @@ import { useMatch } from '../contexts/MatchContext';
 import EmptyState from '../components/EmptyState';
 import ModeWatermark from '../components/ModeWatermark';
 import { useApi, revalidateAll } from '../hooks/useApi';
+import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { format } from 'date-fns';
 
 interface FormState {
@@ -57,6 +58,7 @@ export default function LogMatch() {
   // Map + queue mode are shared with the Pre-Match section via context; this
   // section only owns date/time/hero/win plus the death tags.
   const { queueMode, setQueueMode, map, setMap, mapType, sens, pendingHero, setPendingHero, revalidateRec, notifyMatchLogged, deathBuffer, removeDeathFromBuffer, clearDeathBuffer } = useMatch();
+  const mapCounts = useTodayMapCounts();
   const [form, setForm] = useState<FormState>(() => {
     const n = new Date();
     let pending: { hero?: string } = {};
@@ -358,7 +360,7 @@ export default function LogMatch() {
               <label className="block text-xs text-[var(--muted)] mb-1.5">Map</label>
               {map ? (
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-[var(--ink)] font-medium">{map}</span>
+                  <span className="text-sm text-[var(--ink)] font-medium">{withMapCount(map, mapCounts)}</span>
                   {mapType && <span className={`pill ${TYPE_COLORS[mapType] ?? ''}`}>{mapType}</span>}
                 </div>
               ) : (
@@ -443,7 +445,7 @@ export default function LogMatch() {
                     </div>
                     <div className="relative z-10 flex-1 min-w-0">
                       <div className="text-sm font-medium text-[var(--ink)]">{r.hero}</div>
-                      <div className="text-xs text-[var(--faint)]">{r.map}</div>
+                      <div className="text-xs text-[var(--faint)]">{withMapCount(r.map, mapCounts)}</div>
                     </div>
                     <div className="relative z-10 flex flex-col items-end gap-0.5 shrink-0">
                       <div className="flex items-center gap-1">

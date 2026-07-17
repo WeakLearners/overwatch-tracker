@@ -1,4 +1,5 @@
 import { MAPS, Recommendation, AxisPayload, DEATH_AXES } from '../types';
+import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 
 interface Props {
   map: string;
@@ -15,13 +16,14 @@ interface Props {
 
 // Human caption explaining which slice of the player's data the death
 // axes are drawn from — keeps thin/fallback data honest.
-function scopeCaption(rec: Recommendation, map: string, a: AxisPayload): string {
+function scopeCaption(rec: Recommendation, map: string, a: AxisPayload, mapCounts: Record<string, number>): string {
   const g = `${a.games} game${a.games !== 1 ? 's' : ''}`;
   const d = `${a.deaths} death${a.deaths !== 1 ? 's' : ''}`;
-  if (rec.death_scope === 'map') return `Your deaths on ${map} · ${g}, ${d}`;
+  const mapLabel = withMapCount(map, mapCounts);
+  if (rec.death_scope === 'map') return `Your deaths on ${mapLabel} · ${g}, ${d}`;
   if (rec.death_scope === 'map_type') {
     const type = MAPS[map] ?? 'these';
-    return `Too few ${map} games — your ${type} maps · ${g}, ${d}`;
+    return `Too few ${mapLabel} games — your ${type} maps · ${g}, ${d}`;
   }
   return `Too few games here — your overall pattern · ${g}, ${d}`;
 }
@@ -52,12 +54,13 @@ function SpectrumBar({ label, low, high, mean, n }: { label: string; low: string
 }
 
 export default function AdvisorCard({ map, queueLabel, rec, loading, error, onRefresh, onOpenHero, bare = false }: Props) {
+  const mapCounts = useTodayMapCounts();
   return (
     <div className={bare ? '' : 'rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-3'}>
       {!bare && (
         <div className="flex items-center justify-between mb-2">
           <div className="text-[10px] text-emerald-600 uppercase tracking-widest font-semibold">
-            {map}
+            {withMapCount(map, mapCounts)}
             <span className="text-[var(--faint-2)] mx-2">·</span>
             <span className="text-[var(--faint)]">{queueLabel}</span>
           </div>
@@ -120,7 +123,7 @@ export default function AdvisorCard({ map, queueLabel, rec, loading, error, onRe
           {rec.death_axes ? (
             <div className="mb-2.5">
               <div className="text-[10px] text-[var(--faint)] uppercase tracking-wider mb-1.5">
-                {scopeCaption(rec, map, rec.death_axes)}
+                {scopeCaption(rec, map, rec.death_axes, mapCounts)}
               </div>
               <div className="space-y-1">
                 {DEATH_AXES.map(a => {

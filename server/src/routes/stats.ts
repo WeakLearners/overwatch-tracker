@@ -62,6 +62,21 @@ router.get('/by-map', (req: Request, res: Response) => {
   res.json(rows);
 });
 
+// Per-map match counts for a single day (used to annotate map names in the UI
+// with "played N times today"). No HAVING floor — a single game still counts.
+router.get('/map-counts', (req: Request, res: Response) => {
+  const db = getDb();
+  const date = (req.query.date as string) ?? '';
+  const rows = db.prepare(`
+    SELECT map, COUNT(*) as n
+    FROM matches
+    WHERE date = :date
+    GROUP BY map
+  `).all({ date }) as { map: string; n: number }[];
+  const counts = Object.fromEntries(rows.map(r => [r.map, r.n]));
+  res.json({ counts });
+});
+
 router.get('/by-hour', (req: Request, res: Response) => {
   const db = getDb();
   const [where, params] = whereClause(req.query as Record<string, string>);

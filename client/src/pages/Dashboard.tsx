@@ -1,5 +1,6 @@
 import { useState, useEffect, Fragment } from 'react';
 import { useApi } from '../hooks/useApi';
+import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { Overview, Streaks, TrendPoint, ModeComparison, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS } from '../types';
 import StatCard from '../components/StatCard';
 import AnimatedNumber from '../components/AnimatedNumber';
@@ -156,6 +157,7 @@ export default function Dashboard() {
   const { data: trends } = useApi<TrendPoint[]>('/api/stats/trends?window=20');
   const { data: modeComparison } = useApi<ModeComparison[]>('/api/stats/mode-comparison');
   const { openEdit } = useMatchEditDrawer();
+  const mapCounts = useTodayMapCounts();
   // Session tilt is map-independent, so a no-arg prematch fetch gives it to us.
   const { data: prematch } = useApi<{ session: { on_tilt: boolean; tilt_win_rate: number | null; tilt_games: number } | null }>('/api/stats/prematch');
   const tilt = prematch?.session;
@@ -228,7 +230,7 @@ export default function Dashboard() {
                   key={g.id}
                   type="button"
                   onClick={() => openEdit(g)}
-                  title={`${g.win ? 'Win' : 'Loss'} · ${g.hero} on ${g.map} (${format(parseISO(g.date), 'MMM d')}) — tap to edit`}
+                  title={`${g.win ? 'Win' : 'Loss'} · ${g.hero} on ${withMapCount(g.map, mapCounts)} (${format(parseISO(g.date), 'MMM d')}) — tap to edit`}
                   className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-xs font-black border transition-all duration-150 cursor-pointer hover:-translate-y-0.5 hover:ring-2 hover:ring-offset-1 hover:ring-offset-transparent ${
                     g.win
                       ? 'bg-emerald-100 text-emerald-700 border-emerald-300 hover:ring-emerald-400/60 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/40'
