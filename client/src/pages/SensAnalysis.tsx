@@ -537,14 +537,19 @@ export default function SensAnalysis() {
           {spread.points.length >= 2 ? (
             <div className="flex-1 min-w-0">
               <ResponsiveContainer width="100%" height={280}>
-                <ScatterChart data={spread.points} margin={{ top: 16, right: 16, bottom: 8, left: 0 }}>
+                <ScatterChart data={spread.points} margin={{ top: 16, right: 16, bottom: 24, left: 10 }}>
                   <CartesianGrid stroke="rgb(var(--ow-border))" />
                   <XAxis
                     dataKey="sens" type="number" name="Sens" domain={spreadXDomain}
                     ticks={spreadSensValues} tickFormatter={(v: number) => v.toFixed(2)}
                     tick={axisStyle} tickLine={{ stroke: 'rgb(var(--ow-border))' }} axisLine={{ stroke: 'rgb(var(--ow-border))' }}
+                    label={{ value: `In-game Sens (@${MOUSE_DPI} dpi)`, position: 'insideBottom', offset: -8, style: { fill: 'var(--faint)', fontSize: 11 } }}
                   />
-                  <YAxis dataKey="delta" type="number" domain={spreadYDomain} tick={false} tickLine={{ stroke: 'rgb(var(--ow-border))' }} axisLine={{ stroke: 'rgb(var(--ow-border))' }} width={4} />
+                  <YAxis
+                    dataKey="delta" type="number" domain={spreadYDomain} tick={false}
+                    tickLine={{ stroke: 'rgb(var(--ow-border))' }} axisLine={{ stroke: 'rgb(var(--ow-border))' }} width={60}
+                    label={{ value: 'Accuracy', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: 'var(--faint)', fontSize: 11 } }}
+                  />
                   <Tooltip content={<SpreadTooltip />} cursor={{ strokeDasharray: '3 3' }} />
                   {spread.anchor != null && Number.isFinite(spread.threshold) && (
                     <ReferenceArea x1={spread.anchor - spread.threshold} x2={spread.anchor + spread.threshold} fill={FEEL} fillOpacity={0.08} stroke="none" />
