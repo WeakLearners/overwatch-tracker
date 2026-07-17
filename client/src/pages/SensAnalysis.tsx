@@ -54,15 +54,6 @@ const signed = (x: number | null | undefined) =>
 const deltaColor = (x: number | null | undefined) =>
   x == null ? '' : x > 0 ? 'text-emerald-700 dark:text-emerald-500' : x < 0 ? 'text-red-700 dark:text-red-400' : '';
 
-// A symmetric [-max, max] domain so 0 sits at the vertical center of a delta
-// axis instead of wherever the data happens to land — makes "above vs. below
-// baseline" a visual split down the middle rather than a number to compare.
-const symmetricDomain = (vals: (number | null | undefined)[]): [number, number] => {
-  const max = Math.max(0, ...vals.filter((v): v is number => v != null).map(v => Math.abs(v)));
-  const padded = max * 1.1 || 1;
-  return [-padded, padded];
-};
-
 // A domain centered on `center`, spanning the farthest point from it (+10%
 // pad), so a crosshair drawn at `center` lands at the plot's midpoint — the
 // basis for the four-quadrant Feel vs. Data view.
@@ -415,9 +406,18 @@ export default function SensAnalysis() {
   // best-performing scale — see buildSensSpread for why only peaks (not
   // every tested scale) are plotted.
   const spread = buildSensSpread(data);
-  const spreadAnchorForDomain = spread.anchor ?? spread.points[0]?.sens ?? 0;
-  const spreadXDomain = centeredDomain(spread.points.map(p => p.sens), spreadAnchorForDomain);
-  const spreadYDomain = symmetricDomain(spread.points.map(p => p.delta));
+  const spreadSensValues = spread.points.map(p => p.sens);
+  // X domain hugs the tested points exactly (±0.05 sens) instead of an
+  // auto-padded range — ticks are drawn only at each point's own sens value
+  // (see the XAxis `ticks` prop below), so there's no "arbitrary" tick to pad for.
+  const spreadXDomain: [number, number] = spreadSensValues.length
+    ? [Math.min(...spreadSensValues) - 0.05, Math.max(...spreadSensValues) + 0.05]
+    : [0, 1];
+  // Y domain runs from the mean (0 — every peak is a deviation from its own
+  // category's baseline, see the "peak >= mean" note above) up to the
+  // highest peak plus a 5% buffer, not a symmetric ± range.
+  const maxSpreadDelta = spread.points.reduce((m, p) => Math.max(m, p.delta ?? 0), 0);
+  const spreadYDomain: [number, number] = [0, (maxSpreadDelta * 1.05) || 1];
 
   // Feel vs. Data quadrant: each scale plotted at (felt speed, accuracy delta),
   // with the crosshair sitting at Sean's own mean of each — so the four
@@ -535,41 +535,37 @@ export default function SensAnalysis() {
             <p className="text-sm text-[var(--ink)] font-semibold flex-1 min-w-[200px]">{spread.headline}</p>
           </div>
           {spread.points.length >= 2 ? (
-            <div className="flex gap-2">
-              <div className="flex flex-col justify-between text-[10px] text-[var(--faint-2)] py-3 w-12 shrink-0 text-right">
-                <span>Bigger edge over baseline</span>
-                <span>Smaller edge over baseline</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <ResponsiveContainer width="100%" height={280}>
-                  <ScatterChart data={spread.points} margin={{ top: 16, right: 16, bottom: 8, left: 0 }}>
-                    <CartesianGrid stroke="var(--ow-border)" />
-                    <XAxis
-                      dataKey="sens" type="number" name="Sens" domain={spreadXDomain}
-                      tick={axisStyle} tickFormatter={(v: number) => v.toFixed(2)} tickLine={false}
-                      axisLine={{ stroke: 'var(--ow-border)' }}
-                    />
-                    <YAxis dataKey="delta" type="number" domain={spreadYDomain} tick={false} tickLine={false} axisLine={false} width={4} />
-                    <Tooltip content={<SpreadTooltip />} cursor={{ strokeDasharray: '3 3' }} />
-                    {spread.anchor != null && Number.isFinite(spread.threshold) && (
-                      <ReferenceArea x1={spread.anchor - spread.threshold} x2={spread.anchor + spread.threshold} fill="var(--ow-accent)" fillOpacity={0.08} stroke="none" />
-                    )}
-                    {spread.anchor != null && <ReferenceLine x={spread.anchor} stroke="var(--faint-2)" strokeDasharray="4 4" />}
-                    <Scatter dataKey="delta">
-                      {spread.points.map((p, i) => <Cell key={i} fill={spreadColor(p.kind)} />)}
-                      <LabelList dataKey="label" position="top" style={{ fontSize: 10, fill: 'var(--faint)' }} />
-                    </Scatter>
-                  </ScatterChart>
-                </ResponsiveContainer>
-                <div className="flex justify-between text-[10px] text-[var(--faint-2)] px-0.5">
-                  <span>Slower</span><span>Faster</span>
-                </div>
-                <div className="flex items-center gap-4 text-[10px] text-[var(--faint-2)] mt-2 flex-wrap">
-                  <span className="inline-flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ background: FEEL }} />Overall</span>
-                  <span className="inline-flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ background: HITSCAN }} />Hitscan</span>
-                  <span className="inline-flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ background: PROJECTILE }} />Projectile</span>
-                  <span className="inline-flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ background: HERO }} />Hero</span>
-                </div>
+            <div className="flex-1 min-w-0">
+              <ResponsiveContainer width="100%" height={280}>
+                <ScatterChart data={spread.points} margin={{ top: 16, right: 16, bottom: 8, left: 0 }}>
+                  <CartesianGrid stroke="var(--ow-border)" />
+                  <XAxis
+                    dataKey="sens" type="number" name="Sens" domain={spreadXDomain}
+                    ticks={spreadSensValues} tickFormatter={(v: number) => v.toFixed(2)}
+                    tick={axisStyle} tickLine={false} axisLine={{ stroke: 'var(--ow-border)' }}
+                  />
+                  <YAxis dataKey="delta" type="number" domain={spreadYDomain} tick={false} tickLine={false} axisLine={false} width={4} />
+                  <Tooltip content={<SpreadTooltip />} cursor={{ strokeDasharray: '3 3' }} />
+                  {spread.anchor != null && Number.isFinite(spread.threshold) && (
+                    <ReferenceArea x1={spread.anchor - spread.threshold} x2={spread.anchor + spread.threshold} fill="var(--ow-accent)" fillOpacity={0.08} stroke="none" />
+                  )}
+                  {spread.anchor != null && <ReferenceLine x={spread.anchor} stroke="var(--faint-2)" strokeDasharray="4 4" />}
+                  {/* Drop line from each point down to the baseline (y=0), so its
+                      x-axis tick reads as "this category's peak lands here." */}
+                  {spread.points.map((p, i) => p.delta != null && (
+                    <ReferenceLine key={i} segment={[{ x: p.sens, y: 0 }, { x: p.sens, y: p.delta }]} stroke={spreadColor(p.kind)} strokeOpacity={0.5} strokeDasharray="3 3" />
+                  ))}
+                  <Scatter dataKey="delta">
+                    {spread.points.map((p, i) => <Cell key={i} fill={spreadColor(p.kind)} />)}
+                    <LabelList dataKey="label" position="top" style={{ fontSize: 10, fill: 'var(--faint)' }} />
+                  </Scatter>
+                </ScatterChart>
+              </ResponsiveContainer>
+              <div className="flex items-center gap-4 text-[10px] text-[var(--faint-2)] mt-2 flex-wrap">
+                <span className="inline-flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ background: FEEL }} />Overall</span>
+                <span className="inline-flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ background: HITSCAN }} />Hitscan</span>
+                <span className="inline-flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ background: PROJECTILE }} />Projectile</span>
+                <span className="inline-flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ background: HERO }} />Hero</span>
               </div>
             </div>
           ) : (
