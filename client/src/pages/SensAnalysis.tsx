@@ -538,7 +538,7 @@ export default function SensAnalysis() {
             <div className="flex-1 min-w-0">
               <ResponsiveContainer width="100%" height={280}>
                 <ScatterChart data={spread.points} margin={{ top: 16, right: 16, bottom: 24, left: 10 }}>
-                  <CartesianGrid stroke="rgb(var(--ow-border))" />
+                  <CartesianGrid stroke="rgb(var(--ow-border))" strokeOpacity={0.5} strokeDasharray="3 3" />
                   <XAxis
                     dataKey="sens" type="number" name="Sens" domain={spreadXDomain}
                     ticks={spreadSensValues} tickFormatter={(v: number) => v.toFixed(2)}
