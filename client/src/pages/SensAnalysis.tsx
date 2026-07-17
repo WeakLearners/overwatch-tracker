@@ -587,7 +587,11 @@ export default function SensAnalysis() {
                   ))}
                   <Scatter dataKey="delta">
                     {spread.points.map((p, i) => <Cell key={i} fill={spreadColor(p)} />)}
-                    <LabelList dataKey="delta" position="top" formatter={(v: number) => signed(v)} style={{ fontSize: 10, fill: 'var(--faint)' }} />
+                    {/* insideTopRight measures "inside" against the scatter
+                        symbol's own tiny bounding box, landing the label
+                        almost exactly on the dot — position="right" + a
+                        negative dy gives a real top-right offset instead. */}
+                    <LabelList dataKey="delta" position="right" dy={-6} formatter={(v: number) => signed(v)} style={{ fontSize: 10, fill: 'var(--faint)' }} />
                   </Scatter>
                 </ScatterChart>
               </ResponsiveContainer>
