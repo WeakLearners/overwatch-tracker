@@ -234,35 +234,33 @@ interface SensSpread {
 }
 
 // One point per category (Overall, Hitscan, Projectile, each hero) — the
-// scale where that category's own accuracy peaks. Plotting only the peaks,
-// not every tested scale, answers "does this category want its own sens"
-// directly: a tight cluster means one sens covers everything, a scatter means
-// a split is worth testing. Categories without n≥RELIABLE_N on their own best
-// scale are left out rather than guessed at.
+// scale where that category's own accuracy peaks, whatever its sample size.
+// Plotting only the peaks, not every tested scale, answers "does this
+// category want its own sens" directly: a tight cluster means one sens
+// covers everything, a scatter means a split is worth testing.
 function buildSensSpread(data: Analysis): SensSpread {
-  const reliableOverall = bySpeed(data.byScale.filter(r => r.n >= RELIABLE_N));
-  const threshold = sensGapThreshold(reliableOverall);
+  const allOverall = bySpeed(data.byScale);
+  const threshold = sensGapThreshold(allOverall);
   const points: SpreadPoint[] = [];
 
-  if (reliableOverall.length > 0) {
-    const best = reliableOverall.reduce((a, b) => ((b.avgDelta ?? -Infinity) > (a.avgDelta ?? -Infinity) ? b : a));
+  if (allOverall.length > 0) {
+    const best = allOverall.reduce((a, b) => ((b.avgDelta ?? -Infinity) > (a.avgDelta ?? -Infinity) ? b : a));
     points.push({ label: 'Overall', kind: 'overall', sens: best.sensAt1600, delta: best.avgDelta, n: best.n });
   }
 
-  const hit = bySpeed(data.byArchetype.hitscan.filter(r => r.n >= RELIABLE_N));
+  const hit = bySpeed(data.byArchetype.hitscan);
   if (hit.length > 0) {
     const best = hit.reduce((a, b) => ((b.avgDelta ?? -Infinity) > (a.avgDelta ?? -Infinity) ? b : a));
     points.push({ label: 'Hitscan', kind: 'hitscan', sens: best.sensAt1600, delta: best.avgDelta, n: best.n });
   }
 
-  const proj = bySpeed(data.byArchetype.projectile.filter(r => r.n >= RELIABLE_N));
+  const proj = bySpeed(data.byArchetype.projectile);
   if (proj.length > 0) {
     const best = proj.reduce((a, b) => ((b.avgDelta ?? -Infinity) > (a.avgDelta ?? -Infinity) ? b : a));
     points.push({ label: 'Projectile', kind: 'projectile', sens: best.sensAt1600, delta: best.avgDelta, n: best.n });
   }
 
   for (const h of data.heroes) {
-    if (h.bestScaleN < RELIABLE_N) continue;
     points.push({
       label: h.hero, kind: 'hero', n: h.bestScaleN, archetype: h.archetype,
       sens: h.bestScaleEDPI / MOUSE_DPI, delta: h.bestScaleOverallDelta,
@@ -275,7 +273,7 @@ function buildSensSpread(data: Analysis): SensSpread {
   if (points.length < 2 || anchor == null) {
     return {
       verdict: 'insufficient',
-      headline: `Not enough categories have n≥${RELIABLE_N} on their own best scale yet — keep logging before judging whether sens should split.`,
+      headline: `Not enough categories yet to judge whether sens should split — keep logging.`,
       points, anchor, threshold,
     };
   }
@@ -285,7 +283,7 @@ function buildSensSpread(data: Analysis): SensSpread {
   if (outliers.length === 0) {
     return {
       verdict: 'grouped',
-      headline: `All ${points.length} categories with enough data peak within ${threshold.toFixed(2)} sens of each other — one sens looks like it covers everything.`,
+      headline: `All ${points.length} categories peak within ${threshold.toFixed(2)} sens of each other — one sens looks like it covers everything.`,
       points, anchor, threshold,
     };
   }
@@ -491,89 +489,91 @@ export default function SensAnalysis() {
         )}
       </Section>
 
-      {/* Feel vs Data */}
-      <Section
-        title="Feel vs. Data"
-        hint={`Each dot is a tested scale, placed by how fast it felt (x) against how it actually performed (y). The crosshair sits at your own averages, so the four quadrants split above/below-average feel × above/below-average accuracy. Bottom-right = feels fast but aims worse than average (gut over-rates it); top-left = feels slow but aims better (underrated).`}
-      >
-        <div className="flex gap-2">
-          <div className="flex flex-col justify-between text-[10px] text-[var(--faint-2)] py-3 w-12 shrink-0 text-right">
-            <span>More accurate</span>
-            <span>Less accurate</span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <ResponsiveContainer width="100%" height={280}>
-              <ScatterChart data={feelPts} margin={{ top: 12, right: 12, bottom: 4, left: 0 }}>
-                <CartesianGrid stroke="var(--ow-border)" />
-                <XAxis type="number" dataKey="avgFeel" name="Felt speed" domain={feelXDomain} tick={false} tickLine={false} axisLine={false} />
-                <YAxis type="number" dataKey="avgDelta" name="Accuracy Δ" domain={feelYDomain} tick={false} tickLine={false} axisLine={false} width={4} />
-                <Tooltip content={<QuadrantTooltip />} cursor={{ strokeDasharray: '3 3' }} />
-                <ReferenceLine x={meanFeel} stroke="var(--faint-2)" strokeDasharray="4 4" />
-                <ReferenceLine y={meanDelta} stroke="var(--faint-2)" strokeDasharray="4 4" />
-                <Scatter dataKey="avgDelta" fill={FEEL}>
-                  <LabelList dataKey="sensAt1600" position="top" formatter={(v: number) => v.toFixed(2)} style={{ fontSize: 10, fill: 'var(--faint)' }} />
-                </Scatter>
-              </ScatterChart>
-            </ResponsiveContainer>
-            <div className="flex justify-between text-[10px] text-[var(--faint-2)] px-0.5">
-              <span>Slower</span><span>Faster</span>
-            </div>
-          </div>
-        </div>
-      </Section>
-
-      {/* Peak Sens by Category — one point per category (Overall, Hitscan,
-          Projectile, each hero) at that category's own best-performing scale.
-          Tight cluster = one sens fits everything; scattered = worth splitting. */}
-      <Section
-        title="Peak Sens by Category"
-        hint={`One point per category — Overall, Hitscan, Projectile, and each hero — placed at that category's own best-performing scale (not every tested scale, just the peak). The shaded band marks "close enough" to Overall${Number.isFinite(spread.threshold) ? ` (±${spread.threshold.toFixed(2)} sens)` : ''}; points inside it don't need their own sens, points outside might. Only categories with n≥${RELIABLE_N} on their own best scale are shown.`}
-      >
-        <div className="flex items-start gap-3 flex-wrap mb-3">
-          <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${spread.verdict === 'scattered' ? 'bg-amber-500/15 text-amber-500' : spread.verdict === 'grouped' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-violet-500/15 text-violet-500'}`}>
-            {spread.verdict === 'scattered' ? 'Split may help' : spread.verdict === 'grouped' ? 'One sens fits all' : 'Not enough data'}
-          </span>
-          <p className="text-sm text-[var(--ink)] font-semibold flex-1 min-w-[200px]">{spread.headline}</p>
-        </div>
-        {spread.points.length >= 2 ? (
+      {/* Feel vs Data + Peak Sens by Category, side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Section
+          title="Feel vs. Data"
+          hint={`Each dot is a tested scale, placed by how fast it felt (x) against how it actually performed (y). The crosshair sits at your own averages, so the four quadrants split above/below-average feel × above/below-average accuracy. Bottom-right = feels fast but aims worse than average (gut over-rates it); top-left = feels slow but aims better (underrated).`}
+        >
           <div className="flex gap-2">
             <div className="flex flex-col justify-between text-[10px] text-[var(--faint-2)] py-3 w-12 shrink-0 text-right">
               <span>More accurate</span>
               <span>Less accurate</span>
             </div>
             <div className="flex-1 min-w-0">
-              <ResponsiveContainer width="100%" height={320}>
-                <ScatterChart data={spread.points} margin={{ top: 16, right: 16, bottom: 4, left: 0 }}>
+              <ResponsiveContainer width="100%" height={280}>
+                <ScatterChart data={feelPts} margin={{ top: 12, right: 12, bottom: 4, left: 0 }}>
                   <CartesianGrid stroke="var(--ow-border)" />
-                  <XAxis dataKey="sens" type="number" domain={spreadXDomain} tick={false} tickLine={false} axisLine={false} />
-                  <YAxis dataKey="delta" type="number" domain={spreadYDomain} tick={false} tickLine={false} axisLine={false} width={4} />
-                  <Tooltip content={<SpreadTooltip />} cursor={{ strokeDasharray: '3 3' }} />
-                  {spread.anchor != null && Number.isFinite(spread.threshold) && (
-                    <ReferenceArea x1={spread.anchor - spread.threshold} x2={spread.anchor + spread.threshold} fill="var(--ow-accent)" fillOpacity={0.08} stroke="none" />
-                  )}
-                  {spread.anchor != null && <ReferenceLine x={spread.anchor} stroke="var(--faint-2)" strokeDasharray="4 4" />}
-                  <ReferenceLine y={0} stroke="var(--faint-2)" strokeDasharray="4 4" />
-                  <Scatter dataKey="delta">
-                    {spread.points.map((p, i) => <Cell key={i} fill={spreadColor(p.kind)} />)}
-                    <LabelList dataKey="label" position="top" style={{ fontSize: 10, fill: 'var(--faint)' }} />
+                  <XAxis type="number" dataKey="avgFeel" name="Felt speed" domain={feelXDomain} tick={false} tickLine={false} axisLine={false} />
+                  <YAxis type="number" dataKey="avgDelta" name="Accuracy Δ" domain={feelYDomain} tick={false} tickLine={false} axisLine={false} width={4} />
+                  <Tooltip content={<QuadrantTooltip />} cursor={{ strokeDasharray: '3 3' }} />
+                  <ReferenceLine x={meanFeel} stroke="var(--faint-2)" strokeDasharray="4 4" />
+                  <ReferenceLine y={meanDelta} stroke="var(--faint-2)" strokeDasharray="4 4" />
+                  <Scatter dataKey="avgDelta" fill={FEEL}>
+                    <LabelList dataKey="sensAt1600" position="top" formatter={(v: number) => v.toFixed(2)} style={{ fontSize: 10, fill: 'var(--faint)' }} />
                   </Scatter>
                 </ScatterChart>
               </ResponsiveContainer>
               <div className="flex justify-between text-[10px] text-[var(--faint-2)] px-0.5">
                 <span>Slower</span><span>Faster</span>
               </div>
-              <div className="flex items-center gap-4 text-[10px] text-[var(--faint-2)] mt-2 flex-wrap">
-                <span className="inline-flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ background: FEEL }} />Overall</span>
-                <span className="inline-flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ background: HITSCAN }} />Hitscan</span>
-                <span className="inline-flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ background: PROJECTILE }} />Projectile</span>
-                <span className="inline-flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ background: HERO }} />Hero</span>
-              </div>
             </div>
           </div>
-        ) : (
-          <p className="text-xs text-[var(--faint)]">Not enough categories with n≥{RELIABLE_N} yet to plot — keep logging.</p>
-        )}
-      </Section>
+        </Section>
+
+        {/* Peak Sens by Category — one point per category (Overall, Hitscan,
+            Projectile, each hero) at that category's own best-performing scale.
+            Tight cluster = one sens fits everything; scattered = worth splitting. */}
+        <Section
+          title="Peak Sens by Category"
+          hint={`One point per category — Overall, Hitscan, Projectile, and each hero — placed at that category's own best-performing scale (not every tested scale, just the peak). The shaded band marks "close enough" to Overall${Number.isFinite(spread.threshold) ? ` (±${spread.threshold.toFixed(2)} sens)` : ''}; points inside it don't need their own sens, points outside might.`}
+        >
+          <div className="flex items-start gap-3 flex-wrap mb-3">
+            <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${spread.verdict === 'scattered' ? 'bg-amber-500/15 text-amber-500' : spread.verdict === 'grouped' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-violet-500/15 text-violet-500'}`}>
+              {spread.verdict === 'scattered' ? 'Split may help' : spread.verdict === 'grouped' ? 'One sens fits all' : 'Not enough data'}
+            </span>
+            <p className="text-sm text-[var(--ink)] font-semibold flex-1 min-w-[200px]">{spread.headline}</p>
+          </div>
+          {spread.points.length >= 2 ? (
+            <div className="flex gap-2">
+              <div className="flex flex-col justify-between text-[10px] text-[var(--faint-2)] py-3 w-12 shrink-0 text-right">
+                <span>More accurate</span>
+                <span>Less accurate</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <ResponsiveContainer width="100%" height={280}>
+                  <ScatterChart data={spread.points} margin={{ top: 16, right: 16, bottom: 4, left: 0 }}>
+                    <CartesianGrid stroke="var(--ow-border)" />
+                    <XAxis dataKey="sens" type="number" domain={spreadXDomain} tick={false} tickLine={false} axisLine={false} />
+                    <YAxis dataKey="delta" type="number" domain={spreadYDomain} tick={false} tickLine={false} axisLine={false} width={4} />
+                    <Tooltip content={<SpreadTooltip />} cursor={{ strokeDasharray: '3 3' }} />
+                    {spread.anchor != null && Number.isFinite(spread.threshold) && (
+                      <ReferenceArea x1={spread.anchor - spread.threshold} x2={spread.anchor + spread.threshold} fill="var(--ow-accent)" fillOpacity={0.08} stroke="none" />
+                    )}
+                    {spread.anchor != null && <ReferenceLine x={spread.anchor} stroke="var(--faint-2)" strokeDasharray="4 4" />}
+                    <ReferenceLine y={0} stroke="var(--faint-2)" strokeDasharray="4 4" />
+                    <Scatter dataKey="delta">
+                      {spread.points.map((p, i) => <Cell key={i} fill={spreadColor(p.kind)} />)}
+                      <LabelList dataKey="label" position="top" style={{ fontSize: 10, fill: 'var(--faint)' }} />
+                    </Scatter>
+                  </ScatterChart>
+                </ResponsiveContainer>
+                <div className="flex justify-between text-[10px] text-[var(--faint-2)] px-0.5">
+                  <span>Slower</span><span>Faster</span>
+                </div>
+                <div className="flex items-center gap-4 text-[10px] text-[var(--faint-2)] mt-2 flex-wrap">
+                  <span className="inline-flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ background: FEEL }} />Overall</span>
+                  <span className="inline-flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ background: HITSCAN }} />Hitscan</span>
+                  <span className="inline-flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ background: PROJECTILE }} />Projectile</span>
+                  <span className="inline-flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ background: HERO }} />Hero</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-[var(--faint)]">Not enough categories yet to plot — keep logging.</p>
+          )}
+        </Section>
+      </div>
 
       {/* Cold vs Warm + Adaptation */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
