@@ -23,6 +23,16 @@ const stagesOf = (db: ReturnType<typeof getDb>, setId: number) =>
 const maskedPending = (db: ReturnType<typeof getDb>) =>
   (db.prepare('SELECT COUNT(*) n FROM matches WHERE blind_trial = 1 AND revealed = 0').get() as { n: number }).n;
 
+// cur_rel is a randomized, count-balanced relative position — it jumps around
+// and repeats, so it can't be read as "round n". The true round count is how
+// many batch_size-sized rounds have actually elapsed: total games logged
+// against this set, minus the ones still accumulating on the current round.
+const roundNumber = (db: ReturnType<typeof getDb>, set: SetRow) => {
+  const totalGames = (db.prepare('SELECT COUNT(*) n FROM matches WHERE blind_set_id = :id').get({ id: set.id }) as { n: number }).n;
+  const completedGames = Math.max(0, totalGames - set.games_on_stage);
+  return Math.floor(completedGames / set.batch_size) + 1;
+};
+
 // ── Create a set ─────────────────────────────────────────────────────────────
 // Shuffles n DPI values across the mouse slots and RETURNS them (in slot order)
 // so the player can type them into the mouse. Seeing the values is unavoidable
@@ -66,7 +76,7 @@ router.get('/state', (_req: Request, res: Response) => {
     active: {
       set_id: set.id, in_game_sens: set.in_game_sens, base_dpi: set.base_dpi, created_at: set.created_at,
       batch_size: set.batch_size, cur_rel: set.cur_rel, games_on_stage: set.games_on_stage,
-      last_click_count: set.last_click_count,
+      last_click_count: set.last_click_count, round: roundNumber(db, set),
       scramble_done: !!set.scramble_done, resolved: !!set.resolved, n_stages,
     },
     needSwitch: !!set.scramble_done && !set.resolved && set.games_on_stage >= set.batch_size,

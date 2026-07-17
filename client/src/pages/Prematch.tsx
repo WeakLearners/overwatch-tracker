@@ -16,7 +16,7 @@ import Odometer from '../components/Odometer';
 interface BlindHud {
   active: {
     batch_size: number; games_on_stage: number; last_click_count: number;
-    cur_rel: number; scramble_done: boolean; resolved: boolean;
+    round: number; scramble_done: boolean; resolved: boolean;
   } | null;
 }
 
@@ -48,7 +48,7 @@ export default function Prematch() {
   const bt = blindHud?.active ?? null;
   const btClicks = bt?.last_click_count ?? 0;
   const btGamesLeft = bt ? Math.max(0, bt.batch_size - bt.games_on_stage) : 0;
-  const btRound = bt ? bt.cur_rel + 1 : 0;
+  const btRound = bt?.round ?? 0;
   const { data: pendingData } = useApi<{ total: number }>('/api/aim/pending?limit=1');
   const backlogCount = pendingData?.total ?? 0;
   const mapCounts = useTodayMapCounts();
