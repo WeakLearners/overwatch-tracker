@@ -78,7 +78,7 @@ function QuadrantTooltip({ active, payload }: { active?: boolean; payload?: { pa
   if (!active || !payload?.length) return null;
   const p = payload[0].payload;
   return (
-    <div style={{ background: 'var(--ow-card)', border: '1px solid var(--ow-border)', borderRadius: 8, fontSize: 12, padding: '6px 10px' }}>
+    <div style={{ background: 'rgb(var(--ow-card))', border: '1px solid rgb(var(--ow-border))', borderRadius: 8, fontSize: 12, padding: '6px 10px' }}>
       <div style={{ fontWeight: 600 }}>{p.sensAt1600.toFixed(2)} sens @ {MOUSE_DPI} DPI</div>
       <div>Felt speed: {f1(p.avgFeel)}/10</div>
       <div>Accuracy Δ: {signed(p.avgDelta)}</div>
@@ -94,7 +94,7 @@ function SpreadTooltip({ active, payload }: { active?: boolean; payload?: { payl
   if (!active || !payload?.length) return null;
   const p = payload[0].payload;
   return (
-    <div style={{ background: 'var(--ow-card)', border: '1px solid var(--ow-border)', borderRadius: 8, fontSize: 12, padding: '6px 10px' }}>
+    <div style={{ background: 'rgb(var(--ow-card))', border: '1px solid rgb(var(--ow-border))', borderRadius: 8, fontSize: 12, padding: '6px 10px' }}>
       <div style={{ fontWeight: 600 }}>{p.label}{p.archetype ? ` (${p.archetype})` : ''}</div>
       <div>{p.sens.toFixed(2)} sens @ {MOUSE_DPI} DPI</div>
       <div>Accuracy Δ: {signed(p.delta)}</div>
@@ -503,7 +503,7 @@ export default function SensAnalysis() {
             <div className="flex-1 min-w-0">
               <ResponsiveContainer width="100%" height={280}>
                 <ScatterChart data={feelPts} margin={{ top: 12, right: 12, bottom: 4, left: 0 }}>
-                  <CartesianGrid stroke="var(--ow-border)" />
+                  <CartesianGrid stroke="rgb(var(--ow-border))" />
                   <XAxis type="number" dataKey="avgFeel" name="Felt speed" domain={feelXDomain} tick={false} tickLine={false} axisLine={false} />
                   <YAxis type="number" dataKey="avgDelta" name="Accuracy Δ" domain={feelYDomain} tick={false} tickLine={false} axisLine={false} width={4} />
                   <Tooltip content={<QuadrantTooltip />} cursor={{ strokeDasharray: '3 3' }} />
@@ -538,16 +538,16 @@ export default function SensAnalysis() {
             <div className="flex-1 min-w-0">
               <ResponsiveContainer width="100%" height={280}>
                 <ScatterChart data={spread.points} margin={{ top: 16, right: 16, bottom: 8, left: 0 }}>
-                  <CartesianGrid stroke="var(--ow-border)" />
+                  <CartesianGrid stroke="rgb(var(--ow-border))" />
                   <XAxis
                     dataKey="sens" type="number" name="Sens" domain={spreadXDomain}
                     ticks={spreadSensValues} tickFormatter={(v: number) => v.toFixed(2)}
-                    tick={axisStyle} tickLine={{ stroke: 'var(--ow-border)' }} axisLine={{ stroke: 'var(--ow-border)' }}
+                    tick={axisStyle} tickLine={{ stroke: 'rgb(var(--ow-border))' }} axisLine={{ stroke: 'rgb(var(--ow-border))' }}
                   />
-                  <YAxis dataKey="delta" type="number" domain={spreadYDomain} tick={false} tickLine={{ stroke: 'var(--ow-border)' }} axisLine={{ stroke: 'var(--ow-border)' }} width={4} />
+                  <YAxis dataKey="delta" type="number" domain={spreadYDomain} tick={false} tickLine={{ stroke: 'rgb(var(--ow-border))' }} axisLine={{ stroke: 'rgb(var(--ow-border))' }} width={4} />
                   <Tooltip content={<SpreadTooltip />} cursor={{ strokeDasharray: '3 3' }} />
                   {spread.anchor != null && Number.isFinite(spread.threshold) && (
-                    <ReferenceArea x1={spread.anchor - spread.threshold} x2={spread.anchor + spread.threshold} fill="var(--ow-accent)" fillOpacity={0.08} stroke="none" />
+                    <ReferenceArea x1={spread.anchor - spread.threshold} x2={spread.anchor + spread.threshold} fill={FEEL} fillOpacity={0.08} stroke="none" />
                   )}
                   {spread.anchor != null && <ReferenceLine x={spread.anchor} stroke="var(--faint-2)" strokeDasharray="4 4" />}
                   {/* Drop line from each point down to the baseline (y=0), so its
