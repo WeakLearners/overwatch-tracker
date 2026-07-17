@@ -34,10 +34,19 @@ interface Analysis {
 const HITSCAN = '#3b82f6';
 const PROJECTILE = '#ec4899';
 const FEEL = '#8b5cf6';
-const HERO = '#f59e0b';
 
-const spreadColor = (kind: 'overall' | 'hitscan' | 'projectile' | 'hero') =>
-  kind === 'hitscan' ? HITSCAN : kind === 'projectile' ? PROJECTILE : kind === 'hero' ? HERO : FEEL;
+// One color per hero, assigned by a stable hash of the hero's name (not
+// array position) so a hero keeps its color across reloads even as the
+// roster of tested heroes grows or its sort order shifts.
+const HERO_COLORS = ['#f59e0b', '#14b8a6', '#f43f5e', '#84cc16', '#06b6d4', '#d946ef', '#f97316', '#6366f1', '#10b981', '#0ea5e9'];
+const heroColor = (hero: string): string => {
+  let hash = 0;
+  for (let i = 0; i < hero.length; i++) hash = (hash * 31 + hero.charCodeAt(i)) >>> 0;
+  return HERO_COLORS[hash % HERO_COLORS.length];
+};
+
+const spreadColor = (p: { kind: 'overall' | 'hitscan' | 'projectile' | 'hero'; label: string }) =>
+  p.kind === 'hitscan' ? HITSCAN : p.kind === 'projectile' ? PROJECTILE : p.kind === 'hero' ? heroColor(p.label) : FEEL;
 
 // created_at is stored as a bare UTC datetime('now') string (no 'Z'); append
 // it before parsing so the browser doesn't mistake it for local time.
@@ -574,11 +583,11 @@ export default function SensAnalysis() {
                   {/* Drop line from each point down to the baseline (y=0), so its
                       x-axis tick reads as "this category's peak lands here." */}
                   {spread.points.map((p, i) => p.delta != null && (
-                    <ReferenceLine key={i} segment={[{ x: p.sens, y: 0 }, { x: p.sens, y: p.delta }]} stroke={spreadColor(p.kind)} strokeOpacity={0.5} strokeDasharray="3 3" />
+                    <ReferenceLine key={i} segment={[{ x: p.sens, y: 0 }, { x: p.sens, y: p.delta }]} stroke={spreadColor(p)} strokeOpacity={0.5} strokeDasharray="3 3" />
                   ))}
                   <Scatter dataKey="delta">
-                    {spread.points.map((p, i) => <Cell key={i} fill={spreadColor(p.kind)} />)}
-                    <LabelList dataKey="label" position="top" style={{ fontSize: 10, fill: 'var(--faint)' }} />
+                    {spread.points.map((p, i) => <Cell key={i} fill={spreadColor(p)} />)}
+                    <LabelList dataKey="delta" position="top" formatter={(v: number) => signed(v)} style={{ fontSize: 10, fill: 'var(--faint)' }} />
                   </Scatter>
                 </ScatterChart>
               </ResponsiveContainer>
@@ -586,7 +595,9 @@ export default function SensAnalysis() {
                 <span className="inline-flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ background: FEEL }} />Overall</span>
                 <span className="inline-flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ background: HITSCAN }} />Hitscan</span>
                 <span className="inline-flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ background: PROJECTILE }} />Projectile</span>
-                <span className="inline-flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ background: HERO }} />Hero</span>
+                {spread.points.filter(p => p.kind === 'hero').map(p => (
+                  <span key={p.label} className="inline-flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ background: heroColor(p.label) }} />{p.label}</span>
+                ))}
               </div>
             </div>
           ) : (
