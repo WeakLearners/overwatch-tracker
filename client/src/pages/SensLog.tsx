@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApi, revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
@@ -337,10 +338,12 @@ function BackfillPanel({ pending, loading, knownLabels, labelFor }: {
   const [sens, setSens] = useState('');
   const [stats, setStats] = useState<StatFieldsT>(EMPTY_STATS);
   const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [showCaughtUp, setShowCaughtUp] = useState(false);
   const selected = pending.find(m => m.id === selectedId) ?? null;
   const durationRef = useRef<HTMLInputElement>(null);
   const mapCounts = useTodayMapCounts();
   const heroCounts = useTodayHeroCounts();
+  const navigate = useNavigate();
 
   // Selecting a card should land the cursor on Duration — the required field and
   // the whole point of the backfill — so it's type-ready without a second click.
@@ -365,6 +368,8 @@ function BackfillPanel({ pending, loading, knownLabels, labelFor }: {
       }
       const res = await fetch('/api/aim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(statsBody(selected.id, stats)) });
       if (!res.ok) throw new Error('save failed');
+      // This was the last pending match — the backlog is about to hit zero.
+      if (pending.length === 1) setShowCaughtUp(true);
       setStatus('success'); setSelectedId(null); setStats(EMPTY_STATS); setSens('');
       revalidateAll();
       setTimeout(() => setStatus('idle'), 1800);
@@ -444,6 +449,20 @@ function BackfillPanel({ pending, loading, knownLabels, labelFor }: {
           )}
         </div>
       </div>
+
+      {showCaughtUp && (
+        <div className="fixed inset-0 z-50 grid place-items-center">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setShowCaughtUp(false)} />
+          <div className="relative card max-w-sm w-full mx-4 text-center">
+            <h3 className="text-sm heading-display text-[var(--ink)] mb-1.5">All caught up</h3>
+            <p className="text-xs text-[var(--faint)] mb-4">No matches left awaiting combat details. Head back to the Match Tracker?</p>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setShowCaughtUp(false)} className={`${btnSecondary} flex-1 py-2 text-sm`}>Stay</button>
+              <button type="button" autoFocus onClick={() => navigate('/')} className="btn-primary flex-1 py-2 text-sm">Leave</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
