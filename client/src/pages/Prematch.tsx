@@ -130,16 +130,17 @@ export default function Prematch() {
   const winner  = ranked[0];
   const topOnMap = data?.byHero ?? [];
 
-  // For each role, show up to 3 qualified heroes (>=2 games), then roll the
+  // For each role, show up to 5 qualified heroes (>=2 games), then roll the
   // remaining heroes on this map into a single combined "Other heroes" slot.
   const MIN_GAMES = 2;
+  const TOP_N = 5;
   function buildRole(role: string) {
     const all = topOnMap.filter(h => h.role === role); // already win_rate desc
-    const top = all.filter(h => h.games >= MIN_GAMES).slice(0, 3);
+    const top = all.filter(h => h.games >= MIN_GAMES).slice(0, TOP_N);
     const topSet = new Set(top.map(h => h.hero));
     const rest = all.filter(h => !topSet.has(h.hero));
     let other: { games: number; wins: number; win_rate: number; count: number; tooltip: string } | null = null;
-    if (top.length < 3 && rest.length > 0) {
+    if (top.length < TOP_N && rest.length > 0) {
       const games = rest.reduce((s, h) => s + h.games, 0);
       const wins  = rest.reduce((s, h) => s + (h.wins ?? 0), 0);
       const tooltip = rest.map(h => `${withHeroCount(h.hero, heroCounts)} ${h.win_rate}% (${h.games}g)`).join('\n');
