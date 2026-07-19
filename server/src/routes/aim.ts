@@ -57,6 +57,18 @@ router.get('/pending', (req: Request, res: Response) => {
 // accuracy normalized against the hero's own baseline) then aggregates into the
 // views the analysis page renders. All computed fresh so it reflects the latest
 // entries — the "reevaluate on loop" behaviour.
+// Legacy in-game sens values logged before blind-DPI testing started (fine
+// tuning around 2.5 before the study locked sens and began varying DPI
+// instead). Each is stuck at very low n and no longer under active test, so on
+// its own it would form a thin, noisy near-2.5 bucket that skews the by-scale
+// analysis. Rather than discard that data, each point below gets absorbed into
+// whichever blind-trial cm/360 bucket it's physically closest to — the real
+// stand-in for the scale it would have tested under the current protocol —
+// adding to that bucket's n instead of diluting the picture with its own. A
+// legacy point only gets dropped outright if there's no blind bucket at all to
+// absorb it into yet.
+const LEGACY_SENS_ABSORB = [2.45, 2.47, 2.48, 2.55];
+
 router.get('/analysis', (_req: Request, res: Response) => {
   const db = getDb();
 
@@ -69,12 +81,12 @@ router.get('/analysis', (_req: Request, res: Response) => {
   // Unrevealed blind trials are excluded so nothing here can de-anonymize a
   // hidden stage before Sean chooses to reveal it.
   const rows = db.prepare(`
-    SELECT m.id, m.hero, m.sens, m.dpi, m.win, m.feel, a.overall_acc, a.crit_acc, a.created_at
+    SELECT m.id, m.hero, m.sens, m.dpi, m.win, m.feel, m.blind_trial, a.overall_acc, a.crit_acc, a.created_at
     FROM aim_stats a JOIN matches m ON m.id = a.match_id
     WHERE m.sens IS NOT NULL AND a.overall_acc IS NOT NULL
       AND (m.blind_trial = 0 OR m.blind_trial IS NULL OR m.revealed = 1)
   `).all() as unknown as {
-    id: number; hero: string; sens: number; dpi: number | null; win: 0 | 1;
+    id: number; hero: string; sens: number; dpi: number | null; win: 0 | 1; blind_trial: 0 | 1 | null;
     overall_acc: number; crit_acc: number | null; feel: number | null; created_at: string;
   }[];
 
@@ -99,7 +111,7 @@ router.get('/analysis', (_req: Request, res: Response) => {
     if (c != null) heroCritMeans.set(hero as string, c);
   }
 
-  const pts = rows.map(r => ({
+  const ptsRaw = rows.map(r => ({
     ...r,
     cm360: cm360(r.sens, r.dpi ?? MOUSE_DPI),
     archetype: archetypeOf(r.hero),
@@ -115,19 +127,43 @@ router.get('/analysis', (_req: Request, res: Response) => {
   // real cm/360 instead of collapsing into one sens bucket.
   const cmBucket = (v: number) => Math.round(v * 10) / 10;
 
+  // Absorb legacy near-2.5 sens points into the closest blind-trial cm/360
+  // bucket rather than let each sit alone (see LEGACY_SENS_ABSORB above). Only
+  // matches that were actually resolved as blind trials count as absorption
+  // targets — a legacy point can't merge into another legacy point's bucket.
+  const blindCmBuckets = [...new Set(
+    ptsRaw.filter(p => p.blind_trial === 1).map(p => cmBucket(p.cm360)),
+  )];
+  const nearestBlindCm = (cm: number): number | null =>
+    blindCmBuckets.length === 0 ? null
+      : blindCmBuckets.reduce((best, v) => (Math.abs(v - cm) < Math.abs(best - cm) ? v : best));
+
+  const pts = ptsRaw
+    .map(p => {
+      if (!LEGACY_SENS_ABSORB.includes(p.sens)) return p;
+      const nearest = nearestBlindCm(cmBucket(p.cm360));
+      return nearest == null ? null : { ...p, cm360: nearest };
+    })
+    .filter((p): p is NonNullable<typeof p> => p != null);
+
   const byScale = (items: typeof pts) =>
     [...groupBy(items, p => cmBucket(p.cm360)).entries()]
-      .map(([cm, ps]) => ({
-        cm360: Number(cm),
-        eDPI: Math.round(mean(ps.map(p => eDPI(p.sens, p.dpi ?? MOUSE_DPI))) ?? 0),
-        sens: ps[0].sens,
-        n: ps.length,
-        avgOverall: mean(ps.map(p => p.overall_acc)),
-        avgCrit: mean(ps.filter(p => p.crit_acc != null).map(p => p.crit_acc as number)),
-        avgFeel: mean(ps.filter(p => p.feel != null).map(p => p.feel as number)),
-        avgDelta: mean(ps.map(p => p.delta)),
-        avgCritDelta: mean(ps.filter(p => p.critDelta != null).map(p => p.critDelta as number)),
-      }))
+      .map(([cm, ps]) => {
+        // Prefer a blind-trial row's sens as the bucket's label — an absorbed
+        // legacy point's own sens (e.g. 2.45) isn't what this bucket represents.
+        const anchor = ps.find(p => p.blind_trial === 1) ?? ps[0];
+        return {
+          cm360: Number(cm),
+          eDPI: Math.round(mean(ps.map(p => eDPI(p.sens, p.dpi ?? MOUSE_DPI))) ?? 0),
+          sens: anchor.sens,
+          n: ps.length,
+          avgOverall: mean(ps.map(p => p.overall_acc)),
+          avgCrit: mean(ps.filter(p => p.crit_acc != null).map(p => p.crit_acc as number)),
+          avgFeel: mean(ps.filter(p => p.feel != null).map(p => p.feel as number)),
+          avgDelta: mean(ps.map(p => p.delta)),
+          avgCritDelta: mean(ps.filter(p => p.critDelta != null).map(p => p.critDelta as number)),
+        };
+      })
       .sort((a, b) => a.cm360 - b.cm360);
 
   const bucket = (items: typeof pts, label: string) => ({
