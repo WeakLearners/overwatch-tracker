@@ -190,8 +190,8 @@ router.get('/', (_req: Request, res: Response) => {
   const db = getDb();
   const rows = (db.prepare(`
     SELECT m.id, m.date, m.time, m.hero, m.role, m.map, m.game_type, m.queue_mode, m.win, m.sens,
-           m.dpi, m.blind_trial, m.blind_set_id, m.stage_index, m.revealed, m.feel,
-           a.overall_acc, a.crit_acc, a.hero_stat_label, a.hero_stat_value, a.notes,
+           m.dpi, m.blind_trial, m.blind_set_id, m.stage_index, m.revealed, m.feel, m.notes,
+           a.overall_acc, a.crit_acc, a.hero_stat_label, a.hero_stat_value,
            a.elims, a.final_blows, a.deaths, a.damage, a.duration_min
     FROM aim_stats a
     JOIN matches m ON m.id = a.match_id
@@ -204,7 +204,7 @@ router.get('/', (_req: Request, res: Response) => {
 // match corrects a prior entry rather than erroring.
 router.post('/', (req: Request, res: Response) => {
   const db = getDb();
-  const { match_id, overall_acc, crit_acc, hero_stat_label, hero_stat_value, notes,
+  const { match_id, overall_acc, crit_acc, hero_stat_label, hero_stat_value,
     elims, final_blows, deaths, damage, duration_min } = req.body;
 
   if (match_id === undefined || match_id === null) {
@@ -218,16 +218,15 @@ router.post('/', (req: Request, res: Response) => {
   }
 
   db.prepare(`
-    INSERT INTO aim_stats (match_id, overall_acc, crit_acc, hero_stat_label, hero_stat_value, notes,
+    INSERT INTO aim_stats (match_id, overall_acc, crit_acc, hero_stat_label, hero_stat_value,
                            elims, final_blows, deaths, damage, duration_min)
-    VALUES (:match_id, :overall_acc, :crit_acc, :hero_stat_label, :hero_stat_value, :notes,
+    VALUES (:match_id, :overall_acc, :crit_acc, :hero_stat_label, :hero_stat_value,
             :elims, :final_blows, :deaths, :damage, :duration_min)
     ON CONFLICT(match_id) DO UPDATE SET
       overall_acc     = excluded.overall_acc,
       crit_acc        = excluded.crit_acc,
       hero_stat_label = excluded.hero_stat_label,
       hero_stat_value = excluded.hero_stat_value,
-      notes           = excluded.notes,
       elims           = excluded.elims,
       final_blows     = excluded.final_blows,
       deaths          = excluded.deaths,
@@ -240,7 +239,6 @@ router.post('/', (req: Request, res: Response) => {
     crit_acc: crit_acc ?? null,
     hero_stat_label: hero_stat_label ?? null,
     hero_stat_value: hero_stat_value ?? null,
-    notes: notes ?? null,
     elims: elims ?? null,
     final_blows: final_blows ?? null,
     deaths: deaths ?? null,

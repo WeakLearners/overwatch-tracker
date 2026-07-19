@@ -13,6 +13,7 @@ interface FormState {
   time: string;
   hero: string;
   win: '' | '1' | '0';
+  notes: string;
 }
 
 const HERO_LIST = Object.entries(HEROES).sort((a, b) => a[0].localeCompare(b[0]));
@@ -78,6 +79,7 @@ export default function LogMatch() {
       time: format(n, 'HH:mm'),
       hero: pending.hero ?? '',
       win: '',
+      notes: '',
     };
   });
 
@@ -177,7 +179,7 @@ export default function LogMatch() {
       .catch(() => {});
   }, [mapKey]);
 
-  const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
+  const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement | HTMLTextAreaElement>) => {
     if (k === 'date') dateTouched.current = true;
     if (k === 'time') timeTouched.current = true;
     setForm(f => ({ ...f, [k]: e.target.value }));
@@ -217,6 +219,7 @@ export default function LogMatch() {
           queue_mode: queueMode,
           sens: parseFloat(sens),
           feel,
+          notes: form.notes.trim() || null,
         }),
       });
       if (!res.ok) throw new Error('Failed');
@@ -227,7 +230,7 @@ export default function LogMatch() {
       setFeel(FEEL_MID);
       dateTouched.current = false;
       timeTouched.current = false;
-      setForm(f => ({ ...f, hero: '', win: '', date: datePart, time: format(new Date(), 'HH:mm') }));
+      setForm(f => ({ ...f, hero: '', win: '', notes: '', date: datePart, time: format(new Date(), 'HH:mm') }));
       // Clear the carried-over match intent: the Hero Advisor map selector and
       // its dependent advisor reset so nothing lingers from the logged match.
       setMap('');
@@ -311,7 +314,7 @@ export default function LogMatch() {
             <h2 className="text-sm heading-display text-[var(--ink)]">Match Details</h2>
             <button
               type="button"
-              onClick={() => { setForm(f => ({ ...f, hero: '' })); setMap(''); setFeel(FEEL_MID); }}
+              onClick={() => { setForm(f => ({ ...f, hero: '', notes: '' })); setMap(''); setFeel(FEEL_MID); }}
               disabled={!form.hero && !map}
               className="text-xs text-[var(--faint)] hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--faint)]"
             >
@@ -436,6 +439,17 @@ export default function LogMatch() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div>
+              <label className="block text-xs text-[var(--muted)] mb-1.5">Main Perceived Factors</label>
+              <textarea
+                value={form.notes}
+                onChange={set('notes')}
+                rows={2}
+                className="w-full field px-3 py-2 text-sm resize-none"
+                placeholder="fatigue, warmup, just switched stage…"
+              />
             </div>
 
             <button

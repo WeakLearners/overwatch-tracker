@@ -135,6 +135,24 @@ function initSchema(db: DatabaseSync) {
     `);
   }
 
+  // notes: freeform per-match note (fatigue, warmup, just switched stage, etc).
+  // Captured live in the Match Log at log time (moved 2026-07-19 from a
+  // combat-detail backfilled at /sens, same rationale as feel above — the
+  // context is gone by the time aim stats get backfilled). Lives on the match
+  // itself, like feel/sens/dpi, not on aim_stats. The old aim_stats.notes
+  // column is kept (harmless, additive-only migrations) but no longer written
+  // to — this is the column of record going forward.
+  if (!cols.find(c => c.name === 'notes')) {
+    db.exec(`ALTER TABLE matches ADD COLUMN notes TEXT`);
+    // One-time carry-forward of anything already captured under the old flow.
+    db.exec(`
+      UPDATE matches SET notes = (SELECT notes FROM aim_stats WHERE aim_stats.match_id = matches.id)
+      WHERE notes IS NULL AND EXISTS (
+        SELECT 1 FROM aim_stats WHERE aim_stats.match_id = matches.id AND aim_stats.notes IS NOT NULL
+      )
+    `);
+  }
+
   // Blind-trial stage sets. Each set is one shuffle of N DPI values across the
   // mouse's physical slots (blind_stages: slot stage_index → dpi). The player
   // types those values into the mouse, then "scrambles" (mashes the DPI button

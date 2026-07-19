@@ -36,12 +36,11 @@ interface AnswerStage {
 interface StatFieldsT {
   overall_acc: string; crit_acc: string; hero_stat_label: string; hero_stat_value: string;
   elims: string; final_blows: string; deaths: string; damage: string; duration_min: string;
-  notes: string;
 }
 
 const EMPTY_STATS: StatFieldsT = {
   overall_acc: '', crit_acc: '', hero_stat_label: '', hero_stat_value: '',
-  elims: '', final_blows: '', deaths: '', damage: '', duration_min: '', notes: '',
+  elims: '', final_blows: '', deaths: '', damage: '', duration_min: '',
 };
 
 const HERO_STAT_DEFAULT: Record<string, string> = {
@@ -93,10 +92,6 @@ function StatFields({ s, upd, knownLabels }: {
           ))}
         </div>
       </div>
-      <div>
-        <label className="block text-xs text-[var(--muted)] mb-1.5">Notes</label>
-        <textarea value={s.notes} onChange={t('notes')} rows={2} className="w-full field px-3 py-2 text-sm resize-none" placeholder="fatigue, warmup, just switched stage…" />
-      </div>
     </>
   );
 }
@@ -106,7 +101,7 @@ const statsBody = (match_id: number, s: StatFieldsT) => ({
   overall_acc: num(s.overall_acc), crit_acc: num(s.crit_acc),
   hero_stat_label: s.hero_stat_label.trim() || null, hero_stat_value: num(s.hero_stat_value),
   elims: num(s.elims), final_blows: num(s.final_blows), deaths: num(s.deaths), damage: num(s.damage),
-  duration_min: num(s.duration_min), notes: s.notes.trim() || null,
+  duration_min: num(s.duration_min),
 });
 
 export default function SensLog() {
