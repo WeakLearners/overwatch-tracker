@@ -10,6 +10,10 @@ const router = Router();
 const mean = (xs: number[]): number | null =>
   xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
 
+// win is stored 0/1, so mean() of it is already a fraction — this just puts it
+// on the same 0–100 scale as the accuracy fields it sits next to.
+const mult100 = (frac: number | null): number | null => (frac == null ? null : frac * 100);
+
 function groupBy<T>(items: T[], key: (t: T) => string | number): Map<string | number, T[]> {
   const g = new Map<string | number, T[]>();
   for (const it of items) {
@@ -162,6 +166,9 @@ router.get('/analysis', (_req: Request, res: Response) => {
           avgFeel: mean(ps.filter(p => p.feel != null).map(p => p.feel as number)),
           avgDelta: mean(ps.map(p => p.delta)),
           avgCritDelta: mean(ps.filter(p => p.critDelta != null).map(p => p.critDelta as number)),
+          // Win rate, not just accuracy — accuracy is a proxy for the scale
+          // that actually matters: which sens wins more.
+          winRate: mult100(mean(ps.map(p => p.win))),
         };
       })
       .sort((a, b) => a.cm360 - b.cm360);
@@ -172,6 +179,7 @@ router.get('/analysis', (_req: Request, res: Response) => {
     avgOverall: mean(items.map(p => p.overall_acc)),
     avgDelta: mean(items.map(p => p.delta)),
     avgFeel: mean(items.filter(p => p.feel != null).map(p => p.feel as number)),
+    winRate: mult100(mean(items.map(p => p.win))),
   });
 
   // How many blind trials are still masked — surfaced so the analysis page can
@@ -211,10 +219,12 @@ router.get('/analysis', (_req: Request, res: Response) => {
           n: ps.length,
           avgOverall: mean(ps.map(p => p.overall_acc)),
           avgCrit: mean(ps.filter(p => p.crit_acc != null).map(p => p.crit_acc as number)),
+          winRate: mult100(mean(ps.map(p => p.win))),
           bestScaleEDPI: bestScale.eDPI,
           bestScaleN: bestScale.n,
           bestScaleOverallDelta: bestScale.avgDelta,
           bestScaleCritDelta: bestScale.avgCritDelta,
+          bestScaleWinRate: bestScale.winRate,
         };
       })
       .sort((a, b) => b.n - a.n),

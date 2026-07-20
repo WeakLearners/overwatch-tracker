@@ -10,17 +10,17 @@ import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 interface ScaleRow {
   cm360: number; eDPI: number; sens: number; n: number;
   avgOverall: number | null; avgCrit: number | null;
-  avgFeel: number | null; avgDelta: number | null;
+  avgFeel: number | null; avgDelta: number | null; winRate: number | null;
 }
 interface Bucket {
   bucket: string; n: number;
-  avgOverall: number | null; avgDelta: number | null; avgFeel: number | null;
+  avgOverall: number | null; avgDelta: number | null; avgFeel: number | null; winRate: number | null;
 }
 interface HeroRow {
   hero: string; archetype: string; n: number;
-  avgOverall: number | null; avgCrit: number | null;
+  avgOverall: number | null; avgCrit: number | null; winRate: number | null;
   bestScaleEDPI: number; bestScaleN: number;
-  bestScaleOverallDelta: number | null; bestScaleCritDelta: number | null;
+  bestScaleOverallDelta: number | null; bestScaleCritDelta: number | null; bestScaleWinRate: number | null;
 }
 interface Analysis {
   summary: { n: number; distinctScale: number; maskedPending: number; lastUpdated: string | null };
@@ -335,6 +335,21 @@ function buildInsights(data: Analysis, heroCounts: Record<string, number>): stri
     const bestByData = reliable.reduce((a, b) => ((b.avgDelta ?? -Infinity) > (a.avgDelta ?? -Infinity) ? b : a));
     const fastestFeel = reliable.reduce((a, b) => ((b.avgFeel ?? -Infinity) > (a.avgFeel ?? -Infinity) ? b : a));
     const worst = reliable.reduce((a, b) => ((b.avgDelta ?? Infinity) < (a.avgDelta ?? Infinity) ? b : a));
+    const bestByWin = reliable.reduce((a, b) => ((b.winRate ?? -Infinity) > (a.winRate ?? -Infinity) ? b : a));
+
+    // Win rate leads — it's the outcome that actually matters, not a proxy for
+    // it like accuracy is. Called out on its own, then checked against the
+    // accuracy-best scale so a disagreement between them doesn't get buried.
+    if (bestByWin.winRate != null) {
+      notes.push(
+        `Your highest win rate is at ${fmtScale(bestByWin)} — ${f1(bestByWin.winRate)}% (n=${bestByWin.n}).`,
+      );
+      if (bestByWin.cm360 !== bestByData.cm360) {
+        notes.push(
+          `That's a different scale than your top performer by accuracy (${fmtScale(bestByData)}, ${signed(bestByData.avgDelta)}% vs. baseline) — win rate and accuracy aren't pointing the same way yet, so treat both as provisional until more games narrow it down.`,
+        );
+      }
+    }
 
     // Lead with the best performer on its own terms — it's the "just right"
     // scale, not necessarily the fastest- or slowest-feeling one tested. Only
@@ -342,7 +357,7 @@ function buildInsights(data: Analysis, heroCounts: Record<string, number>): stri
     // it as a correction ("feeling fast isn't the same as performing well"),
     // never as a virtue in its own right.
     notes.push(
-      `Your best performer is ${fmtScale(bestByData)} (${signed(bestByData.avgDelta)}% vs. baseline, n=${bestByData.n}), which felt ${f1(bestByData.avgFeel)}/10 for speed — accuracy peaks at the scale that's right for you, not at whichever end of the speed range you tested.`,
+      `Your best performer by accuracy is ${fmtScale(bestByData)} (${signed(bestByData.avgDelta)}% vs. baseline, n=${bestByData.n}), which felt ${f1(bestByData.avgFeel)}/10 for speed — accuracy peaks at the scale that's right for you, not at whichever end of the speed range you tested.`,
     );
     if (fastestFeel.cm360 !== bestByData.cm360 && fastestFeel.avgFeel != null) {
       notes.push(
@@ -672,13 +687,13 @@ export default function SensAnalysis() {
       </div>
 
       {/* Per-scale table */}
-      <Section title={`By Scale (sens @${MOUSE_DPI} DPI)`} hint={`Every tested scale, expressed as in-game sens at ${MOUSE_DPI} DPI, with its eDPI and averages. Δ is accuracy vs. your hero baseline. "Sens" is the raw in-game value actually used during testing (near-constant across blind trials, since DPI was the hidden variable there).`}>
+      <Section title={`By Scale (sens @${MOUSE_DPI} DPI)`} hint={`Every tested scale, expressed as in-game sens at ${MOUSE_DPI} DPI, with its eDPI and averages. Win % is the actual match win rate at that scale — the outcome that matters, vs. accuracy which is a proxy for it. Δ is accuracy vs. your hero baseline. "Sens" is the raw in-game value actually used during testing (near-constant across blind trials, since DPI was the hidden variable there).`}>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
                 <th className="py-1.5 pr-3">{`Sens @${MOUSE_DPI}`}</th><th className="py-1.5 pr-3">eDPI</th><th className="py-1.5 pr-3">Sens</th><th className="py-1.5 pr-3">n</th>
-                <th className="py-1.5 pr-3">Overall</th><th className="py-1.5 pr-3">Crit</th><th className="py-1.5 pr-3">Felt speed</th><th className="py-1.5">Δ</th>
+                <th className="py-1.5 pr-3">Win %</th><th className="py-1.5 pr-3">Overall</th><th className="py-1.5 pr-3">Crit</th><th className="py-1.5 pr-3">Felt speed</th><th className="py-1.5">Δ</th>
               </tr>
             </thead>
             <tbody>
@@ -688,6 +703,7 @@ export default function SensAnalysis() {
                   <td className="py-1.5 pr-3">{r.eDPI}</td>
                   <td className="py-1.5 pr-3">{r.sens}</td>
                   <td className="py-1.5 pr-3">{r.n}</td>
+                  <td className="py-1.5 pr-3 font-semibold text-[var(--ink)]">{f1(r.winRate)}%</td>
                   <td className="py-1.5 pr-3">{f1(r.avgOverall)}%</td>
                   <td className="py-1.5 pr-3">{f1(r.avgCrit)}%</td>
                   <td className="py-1.5 pr-3">{f1(r.avgFeel)}/10</td>
@@ -706,7 +722,7 @@ export default function SensAnalysis() {
             <thead>
               <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
                 <th className="py-1.5 pr-3">Hero</th><th className="py-1.5 pr-3">Type</th><th className="py-1.5 pr-3">n</th>
-                <th className="py-1.5 pr-3">Overall</th><th className="py-1.5 pr-3">Crit</th><th className="py-1.5 pr-3">Optimal Sens</th>
+                <th className="py-1.5 pr-3">Win %</th><th className="py-1.5 pr-3">Overall</th><th className="py-1.5 pr-3">Crit</th><th className="py-1.5 pr-3">Optimal Sens</th>
                 <th className="py-1.5 pr-3">Δ Overall</th><th className="py-1.5">Δ Crit</th>
               </tr>
             </thead>
@@ -716,6 +732,7 @@ export default function SensAnalysis() {
                   <td className="py-1.5 pr-3 font-semibold text-[var(--ink)]">{withHeroCount(h.hero, heroCounts)}</td>
                   <td className="py-1.5 pr-3 capitalize text-[var(--faint)]">{h.archetype}</td>
                   <td className="py-1.5 pr-3">{h.n}</td>
+                  <td className="py-1.5 pr-3 font-semibold text-[var(--ink)]">{f1(h.winRate)}%</td>
                   <td className="py-1.5 pr-3">{f1(h.avgOverall)}%</td>
                   <td className="py-1.5 pr-3">{f1(h.avgCrit)}%</td>
                   <td className={h.bestScaleN < RELIABLE_N ? 'py-1.5 pr-3 text-[var(--faint)]' : 'py-1.5 pr-3'}>
