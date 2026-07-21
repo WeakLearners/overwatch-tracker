@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
-import { generateStages, clicksBetween, offsetFromReveal, absoluteSlot } from '../lib/blind';
+import { generateStages, stagesFromDpis, clicksBetween, offsetFromReveal, absoluteSlot } from '../lib/blind';
 import { cm360, eDPI } from '../lib/aim';
 
 const router = Router();
@@ -9,7 +9,7 @@ interface SetRow {
   id: number; in_game_sens: number; base_dpi: number; created_at: string;
   batch_size: number; cur_rel: number; games_on_stage: number;
   scramble_done: number; resolved: number; revealed_slot: number | null;
-  last_click_count: number;
+  last_click_count: number; hero: string | null;
 }
 interface StageRow { stage_index: number; dpi: number; pct_delta: number; }
 
@@ -23,13 +23,17 @@ const stagesOf = (db: ReturnType<typeof getDb>, setId: number) =>
 const maskedPending = (db: ReturnType<typeof getDb>) =>
   (db.prepare('SELECT COUNT(*) n FROM matches WHERE blind_trial = 1 AND revealed = 0').get() as { n: number }).n;
 
+// Total games ever logged against a set, across all its stages combined —
+// distinct from games_on_stage, which only counts toward the current stage.
+const totalGamesOf = (db: ReturnType<typeof getDb>, setId: number) =>
+  (db.prepare('SELECT COUNT(*) n FROM matches WHERE blind_set_id = :id').get({ id: setId }) as { n: number }).n;
+
 // cur_rel is a randomized, count-balanced relative position — it jumps around
 // and repeats, so it can't be read as "round n". The true round count is how
 // many batch_size-sized rounds have actually elapsed: total games logged
 // against this set, minus the ones still accumulating on the current round.
 const roundNumber = (db: ReturnType<typeof getDb>, set: SetRow) => {
-  const totalGames = (db.prepare('SELECT COUNT(*) n FROM matches WHERE blind_set_id = :id').get({ id: set.id }) as { n: number }).n;
-  const completedGames = Math.max(0, totalGames - set.games_on_stage);
+  const completedGames = Math.max(0, totalGamesOf(db, set.id) - set.games_on_stage);
   return Math.floor(completedGames / set.batch_size) + 1;
 };
 
@@ -37,30 +41,73 @@ const roundNumber = (db: ReturnType<typeof getDb>, set: SetRow) => {
 // Shuffles n DPI values across the mouse slots and RETURNS them (in slot order)
 // so the player can type them into the mouse. Seeing the values is unavoidable
 // and harmless — the blind comes from not knowing your position among them.
+//
+// Two ways to specify the stages: pass `dpis` (explicit, hand-picked values —
+// e.g. levels chosen per hero from prior analysis) or omit it and fall back to
+// the auto-generated ±pct_range spread around base_dpi.
 router.post('/sets', (req: Request, res: Response) => {
   const db = getDb();
   const in_game_sens = Number(req.body.in_game_sens ?? 2.5);
-  const base_dpi = Number(req.body.base_dpi ?? 1600);
-  const pct_range = Number(req.body.pct_range ?? 10);
-  const n_stages = Number(req.body.n_stages ?? 5);
   const batch_size = Number(req.body.batch_size ?? 10);
-  if (!(in_game_sens > 0) || !(base_dpi > 0) || !(n_stages >= 2) || !(batch_size >= 1)) {
+  const hero = typeof req.body.hero === 'string' && req.body.hero.trim() ? req.body.hero.trim() : null;
+  if (!(in_game_sens > 0) || !(batch_size >= 1)) {
     res.status(400).json({ error: 'invalid set params' });
     return;
   }
 
-  const stages = generateStages(base_dpi, pct_range, n_stages);
+  const dpisInput: number[] | null = Array.isArray(req.body.dpis) ? (req.body.dpis as unknown[]).map(Number) : null;
+  let stages: ReturnType<typeof generateStages>;
+  let base_dpi: number;
+  let n_stages: number;
+
+  if (dpisInput) {
+    if (dpisInput.length < 2 || dpisInput.some(d => !(d > 0))) {
+      res.status(400).json({ error: 'dpis must have 2+ positive values' });
+      return;
+    }
+    stages = stagesFromDpis(dpisInput);
+    base_dpi = Math.round(dpisInput.reduce((a, b) => a + b, 0) / dpisInput.length);
+    n_stages = dpisInput.length;
+  } else {
+    base_dpi = Number(req.body.base_dpi ?? 1600);
+    const pct_range = Number(req.body.pct_range ?? 10);
+    n_stages = Number(req.body.n_stages ?? 5);
+    if (!(base_dpi > 0) || !(n_stages >= 2)) {
+      res.status(400).json({ error: 'invalid set params' });
+      return;
+    }
+    stages = generateStages(base_dpi, pct_range, n_stages);
+  }
+
   db.exec('UPDATE blind_stage_sets SET active = 0 WHERE active = 1');
   const r = db.prepare(`
-    INSERT INTO blind_stage_sets (in_game_sens, base_dpi, active, note, batch_size, cur_rel, games_on_stage, scramble_done, resolved)
-    VALUES (:s, :d, 1, :note, :b, 0, 0, 0, 0)
-  `).run({ s: in_game_sens, d: base_dpi, note: req.body.note ?? null, b: batch_size });
+    INSERT INTO blind_stage_sets (in_game_sens, base_dpi, active, note, batch_size, cur_rel, games_on_stage, scramble_done, resolved, hero)
+    VALUES (:s, :d, 1, :note, :b, 0, 0, 0, 0, :hero)
+  `).run({ s: in_game_sens, d: base_dpi, note: req.body.note ?? null, b: batch_size, hero });
   const set_id = Number(r.lastInsertRowid);
   const ins = db.prepare('INSERT INTO blind_stages (set_id, stage_index, dpi, pct_delta) VALUES (:set_id, :stage_index, :dpi, :pct_delta)');
   for (const st of stages) ins.run({ set_id, ...st });
 
   // Values returned in slot order for one-time mouse configuration.
-  res.json({ set_id, in_game_sens, base_dpi, n_stages, batch_size, stages });
+  res.json({ set_id, in_game_sens, base_dpi, n_stages, batch_size, hero, stages });
+});
+
+// ── List sets ────────────────────────────────────────────────────────────────
+// All sets (active or not), each with its hero tag and total games logged —
+// lets the UI show a hero's test as "completed" even after a newer set for a
+// different hero has taken over as active.
+router.get('/sets', (_req: Request, res: Response) => {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT id, hero, active, resolved, batch_size, created_at
+    FROM blind_stage_sets ORDER BY id ASC
+  `).all() as { id: number; hero: string | null; active: number; resolved: number; batch_size: number; created_at: string }[];
+  const sets = rows.map(row => ({
+    set_id: row.id, hero: row.hero, active: !!row.active, resolved: !!row.resolved,
+    batch_size: row.batch_size, n_stages: stagesOf(db, row.id).length,
+    totalGames: totalGamesOf(db, row.id), created_at: row.created_at,
+  }));
+  res.json({ sets });
 });
 
 // ── Loop state ───────────────────────────────────────────────────────────────
@@ -78,6 +125,7 @@ router.get('/state', (_req: Request, res: Response) => {
       batch_size: set.batch_size, cur_rel: set.cur_rel, games_on_stage: set.games_on_stage,
       last_click_count: set.last_click_count, round: roundNumber(db, set),
       scramble_done: !!set.scramble_done, resolved: !!set.resolved, n_stages,
+      hero: set.hero, totalGames: totalGamesOf(db, set.id),
     },
     needSwitch: !!set.scramble_done && !set.resolved && set.games_on_stage >= set.batch_size,
     pendingReveal: maskedPending(db),

@@ -10,8 +10,17 @@ export interface StageSpec {
   pct_delta: number;
 }
 
+// Fisher–Yates shuffle so the physical slot carries no information about speed.
+function shuffleStages(vals: { dpi: number; pct: number }[], rand: () => number): StageSpec[] {
+  for (let i = vals.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [vals[i], vals[j]] = [vals[j], vals[i]];
+  }
+  return vals.map((v, i) => ({ stage_index: i + 1, dpi: v.dpi, pct_delta: v.pct }));
+}
+
 // Generate N DPI values spread evenly across ±pctRange around baseDpi (rounded to
-// the nearest 50), then shuffle them into stage slots so slot order ≠ speed order.
+// the nearest 50), then shuffle them into stage slots.
 // A pluggable rand() keeps it testable; defaults to Math.random.
 export function generateStages(
   baseDpi: number,
@@ -25,12 +34,17 @@ export function generateStages(
     const dpi = Math.round((baseDpi * (1 + pct / 100)) / 50) * 50;
     vals.push({ dpi, pct: Math.round(pct * 10) / 10 });
   }
-  // Fisher–Yates shuffle so the physical slot carries no information about speed.
-  for (let i = vals.length - 1; i > 0; i--) {
-    const j = Math.floor(rand() * (i + 1));
-    [vals[i], vals[j]] = [vals[j], vals[i]];
-  }
-  return vals.map((v, i) => ({ stage_index: i + 1, dpi: v.dpi, pct_delta: v.pct }));
+  return shuffleStages(vals, rand);
+}
+
+// Build stages from explicit, hand-picked DPI values (e.g. levels chosen per
+// hero from prior analysis) instead of an evenly-spaced auto range. pct_delta
+// is still computed, against the list's own mean, purely as an informational
+// label — nothing downstream depends on the values being evenly spaced.
+export function stagesFromDpis(dpis: number[], rand: () => number = Math.random): StageSpec[] {
+  const baseDpi = dpis.reduce((a, b) => a + b, 0) / dpis.length;
+  const vals = dpis.map(dpi => ({ dpi, pct: Math.round(((dpi - baseDpi) / baseDpi) * 1000) / 10 }));
+  return shuffleStages(vals, rand);
 }
 
 // ── Relative-position math ──────────────────────────────────────────────────

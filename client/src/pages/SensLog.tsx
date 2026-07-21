@@ -22,12 +22,17 @@ interface BlindActive {
   set_id: number; in_game_sens: number; base_dpi: number; created_at: string;
   batch_size: number; cur_rel: number; games_on_stage: number;
   scramble_done: boolean; resolved: boolean; n_stages: number;
+  hero: string | null; totalGames: number;
 }
 interface BlindState {
   active: BlindActive | null;
   needSwitch?: boolean;
   pendingReveal?: number;
   stages?: { stage_index: number; dpi: number }[];
+}
+interface BlindSetSummary {
+  set_id: number; hero: string | null; active: boolean; resolved: boolean;
+  batch_size: number; n_stages: number; totalGames: number; created_at: string;
 }
 interface AnswerStage {
   stage_index: number; dpi: number; pct_delta: number;
@@ -134,7 +139,111 @@ export default function SensLog() {
       <div className="mt-10 pt-8 border-t border-ow-border">
         <h2 className="text-sm heading-display text-[var(--ink)] mb-1">Blind DPI trials</h2>
         <p className="text-xs text-[var(--faint)] mb-4">Shuffle DPI across your mouse stages, play blind, then reveal. Log each game in the Match Tracker — it auto-tags to your current stage and queues up above for its combat details.</p>
+        <Phase2PlanCard blind={blind} />
         <BlindPanel blind={blind} />
+      </div>
+    </div>
+  );
+}
+
+// ── Phase 2 test plan (reference card) ──────────────────────────────────────
+// Static reference for the current round of per-hero blind blocks — set up a
+// blind set per hero using these exact DPIs and games/slot. Update this list
+// when the plan changes; it's not derived from live data.
+const PHASE2_PLAN = [
+  { hero: 'Sojourn', archetype: 'Hitscan', dpis: [1500, 1600, 1700], gamesPerSlot: 12, note: 'Clean curve — drop both weak extremes.' },
+  { hero: 'Shion', archetype: 'Hitscan', dpis: [1600, 1700, 1750], gamesPerSlot: 12, note: 'Nearly flat in Phase 1 — confirm/kill, not a search for a winner.' },
+  { hero: 'Tracer', archetype: 'Hitscan', dpis: [1500, 1600, 1750], gamesPerSlot: 12, note: 'Noisy, bimodal on thin data — real exploration.' },
+  { hero: 'Pharah', archetype: 'Projectile', dpis: [1450, 1500, 1750], gamesPerSlot: 12, note: 'Same bimodal shape, thinnest data of the four.' },
+] as const;
+
+type HeroTestStatus = 'none' | 'testing' | 'completed';
+
+// A hero's status comes from whichever set is authoritative for it: the
+// currently active set if it's tagged to this hero (live progress), otherwise
+// its most recent past set (so "Completed" survives after a newer set for a
+// different hero takes over as active).
+function statusForHero(
+  hero: string, blind: BlindState | null, sets: BlindSetSummary[],
+): { status: HeroTestStatus; totalGames: number; target: number } {
+  const active = blind?.active;
+  if (active?.hero === hero) {
+    const target = active.batch_size * active.n_stages;
+    return { status: active.totalGames >= target ? 'completed' : 'testing', totalGames: active.totalGames, target };
+  }
+  const past = [...sets].filter(s => s.hero === hero).sort((a, b) => b.set_id - a.set_id)[0];
+  if (past) {
+    const target = past.batch_size * past.n_stages;
+    if (past.totalGames >= target) return { status: 'completed', totalGames: past.totalGames, target };
+  }
+  return { status: 'none', totalGames: 0, target: 0 };
+}
+
+function Phase2PlanCard({ blind }: { blind: BlindState | null }) {
+  const { data } = useApi<{ sets: BlindSetSummary[] }>('/api/blind/sets');
+  const sets = data?.sets ?? [];
+  const [creating, setCreating] = useState<string | null>(null);
+
+  const statuses = new Map(PHASE2_PLAN.map(h => [h.hero, statusForHero(h.hero, blind, sets)]));
+  const anyTesting = [...statuses.values()].some(s => s.status === 'testing');
+  const totalGames = PHASE2_PLAN.reduce((sum, h) => sum + h.dpis.length * h.gamesPerSlot, 0);
+
+  async function createSetForHero(h: (typeof PHASE2_PLAN)[number]) {
+    setCreating(h.hero);
+    try {
+      await fetch('/api/blind/sets', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ in_game_sens: 2.5, batch_size: h.gamesPerSlot, dpis: h.dpis, hero: h.hero }),
+      });
+      revalidateAll();
+    } finally { setCreating(null); }
+  }
+
+  return (
+    <div className="card mb-6">
+      <h2 className="text-sm heading-display text-[var(--ink)] mb-1">Phase 2 test plan</h2>
+      <p className="text-xs text-[var(--faint)] mb-3">
+        In-game sens frozen at 2.50. One blind set per hero — only log that hero while its set is active. {PHASE2_PLAN.length} heroes × 3 DPI levels, {totalGames} games total.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {PHASE2_PLAN.map(h => {
+          const s = statuses.get(h.hero)!;
+          const blockedByOther = anyTesting && s.status !== 'testing';
+          return (
+            <div key={h.hero} className="relative rounded-lg bg-ow-darker border border-ow-border p-2.5 overflow-hidden">
+              <div className={s.status !== 'none' ? 'opacity-30 pointer-events-none' : blockedByOther ? 'opacity-50' : ''}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-semibold text-[var(--ink)]">{h.hero}</span>
+                  <span className="text-[10px] text-[var(--faint-2)] uppercase">{h.archetype}</span>
+                </div>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  {h.dpis.map(d => (
+                    <span key={d} className="text-xs num-display text-[var(--ink)] bg-ow-border/40 rounded px-1.5 py-0.5">{d}</span>
+                  ))}
+                  <span className="text-[10px] text-[var(--faint-2)]">× {h.gamesPerSlot}/slot</span>
+                </div>
+                <p className="text-[11px] text-[var(--faint)] leading-snug mb-2">{h.note}</p>
+                <button
+                  type="button" onClick={() => createSetForHero(h)} disabled={blockedByOther || creating === h.hero}
+                  className={`${btnSecondary} w-full py-1.5 text-xs`}
+                >
+                  {creating === h.hero ? 'Creating…' : 'Create blind set'}
+                </button>
+              </div>
+
+              {s.status !== 'none' && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-ow-card/40 backdrop-blur-[1px]">
+                  <span
+                    className={`heading-display text-[45px] leading-none text-center drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)] ${s.status === 'testing' ? 'text-amber-500' : 'text-emerald-500'}`}
+                  >
+                    {s.status === 'testing' ? 'In Testing' : 'Completed'}
+                  </span>
+                  <span className="text-xs font-semibold num-display text-[var(--ink)] drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">{s.totalGames} / {s.target} games</span>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -143,8 +252,22 @@ export default function SensLog() {
 // ── Blind guided-loop panel ──────────────────────────────────────────────────
 function BlindPanel({ blind }: { blind: BlindState | null }) {
   const active = blind?.active ?? null;
-  const [createForm, setCreateForm] = useState({ in_game_sens: '2.50', base_dpi: '1600', pct_range: '10', n_stages: '5', batch_size: '10' });
+  const [inGameSens, setInGameSens] = useState('2.50');
+  const [batchSize, setBatchSize] = useState('12');
+  const [dpis, setDpis] = useState<string[]>(['1500', '1600', '1700']);
   const [busy, setBusy] = useState(false);
+
+  // Resize the DPI list to a new slot count, keeping existing values and
+  // padding new slots off the last one so a bigger test starts from something
+  // sane instead of blank.
+  function setSlotCount(nStr: string) {
+    const n = Math.max(2, parseInt(nStr) || 2);
+    setDpis(prev => {
+      const next = prev.slice(0, n);
+      while (next.length < n) next.push(next[next.length - 1] ?? '1600');
+      return next;
+    });
+  }
   // While non-null, we're mid stage-switch: the odometer counts down the DPI-
   // button presses. The server has already advanced (cur_rel moved, batch reset)
   // — this is the tactile guide, so it owns the transition back to "playing".
@@ -158,8 +281,8 @@ function BlindPanel({ blind }: { blind: BlindState | null }) {
       await fetch('/api/blind/sets', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          in_game_sens: parseFloat(createForm.in_game_sens), base_dpi: parseInt(createForm.base_dpi),
-          pct_range: parseFloat(createForm.pct_range), n_stages: parseInt(createForm.n_stages), batch_size: parseInt(createForm.batch_size),
+          in_game_sens: parseFloat(inGameSens), batch_size: parseInt(batchSize),
+          dpis: dpis.map(d => parseInt(d)),
         }),
       });
       setAnswer(null); setSwitching(null); revalidateAll();
@@ -200,14 +323,32 @@ function BlindPanel({ blind }: { blind: BlindState | null }) {
     return (
       <div className={`${card} max-w-lg`}>
         <h2 className="text-sm heading-display text-[var(--ink)] mb-1">Blind trials — create a set</h2>
-        <p className="text-xs text-[var(--faint)] mb-4">Generates {createForm.n_stages} shuffled DPI values across ±{createForm.pct_range}% of base. You'll type them into your mouse's DPI stages once.</p>
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          {([['in_game_sens', 'In-game sens (frozen)', '0.01'], ['base_dpi', 'Base DPI', '50'], ['pct_range', '± Range %', '1'], ['n_stages', '# Stages', '1'], ['batch_size', 'Games per stage', '1']] as const).map(([k, lbl, step]) => (
-            <label key={k} className="block">
-              <span className="block text-xs text-[var(--muted)] mb-1.5">{lbl}</span>
-              <input type="number" step={step} className={field} value={createForm[k]} onChange={e => setCreateForm(f => ({ ...f, [k]: e.target.value }))} />
-            </label>
-          ))}
+        <p className="text-xs text-[var(--faint)] mb-4">Pick each slot's DPI directly — e.g. levels chosen per hero from the analysis page. They'll be shuffled before you type them into your mouse's DPI stages.</p>
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <label className="block">
+            <span className="block text-xs text-[var(--muted)] mb-1.5">In-game sens (frozen)</span>
+            <input type="number" step="0.01" className={field} value={inGameSens} onChange={e => setInGameSens(e.target.value)} />
+          </label>
+          <label className="block">
+            <span className="block text-xs text-[var(--muted)] mb-1.5"># Slots</span>
+            <input type="number" step="1" min="2" className={field} value={dpis.length} onChange={e => setSlotCount(e.target.value)} />
+          </label>
+          <label className="block col-span-2">
+            <span className="block text-xs text-[var(--muted)] mb-1.5">Games per slot (samples)</span>
+            <input type="number" step="1" min="1" className={field} value={batchSize} onChange={e => setBatchSize(e.target.value)} />
+          </label>
+        </div>
+        <div className="mb-4">
+          <span className="block text-xs text-[var(--muted)] mb-1.5">DPI per slot</span>
+          <div className="grid grid-cols-3 gap-2">
+            {dpis.map((d, i) => (
+              <input
+                key={i} type="number" step="50" className={field} value={d} placeholder={`Slot ${i + 1}`}
+                onChange={e => setDpis(prev => prev.map((v, vi) => (vi === i ? e.target.value : v)))}
+                aria-label={`Slot ${i + 1} DPI`}
+              />
+            ))}
+          </div>
         </div>
         <button type="button" onClick={createSet} disabled={busy} className="btn-primary w-full py-2.5 text-sm">{busy ? 'Creating…' : 'Create blind set'}</button>
       </div>
@@ -244,7 +385,7 @@ function BlindPanel({ blind }: { blind: BlindState | null }) {
         </div>
         {answer ? <AnswerTable stages={answer} /> : <p className="text-xs text-[var(--faint)]">Revealed. Reload to see the answer key, or create a new set below.</p>}
         <div className="mt-4">
-          <button type="button" onClick={() => { setCreateForm(f => ({ ...f })); createSet(); }} disabled={busy} className="btn-primary py-2 px-4 text-sm">Start a fresh set (re-shuffle)</button>
+          <button type="button" onClick={createSet} disabled={busy} className="btn-primary py-2 px-4 text-sm">Start a fresh set (re-shuffle)</button>
         </div>
       </div>
     );

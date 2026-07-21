@@ -198,6 +198,9 @@ function initSchema(db: DatabaseSync) {
     ['resolved', `ALTER TABLE blind_stage_sets ADD COLUMN resolved INTEGER NOT NULL DEFAULT 0`],
     ['revealed_slot', `ALTER TABLE blind_stage_sets ADD COLUMN revealed_slot INTEGER`],
     ['last_click_count', `ALTER TABLE blind_stage_sets ADD COLUMN last_click_count INTEGER NOT NULL DEFAULT 0`],
+    // Optional hero tag: which hero's dedicated block this set represents
+    // (e.g. a Phase 2 per-hero card). Null for sets created ad hoc.
+    ['hero', `ALTER TABLE blind_stage_sets ADD COLUMN hero TEXT`],
   ] as const) {
     if (!setCols.find(c => c.name === col)) db.exec(ddl);
   }
