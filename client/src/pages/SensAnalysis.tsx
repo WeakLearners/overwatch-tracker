@@ -1,5 +1,6 @@
 import {
-  ResponsiveContainer, ScatterChart, Scatter, LabelList, Cell,
+  ResponsiveContainer, ScatterChart, Scatter, LabelList,
+  ComposedChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ReferenceArea,
 } from 'recharts';
 import { useApi } from '../hooks/useApi';
@@ -11,6 +12,7 @@ interface ScaleRow {
   cm360: number; eDPI: number; sens: number; n: number;
   avgOverall: number | null; avgCrit: number | null;
   avgFeel: number | null; avgDelta: number | null; winRate: number | null;
+  min: number | null; q1: number | null; median: number | null; q3: number | null; max: number | null;
 }
 interface Bucket {
   bucket: string; n: number;
@@ -21,6 +23,7 @@ interface HeroRow {
   avgOverall: number | null; avgCrit: number | null; winRate: number | null;
   bestScaleEDPI: number; bestScaleN: number;
   bestScaleOverallDelta: number | null; bestScaleCritDelta: number | null; bestScaleWinRate: number | null;
+  scales: ScaleRow[];
 }
 interface Analysis {
   summary: { n: number; distinctScale: number; maskedPending: number; lastUpdated: string | null };
@@ -31,22 +34,7 @@ interface Analysis {
   heroes: HeroRow[];
 }
 
-const HITSCAN = '#3b82f6';
-const PROJECTILE = '#ec4899';
 const FEEL = '#8b5cf6';
-
-// One color per hero, assigned by a stable hash of the hero's name (not
-// array position) so a hero keeps its color across reloads even as the
-// roster of tested heroes grows or its sort order shifts.
-const HERO_COLORS = ['#f59e0b', '#14b8a6', '#f43f5e', '#84cc16', '#06b6d4', '#d946ef', '#f97316', '#6366f1', '#10b981', '#0ea5e9'];
-const heroColor = (hero: string): string => {
-  let hash = 0;
-  for (let i = 0; i < hero.length; i++) hash = (hash * 31 + hero.charCodeAt(i)) >>> 0;
-  return HERO_COLORS[hash % HERO_COLORS.length];
-};
-
-const spreadColor = (p: { kind: 'overall' | 'hitscan' | 'projectile' | 'hero'; label: string }) =>
-  p.kind === 'hitscan' ? HITSCAN : p.kind === 'projectile' ? PROJECTILE : p.kind === 'hero' ? heroColor(p.label) : FEEL;
 
 // created_at is stored as a bare UTC datetime('now') string (no 'Z'); append
 // it before parsing so the browser doesn't mistake it for local time.
@@ -148,6 +136,91 @@ const axisStyle = { fontSize: 11, fill: 'var(--faint)' };
 
 const RELIABLE_N = 4;
 const CONFIDENT_N = 8;
+
+// One color per hero, assigned by a stable hash of the hero's name (not
+// array position) so a hero keeps its color across reloads even as the
+// roster of tested heroes grows or its sort order shifts.
+const HERO_COLORS = ['#f59e0b', '#14b8a6', '#f43f5e', '#84cc16', '#06b6d4', '#d946ef', '#f97316', '#6366f1', '#10b981', '#0ea5e9'];
+const heroColor = (hero: string): string => {
+  let hash = 0;
+  for (let i = 0; i < hero.length; i++) hash = (hash * 31 + hero.charCodeAt(i)) >>> 0;
+  return HERO_COLORS[hash % HERO_COLORS.length];
+};
+
+interface HeroBoxStats { min: number; q1: number; median: number; q3: number; max: number; n: number }
+interface HeroBoxRow { cm360: number; label: string; sensAt1600: number; heroes: Record<string, HeroBoxStats | undefined> }
+
+// Pivots byScale (global sens buckets) x heroes into one row per sens, each
+// carrying whichever heroes were actually tested at that scale — the shape
+// a grouped box-plot chart (one cluster of hero-boxes per x category) needs.
+function buildHeroBoxRows(data: Analysis): HeroBoxRow[] {
+  const categories = bySpeed(data.byScale);
+  return categories.map(cat => {
+    const heroesAtScale: Record<string, HeroBoxStats | undefined> = {};
+    for (const h of data.heroes) {
+      const s = h.scales.find(sc => sc.cm360 === cat.cm360);
+      if (s && s.n >= 2 && s.min != null && s.q1 != null && s.median != null && s.q3 != null && s.max != null) {
+        heroesAtScale[h.hero] = { min: s.min, q1: s.q1, median: s.median, q3: s.q3, max: s.max, n: s.n };
+      }
+    }
+    return { cm360: cat.cm360, label: cat.sensAt1600.toFixed(2), sensAt1600: cat.sensAt1600, heroes: heroesAtScale };
+  });
+}
+
+// Recharts hands the shared Tooltip one payload entry per Bar series present
+// at the hovered category, each carrying the whole row (not narrowed to its
+// own hero) — pull each series's stats out of row.heroes by its own name and
+// drop any hero that wasn't actually tested at this sens.
+function HeroBoxTooltip({ active, payload, label }: { active?: boolean; payload?: { name?: string; payload: HeroBoxRow }[]; label?: string }) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0].payload;
+  const entries = payload
+    .map(p => ({ hero: p.name ?? '', stats: row.heroes[p.name ?? ''] }))
+    .filter((e): e is { hero: string; stats: HeroBoxStats } => e.stats != null);
+  if (!entries.length) return null;
+  return (
+    <div style={{ background: 'rgb(var(--ow-card))', border: '1px solid rgb(var(--ow-border))', borderRadius: 8, fontSize: 12, padding: '6px 10px' }}>
+      <div style={{ fontWeight: 600 }}>{label} sens (@{MOUSE_DPI} DPI)</div>
+      {entries.map(e => (
+        <div key={e.hero} style={{ marginTop: 4 }}>
+          <div style={{ fontWeight: 600, color: heroColor(e.hero) }}>{e.hero}</div>
+          <div>Median {f1(e.stats.median)}% (Q1 {f1(e.stats.q1)} · Q3 {f1(e.stats.q3)})</div>
+          <div style={{ opacity: 0.7 }}>Range {f1(e.stats.min)}–{f1(e.stats.max)}% · n={e.stats.n}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Renders one hero's box-and-whiskers for a Bar whose dataKey already
+// resolved to the [q1, q3] range (so x/y/width/height are the box itself,
+// correctly scaled against the y-axis regardless of its domain). Min/median/
+// max aren't part of that range, so they're extrapolated from the box's own
+// pixel geometry: pxPerUnit = height / (q3 - q1), then walked out from the
+// box's top (q3) edge.
+function heroBoxShape(hero: string) {
+  return (props: any) => {
+    const stats: HeroBoxStats | undefined = props.payload?.heroes?.[hero];
+    if (!stats) return <g />;
+    const { x, y, width, height } = props;
+    const color = heroColor(hero);
+    const pxPerUnit = stats.q3 !== stats.q1 ? height / (stats.q3 - stats.q1) : 0;
+    const yFor = (v: number) => y + (stats.q3 - v) * pxPerUnit;
+    const cx = x + width / 2;
+    const capHalf = width * 0.3;
+    const boxH = Math.max(height, 1);
+    return (
+      <g>
+        <line x1={cx} x2={cx} y1={yFor(stats.min)} y2={yFor(stats.q1)} stroke={color} strokeWidth={1.5} />
+        <line x1={cx} x2={cx} y1={yFor(stats.q3)} y2={yFor(stats.max)} stroke={color} strokeWidth={1.5} />
+        <line x1={cx - capHalf} x2={cx + capHalf} y1={yFor(stats.min)} y2={yFor(stats.min)} stroke={color} strokeWidth={1.5} />
+        <line x1={cx - capHalf} x2={cx + capHalf} y1={yFor(stats.max)} y2={yFor(stats.max)} stroke={color} strokeWidth={1.5} />
+        <rect x={x} y={y} width={width} height={boxH} fill={color} fillOpacity={0.3} stroke={color} strokeWidth={1.5} rx={2} />
+        <line x1={x} x2={x + width} y1={yFor(stats.median)} y2={yFor(stats.median)} stroke={color} strokeWidth={2.5} />
+      </g>
+    );
+  };
+}
 
 interface Recommendation {
   verdict: 'continue' | 'narrow';
@@ -632,26 +705,29 @@ export default function SensAnalysis() {
                   {/* Drop line from each point down to the baseline, so its
                       x-axis tick reads as "this category's peak lands here." */}
                   {spread.points.map((p, i) => p.raw != null && spread.baseline != null && (
-                    <ReferenceLine key={i} segment={[{ x: p.sens, y: spread.baseline }, { x: p.sens, y: p.raw }]} stroke={spreadColor(p)} strokeOpacity={0.5} strokeDasharray="3 3" />
+                    <ReferenceLine key={i} segment={[{ x: p.sens, y: spread.baseline }, { x: p.sens, y: p.raw }]} stroke="var(--faint-2)" strokeOpacity={0.5} strokeDasharray="3 3" />
                   ))}
-                  <Scatter dataKey="raw">
-                    {spread.points.map((p, i) => <Cell key={i} fill={spreadColor(p)} />)}
-                    {/* insideTopRight measures "inside" against the scatter
-                        symbol's own tiny bounding box, landing the label
-                        almost exactly on the dot — position="right" + a
-                        negative dy gives a real top-right offset instead. */}
-                    <LabelList dataKey="raw" position="right" dy={-6} formatter={(v: number) => `${v.toFixed(1)}%`} style={{ fontSize: 10, fill: 'var(--faint)' }} />
+                  <Scatter dataKey="raw" fill={FEEL}>
+                    {/* Points are identified by name label rather than color —
+                        with a dozen-plus categories/heroes, distinct colors
+                        stopped being distinguishable at a glance. */}
+                    <LabelList
+                      dataKey="raw"
+                      content={(props: any) => {
+                        const { x, y, index } = props;
+                        const p = spread.points[index];
+                        if (p?.raw == null) return null;
+                        return (
+                          <g>
+                            <text x={x + 8} y={y - 8} textAnchor="start" fontSize={10} fontWeight={600} fill="var(--ink)">{p.label}</text>
+                            <text x={x + 8} y={y + 4} textAnchor="start" fontSize={9} fill="var(--faint)">{p.raw.toFixed(1)}%</text>
+                          </g>
+                        );
+                      }}
+                    />
                   </Scatter>
                 </ScatterChart>
               </ResponsiveContainer>
-              <div className="flex items-center gap-4 text-[10px] text-[var(--faint-2)] mt-2 flex-wrap">
-                <span className="inline-flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ background: FEEL }} />Overall</span>
-                <span className="inline-flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ background: HITSCAN }} />Hitscan</span>
-                <span className="inline-flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ background: PROJECTILE }} />Projectile</span>
-                {spread.points.filter(p => p.kind === 'hero').map(p => (
-                  <span key={p.label} className="inline-flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full" style={{ background: heroColor(p.label) }} />{p.label}</span>
-                ))}
-              </div>
             </div>
           ) : (
             <p className="text-xs text-[var(--faint)]">Not enough categories yet to plot — keep logging.</p>
@@ -746,6 +822,61 @@ export default function SensAnalysis() {
           </table>
         </div>
       </Section>
+
+      {/* Accuracy by Sens, per hero — one unified box plot: sens on x, accuracy
+          on y, one color-coded box (min/Q1/median/Q3/max) per hero per scale. */}
+      {(() => {
+        const boxRows = buildHeroBoxRows(data);
+        const testedHeroes = heroes.filter(h => boxRows.some(row => row.heroes[h.hero] != null));
+        const allStats = boxRows.flatMap(row => Object.values(row.heroes)).filter((s): s is HeroBoxStats => s != null);
+        const yPad = 3;
+        const yDomain: [number, number] = allStats.length
+          ? [Math.max(0, Math.min(...allStats.map(s => s.min)) - yPad), Math.min(100, Math.max(...allStats.map(s => s.max)) + yPad)]
+          : [0, 100];
+        const skipped = heroes.length - testedHeroes.length;
+        return (
+          <Section
+            title="Accuracy by Sens — Per Hero"
+            hint={`Sens (@${MOUSE_DPI} DPI) on the x-axis, accuracy on the y-axis — one box per hero per scale it's been tested at (needs 2+ logged games there). Each box spans Q1–Q3 with a median line; whiskers mark min/max.${skipped ? ` ${skipped} hero${skipped === 1 ? '' : 's'} skipped — never tested at 2+ games on the same scale.` : ''}`}
+          >
+            {testedHeroes.length ? (
+              <>
+                <ResponsiveContainer width="100%" height={340}>
+                  <ComposedChart data={boxRows} margin={{ top: 8, right: 16, bottom: 24, left: 10 }} barGap={2} barCategoryGap="20%">
+                    <CartesianGrid stroke="rgb(var(--ow-border))" strokeOpacity={0.5} strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="label" tick={axisStyle} tickLine={{ stroke: 'rgb(var(--ow-border))' }} axisLine={{ stroke: 'rgb(var(--ow-border))' }}
+                      label={{ value: `In-game Sens (@${MOUSE_DPI} dpi)`, position: 'insideBottom', offset: -8, style: { fill: 'var(--faint)', fontSize: 11 } }}
+                    />
+                    <YAxis
+                      domain={yDomain} tick={axisStyle} tickLine={{ stroke: 'rgb(var(--ow-border))' }} axisLine={{ stroke: 'rgb(var(--ow-border))' }}
+                      label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: 'var(--faint)', fontSize: 11 } }}
+                    />
+                    <Tooltip content={<HeroBoxTooltip />} cursor={{ fill: 'var(--faint-2)', fillOpacity: 0.08 }} />
+                    {testedHeroes.map(h => (
+                      <Bar
+                        key={h.hero} name={h.hero}
+                        dataKey={(row: HeroBoxRow) => { const s = row.heroes[h.hero]; return s ? [s.q1, s.q3] : [0, 0]; }}
+                        shape={heroBoxShape(h.hero)} isAnimationActive={false}
+                      />
+                    ))}
+                  </ComposedChart>
+                </ResponsiveContainer>
+                <div className="flex items-center gap-4 text-[10px] text-[var(--faint-2)] mt-2 flex-wrap">
+                  {testedHeroes.map(h => (
+                    <span key={h.hero} className="inline-flex items-center gap-1">
+                      <span className="inline-block w-2 h-2 rounded-full" style={{ background: heroColor(h.hero) }} />
+                      {h.hero}
+                    </span>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-[var(--faint)]">Not enough per-hero, per-scale samples yet — keep logging games so a scale can build up 2+ per hero.</p>
+            )}
+          </Section>
+        );
+      })()}
     </div>,
   );
 }

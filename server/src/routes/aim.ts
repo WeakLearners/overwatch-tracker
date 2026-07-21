@@ -10,6 +10,17 @@ const router = Router();
 const mean = (xs: number[]): number | null =>
   xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
 
+// Linear-interpolation quantile (same convention as numpy's default) over a
+// pre-sorted ascending array. Used for the per-scale box-plot stats below.
+const quantile = (sorted: number[], q: number): number | null => {
+  if (!sorted.length) return null;
+  if (sorted.length === 1) return sorted[0];
+  const pos = (sorted.length - 1) * q;
+  const base = Math.floor(pos);
+  const rest = pos - base;
+  return sorted[base + 1] !== undefined ? sorted[base] + rest * (sorted[base + 1] - sorted[base]) : sorted[base];
+};
+
 // win is stored 0/1, so mean() of it is already a fraction — this just puts it
 // on the same 0–100 scale as the accuracy fields it sits next to.
 const mult100 = (frac: number | null): number | null => (frac == null ? null : frac * 100);
@@ -156,6 +167,7 @@ router.get('/analysis', (_req: Request, res: Response) => {
         // Prefer a blind-trial row's sens as the bucket's label — an absorbed
         // legacy point's own sens (e.g. 2.45) isn't what this bucket represents.
         const anchor = ps.find(p => p.blind_trial === 1) ?? ps[0];
+        const accSorted = ps.map(p => p.overall_acc).sort((a, b) => a - b);
         return {
           cm360: Number(cm),
           eDPI: Math.round(mean(ps.map(p => eDPI(p.sens, p.dpi ?? MOUSE_DPI))) ?? 0),
@@ -169,6 +181,12 @@ router.get('/analysis', (_req: Request, res: Response) => {
           // Win rate, not just accuracy — accuracy is a proxy for the scale
           // that actually matters: which sens wins more.
           winRate: mult100(mean(ps.map(p => p.win))),
+          // Box-plot stats over raw overall accuracy at this scale.
+          min: accSorted[0] ?? null,
+          q1: quantile(accSorted, 0.25),
+          median: quantile(accSorted, 0.5),
+          q3: quantile(accSorted, 0.75),
+          max: accSorted[accSorted.length - 1] ?? null,
         };
       })
       .sort((a, b) => a.cm360 - b.cm360);
@@ -212,7 +230,8 @@ router.get('/analysis', (_req: Request, res: Response) => {
       .map(([hero, ps]) => {
         // Best-performing scale for this hero alone — same byScale bucketing,
         // just scoped to one hero's matches instead of the whole roster.
-        const bestScale = byScale(ps).reduce((a, b) => ((b.avgOverall ?? -Infinity) > (a.avgOverall ?? -Infinity) ? b : a));
+        const scales = byScale(ps);
+        const bestScale = scales.reduce((a, b) => ((b.avgOverall ?? -Infinity) > (a.avgOverall ?? -Infinity) ? b : a));
         return {
           hero: hero as string,
           archetype: ps[0].archetype,
@@ -225,6 +244,10 @@ router.get('/analysis', (_req: Request, res: Response) => {
           bestScaleOverallDelta: bestScale.avgDelta,
           bestScaleCritDelta: bestScale.avgCritDelta,
           bestScaleWinRate: bestScale.winRate,
+          // Full per-scale curve (not just the best one) so the analysis page
+          // can trace this hero's accuracy across every sens it's actually
+          // been tested at, ascending by cm/360.
+          scales,
         };
       })
       .sort((a, b) => b.n - a.n),
