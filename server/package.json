@@ -2,7 +2,7 @@
   "name": "server",
   "version": "1.0.0",
   "scripts": {
-    "dev": "node --experimental-sqlite -r tsx/cjs src/index.ts",
+    "dev": "tsx watch --experimental-sqlite src/index.ts",
     "build": "tsc"
   },
   "dependencies": {
