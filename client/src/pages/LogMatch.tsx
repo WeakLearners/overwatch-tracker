@@ -408,21 +408,6 @@ export default function LogMatch() {
             </div>
 
             <div>
-              <label className="block text-xs text-[var(--muted)] mb-1.5">Feel <span className="text-[var(--faint-2)]">— did the sens feel slow or fast?</span></label>
-              <input
-                type="range"
-                min={FEEL_MIN}
-                max={FEEL_MAX}
-                step={1}
-                value={feel}
-                onChange={e => setFeel(Number(e.target.value))}
-                className="w-full accent-violet-500"
-                aria-label="Feel — slow to fast"
-              />
-              <div className="flex justify-between text-[10px] text-[var(--faint-2)] mt-1 px-0.5"><span>Slow</span><span>Just Right</span><span>Fast</span></div>
-            </div>
-
-            <div>
               <label className="block text-xs text-[var(--muted)] mb-1.5">Result</label>
               <div className="flex gap-3">
                 {[{ v: '1', label: 'Win', cls: 'border-emerald-500 bg-emerald-500/20 text-emerald-600' },
@@ -450,6 +435,21 @@ export default function LogMatch() {
                 className="w-full field px-3 py-2 text-sm resize-none"
                 placeholder="fatigue, warmup, just switched stage…"
               />
+            </div>
+
+            <div>
+              <label className="block text-xs text-[var(--muted)] mb-1.5">Feel <span className="text-[var(--faint-2)]">— did the sens feel slow or fast?</span></label>
+              <input
+                type="range"
+                min={FEEL_MIN}
+                max={FEEL_MAX}
+                step={1}
+                value={feel}
+                onChange={e => setFeel(Number(e.target.value))}
+                className="w-full accent-violet-500"
+                aria-label="Feel — slow to fast"
+              />
+              <div className="flex justify-between text-[10px] text-[var(--faint-2)] mt-1 px-0.5"><span>Slow</span><span>Just Right</span><span>Fast</span></div>
             </div>
 
             <button
