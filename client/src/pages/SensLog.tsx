@@ -162,21 +162,25 @@ type HeroTestStatus = 'none' | 'testing' | 'completed';
 // A hero's status comes from whichever set is authoritative for it: the
 // currently active set if it's tagged to this hero (live progress), otherwise
 // its most recent past set (so "Completed" survives after a newer set for a
-// different hero takes over as active).
+// different hero takes over as active). needsReveal marks a set that hit its
+// game-count target but hasn't been revealed yet — creating any new set would
+// deactivate it and stall its reveal, so callers use this to force reveal
+// before moving on to the next hero.
 function statusForHero(
   hero: string, blind: BlindState | null, sets: BlindSetSummary[],
-): { status: HeroTestStatus; totalGames: number; target: number } {
+): { status: HeroTestStatus; totalGames: number; target: number; needsReveal: boolean } {
   const active = blind?.active;
   if (active?.hero === hero) {
     const target = active.batch_size * active.n_stages;
-    return { status: active.totalGames >= target ? 'completed' : 'testing', totalGames: active.totalGames, target };
+    const completed = active.totalGames >= target;
+    return { status: completed ? 'completed' : 'testing', totalGames: active.totalGames, target, needsReveal: completed && !active.resolved };
   }
   const past = [...sets].filter(s => s.hero === hero).sort((a, b) => b.set_id - a.set_id)[0];
   if (past) {
     const target = past.batch_size * past.n_stages;
-    if (past.totalGames >= target) return { status: 'completed', totalGames: past.totalGames, target };
+    if (past.totalGames >= target) return { status: 'completed', totalGames: past.totalGames, target, needsReveal: !past.resolved };
   }
-  return { status: 'none', totalGames: 0, target: 0 };
+  return { status: 'none', totalGames: 0, target: 0, needsReveal: false };
 }
 
 function Phase2PlanCard({ blind }: { blind: BlindState | null }) {
@@ -185,8 +189,12 @@ function Phase2PlanCard({ blind }: { blind: BlindState | null }) {
   const [creating, setCreating] = useState<string | null>(null);
 
   const statuses = new Map(PHASE2_PLAN.map(h => [h.hero, statusForHero(h.hero, blind, sets)]));
-  const anyTesting = [...statuses.values()].some(s => s.status === 'testing');
+  // Blocks starting the next hero's set while another is still testing OR
+  // sitting complete-but-unrevealed — forces reveal-before-next rather than
+  // letting a new set silently steal `active` from a finished one.
+  const anyPendingReveal = [...statuses.values()].some(s => s.status === 'testing' || s.needsReveal);
   const totalGames = PHASE2_PLAN.reduce((sum, h) => sum + h.dpis.length * h.gamesPerSlot, 0);
+  const [cancelling, setCancelling] = useState(false);
 
   async function createSetForHero(h: (typeof PHASE2_PLAN)[number]) {
     setCreating(h.hero);
@@ -199,6 +207,15 @@ function Phase2PlanCard({ blind }: { blind: BlindState | null }) {
     } finally { setCreating(null); }
   }
 
+  async function cancelActiveSet(setId: number) {
+    if (!confirm('Cancel this test? The blind set and any games logged against it will be deleted.')) return;
+    setCancelling(true);
+    try {
+      await fetch(`/api/blind/sets/${setId}`, { method: 'DELETE' });
+      revalidateAll();
+    } finally { setCancelling(false); }
+  }
+
   return (
     <div className="card mb-6">
       <h2 className="text-sm heading-display text-[var(--ink)] mb-1">Phase 2 test plan</h2>
@@ -208,7 +225,7 @@ function Phase2PlanCard({ blind }: { blind: BlindState | null }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {PHASE2_PLAN.map(h => {
           const s = statuses.get(h.hero)!;
-          const blockedByOther = anyTesting && s.status !== 'testing';
+          const blockedByOther = anyPendingReveal && s.status !== 'testing';
           return (
             <div key={h.hero} className="relative rounded-lg bg-ow-darker border border-ow-border p-2.5 overflow-hidden">
               <div className={s.status !== 'none' ? 'opacity-30 pointer-events-none' : blockedByOther ? 'opacity-50' : ''}>
@@ -239,6 +256,16 @@ function Phase2PlanCard({ blind }: { blind: BlindState | null }) {
                     {s.status === 'testing' ? 'In Testing' : 'Completed'}
                   </span>
                   <span className="text-xs font-semibold num-display text-[var(--ink)] drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">{s.totalGames} / {s.target} games</span>
+                  {blind?.active?.hero === h.hero && !blind.active.resolved && (
+                    <button
+                      type="button"
+                      onClick={() => cancelActiveSet(blind.active!.set_id)}
+                      disabled={cancelling}
+                      className="mt-1 text-[10px] text-red-400 hover:text-red-300 underline underline-offset-2 disabled:opacity-40"
+                    >
+                      Cancel test
+                    </button>
+                  )}
                 </div>
               )}
             </div>

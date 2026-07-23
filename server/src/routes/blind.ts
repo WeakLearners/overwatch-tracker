@@ -79,17 +79,47 @@ router.post('/sets', (req: Request, res: Response) => {
     stages = generateStages(base_dpi, pct_range, n_stages);
   }
 
-  db.exec('UPDATE blind_stage_sets SET active = 0 WHERE active = 1');
-  const r = db.prepare(`
-    INSERT INTO blind_stage_sets (in_game_sens, base_dpi, active, note, batch_size, cur_rel, games_on_stage, scramble_done, resolved, hero)
-    VALUES (:s, :d, 1, :note, :b, 0, 0, 0, 0, :hero)
-  `).run({ s: in_game_sens, d: base_dpi, note: req.body.note ?? null, b: batch_size, hero });
-  const set_id = Number(r.lastInsertRowid);
-  const ins = db.prepare('INSERT INTO blind_stages (set_id, stage_index, dpi, pct_delta) VALUES (:set_id, :stage_index, :dpi, :pct_delta)');
-  for (const st of stages) ins.run({ set_id, ...st });
+  // Deactivate-old + insert-new must land together — if a restart or error
+  // interrupts between them, an uncommitted transaction rolls back cleanly
+  // instead of leaving no set active (which strands the reveal UI, since it
+  // only ever renders for whichever set is currently active).
+  let set_id: number;
+  db.exec('BEGIN');
+  try {
+    db.exec('UPDATE blind_stage_sets SET active = 0 WHERE active = 1');
+    const r = db.prepare(`
+      INSERT INTO blind_stage_sets (in_game_sens, base_dpi, active, note, batch_size, cur_rel, games_on_stage, scramble_done, resolved, hero)
+      VALUES (:s, :d, 1, :note, :b, 0, 0, 0, 0, :hero)
+    `).run({ s: in_game_sens, d: base_dpi, note: req.body.note ?? null, b: batch_size, hero });
+    set_id = Number(r.lastInsertRowid);
+    const ins = db.prepare('INSERT INTO blind_stages (set_id, stage_index, dpi, pct_delta) VALUES (:set_id, :stage_index, :dpi, :pct_delta)');
+    for (const st of stages) ins.run({ set_id, ...st });
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
 
   // Values returned in slot order for one-time mouse configuration.
   res.json({ set_id, in_game_sens, base_dpi, n_stages, batch_size, hero, stages });
+});
+
+// ── Cancel a set ─────────────────────────────────────────────────────────────
+// Abandons an in-progress test: deletes the set (blind_stages cascades) plus
+// any matches logged against it. Safe to discard — unrevealed blind trials are
+// already excluded from every stats view, so nothing downstream ever saw them.
+// Resolved sets are refused: once revealed, the matches carry real dpi/sens
+// values and are load-bearing history, not a discardable in-progress attempt.
+router.delete('/sets/:id', (req: Request, res: Response) => {
+  const db = getDb();
+  const set = db.prepare('SELECT id, resolved FROM blind_stage_sets WHERE id = :id')
+    .get({ id: req.params.id }) as { id: number; resolved: number } | undefined;
+  if (!set) { res.status(404).json({ error: 'set not found' }); return; }
+  if (set.resolved) { res.status(409).json({ error: 'cannot cancel a resolved set' }); return; }
+
+  const { changes: deletedMatches } = db.prepare('DELETE FROM matches WHERE blind_set_id = :id').run({ id: set.id });
+  db.prepare('DELETE FROM blind_stage_sets WHERE id = :id').run({ id: set.id });
+  res.json({ ok: true, deletedMatches });
 });
 
 // ── List sets ────────────────────────────────────────────────────────────────
