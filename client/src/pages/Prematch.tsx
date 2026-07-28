@@ -182,7 +182,7 @@ export default function Prematch() {
             {bt && (
               <span
                 title={btColor ? `DPI color this round: ${btColor.name}` : 'No start color recorded'}
-                className={`inline-block w-3 h-3 rounded-full border border-ow-border ${btColor ? btColor.dot : 'bg-ow-darker'}`}
+                className={`inline-block w-3 h-3 rounded-full ${btColor ? btColor.dot : 'bg-ow-darker'}`}
               />
             )}
           </div>
@@ -279,7 +279,7 @@ export default function Prematch() {
               className="w-full field px-3 py-2 text-sm"
             />
             {open && results.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-ow-card border border-ow-border rounded-lg shadow-xl z-30 overflow-hidden">
+              <div className="absolute top-full left-0 right-0 mt-1 bg-ow-card rounded-lg shadow-xl z-30 overflow-hidden">
                 {results.map(m => (
                   <button
                     key={m}
@@ -326,10 +326,10 @@ export default function Prematch() {
                 <button
                   key={m}
                   onClick={() => toggleMap(m)}
-                  className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium border transition-colors ${
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium transition-colors ${
                     m === winner
-                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-700'
-                      : 'bg-ow-accent/15 border-ow-accent/60 text-ow-accent'
+                      ? 'bg-emerald-500/20 text-emerald-700'
+                      : 'bg-ow-accent/15 text-ow-accent'
                   }`}
                 >
                   {m === winner && <span className="text-xs">✓</span>}
@@ -342,7 +342,7 @@ export default function Prematch() {
 
           {/* Vote recommendation */}
           {ranked.length > 0 && (
-            <div className="border-t border-ow-border pt-4 mt-4">
+            <div className="pt-4 mt-4">
               {ranked.length === 1 ? (
                 <div className="text-sm text-[var(--muted)]">Select more maps to compare.</div>
               ) : (
@@ -401,36 +401,40 @@ export default function Prematch() {
 
           {/* Idle: session & timing snapshot — how you're doing right now */}
           {!map && (
-            <div className="flex-1 grid grid-cols-3 gap-2 content-center mt-1">
-              <div className="rounded-lg bg-ow-darker border border-ow-border p-2.5">
+            <div className="flex-1 flex items-stretch content-center mt-1">
+              <div className="flex-1 p-2.5 flex flex-col justify-center">
                 <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] mb-1">Today</div>
                 {todayRows.length > 0 ? (
-                  <div className="text-lg num-display leading-none">
+                  <div className="text-3xl num-display leading-none">
                     <span className="text-emerald-500">{todayW}W</span> <span className="text-red-500">{todayL}L</span>
                   </div>
                 ) : (
                   <div className="text-sm text-[var(--faint)]">No games</div>
                 )}
               </div>
-              <div className="rounded-lg bg-ow-darker border border-ow-border p-2.5">
+              <div className="w-px shrink-0 bg-gradient-to-b from-transparent via-ow-border to-transparent" />
+              <div className="flex-1 p-2.5 flex flex-col justify-center">
                 <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] mb-1">Streak</div>
                 {streaksData && streaksData.currentStreak > 0 ? (
-                  <div className={`text-lg num-display leading-none ${streaksData.currentStreakType === 1 ? 'text-emerald-500' : 'text-red-500'}`}>
+                  <div className={`text-3xl num-display leading-none ${streaksData.currentStreakType === 1 ? 'text-emerald-500' : 'text-red-500'}`}>
                     {streaksData.currentStreak}{streaksData.currentStreakType === 1 ? 'W' : 'L'}
                   </div>
                 ) : (
                   <div className="text-sm text-[var(--faint)]">—</div>
                 )}
               </div>
-              <div className="rounded-lg bg-ow-darker border border-ow-border p-2.5">
+              <div className="w-px shrink-0 bg-gradient-to-b from-transparent via-ow-border to-transparent" />
+              <div className="flex-1 p-2.5 flex flex-col justify-center">
                 <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] mb-1">This hour</div>
                 {hourRow ? (
-                  <>
-                    <div className={`text-lg num-display leading-none ${hourRow.win_rate >= 50 ? 'text-emerald-500' : 'text-red-500'}`}>
+                  // Subtext is absolutely positioned so it doesn't push the number
+                  // off-center — keeps this stat aligned with Today/Streak.
+                  <div className="relative">
+                    <div className={`text-3xl num-display leading-none ${hourRow.win_rate >= 50 ? 'text-emerald-500' : 'text-red-500'}`}>
                       {Math.round(hourRow.win_rate)}%
                     </div>
-                    <div className="text-[9px] text-[var(--faint-2)] mt-1">{hourLabel} · {hourRow.games}g</div>
-                  </>
+                    <div className="absolute top-full left-0 text-[9px] text-[var(--faint-2)] mt-1">{hourLabel} · {hourRow.games}g</div>
+                  </div>
                 ) : (
                   <div className="text-sm text-[var(--faint)]">—</div>
                 )}

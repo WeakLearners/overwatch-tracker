@@ -9,7 +9,7 @@ const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 function Drum({ digit, size }: { digit: number; size: number }) {
   return (
     <div
-      className="relative overflow-hidden rounded-md bg-ow-darker border border-ow-accent/40 select-none"
+      className="relative overflow-hidden rounded-md bg-ow-card select-none"
       style={{ width: Math.round(size * 0.72), height: size }}
     >
       <div
@@ -30,7 +30,7 @@ function Drum({ digit, size }: { digit: number; size: number }) {
 export default function Odometer({ value, size = 46 }: { value: number; size?: number }) {
   const v = Math.max(0, Math.min(99, Math.round(value)));
   return (
-    <div className="flex gap-1">
+    <div className="flex gap-0">
       <Drum digit={Math.floor(v / 10)} size={size} />
       <Drum digit={v % 10} size={size} />
     </div>

@@ -234,10 +234,10 @@ export default function Dashboard() {
                   type="button"
                   onClick={() => openEdit(g)}
                   title={`${g.win ? 'Win' : 'Loss'} · ${withHeroCount(g.hero, heroCounts)} on ${withMapCount(g.map, mapCounts)} (${format(parseISO(g.date), 'MMM d')}) — tap to edit`}
-                  className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-xs font-black border transition-all duration-150 cursor-pointer hover:-translate-y-0.5 hover:ring-2 hover:ring-offset-1 hover:ring-offset-transparent ${
+                  className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-xs font-black transition-all duration-150 cursor-pointer hover:-translate-y-0.5 hover:ring-2 hover:ring-offset-1 hover:ring-offset-transparent ${
                     g.win
-                      ? 'bg-emerald-100 text-emerald-700 border-emerald-300 hover:ring-emerald-400/60 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/40'
-                      : 'bg-rose-100 text-rose-700 border-rose-300 hover:ring-rose-400/60 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-500/40'
+                      ? 'bg-emerald-100 text-emerald-700 hover:ring-emerald-400/60 dark:bg-emerald-500/15 dark:text-emerald-300'
+                      : 'bg-rose-100 text-rose-700 hover:ring-rose-400/60 dark:bg-rose-500/15 dark:text-rose-300'
                   }`}
                 >
                   {MODE_LETTER[g.queue_mode] ?? '·'}
