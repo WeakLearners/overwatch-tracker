@@ -394,12 +394,19 @@ export default function LogMatch() {
                       key={m.value}
                       type="button"
                       onClick={() => setQueueMode(m.value)}
-                      className={`relative overflow-hidden py-2 rounded-lg border text-xs font-semibold leading-tight transition-all ${
-                        active ? `${c.card} ${c.accent} ${c.glow}` : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)] hover:border-gray-500'
+                      className={`relative overflow-hidden py-2 rounded-lg text-xs font-semibold leading-tight transition-all ${
+                        active ? `${c.card} ${c.accent} ${c.glow}` : 'text-[var(--faint)] hover:text-[var(--ink)]'
                       }`}
                     >
-                      <ModeWatermark mode={m.value} variant="selector" />
-                      <div className="relative z-10">{MODE_COMPACT[m.value].top}</div>
+                      {/* V5/V6 digits carry more side-bearing than QP's letters,
+                          so they read looser at the same tracking — tighten them
+                          to visually match QP. */}
+                      <ModeWatermark
+                        mode={m.value}
+                        variant="selector"
+                        style={m.value === 'qp_role' ? undefined : { letterSpacing: '-0.13em' }}
+                      />
+                      <div className="relative z-10 font-display italic">{MODE_COMPACT[m.value].top}</div>
                       <div className="relative z-10 text-[10px] font-normal opacity-80">{MODE_COMPACT[m.value].bot}</div>
                     </button>
                   );
@@ -409,20 +416,59 @@ export default function LogMatch() {
 
             <div>
               <label className="block text-xs text-[var(--muted)] mb-1.5">Result</label>
-              <div className="flex gap-3">
-                {[{ v: '1', label: 'Win', cls: 'border-emerald-500 bg-emerald-500/20 text-emerald-600' },
-                  { v: '0', label: 'Loss', cls: 'border-red-500 bg-red-500/20 text-red-600' }].map(({ v, label, cls }) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => setForm(f => ({ ...f, win: v as '0' | '1' }))}
-                    className={`flex-1 py-2.5 rounded-lg border text-sm font-semibold transition-all ${
-                      form.win === v ? cls : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
+              <div className="relative flex h-[3.25rem] w-full rounded-lg overflow-hidden">
+                {/* Sliding fill — animates to the selected half and takes its color;
+                    hidden until a result is chosen. */}
+                <span
+                  aria-hidden="true"
+                  className={`pointer-events-none absolute inset-y-0 left-0 w-1/2 transition-all duration-200 ease-out ${
+                    form.win === '1' ? 'translate-x-0 bg-emerald-800'
+                    : form.win === '0' ? 'translate-x-full bg-red-800'
+                    : 'opacity-0'
+                  }`}
+                />
+                {[{ v: '1', label: 'Win',  onColor: 'text-emerald-400', litColor: 'text-emerald-300' },
+                  { v: '0', label: 'Loss', onColor: 'text-red-400',     litColor: 'text-red-300' }].map(({ v, label, onColor, litColor }) => {
+                  const selected = form.win === v;
+                  // Stacked chevrons like a military rank insignia — pointing up
+                  // for Win, down for Loss. Filled bands so the arm-ends are cut
+                  // perfectly vertical (x is constant on each end edge).
+                  const T = 5;                              // band thickness
+                  const apex = v === '1' ? -6 : 6;          // apex above / below the arms
+                  const bases = v === '1' ? [6, 12, 18, 24] : [0, 6, 12, 18];
+                  const chevrons = bases.map(
+                    y => `M0 ${y} L24 ${y + apex} L48 ${y} L48 ${y + T} L24 ${y + apex + T} L0 ${y + T} Z`,
+                  );
+                  return (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, win: v as '0' | '1' }))}
+                      className={`group relative z-10 flex-1 flex items-center justify-center overflow-hidden text-sm font-bold uppercase tracking-wider transition-colors ${
+                        selected ? 'text-white' : 'text-[var(--faint)] hover:text-[var(--ink)]'
+                      }`}
+                    >
+                      {/* Stacked-chevron rank insignia behind the label. Darkens
+                          against the bright fill when selected. */}
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 48 28"
+                        fill="currentColor"
+                        className={`chev pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-auto ${
+                          selected ? `is-selected ${litColor}` : onColor
+                        }`}
+                      >
+                        {chevrons.map((d, i) => {
+                          // Win: bottom chevron leads → highlight travels up.
+                          // Loss: top chevron leads → highlight travels down.
+                          const order = v === '1' ? chevrons.length - 1 - i : i;
+                          return <path key={i} d={d} style={{ animationDelay: `${order * 0.4}s` }} />;
+                        })}
+                      </svg>
+                      <span className="relative z-10 font-display italic font-black text-xl">{label}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

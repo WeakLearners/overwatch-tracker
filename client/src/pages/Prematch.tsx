@@ -402,7 +402,7 @@ export default function Prematch() {
           {/* Idle: session & timing snapshot — how you're doing right now */}
           {!map && (
             <div className="flex-1 flex items-stretch content-center mt-1">
-              <div className="flex-1 p-2.5 flex flex-col justify-center">
+              <div className="flex-1 p-2.5 flex flex-col justify-center items-center text-center">
                 <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] mb-1">Today</div>
                 {todayRows.length > 0 ? (
                   <div className="text-3xl num-display leading-none">
@@ -413,7 +413,7 @@ export default function Prematch() {
                 )}
               </div>
               <div className="w-px shrink-0 bg-gradient-to-b from-transparent via-ow-border to-transparent" />
-              <div className="flex-1 p-2.5 flex flex-col justify-center">
+              <div className="flex-1 p-2.5 flex flex-col justify-center items-center text-center">
                 <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] mb-1">Streak</div>
                 {streaksData && streaksData.currentStreak > 0 ? (
                   <div className={`text-3xl num-display leading-none ${streaksData.currentStreakType === 1 ? 'text-emerald-500' : 'text-red-500'}`}>
@@ -424,7 +424,7 @@ export default function Prematch() {
                 )}
               </div>
               <div className="w-px shrink-0 bg-gradient-to-b from-transparent via-ow-border to-transparent" />
-              <div className="flex-1 p-2.5 flex flex-col justify-center">
+              <div className="flex-1 p-2.5 flex flex-col justify-center items-center text-center">
                 <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] mb-1">This hour</div>
                 {hourRow ? (
                   // Subtext is absolutely positioned so it doesn't push the number
@@ -433,7 +433,7 @@ export default function Prematch() {
                     <div className={`text-3xl num-display leading-none ${hourRow.win_rate >= 50 ? 'text-emerald-500' : 'text-red-500'}`}>
                       {Math.round(hourRow.win_rate)}%
                     </div>
-                    <div className="absolute top-full left-0 text-[9px] text-[var(--faint-2)] mt-1">{hourLabel} · {hourRow.games}g</div>
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 whitespace-nowrap text-[9px] text-[var(--faint-2)] mt-1">{hourLabel} · {hourRow.games}g</div>
                   </div>
                 ) : (
                   <div className="text-sm text-[var(--faint)]">—</div>
@@ -477,7 +477,7 @@ export default function Prematch() {
         {/* Recommended pick — only with no map selected; once a map is chosen the
             coaching block's primary stands as the pick, so this would just repeat it. */}
         {recommendation && !map && (
-          <div className="rounded-xl border border-ow-accent/40 bg-gradient-to-br from-ow-accent/10 via-ow-accent/[0.04] to-transparent px-4 py-3 mt-3">
+          <div className="rounded-xl bg-gradient-to-br from-ow-accent/10 via-ow-accent/[0.04] to-transparent px-4 py-3 mt-3">
             <div className="text-[10px] grad-brand font-bold uppercase tracking-widest mb-1">Recommended pick</div>
             <div className="flex items-center gap-3">
               <div>
@@ -500,7 +500,7 @@ export default function Prematch() {
 
         {/* Coaching — LLM tactical read + death patterns, only once a map is set */}
         {map && (
-          <div id="coaching" className="scroll-mt-24 rounded-xl border border-emerald-500/25 bg-emerald-500/5 px-4 py-3 mt-3">
+          <div id="coaching" className="scroll-mt-24 rounded-xl bg-emerald-500/5 px-4 py-3 mt-3">
             <div className="text-[10px] text-emerald-600 uppercase tracking-widest font-semibold mb-2">Coaching</div>
             <AdvisorCard
               bare
@@ -520,7 +520,7 @@ export default function Prematch() {
             selection panel — bordered, tinted, chip buttons — rather than a
             trailing stats list, so it doesn't get missed after Coaching above it. */}
         <div className="mt-4 pt-4 border-t border-ow-border/40">
-        <div className="rounded-xl border border-violet-500/30 bg-violet-500/[0.06] px-4 py-3.5">
+        <div className="rounded-xl bg-violet-500/[0.06] px-4 py-3.5">
         <h3 className="text-sm grad-brand font-black uppercase tracking-widest mb-3">Select Your Hero</h3>
         {topOnMap.length > 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
