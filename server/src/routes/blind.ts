@@ -117,6 +117,17 @@ router.delete('/sets/:id', (req: Request, res: Response) => {
   if (!set) { res.status(404).json({ error: 'set not found' }); return; }
   if (set.resolved) { res.status(409).json({ error: 'cannot cancel a resolved set' }); return; }
 
+  // Safety net against an accidental cancel wiping real data: if games have been
+  // logged against this set, refuse unless the caller explicitly opts in with
+  // ?force=1. The client only sends that after a typed confirmation.
+  const { n: gameCount } = db.prepare('SELECT COUNT(*) AS n FROM matches WHERE blind_set_id = :id')
+    .get({ id: set.id }) as { n: number };
+  const force = req.query.force === '1' || req.query.force === 'true';
+  if (gameCount > 0 && !force) {
+    res.status(409).json({ error: 'set has logged games; retry with force to confirm', gameCount });
+    return;
+  }
+
   const { changes: deletedMatches } = db.prepare('DELETE FROM matches WHERE blind_set_id = :id').run({ id: set.id });
   db.prepare('DELETE FROM blind_stage_sets WHERE id = :id').run({ id: set.id });
   res.json({ ok: true, deletedMatches });

@@ -4,6 +4,7 @@ import { useApi, revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { eDPI, MOUSE_DPI } from '../lib/aim';
+import { SLOT_COLORS, startSlotKey, readStartSlot, expectedColor } from '../lib/slotColors';
 import {
   QueueMode, QUEUE_MODE_COLORS, MODE_TAG, HEROES, ROLE_COLORS,
 } from '../types';
@@ -146,6 +147,9 @@ export default function SensLog() {
   );
 }
 
+// Slot → LED color mapping, in the order the mouse config app assigns them.
+// Used on the setup step so an accidental DPI-button press can be resolved to a
+// slot number by LED color, without revealing that slot's DPI value.
 // ── Phase 2 test plan (reference card) ──────────────────────────────────────
 // Static reference for the current round of per-hero blind blocks — set up a
 // blind set per hero using these exact DPIs and games/slot. Update this list
@@ -207,11 +211,25 @@ function Phase2PlanCard({ blind }: { blind: BlindState | null }) {
     } finally { setCreating(null); }
   }
 
-  async function cancelActiveSet(setId: number) {
-    if (!confirm('Cancel this test? The blind set and any games logged against it will be deleted.')) return;
+  async function cancelActiveSet(setId: number, hero: string, games: number) {
+    if (games > 0) {
+      // Real data at stake — require a deliberate typed confirmation, not a click-through.
+      const typed = prompt(
+        `This will permanently DELETE the ${hero} blind set AND all ${games} game${games === 1 ? '' : 's'} logged against it. This cannot be undone.\n\nType ${games} to confirm:`,
+      );
+      if (typed?.trim() !== String(games)) return;
+    } else if (!confirm(`Cancel the ${hero} blind set? No games have been logged yet.`)) {
+      return;
+    }
     setCancelling(true);
     try {
-      await fetch(`/api/blind/sets/${setId}`, { method: 'DELETE' });
+      const url = `/api/blind/sets/${setId}${games > 0 ? '?force=1' : ''}`;
+      const res = await fetch(url, { method: 'DELETE' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        alert(`Cancel failed: ${body.error ?? res.statusText}`);
+        return;
+      }
       revalidateAll();
     } finally { setCancelling(false); }
   }
@@ -259,7 +277,7 @@ function Phase2PlanCard({ blind }: { blind: BlindState | null }) {
                   {blind?.active?.hero === h.hero && !blind.active.resolved && (
                     <button
                       type="button"
-                      onClick={() => cancelActiveSet(blind.active!.set_id)}
+                      onClick={() => cancelActiveSet(blind.active!.set_id, h.hero, s.totalGames)}
                       disabled={cancelling}
                       className="mt-1 text-[10px] text-red-400 hover:text-red-300 underline underline-offset-2 disabled:opacity-40"
                     >
@@ -283,6 +301,12 @@ function BlindPanel({ blind }: { blind: BlindState | null }) {
   const [batchSize, setBatchSize] = useState('12');
   const [dpis, setDpis] = useState<string[]>(['1500', '1600', '1700']);
   const [busy, setBusy] = useState(false);
+  // The mouse LED color you land on after mashing, picked on the blind-start
+  // screen. Persisted per-set so we can always show the color you should be on.
+  const [startColorSlot, setStartColorSlot] = useState<number | null>(null);
+  // Blank out the DPI values on the setup screen once they're typed in, so you
+  // don't keep staring at them while mashing / picking your starting color.
+  const [hideDpi, setHideDpi] = useState(false);
 
   // Resize the DPI list to a new slot count, keeping existing values and
   // padding new slots off the last one so a bigger test starts from something
@@ -317,8 +341,13 @@ function BlindPanel({ blind }: { blind: BlindState | null }) {
   }
 
   async function scramble() {
+    if (startColorSlot == null) return; // must record the landed-on LED color first
     setBusy(true);
-    try { await fetch('/api/blind/scramble', { method: 'POST' }); setSwitching(null); revalidateAll(); }
+    try {
+      await fetch('/api/blind/scramble', { method: 'POST' });
+      if (active) localStorage.setItem(startSlotKey(active.set_id), String(startColorSlot));
+      setSwitching(null); revalidateAll();
+    }
     finally { setBusy(false); }
   }
 
@@ -339,6 +368,34 @@ function BlindPanel({ blind }: { blind: BlindState | null }) {
       await fetch('/api/blind/reveal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ current_slot: slot }) });
       const r = await fetch(`/api/blind/sets/${active.set_id}`);
       if (r.ok) setAnswer((await r.json()).stages);
+      revalidateAll();
+    } finally { setBusy(false); }
+  }
+
+  // Scrap the active set and go back to the create screen (the very beginning),
+  // for when a test is set up wrong. Your typed DPIs stay in the form so it's a
+  // quick re-create. Guards logged games behind a typed confirmation.
+  async function restart() {
+    if (!active) return;
+    const games = active.totalGames ?? 0;
+    if (games > 0) {
+      const typed = prompt(
+        `Restarting DELETES the ${active.hero ?? 'active'} set and all ${games} game${games === 1 ? '' : 's'} logged against it. This cannot be undone.\n\nType ${games} to confirm:`,
+      );
+      if (typed?.trim() !== String(games)) return;
+    } else if (!window.confirm('Restart this test from the beginning? The current set (no games logged) will be discarded.')) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/blind/sets/${active.set_id}${games > 0 ? '?force=1' : ''}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        alert(`Restart failed: ${body.error ?? res.statusText}`);
+        return;
+      }
+      localStorage.removeItem(startSlotKey(active.set_id));
+      setStartColorSlot(null); setHideDpi(false); setAnswer(null); setSwitching(null);
       revalidateAll();
     } finally { setBusy(false); }
   }
@@ -386,18 +443,47 @@ function BlindPanel({ blind }: { blind: BlindState | null }) {
   if (!active.scramble_done) {
     return (
       <div className={`${card} max-w-lg`}>
-        <h2 className="text-sm heading-display text-[var(--ink)] mb-1">Set up your mouse</h2>
-        <p className="text-xs text-[var(--faint)] mb-3">Type these into your mouse's DPI stages (in-game sens stays <b className="num-display">{active.in_game_sens.toFixed(2)}</b>):</p>
-        <div className="grid grid-cols-5 gap-2 mb-4">
-          {(blind?.stages ?? []).map(s => (
-            <div key={s.stage_index} className="rounded-lg bg-ow-darker border border-ow-border p-2 text-center">
-              <div className="text-[10px] text-[var(--faint-2)]">Slot {s.stage_index}</div>
-              <div className="text-sm num-display text-[var(--ink)]">{s.dpi}</div>
-            </div>
-          ))}
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-sm heading-display text-[var(--ink)]">Set up your mouse</h2>
+          <button type="button" onClick={() => setHideDpi(v => !v)} className={`${btnSecondary} py-1 px-2.5 text-xs`}>{hideDpi ? 'Show DPI' : 'Hide DPI'}</button>
         </div>
+        <p className="text-xs text-[var(--faint)] mb-3">Type these into your mouse's DPI stages (in-game sens stays <b className="num-display">{active.in_game_sens.toFixed(2)}</b>), then hit <b>Hide DPI</b> before you mash so the numbers are out of sight:</p>
+        <div className="grid grid-cols-5 gap-2 mb-3">
+          {(blind?.stages ?? []).map(s => {
+            // Match each slot to the LED color your mouse config app assigns in
+            // this order (red → blue → green → …). If you later press the DPI
+            // button by accident, you can read the LED color and know which slot
+            // you're on without un-blinding the DPI number.
+            const c = SLOT_COLORS[(s.stage_index - 1) % SLOT_COLORS.length];
+            return (
+              <div key={s.stage_index} className={`rounded-lg bg-ow-darker border-2 p-2 text-center ${c.border}`}>
+                <div className={`text-[10px] font-semibold ${c.text}`}>{c.name}</div>
+                <div className="text-[10px] text-[var(--faint-2)]">Slot {s.stage_index}</div>
+                <div className="text-sm num-display text-[var(--ink)]">{hideDpi ? '••••' : s.dpi}</div>
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-[11px] text-[var(--faint-2)] mb-3">Colors mirror your mouse's DPI-stage LEDs — if you bump the DPI button later, match the LED color here to know your slot without revealing its DPI.</p>
         <p className="text-xs text-[var(--faint)] mb-3">Then <b>mash the DPI button</b> an uncounted number of times (look away / watch a video) so you don't know which stage you're on. That's your blind start.</p>
-        <button type="button" onClick={scramble} disabled={busy} className="btn-primary w-full py-2.5 text-sm">{busy ? '…' : "I've mashed the button — blind-start"}</button>
+        <div className="rounded-lg bg-ow-darker border border-ow-border p-3 mb-4">
+          <p className="text-xs text-[var(--faint)] mb-2">Done mashing? Read your mouse's <b>current LED color</b> and select it — that's the only anchor we keep, so if you bump the DPI button mid-test we can point you back to the right color (never the DPI).</p>
+          <div className="grid grid-cols-3 gap-2">
+            {SLOT_COLORS.map((c, i) => {
+              const sel = startColorSlot === i + 1;
+              return (
+                <button
+                  key={c.name} type="button" onClick={() => setStartColorSlot(i + 1)}
+                  className={`flex items-center justify-center gap-2 rounded-lg border-2 py-2 text-xs font-semibold transition ${sel ? `${c.border} ${c.text} bg-ow-darker` : 'border-ow-border text-[var(--faint-2)]'}`}
+                >
+                  <span className={`inline-block w-3 h-3 rounded-full ${c.dot}`} />{c.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <button type="button" onClick={scramble} disabled={busy || startColorSlot == null} className="btn-primary w-full py-2.5 text-sm">{busy ? '…' : startColorSlot == null ? 'Select your current LED color first' : "I've mashed the button — blind-start"}</button>
+        <button type="button" onClick={restart} disabled={busy} className="mt-2 w-full text-xs text-[var(--faint-2)] hover:text-[var(--ink)] py-1.5">↺ Restart test from the beginning</button>
       </div>
     );
   }
@@ -433,6 +519,11 @@ function BlindPanel({ blind }: { blind: BlindState | null }) {
   // this panel only drives the stage loop and reveal.
   const gamesLeft = active.batch_size - active.games_on_stage;
   const needSwitch = blind?.needSwitch;
+  // The LED color you should currently be on, derived from the recorded start
+  // color + how far the app has advanced. If you misclicked the DPI button,
+  // press it until the mouse LED matches this — no DPI number revealed.
+  const startSlot = readStartSlot(active.set_id);
+  const nowColor = startSlot != null ? expectedColor(active.cur_rel, startSlot, active.n_stages) : null;
 
   return (
     <div className="max-w-lg space-y-6 mb-6">
@@ -448,6 +539,13 @@ function BlindPanel({ blind }: { blind: BlindState | null }) {
             <div className="text-xs text-[var(--faint)] mb-1">Playing your current stage</div>
             <div className="text-4xl heading-display text-[var(--ink)] my-2">{gamesLeft}</div>
             <div className="text-xs text-[var(--faint)]">game{gamesLeft === 1 ? '' : 's'} left in this batch (of {active.batch_size})</div>
+            {nowColor && (
+              <div className="mt-3 inline-flex items-center gap-2 rounded-lg bg-ow-darker border border-ow-border px-3 py-1.5">
+                <span className="text-[11px] text-[var(--faint-2)]">Mouse LED should be</span>
+                <span className={`inline-block w-3 h-3 rounded-full ${nowColor.dot}`} />
+                <span className={`text-xs font-semibold ${nowColor.text}`}>{nowColor.name}</span>
+              </div>
+            )}
             <p className="text-[11px] text-[var(--faint-2)] mt-3">Log each game in the <b>Match Tracker</b> — it auto-tags as a blind trial and lands in the queue above for its combat details.</p>
           </>
         )}
@@ -460,6 +558,7 @@ function BlindPanel({ blind }: { blind: BlindState | null }) {
           <input type="number" min="1" max={active.n_stages} value={revealSlot} onChange={e => setRevealSlot(e.target.value)} className="w-24 field px-3 py-2 text-sm" placeholder={`1–${active.n_stages}`} aria-label="Current active slot" />
           <button type="button" onClick={reveal} disabled={busy || !revealSlot} className={`${btnSecondary} py-2 px-4 text-sm`}>{busy ? 'Revealing…' : 'Reveal all'}</button>
         </div>
+        <button type="button" onClick={restart} disabled={busy} className="mt-4 w-full text-xs text-[var(--faint-2)] hover:text-red-400 py-1.5">↺ Restart test from the beginning</button>
       </div>
     </div>
   );

@@ -31,7 +31,7 @@ export default function Odometer({ value, size = 46 }: { value: number; size?: n
   const v = Math.max(0, Math.min(99, Math.round(value)));
   return (
     <div className="flex gap-1">
-      {v >= 10 && <Drum digit={Math.floor(v / 10)} size={size} />}
+      <Drum digit={Math.floor(v / 10)} size={size} />
       <Drum digit={v % 10} size={size} />
     </div>
   );

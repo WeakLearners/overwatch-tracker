@@ -6,6 +6,7 @@ import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { MAPS, QUEUE_MODES, ROLE_COLORS, TYPE_COLORS, MapVotingRow, Streaks } from '../types';
 import AdvisorCard from '../components/AdvisorCard';
 import EmptyState from '../components/EmptyState';
+import { readStartSlot, expectedColor } from '../lib/slotColors';
 import { useMapDrawer } from '../contexts/MapDrawerContext';
 import { useHeroDrawer } from '../contexts/HeroDrawerContext';
 import { useMatch } from '../contexts/MatchContext';
@@ -15,6 +16,7 @@ import Odometer from '../components/Odometer';
 // Blind-trial HUD state — the two wheels on the dashboard read this live.
 interface BlindHud {
   active: {
+    set_id: number; cur_rel: number; n_stages: number; totalGames: number;
     batch_size: number; games_on_stage: number; last_click_count: number;
     round: number; scramble_done: boolean; resolved: boolean;
   } | null;
@@ -46,9 +48,16 @@ export default function Prematch() {
   const { queueMode, map, setMap, mapType, rec, recLoading, recError, refreshRec, setPendingHero, matchLoggedSignal } = useMatch();
   const { data: blindHud } = useApi<BlindHud>('/api/blind/state');
   const bt = blindHud?.active ?? null;
-  const btClicks = bt?.last_click_count ?? 0;
   const btGamesLeft = bt ? Math.max(0, bt.batch_size - bt.games_on_stage) : 0;
   const btRound = bt?.round ?? 0;
+  // Matches left across the WHOLE test — every stage's sample combined, minus
+  // what's already been logged. Starts at n_stages × batch_size (e.g. 36).
+  const btTestLeft = bt ? Math.max(0, bt.n_stages * bt.batch_size - bt.totalGames) : 0;
+  // The LED color of this round's DPI stage, from the starting color recorded on
+  // the Sens page + how far the loop has advanced. Null until a start color is
+  // recorded (or before blind-start). Shows the color, never the DPI value.
+  const btStartSlot = bt ? readStartSlot(bt.set_id) : null;
+  const btColor = bt && btStartSlot != null ? expectedColor(bt.cur_rel, btStartSlot, bt.n_stages) : null;
   const { data: pendingData } = useApi<{ total: number }>('/api/aim/pending?limit=1');
   const backlogCount = pendingData?.total ?? 0;
   const mapCounts = useTodayMapCounts();
@@ -168,13 +177,21 @@ export default function Prematch() {
             remain in the sample before the next switch. Drives off the same blind
             state the Sens page loop does. Sits where the sens picker used to. */}
         <div className="card aspect-square shrink-0 flex flex-col self-stretch">
-          <h2 className="text-sm heading-display text-[var(--ink)] whitespace-nowrap">Blind Trial</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm heading-display text-[var(--ink)] whitespace-nowrap">Blind Trial</h2>
+            {bt && (
+              <span
+                title={btColor ? `DPI color this round: ${btColor.name}` : 'No start color recorded'}
+                className={`inline-block w-3 h-3 rounded-full border border-ow-border ${btColor ? btColor.dot : 'bg-ow-darker'}`}
+              />
+            )}
+          </div>
           {bt ? (
-            <div className="flex-1 grid grid-cols-[auto_auto] items-center gap-x-3 gap-y-3 place-content-center">
-              <Odometer value={btClicks} />
+            <div className="flex-1 grid grid-cols-[auto_auto] items-center gap-x-3 gap-y-1.5 place-content-center">
+              <Odometer value={btTestLeft} />
               <div className="leading-tight">
-                <div className="text-sm text-[var(--ink)]">clicks</div>
-                <div className="text-[10px] text-[var(--faint-2)]">to start the round</div>
+                <div className="text-sm text-[var(--ink)]">matches left</div>
+                <div className="text-[10px] text-[var(--faint-2)]">in this test</div>
               </div>
               <Odometer value={btGamesLeft} />
               <div className="leading-tight">
