@@ -1,6 +1,5 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
-import { maskMatchRow } from '../lib/blind';
 
 const router = Router();
 
@@ -26,7 +25,7 @@ router.get('/', (req: Request, res: Response) => {
   params[`${idx}`] = parseInt(limit);
   params[`${idx + 1}`] = parseInt(offset);
 
-  const rows = (db.prepare(sql).all(params) as Record<string, unknown>[]).map(maskMatchRow);
+  const rows = db.prepare(sql).all(params) as Record<string, unknown>[];
   res.json({ rows, total });
 });
 
@@ -41,37 +40,38 @@ router.post('/', (req: Request, res: Response) => {
 
   const deathsJson = deaths ? JSON.stringify(deaths) : null;
 
-  // The Match Tracker is a dumb logger — it sends no DPI and no blind flag. The
-  // server alone decides: if a scrambled, unresolved blind set is running, this
-  // match is a trial on the current hidden stage. We record only its RELATIVE
-  // position (the set's cur_rel) so reveal can back-solve the DPI later; dpi/sens
-  // stay null (never a fake default), and we tick the batch counter down by one.
-  // No active set → a plain match with an unknown DPI. Either way the log always
-  // succeeds — missing DPI never blocks the record.
+  // The Match Tracker is a dumb logger — it sends no DPI and no set flag. The
+  // server alone decides: if a stage-test set is running, this match is on its
+  // current stage, so we look up that stage's DPI and write it directly — the
+  // sens page shows the same value on screen while it's being played, so there's
+  // no hidden state and nothing to reveal later. No active set → a plain match
+  // with whatever DPI was sent (or none). Either way the log always succeeds.
   let finalSens: number | null = sens ?? null;
   let finalDpi: number | null = req.body.dpi ?? null;
-  let isBlind = 0;
+  let isStudy = 0;
   let setId: number | null = null;
-  let relPos: number | null = null;
-  let revealed = 1;
+  let stageIdx: number | null = null;
 
-  const activeSet = db.prepare('SELECT id, cur_rel, scramble_done, resolved FROM blind_stage_sets WHERE active = 1')
-    .get() as { id: number; cur_rel: number; scramble_done: number; resolved: number } | undefined;
-  if (activeSet && activeSet.scramble_done && !activeSet.resolved) {
-    finalDpi = null;
-    finalSens = null;
-    isBlind = 1;
-    setId = activeSet.id;
-    relPos = activeSet.cur_rel;
-    revealed = 0;
+  const activeSet = db.prepare('SELECT id, cur_rel, in_game_sens FROM blind_stage_sets WHERE active = 1')
+    .get() as { id: number; cur_rel: number; in_game_sens: number } | undefined;
+  if (activeSet) {
+    const stage = db.prepare('SELECT dpi FROM blind_stages WHERE set_id = :sid AND stage_index = :si')
+      .get({ sid: activeSet.id, si: activeSet.cur_rel }) as { dpi: number } | undefined;
+    if (stage) {
+      finalDpi = stage.dpi;
+      finalSens = activeSet.in_game_sens;
+      isStudy = 1;
+      setId = activeSet.id;
+      stageIdx = activeSet.cur_rel;
+    }
   }
 
   const result = db.prepare(`
-    INSERT INTO matches (date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, dpi, blind_trial, blind_set_id, rel_pos, revealed, feel, notes)
-    VALUES (:date, :time, :day_of_week, :hour, :hero, :role, :map, :game_type, :win, :deaths, :queue_mode, :sens, :dpi, :blind_trial, :blind_set_id, :rel_pos, :revealed, :feel, :notes)
-  `).run({ date, time: time ?? null, day_of_week: day_of_week ?? null, hour: hour ?? null, hero, role, map, game_type, win: win ? 1 : 0, deaths: deathsJson, queue_mode: queue_mode ?? 'comp_role', sens: finalSens, dpi: finalDpi, blind_trial: isBlind, blind_set_id: setId, rel_pos: relPos, revealed, feel: feel ?? null, notes: notes?.trim() || null });
+    INSERT INTO matches (date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, dpi, blind_trial, blind_set_id, stage_index, revealed, feel, notes)
+    VALUES (:date, :time, :day_of_week, :hour, :hero, :role, :map, :game_type, :win, :deaths, :queue_mode, :sens, :dpi, :blind_trial, :blind_set_id, :stage_index, 1, :feel, :notes)
+  `).run({ date, time: time ?? null, day_of_week: day_of_week ?? null, hour: hour ?? null, hero, role, map, game_type, win: win ? 1 : 0, deaths: deathsJson, queue_mode: queue_mode ?? 'comp_role', sens: finalSens, dpi: finalDpi, blind_trial: isStudy, blind_set_id: setId, stage_index: stageIdx, feel: feel ?? null, notes: notes?.trim() || null });
 
-  if (isBlind && setId != null) {
+  if (isStudy && setId != null) {
     db.prepare('UPDATE blind_stage_sets SET games_on_stage = games_on_stage + 1 WHERE id = :id').run({ id: setId });
   }
 

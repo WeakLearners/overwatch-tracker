@@ -3,7 +3,6 @@ import { getDb } from '../db/schema';
 import {
   cm360, eDPI, archetypeOf, deriveSessionPosition, deriveSensAdaptation, TimelineMatch, MOUSE_DPI,
 } from '../lib/aim';
-import { maskMatchRow } from '../lib/blind';
 
 const router = Router();
 
@@ -37,32 +36,29 @@ function groupBy<T>(items: T[], key: (t: T) => string | number): Map<string | nu
 // The "pending" queue the /sens app fills at match end: matches that have a
 // row logged by the match app but no aim_stats yet. Most recent first, capped.
 //
-// Only study matches qualify. A match is a study match if it carries a sens
-// (logged via the odometer) OR is a blind trial (sens is NULL by design until
-// reveal — the DPI is hidden, not missing). Pre-study matches (sens IS NULL and
-// not blind) predate the odometer and can never get aim stats — the OW client
-// wipes match stats on every update — so including them would leave thousands of
-// un-fillable rows cluttering the queue forever. This filter keeps blind and
-// non-blind study matches in the one queue while excluding that legacy backlog.
+// Only study matches qualify (they carry a sens value). Pre-study matches
+// (sens IS NULL) predate the odometer and can never get aim stats — the OW
+// client wipes match stats on every update — so including them would leave
+// thousands of un-fillable rows cluttering the queue forever.
 router.get('/pending', (req: Request, res: Response) => {
   const db = getDb();
   const limit = parseInt((req.query.limit as string) ?? '20') || 20;
-  const rows = (db.prepare(`
+  const rows = db.prepare(`
     SELECT m.id, m.date, m.time, m.hero, m.role, m.map, m.game_type, m.queue_mode, m.win, m.sens,
-           m.dpi, m.blind_trial, m.blind_set_id, m.stage_index, m.revealed
+           m.dpi, m.blind_trial, m.blind_set_id, m.stage_index
     FROM matches m
     LEFT JOIN aim_stats a ON a.match_id = m.id
-    WHERE a.match_id IS NULL AND (m.sens IS NOT NULL OR m.blind_trial = 1)
+    WHERE a.match_id IS NULL AND m.sens IS NOT NULL
     ORDER BY m.id DESC
     LIMIT :limit
-  `).all({ limit }) as Record<string, unknown>[]).map(maskMatchRow);
-  // Total backlog size irrespective of `limit` — the Blind Trial HUD's backlog
+  `).all({ limit }) as Record<string, unknown>[];
+  // Total backlog size irrespective of `limit` — the Trial HUD's backlog
   // counter needs the true count, not just how many rows this page returned.
   const { total } = db.prepare(`
     SELECT COUNT(*) AS total
     FROM matches m
     LEFT JOIN aim_stats a ON a.match_id = m.id
-    WHERE a.match_id IS NULL AND (m.sens IS NOT NULL OR m.blind_trial = 1)
+    WHERE a.match_id IS NULL AND m.sens IS NOT NULL
   `).get() as { total: number };
   res.json({ rows, total });
 });
@@ -93,22 +89,18 @@ router.get('/analysis', (_req: Request, res: Response) => {
   const posById = deriveSessionPosition(timeline);
   const sinceById = deriveSensAdaptation(timeline);
 
-  // Unrevealed blind trials are excluded so nothing here can de-anonymize a
-  // hidden stage before Sean chooses to reveal it.
   const rows = db.prepare(`
     SELECT m.id, m.hero, m.sens, m.dpi, m.win, m.feel, m.blind_trial, a.overall_acc, a.crit_acc, a.created_at
     FROM aim_stats a JOIN matches m ON m.id = a.match_id
     WHERE m.sens IS NOT NULL AND a.overall_acc IS NOT NULL
-      AND (m.blind_trial = 0 OR m.blind_trial IS NULL OR m.revealed = 1)
   `).all() as unknown as {
     id: number; hero: string; sens: number; dpi: number | null; win: 0 | 1; blind_trial: 0 | 1 | null;
     overall_acc: number; crit_acc: number | null; feel: number | null; created_at: string;
   }[];
 
-  // Most recent aim_stats write among the rows actually feeding this analysis —
-  // stat entries on still-masked blind trials don't count until revealed, same
-  // as maskedPending below. String comparison is safe: datetime('now') always
-  // formats as 'YYYY-MM-DD HH:MM:SS'.
+  // Most recent aim_stats write among the rows actually feeding this analysis.
+  // String comparison is safe: datetime('now') always formats as
+  // 'YYYY-MM-DD HH:MM:SS'.
   const lastUpdated = rows.length
     ? rows.reduce((latest, r) => (r.created_at > latest ? r.created_at : latest), rows[0].created_at)
     : null;
@@ -200,17 +192,10 @@ router.get('/analysis', (_req: Request, res: Response) => {
     winRate: mult100(mean(items.map(p => p.win))),
   });
 
-  // How many blind trials are still masked — surfaced so the analysis page can
-  // show a chip and Sean knows unrevealed data is being held out.
-  const maskedPending = (db.prepare(
-    'SELECT COUNT(*) n FROM matches WHERE blind_trial = 1 AND revealed = 0',
-  ).get() as { n: number }).n;
-
   res.json({
     summary: {
       n: pts.length,
       distinctScale: new Set(pts.map(p => cmBucket(p.cm360))).size,
-      maskedPending,
       lastUpdated,
     },
     byScale: byScale(pts),
@@ -257,15 +242,15 @@ router.get('/analysis', (_req: Request, res: Response) => {
 // Aim stats joined with their match, for the analysis view. Newest first.
 router.get('/', (_req: Request, res: Response) => {
   const db = getDb();
-  const rows = (db.prepare(`
+  const rows = db.prepare(`
     SELECT m.id, m.date, m.time, m.hero, m.role, m.map, m.game_type, m.queue_mode, m.win, m.sens,
-           m.dpi, m.blind_trial, m.blind_set_id, m.stage_index, m.revealed, m.feel, m.notes,
+           m.dpi, m.blind_trial, m.blind_set_id, m.stage_index, m.feel, m.notes,
            a.overall_acc, a.crit_acc, a.hero_stat_label, a.hero_stat_value,
            a.elims, a.final_blows, a.deaths, a.damage, a.duration_min
     FROM aim_stats a
     JOIN matches m ON m.id = a.match_id
     ORDER BY m.id DESC
-  `).all() as Record<string, unknown>[]).map(maskMatchRow);
+  `).all() as Record<string, unknown>[];
   res.json({ rows });
 });
 

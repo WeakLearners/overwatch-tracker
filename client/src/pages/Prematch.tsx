@@ -6,19 +6,18 @@ import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { MAPS, QUEUE_MODES, ROLE_COLORS, TYPE_COLORS, MapVotingRow, Streaks } from '../types';
 import AdvisorCard from '../components/AdvisorCard';
 import EmptyState from '../components/EmptyState';
-import { readStartSlot, expectedColor } from '../lib/slotColors';
 import { useMapDrawer } from '../contexts/MapDrawerContext';
 import { useHeroDrawer } from '../contexts/HeroDrawerContext';
 import { useMatch } from '../contexts/MatchContext';
 import { Link } from 'react-router-dom';
 import Odometer from '../components/Odometer';
 
-// Blind-trial HUD state — the two wheels on the dashboard read this live.
+// DPI stage-test HUD state — the dashboard reads this live to show the
+// current stage's DPI plainly (no hiding, no LED colors).
 interface BlindHud {
   active: {
-    set_id: number; cur_rel: number; n_stages: number; totalGames: number;
-    batch_size: number; games_on_stage: number; last_click_count: number;
-    round: number; scramble_done: boolean; resolved: boolean;
+    set_id: number; cur_stage: number; n_stages: number; totalGames: number;
+    batch_size: number; games_on_stage: number; dpi: number | null;
   } | null;
 }
 
@@ -49,15 +48,9 @@ export default function Prematch() {
   const { data: blindHud } = useApi<BlindHud>('/api/blind/state');
   const bt = blindHud?.active ?? null;
   const btGamesLeft = bt ? Math.max(0, bt.batch_size - bt.games_on_stage) : 0;
-  const btRound = bt?.round ?? 0;
   // Matches left across the WHOLE test — every stage's sample combined, minus
   // what's already been logged. Starts at n_stages × batch_size (e.g. 36).
   const btTestLeft = bt ? Math.max(0, bt.n_stages * bt.batch_size - bt.totalGames) : 0;
-  // The LED color of this round's DPI stage, from the starting color recorded on
-  // the Sens page + how far the loop has advanced. Null until a start color is
-  // recorded (or before blind-start). Shows the color, never the DPI value.
-  const btStartSlot = bt ? readStartSlot(bt.set_id) : null;
-  const btColor = bt && btStartSlot != null ? expectedColor(bt.cur_rel, btStartSlot, bt.n_stages) : null;
   const { data: pendingData } = useApi<{ total: number }>('/api/aim/pending?limit=1');
   const backlogCount = pendingData?.total ?? 0;
   const mapCounts = useTodayMapCounts();
@@ -172,19 +165,14 @@ export default function Prematch() {
       {/* Blind trial (square) + Map Voting + Hero Advisor row */}
       <div className="flex items-stretch gap-4 mb-4">
 
-        {/* Blind trial HUD — the repurposed odometer, now two live wheels: how
-            many DPI-button clicks start the current round, and how many games
-            remain in the sample before the next switch. Drives off the same blind
+        {/* DPI stage-test HUD — shows the current stage's DPI plainly (no
+            hiding), plus two live wheels: matches left in the whole test and
+            games left before the next stage switch. Drives off the same
             state the Sens page loop does. Sits where the sens picker used to. */}
         <div className="card aspect-square shrink-0 flex flex-col self-stretch">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm heading-display text-[var(--ink)] whitespace-nowrap">Blind Trial</h2>
-            {bt && (
-              <span
-                title={btColor ? `DPI color this round: ${btColor.name}` : 'No start color recorded'}
-                className={`inline-block w-3 h-3 rounded-full ${btColor ? btColor.dot : 'bg-ow-darker'}`}
-              />
-            )}
+            <h2 className="text-sm heading-display text-[var(--ink)] whitespace-nowrap">DPI Test</h2>
+            {bt && <span className="text-xs num-display text-[var(--ink)]">{bt.dpi} DPI</span>}
           </div>
           {bt ? (
             <div className="flex-1 grid grid-cols-[auto_auto] items-center gap-x-3 gap-y-1.5 place-content-center">
@@ -196,7 +184,7 @@ export default function Prematch() {
               <Odometer value={btGamesLeft} />
               <div className="leading-tight">
                 <div className="text-sm text-[var(--ink)]">games left</div>
-                <div className="text-[10px] text-[var(--faint-2)]">in Round {btRound}</div>
+                <div className="text-[10px] text-[var(--faint-2)]">in stage {bt.cur_stage}</div>
               </div>
               {/* Backlog counter shares this grid's column tracks (rather than
                   being its own grid) so its drum is guaranteed to land in the
@@ -219,7 +207,7 @@ export default function Prematch() {
           ) : (
             <div className="flex-1 grid place-items-center text-center px-2">
               <div>
-                <div className="text-xs text-[var(--faint)]">No blind trial running</div>
+                <div className="text-xs text-[var(--faint)]">No DPI test running</div>
                 <div className="text-[10px] text-[var(--faint-2)] mt-1">Start one on the Sens page →</div>
               </div>
             </div>

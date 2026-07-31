@@ -26,7 +26,7 @@ interface HeroRow {
   scales: ScaleRow[];
 }
 interface Analysis {
-  summary: { n: number; distinctScale: number; maskedPending: number; lastUpdated: string | null };
+  summary: { n: number; distinctScale: number; lastUpdated: string | null };
   byScale: ScaleRow[];
   byArchetype: { hitscan: ScaleRow[]; projectile: ScaleRow[] };
   coldWarm: Bucket[];
@@ -110,11 +110,10 @@ function SpreadTooltip({ active, payload }: { active?: boolean; payload?: { payl
 }
 
 // Page-wide standard of measure: in-game sens once the mouse is back at
-// MOUSE_DPI. DPI is only ever the hidden variable for blinding (a physical
-// mouse-stage switch is easier to hide than an in-game sens change) — the
-// mouse settles at MOUSE_DPI once a result is committed to, so eDPI ÷
-// MOUSE_DPI is the sens that will actually get dialed in. Also fixes cm/360's
-// backwards direction (there, lower means faster); this way, higher = faster.
+// MOUSE_DPI. DPI is the varied test variable — the mouse settles at MOUSE_DPI
+// once a result is committed to, so eDPI ÷ MOUSE_DPI is the sens that will
+// actually get dialed in. Also fixes cm/360's backwards direction (there,
+// lower means faster); this way, higher = faster.
 const sensAt1600 = (r: { eDPI: number }) => r.eDPI / MOUSE_DPI;
 const fmtScale = (r: { eDPI: number }) => `${sensAt1600(r).toFixed(2)} sens (@${MOUSE_DPI} DPI)`;
 function bySpeed<T extends { eDPI: number }>(rows: T[]): (T & { sensAt1600: number })[] {
@@ -145,6 +144,15 @@ const heroColor = (hero: string): string => {
   let hash = 0;
   for (let i = 0; i < hero.length; i++) hash = (hash * 31 + hero.charCodeAt(i)) >>> 0;
   return HERO_COLORS[hash % HERO_COLORS.length];
+};
+
+// Same stable-hash approach as heroColor, keyed on the sens label instead —
+// the by-hero grouped chart colors its boxes by scale, not by hero.
+const SCALE_COLORS = ['#0ea5e9', '#f43f5e', '#84cc16', '#d946ef', '#f59e0b', '#14b8a6', '#6366f1', '#f97316', '#10b981', '#06b6d4'];
+const scaleColor = (label: string): string => {
+  let hash = 0;
+  for (let i = 0; i < label.length; i++) hash = (hash * 31 + label.charCodeAt(i)) >>> 0;
+  return SCALE_COLORS[hash % SCALE_COLORS.length];
 };
 
 interface HeroBoxStats { min: number; q1: number; median: number; q3: number; max: number; n: number }
@@ -222,6 +230,72 @@ function heroBoxShape(hero: string) {
   };
 }
 
+interface ScaleBoxRow { hero: string; label: string; scales: Record<string, HeroBoxStats | undefined> }
+
+// Pivots the same per-hero, per-scale stats as buildHeroBoxRows, but the
+// other way around — one row per hero, each carrying whichever sens scales
+// it was actually tested at (2+ games), for a chart clustered by hero.
+function buildScaleBoxRows(data: Analysis): ScaleBoxRow[] {
+  return data.heroes.map(h => {
+    const scalesAtHero: Record<string, HeroBoxStats | undefined> = {};
+    for (const s of h.scales) {
+      if (s.n >= 2 && s.min != null && s.q1 != null && s.median != null && s.q3 != null && s.max != null) {
+        scalesAtHero[fmtScale(s)] = { min: s.min, q1: s.q1, median: s.median, q3: s.q3, max: s.max, n: s.n };
+      }
+    }
+    return { hero: h.hero, label: h.hero, scales: scalesAtHero };
+  });
+}
+
+// Mirror of HeroBoxTooltip — same lookup, but each series is a sens scale
+// rather than a hero.
+function ScaleBoxTooltip({ active, payload, label }: { active?: boolean; payload?: { name?: string; payload: ScaleBoxRow }[]; label?: string }) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0].payload;
+  const entries = payload
+    .map(p => ({ scale: p.name ?? '', stats: row.scales[p.name ?? ''] }))
+    .filter((e): e is { scale: string; stats: HeroBoxStats } => e.stats != null);
+  if (!entries.length) return null;
+  return (
+    <div style={{ background: 'rgb(var(--ow-card))', border: '1px solid rgb(var(--ow-border))', borderRadius: 8, fontSize: 12, padding: '6px 10px' }}>
+      <div style={{ fontWeight: 600 }}>{label}</div>
+      {entries.map(e => (
+        <div key={e.scale} style={{ marginTop: 4 }}>
+          <div style={{ fontWeight: 600, color: scaleColor(e.scale) }}>{e.scale}</div>
+          <div>Median {f1(e.stats.median)}% (Q1 {f1(e.stats.q1)} · Q3 {f1(e.stats.q3)})</div>
+          <div style={{ opacity: 0.7 }}>Range {f1(e.stats.min)}–{f1(e.stats.max)}% · n={e.stats.n}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Mirror of heroBoxShape — same box/whisker geometry, keyed by scale label
+// against row.scales instead of by hero against row.heroes.
+function scaleBoxShape(label: string) {
+  return (props: any) => {
+    const stats: HeroBoxStats | undefined = props.payload?.scales?.[label];
+    if (!stats) return <g />;
+    const { x, y, width, height } = props;
+    const color = scaleColor(label);
+    const pxPerUnit = stats.q3 !== stats.q1 ? height / (stats.q3 - stats.q1) : 0;
+    const yFor = (v: number) => y + (stats.q3 - v) * pxPerUnit;
+    const cx = x + width / 2;
+    const capHalf = width * 0.3;
+    const boxH = Math.max(height, 1);
+    return (
+      <g>
+        <line x1={cx} x2={cx} y1={yFor(stats.min)} y2={yFor(stats.q1)} stroke={color} strokeWidth={1.5} />
+        <line x1={cx} x2={cx} y1={yFor(stats.q3)} y2={yFor(stats.max)} stroke={color} strokeWidth={1.5} />
+        <line x1={cx - capHalf} x2={cx + capHalf} y1={yFor(stats.min)} y2={yFor(stats.min)} stroke={color} strokeWidth={1.5} />
+        <line x1={cx - capHalf} x2={cx + capHalf} y1={yFor(stats.max)} y2={yFor(stats.max)} stroke={color} strokeWidth={1.5} />
+        <rect x={x} y={y} width={width} height={boxH} fill={color} fillOpacity={0.3} stroke={color} strokeWidth={1.5} rx={2} />
+        <line x1={x} x2={x + width} y1={yFor(stats.median)} y2={yFor(stats.median)} stroke={color} strokeWidth={2.5} />
+      </g>
+    );
+  };
+}
+
 interface Recommendation {
   verdict: 'continue' | 'narrow';
   headline: string;
@@ -256,7 +330,7 @@ function buildRecommendation(data: Analysis): Recommendation {
 
   if (isSlowEdge || isFastEdge) {
     points.push(
-      `That's the ${isFastEdge ? 'fastest' : 'slowest'} scale you've tried — you haven't bracketed a peak yet. Try a ${isFastEdge ? 'higher' : 'lower'} DPI stage in your next blind set to see whether it keeps improving or turns over.`,
+      `That's the ${isFastEdge ? 'fastest' : 'slowest'} scale you've tried — you haven't bracketed a peak yet. Try a ${isFastEdge ? 'higher' : 'lower'} DPI stage in your next test set to see whether it keeps improving or turns over.`,
     );
   }
 
@@ -572,11 +646,6 @@ export default function SensAnalysis() {
         <span className="text-[var(--ink)] font-semibold">{summary.n}</span> logged matches across{' '}
         <span className="text-[var(--ink)] font-semibold">{summary.distinctScale}</span> distinct sens (@{MOUSE_DPI} DPI) scales.
         Accuracy is shown as a delta vs. your own average on each hero, so heroes mix fairly.
-        {summary.maskedPending > 0 && (
-          <span className="ml-2 inline-flex items-center gap-1 rounded-md bg-violet-500/15 text-violet-500 px-2 py-0.5 text-[11px] font-semibold">
-            🔒 {summary.maskedPending} blind trial{summary.maskedPending === 1 ? '' : 's'} held out until revealed
-          </span>
-        )}
         <br />
         <span className="text-[var(--faint-2)]">
           {fmtUpdated(summary.lastUpdated) ? `Last updated ${fmtUpdated(summary.lastUpdated)}` : 'Not yet updated'} —
@@ -587,9 +656,8 @@ export default function SensAnalysis() {
       <p className="text-xs text-[var(--faint)] rounded-lg bg-ow-darker border border-ow-border px-3 py-2">
         <span className="text-[var(--ink)] font-semibold">Standard of measure:</span> every scale on this page is
         shown as <span className="text-[var(--ink)]">in-game sens at {MOUSE_DPI} DPI</span> (eDPI ÷ {MOUSE_DPI}), not
-        cm/360 or the raw DPI tested. DPI was only ever the hidden variable for blinding — a physical mouse-stage
-        switch is easier to hide than an in-game sens change — and the mouse settles back at {MOUSE_DPI} DPI once
-        you commit to a result, so this is the number you'd actually dial in.
+        cm/360 or the raw DPI tested. DPI is the varied test variable, and the mouse settles back at {MOUSE_DPI} DPI
+        once you commit to a result, so this is the number you'd actually dial in.
       </p>
 
       {/* DPI recommendation + continue-vs-narrow call */}
@@ -763,7 +831,7 @@ export default function SensAnalysis() {
       </div>
 
       {/* Per-scale table */}
-      <Section title={`By Scale (sens @${MOUSE_DPI} DPI)`} hint={`Every tested scale, expressed as in-game sens at ${MOUSE_DPI} DPI, with its eDPI and averages. Win % is the actual match win rate at that scale — the outcome that matters, vs. accuracy which is a proxy for it. Δ is accuracy vs. your hero baseline. "Sens" is the raw in-game value actually used during testing (near-constant across blind trials, since DPI was the hidden variable there).`}>
+      <Section title={`By Scale (sens @${MOUSE_DPI} DPI)`} hint={`Every tested scale, expressed as in-game sens at ${MOUSE_DPI} DPI, with its eDPI and averages. Win % is the actual match win rate at that scale — the outcome that matters, vs. accuracy which is a proxy for it. Δ is accuracy vs. your hero baseline. "Sens" is the raw in-game value actually used during testing (frozen across the DPI stage tests, since DPI was the varied variable).`}>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -867,6 +935,63 @@ export default function SensAnalysis() {
                     <span key={h.hero} className="inline-flex items-center gap-1">
                       <span className="inline-block w-2 h-2 rounded-full" style={{ background: heroColor(h.hero) }} />
                       {h.hero}
+                    </span>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-[var(--faint)]">Not enough per-hero, per-scale samples yet — keep logging games so a scale can build up 2+ per hero.</p>
+            )}
+          </Section>
+        );
+      })()}
+
+      {/* Accuracy by Hero, per sens — same box-plot pivoted the other way:
+          hero on x, accuracy on y, one color-coded box per scale that hero
+          was tested at. */}
+      {(() => {
+        const scaleRows = buildScaleBoxRows(data);
+        const testedRows = scaleRows.filter(row => Object.keys(row.scales).length > 0);
+        const testedScales = bySpeed(data.byScale).map(fmtScale).filter(label => testedRows.some(row => row.scales[label] != null));
+        const allStats = testedRows.flatMap(row => Object.values(row.scales)).filter((s): s is HeroBoxStats => s != null);
+        const yPad = 3;
+        const yDomain: [number, number] = allStats.length
+          ? [Math.max(0, Math.min(...allStats.map(s => s.min)) - yPad), Math.min(100, Math.max(...allStats.map(s => s.max)) + yPad)]
+          : [0, 100];
+        const skipped = scaleRows.length - testedRows.length;
+        return (
+          <Section
+            title="Accuracy by Hero — Per Sens"
+            hint={`Hero on the x-axis, accuracy on the y-axis — one box per sens scale that hero's been tested at (needs 2+ logged games there). Each box spans Q1–Q3 with a median line; whiskers mark min/max.${skipped ? ` ${skipped} hero${skipped === 1 ? '' : 's'} skipped — never tested at 2+ games on the same scale.` : ''}`}
+          >
+            {testedRows.length ? (
+              <>
+                <ResponsiveContainer width="100%" height={340}>
+                  <ComposedChart data={testedRows} margin={{ top: 8, right: 16, bottom: 24, left: 10 }} barGap={2} barCategoryGap="20%">
+                    <CartesianGrid stroke="rgb(var(--ow-border))" strokeOpacity={0.5} strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="label" tick={axisStyle} tickLine={{ stroke: 'rgb(var(--ow-border))' }} axisLine={{ stroke: 'rgb(var(--ow-border))' }}
+                      label={{ value: 'Hero', position: 'insideBottom', offset: -8, style: { fill: 'var(--faint)', fontSize: 11 } }}
+                    />
+                    <YAxis
+                      domain={yDomain} tick={axisStyle} tickLine={{ stroke: 'rgb(var(--ow-border))' }} axisLine={{ stroke: 'rgb(var(--ow-border))' }}
+                      label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: 'var(--faint)', fontSize: 11 } }}
+                    />
+                    <Tooltip content={<ScaleBoxTooltip />} cursor={{ fill: 'var(--faint-2)', fillOpacity: 0.08 }} />
+                    {testedScales.map(label => (
+                      <Bar
+                        key={label} name={label}
+                        dataKey={(row: ScaleBoxRow) => { const s = row.scales[label]; return s ? [s.q1, s.q3] : [0, 0]; }}
+                        shape={scaleBoxShape(label)} isAnimationActive={false}
+                      />
+                    ))}
+                  </ComposedChart>
+                </ResponsiveContainer>
+                <div className="flex items-center gap-4 text-[10px] text-[var(--faint-2)] mt-2 flex-wrap">
+                  {testedScales.map(label => (
+                    <span key={label} className="inline-flex items-center gap-1">
+                      <span className="inline-block w-2 h-2 rounded-full" style={{ background: scaleColor(label) }} />
+                      {label}
                     </span>
                   ))}
                 </div>

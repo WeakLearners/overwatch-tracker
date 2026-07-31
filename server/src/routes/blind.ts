@@ -1,15 +1,13 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
-import { generateStages, stagesFromDpis, clicksBetween, offsetFromReveal, absoluteSlot } from '../lib/blind';
+import { generateStages, stagesFromDpis } from '../lib/blind';
 import { cm360, eDPI } from '../lib/aim';
 
 const router = Router();
 
 interface SetRow {
   id: number; in_game_sens: number; base_dpi: number; created_at: string;
-  batch_size: number; cur_rel: number; games_on_stage: number;
-  scramble_done: number; resolved: number; revealed_slot: number | null;
-  last_click_count: number; hero: string | null;
+  batch_size: number; cur_rel: number; games_on_stage: number; hero: string | null;
 }
 interface StageRow { stage_index: number; dpi: number; pct_delta: number; }
 
@@ -20,31 +18,17 @@ const stagesOf = (db: ReturnType<typeof getDb>, setId: number) =>
   db.prepare('SELECT stage_index, dpi, pct_delta FROM blind_stages WHERE set_id = :id ORDER BY stage_index')
     .all({ id: setId }) as unknown as StageRow[];
 
-const maskedPending = (db: ReturnType<typeof getDb>) =>
-  (db.prepare('SELECT COUNT(*) n FROM matches WHERE blind_trial = 1 AND revealed = 0').get() as { n: number }).n;
-
 // Total games ever logged against a set, across all its stages combined —
 // distinct from games_on_stage, which only counts toward the current stage.
 const totalGamesOf = (db: ReturnType<typeof getDb>, setId: number) =>
   (db.prepare('SELECT COUNT(*) n FROM matches WHERE blind_set_id = :id').get({ id: setId }) as { n: number }).n;
 
-// cur_rel is a randomized, count-balanced relative position — it jumps around
-// and repeats, so it can't be read as "round n". The true round count is how
-// many batch_size-sized rounds have actually elapsed: total games logged
-// against this set, minus the ones still accumulating on the current round.
-const roundNumber = (db: ReturnType<typeof getDb>, set: SetRow) => {
-  const completedGames = Math.max(0, totalGamesOf(db, set.id) - set.games_on_stage);
-  return Math.floor(completedGames / set.batch_size) + 1;
-};
-
 // ── Create a set ─────────────────────────────────────────────────────────────
-// Shuffles n DPI values across the mouse slots and RETURNS them (in slot order)
-// so the player can type them into the mouse. Seeing the values is unavoidable
-// and harmless — the blind comes from not knowing your position among them.
-//
-// Two ways to specify the stages: pass `dpis` (explicit, hand-picked values —
-// e.g. levels chosen per hero from prior analysis) or omit it and fall back to
-// the auto-generated ±pct_range spread around base_dpi.
+// Stages are shown plainly — no shuffle, no scramble step. Two ways to specify
+// them: pass `dpis` (explicit, hand-picked values — e.g. levels chosen per hero
+// from prior analysis) or omit it and fall back to the auto-generated
+// ±pct_range spread around base_dpi. cur_rel starts at 1 — the set is playable
+// immediately at its first stage.
 router.post('/sets', (req: Request, res: Response) => {
   const db = getDb();
   const in_game_sens = Number(req.body.in_game_sens ?? 2.5);
@@ -81,15 +65,14 @@ router.post('/sets', (req: Request, res: Response) => {
 
   // Deactivate-old + insert-new must land together — if a restart or error
   // interrupts between them, an uncommitted transaction rolls back cleanly
-  // instead of leaving no set active (which strands the reveal UI, since it
-  // only ever renders for whichever set is currently active).
+  // instead of leaving no set active.
   let set_id: number;
   db.exec('BEGIN');
   try {
     db.exec('UPDATE blind_stage_sets SET active = 0 WHERE active = 1');
     const r = db.prepare(`
       INSERT INTO blind_stage_sets (in_game_sens, base_dpi, active, note, batch_size, cur_rel, games_on_stage, scramble_done, resolved, hero)
-      VALUES (:s, :d, 1, :note, :b, 0, 0, 0, 0, :hero)
+      VALUES (:s, :d, 1, :note, :b, 1, 0, 1, 0, :hero)
     `).run({ s: in_game_sens, d: base_dpi, note: req.body.note ?? null, b: batch_size, hero });
     set_id = Number(r.lastInsertRowid);
     const ins = db.prepare('INSERT INTO blind_stages (set_id, stage_index, dpi, pct_delta) VALUES (:set_id, :stage_index, :dpi, :pct_delta)');
@@ -100,28 +83,28 @@ router.post('/sets', (req: Request, res: Response) => {
     throw err;
   }
 
-  // Values returned in slot order for one-time mouse configuration.
   res.json({ set_id, in_game_sens, base_dpi, n_stages, batch_size, hero, stages });
 });
 
 // ── Cancel a set ─────────────────────────────────────────────────────────────
-// Abandons an in-progress test: deletes the set (blind_stages cascades) plus
-// any matches logged against it. Safe to discard — unrevealed blind trials are
-// already excluded from every stats view, so nothing downstream ever saw them.
-// Resolved sets are refused: once revealed, the matches carry real dpi/sens
-// values and are load-bearing history, not a discardable in-progress attempt.
+// Abandons a test: deletes the set (blind_stages cascades) plus any matches
+// logged against it. Completed sets (every stage hit its game target) are
+// refused outright — that's finished, load-bearing history, not an
+// in-progress attempt to discard.
 router.delete('/sets/:id', (req: Request, res: Response) => {
   const db = getDb();
-  const set = db.prepare('SELECT id, resolved FROM blind_stage_sets WHERE id = :id')
-    .get({ id: req.params.id }) as { id: number; resolved: number } | undefined;
+  const set = db.prepare('SELECT id, batch_size FROM blind_stage_sets WHERE id = :id')
+    .get({ id: req.params.id }) as { id: number; batch_size: number } | undefined;
   if (!set) { res.status(404).json({ error: 'set not found' }); return; }
-  if (set.resolved) { res.status(409).json({ error: 'cannot cancel a resolved set' }); return; }
+
+  const n_stages = stagesOf(db, set.id).length;
+  const gameCount = totalGamesOf(db, set.id);
+  const completed = gameCount >= set.batch_size * n_stages;
+  if (completed) { res.status(409).json({ error: 'cannot cancel a completed set' }); return; }
 
   // Safety net against an accidental cancel wiping real data: if games have been
   // logged against this set, refuse unless the caller explicitly opts in with
   // ?force=1. The client only sends that after a typed confirmation.
-  const { n: gameCount } = db.prepare('SELECT COUNT(*) AS n FROM matches WHERE blind_set_id = :id')
-    .get({ id: set.id }) as { n: number };
   const force = req.query.force === '1' || req.query.force === 'true';
   if (gameCount > 0 && !force) {
     res.status(409).json({ error: 'set has logged games; retry with force to confirm', gameCount });
@@ -140,108 +123,67 @@ router.delete('/sets/:id', (req: Request, res: Response) => {
 router.get('/sets', (_req: Request, res: Response) => {
   const db = getDb();
   const rows = db.prepare(`
-    SELECT id, hero, active, resolved, batch_size, created_at
+    SELECT id, hero, active, batch_size, created_at
     FROM blind_stage_sets ORDER BY id ASC
-  `).all() as { id: number; hero: string | null; active: number; resolved: number; batch_size: number; created_at: string }[];
-  const sets = rows.map(row => ({
-    set_id: row.id, hero: row.hero, active: !!row.active, resolved: !!row.resolved,
-    batch_size: row.batch_size, n_stages: stagesOf(db, row.id).length,
-    totalGames: totalGamesOf(db, row.id), created_at: row.created_at,
-  }));
+  `).all() as { id: number; hero: string | null; active: number; batch_size: number; created_at: string }[];
+  const sets = rows.map(row => {
+    const n_stages = stagesOf(db, row.id).length;
+    const totalGames = totalGamesOf(db, row.id);
+    return {
+      set_id: row.id, hero: row.hero, active: !!row.active,
+      completed: totalGames >= row.batch_size * n_stages,
+      batch_size: row.batch_size, n_stages, totalGames, created_at: row.created_at,
+    };
+  });
   res.json({ sets });
 });
 
 // ── Loop state ───────────────────────────────────────────────────────────────
-// Drives the whole page. Before scramble it includes the stage values (setup
-// needs them); after scramble it never does.
+// Drives the whole page. Stages (and the current one's DPI) are always
+// visible — there's nothing to hide.
 router.get('/state', (_req: Request, res: Response) => {
   const db = getDb();
   const set = activeSet(db);
-  if (!set) { res.json({ active: null, pendingReveal: maskedPending(db) }); return; }
+  if (!set) { res.json({ active: null }); return; }
 
-  const n_stages = stagesOf(db, set.id).length;
-  const body: Record<string, unknown> = {
+  const stages = stagesOf(db, set.id);
+  const n_stages = stages.length;
+  const curStage = stages.find(s => s.stage_index === set.cur_rel) ?? stages[0];
+  const totalGames = totalGamesOf(db, set.id);
+  const target = set.batch_size * n_stages;
+  const completed = totalGames >= target;
+
+  res.json({
     active: {
       set_id: set.id, in_game_sens: set.in_game_sens, base_dpi: set.base_dpi, created_at: set.created_at,
-      batch_size: set.batch_size, cur_rel: set.cur_rel, games_on_stage: set.games_on_stage,
-      last_click_count: set.last_click_count, round: roundNumber(db, set),
-      scramble_done: !!set.scramble_done, resolved: !!set.resolved, n_stages,
-      hero: set.hero, totalGames: totalGamesOf(db, set.id),
+      batch_size: set.batch_size, cur_stage: set.cur_rel, games_on_stage: set.games_on_stage,
+      dpi: curStage?.dpi ?? null, n_stages, hero: set.hero, totalGames, completed,
     },
-    needSwitch: !!set.scramble_done && !set.resolved && set.games_on_stage >= set.batch_size,
-    pendingReveal: maskedPending(db),
-  };
-  // Setup values only while un-scrambled, so a page reload can re-show them.
-  if (!set.scramble_done) body.stages = stagesOf(db, set.id);
-  res.json(body);
-});
-
-// ── Blind-start ──────────────────────────────────────────────────────────────
-// The player has mashed the DPI button an uncounted number of times; wherever
-// they landed is now relative position 0.
-router.post('/scramble', (_req: Request, res: Response) => {
-  const db = getDb();
-  const set = activeSet(db);
-  if (!set) { res.status(409).json({ error: 'no active set' }); return; }
-  db.prepare('UPDATE blind_stage_sets SET scramble_done = 1, cur_rel = 0, games_on_stage = 0, last_click_count = 0 WHERE id = :id').run({ id: set.id });
-  res.json({ ok: true, cur_rel: 0 });
+    needSwitch: !completed && set.games_on_stage >= set.batch_size,
+    stages,
+  });
 });
 
 // ── Advance to the next stage ────────────────────────────────────────────────
-// Picks a new relative position (count-balanced across positions, never the
-// current one) and returns the click count to reach it.
+// Sequential — stage order is exactly the order the DPIs were entered in.
 router.post('/advance', (_req: Request, res: Response) => {
   const db = getDb();
   const set = activeSet(db);
-  if (!set || !set.scramble_done) { res.status(409).json({ error: 'no scrambled active set' }); return; }
-  const n = stagesOf(db, set.id).length;
-
-  const counts = new Map<number, number>(Array.from({ length: n }, (_, i) => [i, 0]));
-  const used = db.prepare('SELECT rel_pos, COUNT(*) c FROM matches WHERE blind_set_id = :id AND rel_pos IS NOT NULL GROUP BY rel_pos')
-    .all({ id: set.id }) as { rel_pos: number; c: number }[];
-  for (const u of used) counts.set(u.rel_pos, u.c);
-
-  const candidates = [...counts.entries()].filter(([pos]) => pos !== set.cur_rel);
-  const min = Math.min(...candidates.map(([, c]) => c));
-  const pool = candidates.filter(([, c]) => c === min).map(([pos]) => pos);
-  const next = pool[Math.floor(Math.random() * pool.length)];
-  const click_count = clicksBetween(set.cur_rel, next, n);
-
-  db.prepare('UPDATE blind_stage_sets SET cur_rel = :next, games_on_stage = 0, last_click_count = :cc WHERE id = :id').run({ next, cc: click_count, id: set.id });
-  res.json({ click_count, cur_rel: next, n_stages: n });
-});
-
-// ── Reveal ───────────────────────────────────────────────────────────────────
-// The player reports the currently-active slot (1-indexed, read from the mouse
-// software). We back-solve the offset and resolve every trial's true dpi/sens.
-router.post('/reveal', (req: Request, res: Response) => {
-  const db = getDb();
-  const set = activeSet(db);
-  if (!set || !set.scramble_done) { res.status(409).json({ error: 'no scrambled active set' }); return; }
+  if (!set) { res.status(409).json({ error: 'no active set' }); return; }
   const stages = stagesOf(db, set.id);
   const n = stages.length;
-  const currentSlot = Number(req.body.current_slot);
-  if (!(currentSlot >= 1 && currentSlot <= n)) { res.status(400).json({ error: `current_slot must be 1..${n}` }); return; }
+  if (set.cur_rel >= n) { res.status(409).json({ error: 'already at the last stage' }); return; }
 
-  const offset = offsetFromReveal(currentSlot, set.cur_rel, n);
-  const dpiBySlot = new Map(stages.map(s => [s.stage_index, s.dpi]));
-
-  const trials = db.prepare('SELECT id, rel_pos FROM matches WHERE blind_set_id = :id AND blind_trial = 1 AND rel_pos IS NOT NULL')
-    .all({ id: set.id }) as { id: number; rel_pos: number }[];
-  const upd = db.prepare('UPDATE matches SET stage_index = :slot, dpi = :dpi, sens = :sens, revealed = 1 WHERE id = :mid');
-  for (const t of trials) {
-    const slot = absoluteSlot(t.rel_pos, offset, n);
-    upd.run({ slot, dpi: dpiBySlot.get(slot) ?? null, sens: set.in_game_sens, mid: t.id });
-  }
-  db.prepare('UPDATE blind_stage_sets SET resolved = 1, revealed_slot = :cs WHERE id = :id').run({ cs: currentSlot, id: set.id });
-
-  res.json({ ok: true, resolved: trials.length, set_id: set.id });
+  const next = set.cur_rel + 1;
+  db.prepare('UPDATE blind_stage_sets SET cur_rel = :next, games_on_stage = 0 WHERE id = :id').run({ next, id: set.id });
+  const stage = stages.find(s => s.stage_index === next);
+  res.json({ cur_stage: next, dpi: stage?.dpi ?? null, n_stages: n });
 });
 
-// ── Answer key + per-stage feel consistency (post-reveal) ────────────────────
+// ── Per-stage summary (feel consistency etc) ──────────────────────────────────
 router.get('/sets/:id', (req: Request, res: Response) => {
   const db = getDb();
-  const set = db.prepare('SELECT id, in_game_sens, base_dpi, created_at, active, resolved, revealed_slot FROM blind_stage_sets WHERE id = :id')
+  const set = db.prepare('SELECT id, in_game_sens, base_dpi, created_at, active FROM blind_stage_sets WHERE id = :id')
     .get({ id: req.params.id }) as (SetRow & { active: number }) | undefined;
   if (!set) { res.status(404).json({ error: 'set not found' }); return; }
   const stages = stagesOf(db, set.id);
@@ -263,7 +205,7 @@ router.get('/sets/:id', (req: Request, res: Response) => {
   res.json({
     set: {
       set_id: set.id, in_game_sens: set.in_game_sens, base_dpi: set.base_dpi,
-      created_at: set.created_at, active: !!set.active, resolved: !!set.resolved, revealed_slot: set.revealed_slot,
+      created_at: set.created_at, active: !!set.active,
     },
     stages: rows,
   });
