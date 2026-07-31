@@ -86,7 +86,7 @@ function QuadrantTooltip({ active, payload }: { active?: boolean; payload?: { pa
   return (
     <div style={{ background: 'rgb(var(--ow-card))', border: '1px solid rgb(var(--ow-border))', borderRadius: 8, fontSize: 12, padding: '6px 10px' }}>
       <div style={{ fontWeight: 600 }}>{p.sensAt1600.toFixed(2)} sens @ {MOUSE_DPI} DPI</div>
-      <div>Felt speed: {f1(p.avgFeel)}/10</div>
+      <div>Felt speed: {f1(p.avgFeel)}/100</div>
       <div>Accuracy Δ: {signed(p.avgDelta)}</div>
       <div style={{ opacity: 0.7 }}>n={p.n}</div>
     </div>
@@ -504,17 +504,17 @@ function buildInsights(data: Analysis, heroCounts: Record<string, number>): stri
     // it as a correction ("feeling fast isn't the same as performing well"),
     // never as a virtue in its own right.
     notes.push(
-      `Your best performer by accuracy is ${fmtScale(bestByData)} (${signed(bestByData.avgDelta)}% vs. baseline, n=${bestByData.n}), which felt ${f1(bestByData.avgFeel)}/10 for speed — accuracy peaks at the scale that's right for you, not at whichever end of the speed range you tested.`,
+      `Your best performer by accuracy is ${fmtScale(bestByData)} (${signed(bestByData.avgDelta)}% vs. baseline, n=${bestByData.n}), which felt ${f1(bestByData.avgFeel)}/100 for speed — accuracy peaks at the scale that's right for you, not at whichever end of the speed range you tested.`,
     );
     if (fastestFeel.cm360 !== bestByData.cm360 && fastestFeel.avgFeel != null) {
       notes.push(
-        `${fmtScale(fastestFeel)} felt fastest to you (${f1(fastestFeel.avgFeel)}/10), but it isn't your top performer (${signed(fastestFeel.avgDelta)}% vs. baseline, n=${fastestFeel.n}) — feeling fast doesn't mean it's the right sens.`,
+        `${fmtScale(fastestFeel)} felt fastest to you (${f1(fastestFeel.avgFeel)}/100), but it isn't your top performer (${signed(fastestFeel.avgDelta)}% vs. baseline, n=${fastestFeel.n}) — feeling fast doesn't mean it's the right sens.`,
       );
     }
 
     if (worst.cm360 !== bestByData.cm360) {
       notes.push(
-        `Weakest reliable scale: ${fmtScale(worst)} runs ${signed(worst.avgDelta)}% vs. baseline — felt speed ${f1(worst.avgFeel)}/10, n=${worst.n}.`,
+        `Weakest reliable scale: ${fmtScale(worst)} runs ${signed(worst.avgDelta)}% vs. baseline — felt speed ${f1(worst.avgFeel)}/100, n=${worst.n}.`,
       );
     }
   }
@@ -525,7 +525,7 @@ function buildInsights(data: Analysis, heroCounts: Record<string, number>): stri
     if (Math.abs(diff) >= 1) {
       const winner = diff > 0 ? 'Cold starts' : 'Warmed-up games';
       notes.push(
-        `${winner} perform better so far — cold ${signed(cold.avgDelta)}% vs. warm ${signed(warm.avgDelta)}%. Felt speed: cold ${f1(cold.avgFeel)}/10, warm ${f1(warm.avgFeel)}/10.`,
+        `${winner} perform better so far — cold ${signed(cold.avgDelta)}% vs. warm ${signed(warm.avgDelta)}%. Felt speed: cold ${f1(cold.avgFeel)}/100, warm ${f1(warm.avgFeel)}/100.`,
       );
     } else {
       notes.push(`Cold vs. warm isn't showing up in accuracy yet (${signed(cold.avgDelta)}% vs. ${signed(warm.avgDelta)}%).`);
@@ -811,7 +811,7 @@ export default function SensAnalysis() {
               <div key={b.bucket} className="rounded-lg bg-ow-darker border border-ow-border p-3">
                 <div className="text-[11px] text-[var(--faint)] mb-1">{b.bucket}</div>
                 <div className="text-2xl num-display text-[var(--ink)]">{f1(b.avgOverall)}<span className="text-xs text-[var(--faint)] ml-0.5">%</span></div>
-                <div className="text-[11px] text-[var(--faint-2)] mt-1">Δ {signed(b.avgDelta)} · felt speed {f1(b.avgFeel)}/10 · n={b.n}</div>
+                <div className="text-[11px] text-[var(--faint-2)] mt-1">Δ {signed(b.avgDelta)} · felt speed {f1(b.avgFeel)}/100 · n={b.n}</div>
               </div>
             ))}
           </div>
@@ -823,7 +823,7 @@ export default function SensAnalysis() {
               <div key={b.bucket} className="rounded-lg bg-ow-darker border border-ow-border p-3">
                 <div className="text-[11px] text-[var(--faint)] mb-1">{b.bucket}</div>
                 <div className="text-2xl num-display text-[var(--ink)]">{f1(b.avgOverall)}<span className="text-xs text-[var(--faint)] ml-0.5">%</span></div>
-                <div className="text-[11px] text-[var(--faint-2)] mt-1">Δ {signed(b.avgDelta)} · felt speed {f1(b.avgFeel)}/10 · n={b.n}</div>
+                <div className="text-[11px] text-[var(--faint-2)] mt-1">Δ {signed(b.avgDelta)} · felt speed {f1(b.avgFeel)}/100 · n={b.n}</div>
               </div>
             ))}
           </div>
@@ -850,7 +850,7 @@ export default function SensAnalysis() {
                   <td className="py-1.5 pr-3 font-semibold text-[var(--ink)]">{f1(r.winRate)}%</td>
                   <td className="py-1.5 pr-3">{f1(r.avgOverall)}%</td>
                   <td className="py-1.5 pr-3">{f1(r.avgCrit)}%</td>
-                  <td className="py-1.5 pr-3">{f1(r.avgFeel)}/10</td>
+                  <td className="py-1.5 pr-3">{f1(r.avgFeel)}/100</td>
                   <td className={`py-1.5 ${deltaColor(r.avgDelta)}`}>{signed(r.avgDelta)}</td>
                 </tr>
               ))}

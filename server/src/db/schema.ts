@@ -117,7 +117,7 @@ function initSchema(db: DatabaseSync) {
     }
   }
 
-  // feel: perceived sens speed, 0 (felt slow) to 10 (felt fast) — not a quality
+  // feel: perceived sens speed, 0 (felt slow) to 100 (felt fast) — not a quality
   // rating. Captured live in the Match Log at log time (moved 2026-07-17 from a
   // combat-detail backfilled at /sens; that flow lost the sensation by the time
   // the next match started). Lives on the match itself, like sens/dpi, not on
@@ -133,6 +133,18 @@ function initSchema(db: DatabaseSync) {
         SELECT 1 FROM aim_stats WHERE aim_stats.match_id = matches.id AND aim_stats.feel IS NOT NULL
       )
     `);
+  }
+
+  // Slider widened 0–10 → 0–100 (2026-07-31). Rescale every feel value already
+  // on disk (both the column of record and the legacy aim_stats copy) ×10 so
+  // old and new matches sit on the same scale for averages/analysis. Guarded
+  // by PRAGMA user_version, not column presence, since the feel column already
+  // exists by this point — this runs exactly once.
+  const feelScaleVersion = (db.prepare(`PRAGMA user_version`).get() as { user_version: number }).user_version;
+  if (feelScaleVersion < 1) {
+    db.exec(`UPDATE matches SET feel = feel * 10 WHERE feel IS NOT NULL`);
+    db.exec(`UPDATE aim_stats SET feel = feel * 10 WHERE feel IS NOT NULL`);
+    db.exec(`PRAGMA user_version = 1`);
   }
 
   // notes: freeform per-match note (fatigue, warmup, just switched stage, etc).

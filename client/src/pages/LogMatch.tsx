@@ -21,7 +21,7 @@ const HERO_LIST = Object.entries(HEROES).sort((a, b) => a[0].localeCompare(b[0])
 // Perceived sens speed, 0 (felt slow) to 10 (felt fast) — not a quality rating.
 // Captured here, live, rather than backfilled later on /sens: the sensation is
 // gone by the next match, so this is the only point it can honestly be logged.
-const FEEL_MIN = 0, FEEL_MAX = 10, FEEL_MID = 5;
+const FEEL_MIN = 0, FEEL_MAX = 100, FEEL_MID = 50;
 
 // Two-line labels for the in-form mode toggle (the full names are too wide for
 // three narrow columns).
