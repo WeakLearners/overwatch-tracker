@@ -41,19 +41,28 @@ router.post('/', (req: Request, res: Response) => {
   const deathsJson = deaths ? JSON.stringify(deaths) : null;
 
   // The Match Tracker is a dumb logger — it sends no DPI and no set flag. The
-  // server alone decides: if a stage-test set is running, this match is on its
-  // current stage, so we look up that stage's DPI and write it directly — the
-  // sens page shows the same value on screen while it's being played, so there's
-  // no hidden state and nothing to reveal later. No active set → a plain match
-  // with whatever DPI was sent (or none). Either way the log always succeeds.
+  // server alone decides: if a stage-test set is running for this hero (or an
+  // ad-hoc, hero-less set with no hero-specific test in the way), this match is
+  // on its current stage, so we look up that stage's DPI and write it directly
+  // — the sens page shows the same value on screen while it's being played, so
+  // there's no hidden state and nothing to reveal later. Several heroes can
+  // have sets active at once, so the lookup is scoped by hero — a hero-tagged
+  // set takes priority over the ad-hoc set. No matching active set → a plain
+  // match with whatever DPI was sent (or none). Either way the log always succeeds.
   let finalSens: number | null = sens ?? null;
   let finalDpi: number | null = req.body.dpi ?? null;
   let isStudy = 0;
   let setId: number | null = null;
   let stageIdx: number | null = null;
 
-  const activeSet = db.prepare('SELECT id, cur_rel, in_game_sens FROM blind_stage_sets WHERE active = 1')
-    .get() as { id: number; cur_rel: number; in_game_sens: number } | undefined;
+  const activeSet = db.prepare(`
+    SELECT id, cur_rel, in_game_sens FROM blind_stage_sets
+    WHERE active = 1 AND hero = :hero
+    UNION ALL
+    SELECT id, cur_rel, in_game_sens FROM blind_stage_sets
+    WHERE active = 1 AND hero IS NULL AND NOT EXISTS (SELECT 1 FROM blind_stage_sets WHERE active = 1 AND hero = :hero)
+    LIMIT 1
+  `).get({ hero }) as { id: number; cur_rel: number; in_game_sens: number } | undefined;
   if (activeSet) {
     const stage = db.prepare('SELECT dpi FROM blind_stages WHERE set_id = :sid AND stage_index = :si')
       .get({ sid: activeSet.id, si: activeSet.cur_rel }) as { dpi: number } | undefined;
@@ -73,6 +82,18 @@ router.post('/', (req: Request, res: Response) => {
 
   if (isStudy && setId != null) {
     db.prepare('UPDATE blind_stage_sets SET games_on_stage = games_on_stage + 1 WHERE id = :id').run({ id: setId });
+    // Multiple sets can be active at once now (one per hero), so nothing else
+    // retires a finished set the way the old single-active-slot model used to
+    // when a new set took over. Retire it here instead, the moment its last
+    // stage hits its game target — otherwise it would stay active forever
+    // (DELETE refuses completed sets) and permanently block this hero from
+    // starting a fresh test.
+    const set = db.prepare('SELECT batch_size FROM blind_stage_sets WHERE id = :id').get({ id: setId }) as { batch_size: number };
+    const nStages = (db.prepare('SELECT COUNT(*) n FROM blind_stages WHERE set_id = :id').get({ id: setId }) as { n: number }).n;
+    const totalGames = (db.prepare('SELECT COUNT(*) n FROM matches WHERE blind_set_id = :id').get({ id: setId }) as { n: number }).n;
+    if (totalGames >= set.batch_size * nStages) {
+      db.prepare('UPDATE blind_stage_sets SET active = 0 WHERE id = :id').run({ id: setId });
+    }
   }
 
   res.json({ id: result.lastInsertRowid });

@@ -1005,27 +1005,6 @@ function computeDayHourWindow(db: ReturnType<typeof getDb>) {
   return { reliable: true, best: sorted[0], worst: sorted[sorted.length - 1] };
 }
 
-// ── Blind-trial slot bias ───────────────────────────────────────────────────
-// A confound check on the DPI study itself: performance by scrambled mouse
-// slot position, independent of which DPI eventually resolved there. If this
-// varies a lot, disorientation-after-scramble is contaminating the study's
-// sens→performance readings, not just the sens itself.
-const BLIND_SLOT_MIN_GAMES = 8;
-function computeBlindSlotBias(db: ReturnType<typeof getDb>) {
-  const rows = db.prepare(`
-    SELECT rel_pos, COUNT(*) AS n, ROUND(AVG(win)*100,1) AS wr
-    FROM matches WHERE blind_trial = 1 AND rel_pos IS NOT NULL
-    GROUP BY rel_pos
-  `).all({}) as { rel_pos: number; n: number; wr: number }[];
-
-  const qualifying = rows.filter(r => r.n >= BLIND_SLOT_MIN_GAMES);
-  if (qualifying.length < 2) return { reliable: false, best: null, worst: null, gap: null };
-  const sorted = [...qualifying].sort((a, b) => b.wr - a.wr);
-  const best = sorted[0];
-  const worst = sorted[sorted.length - 1];
-  return { reliable: true, best, worst, gap: Math.round((best.wr - worst.wr) * 10) / 10 };
-}
-
 // ── Trends insights ──────────────────────────────────────────────────────────
 // Pool of up to 10 one-sentence factoids for the Trends section's 4 random
 // cards, drawn from the three analyses above. Only reliable splits (enough
@@ -1041,7 +1020,6 @@ router.get('/insights', (_req: Request, res: Response) => {
   const critAcc = computeCritAccuracy(db);
   const killSecure = computeKillSecure(db);
   const dayHour = computeDayHourWindow(db);
-  const slotBias = computeBlindSlotBias(db);
 
   // Each factoid is a list of parts rather than one string, so the client can
   // color just the stat numbers (green = the better outcome, red = the worse
@@ -1185,18 +1163,6 @@ router.get('/insights', (_req: Request, res: Response) => {
         t(` win rate over ${dayHour.best.n} games. Your worst is ${dayHour.worst.day_of_week} at ${formatHour(dayHour.worst.hour)} — `),
         c(`${dayHour.worst.wr}%`, 'bad'),
         t(` over ${dayHour.worst.n} games.`),
-      ],
-    });
-  }
-
-  if (slotBias.reliable && slotBias.best && slotBias.worst && slotBias.gap !== null) {
-    factoids.push({
-      id: 'blind-slot-bias',
-      category: 'Blind Trial · Slot Bias',
-      parts: [
-        t(`Mouse slot ${slotBias.best.rel_pos} wins `), c(`${slotBias.best.wr}%`, 'good'),
-        t(` vs. slot ${slotBias.worst.rel_pos} at `), c(`${slotBias.worst.wr}%`, 'bad'),
-        t(` (${slotBias.best.n}/${slotBias.worst.n} games) — a ${slotBias.gap}pp spread that shouldn't exist if the scramble is unbiased. Worth watching as the study grows.`),
       ],
     });
   }

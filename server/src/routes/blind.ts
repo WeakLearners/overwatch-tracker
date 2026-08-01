@@ -11,8 +11,8 @@ interface SetRow {
 }
 interface StageRow { stage_index: number; dpi: number; pct_delta: number; }
 
-const activeSet = (db: ReturnType<typeof getDb>) =>
-  db.prepare('SELECT * FROM blind_stage_sets WHERE active = 1').get() as SetRow | undefined;
+const activeSets = (db: ReturnType<typeof getDb>) =>
+  db.prepare('SELECT * FROM blind_stage_sets WHERE active = 1 ORDER BY id').all() as unknown as SetRow[];
 
 const stagesOf = (db: ReturnType<typeof getDb>, setId: number) =>
   db.prepare('SELECT stage_index, dpi, pct_delta FROM blind_stages WHERE set_id = :id ORDER BY stage_index')
@@ -29,6 +29,12 @@ const totalGamesOf = (db: ReturnType<typeof getDb>, setId: number) =>
 // from prior analysis) or omit it and fall back to the auto-generated
 // ±pct_range spread around base_dpi. cur_rel starts at 1 — the set is playable
 // immediately at its first stage.
+//
+// Multiple sets can be active at once — each match auto-tags to the active set
+// matching its own hero (or the ad-hoc, hero-less set, if one is running), so
+// heroes test independently and can be run in parallel. The only restriction
+// is one active, unfinished set per hero (or per the ad-hoc slot) at a time —
+// a second one would leave match auto-tagging ambiguous.
 router.post('/sets', (req: Request, res: Response) => {
   const db = getDb();
   const in_game_sens = Number(req.body.in_game_sens ?? 2.5);
@@ -36,6 +42,12 @@ router.post('/sets', (req: Request, res: Response) => {
   const hero = typeof req.body.hero === 'string' && req.body.hero.trim() ? req.body.hero.trim() : null;
   if (!(in_game_sens > 0) || !(batch_size >= 1)) {
     res.status(400).json({ error: 'invalid set params' });
+    return;
+  }
+
+  const dupe = db.prepare('SELECT id FROM blind_stage_sets WHERE active = 1 AND hero IS :hero').get({ hero }) as { id: number } | undefined;
+  if (dupe) {
+    res.status(409).json({ error: hero ? `${hero} already has an active test running` : 'an ad-hoc test is already active' });
     return;
   }
 
@@ -63,13 +75,12 @@ router.post('/sets', (req: Request, res: Response) => {
     stages = generateStages(base_dpi, pct_range, n_stages);
   }
 
-  // Deactivate-old + insert-new must land together — if a restart or error
+  // Insert-set + insert-stages must land together — if a restart or error
   // interrupts between them, an uncommitted transaction rolls back cleanly
-  // instead of leaving no set active.
+  // instead of leaving a set with no stages.
   let set_id: number;
   db.exec('BEGIN');
   try {
-    db.exec('UPDATE blind_stage_sets SET active = 0 WHERE active = 1');
     const r = db.prepare(`
       INSERT INTO blind_stage_sets (in_game_sens, base_dpi, active, note, batch_size, cur_rel, games_on_stage, scramble_done, resolved, hero)
       VALUES (:s, :d, 1, :note, :b, 1, 0, 1, 0, :hero)
@@ -140,36 +151,41 @@ router.get('/sets', (_req: Request, res: Response) => {
 
 // ── Loop state ───────────────────────────────────────────────────────────────
 // Drives the whole page. Stages (and the current one's DPI) are always
-// visible — there's nothing to hide.
+// visible — there's nothing to hide. Multiple sets can be active at once (one
+// per hero, plus at most one ad-hoc/hero-less set), so this returns all of
+// them — the UI renders one progress card per active set.
 router.get('/state', (_req: Request, res: Response) => {
   const db = getDb();
-  const set = activeSet(db);
-  if (!set) { res.json({ active: null }); return; }
+  const sets = activeSets(db);
 
-  const stages = stagesOf(db, set.id);
-  const n_stages = stages.length;
-  const curStage = stages.find(s => s.stage_index === set.cur_rel) ?? stages[0];
-  const totalGames = totalGamesOf(db, set.id);
-  const target = set.batch_size * n_stages;
-  const completed = totalGames >= target;
+  const actives = sets.map(set => {
+    const stages = stagesOf(db, set.id);
+    const n_stages = stages.length;
+    const curStage = stages.find(s => s.stage_index === set.cur_rel) ?? stages[0];
+    const totalGames = totalGamesOf(db, set.id);
+    const target = set.batch_size * n_stages;
+    const completed = totalGames >= target;
 
-  res.json({
-    active: {
+    return {
       set_id: set.id, in_game_sens: set.in_game_sens, base_dpi: set.base_dpi, created_at: set.created_at,
       batch_size: set.batch_size, cur_stage: set.cur_rel, games_on_stage: set.games_on_stage,
       dpi: curStage?.dpi ?? null, n_stages, hero: set.hero, totalGames, completed,
-    },
-    needSwitch: !completed && set.games_on_stage >= set.batch_size,
-    stages,
+      needSwitch: !completed && set.games_on_stage >= set.batch_size,
+      stages,
+    };
   });
+
+  res.json({ actives });
 });
 
-// ── Advance to the next stage ────────────────────────────────────────────────
+// ── Advance a set to its next stage ─────────────────────────────────────────
 // Sequential — stage order is exactly the order the DPIs were entered in.
-router.post('/advance', (_req: Request, res: Response) => {
+// Takes set_id since several sets may be active at once.
+router.post('/advance', (req: Request, res: Response) => {
   const db = getDb();
-  const set = activeSet(db);
-  if (!set) { res.status(409).json({ error: 'no active set' }); return; }
+  const set_id = Number(req.body.set_id);
+  const set = db.prepare('SELECT * FROM blind_stage_sets WHERE id = :id AND active = 1').get({ id: set_id }) as SetRow | undefined;
+  if (!set) { res.status(409).json({ error: 'no such active set' }); return; }
   const stages = stagesOf(db, set.id);
   const n = stages.length;
   if (set.cur_rel >= n) { res.status(409).json({ error: 'already at the last stage' }); return; }

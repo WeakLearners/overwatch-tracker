@@ -13,15 +13,18 @@ import { Link } from 'react-router-dom';
 import Odometer from '../components/Odometer';
 
 // DPI stage-test HUD state — the dashboard reads this live to show the
-// current stage's DPI plainly (no hiding, no LED colors).
-interface BlindHud {
-  active: {
-    set_id: number; cur_stage: number; n_stages: number; totalGames: number;
+// current stage's DPI plainly (no hiding, no LED colors). Several tests can
+// be running at once (one per hero), so this is a list, not a single test.
+interface DpiTestHud {
+  actives: {
+    set_id: number; hero: string | null; cur_stage: number; n_stages: number; totalGames: number;
     batch_size: number; games_on_stage: number; dpi: number | null;
-  } | null;
+  }[];
 }
 
 const ALL_MAPS = Object.keys(MAPS).sort();
+const DPI_TEST_HERO_KEY = 'ow-dpi-test-hero';
+const AD_HOC_KEY = '__adhoc__';
 
 interface HeroRow { hero: string; role: string; games: number; wins: number; win_rate: number }
 
@@ -45,11 +48,24 @@ export default function Prematch() {
   // Shared, single-instance match state (queue mode, map, advisor) lives here
   // and is consumed by the Log Match section too.
   const { queueMode, map, setMap, mapType, rec, recLoading, recError, refreshRec, setPendingHero, matchLoggedSignal } = useMatch();
-  const { data: blindHud } = useApi<BlindHud>('/api/blind/state');
-  const bt = blindHud?.active ?? null;
+  const { data: dpiHud } = useApi<DpiTestHud>('/api/blind/state');
+  const btActives = dpiHud?.actives ?? [];
+  // Several heroes can be "In Testing" at once, but the mouse can only be set
+  // to one DPI at a time — so the HUD tracks whichever hero you're about to
+  // play next, not an aggregate across all of them. Persisted so the choice
+  // survives a reload; falls back to the first active test if the saved
+  // hero's set finished/was cancelled since.
+  const [btHeroPick, setBtHeroPick] = useState<string | null>(() => {
+    try { return localStorage.getItem(DPI_TEST_HERO_KEY); } catch { return null; }
+  });
+  useEffect(() => {
+    try {
+      if (btHeroPick) localStorage.setItem(DPI_TEST_HERO_KEY, btHeroPick);
+      else localStorage.removeItem(DPI_TEST_HERO_KEY);
+    } catch { /* ignore */ }
+  }, [btHeroPick]);
+  const bt = btActives.find(a => (a.hero ?? AD_HOC_KEY) === btHeroPick) ?? btActives[0] ?? null;
   const btGamesLeft = bt ? Math.max(0, bt.batch_size - bt.games_on_stage) : 0;
-  // Matches left across the WHOLE test — every stage's sample combined, minus
-  // what's already been logged. Starts at n_stages × batch_size (e.g. 36).
   const btTestLeft = bt ? Math.max(0, bt.n_stages * bt.batch_size - bt.totalGames) : 0;
   const { data: pendingData } = useApi<{ total: number }>('/api/aim/pending?limit=1');
   const backlogCount = pendingData?.total ?? 0;
@@ -162,18 +178,36 @@ export default function Prematch() {
   return (
     <div>
 
-      {/* Blind trial (square) + Map Voting + Hero Advisor row */}
+      {/* DPI test HUD (square) + Map Voting + Hero Advisor row */}
       <div className="flex items-stretch gap-4 mb-4">
 
-        {/* DPI stage-test HUD — shows the current stage's DPI plainly (no
-            hiding), plus two live wheels: matches left in the whole test and
-            games left before the next stage switch. Drives off the same
-            state the Sens page loop does. Sits where the sens picker used to. */}
+        {/* DPI stage-test HUD — a dropdown picks which "In Testing" hero you're
+            about to play (several can be active at once, but the mouse can
+            only sit on one DPI at a time), then shows that hero's current
+            stage DPI plainly (no hiding) plus two live wheels: matches left
+            in its whole test and games left before its next stage switch.
+            Drives off the same state the Sens page loop does. Sits where the
+            sens picker used to. */}
         <div className="card aspect-square shrink-0 flex flex-col self-stretch">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-2 gap-2">
             <h2 className="text-sm heading-display text-[var(--ink)] whitespace-nowrap">DPI Test</h2>
-            {bt && <span className="text-xs num-display text-[var(--ink)]">{bt.dpi} DPI</span>}
+            {bt && <span className="text-xs num-display text-[var(--ink)] shrink-0">{bt.dpi} DPI</span>}
           </div>
+          {btActives.length > 1 && (
+            <select
+              value={bt ? (bt.hero ?? AD_HOC_KEY) : ''}
+              onChange={e => setBtHeroPick(e.target.value)}
+              className="text-[11px] field px-1.5 py-1 mb-2 w-full"
+              aria-label="Hero to show DPI-test progress for"
+            >
+              {btActives.map(a => (
+                <option key={a.set_id} value={a.hero ?? AD_HOC_KEY}>{a.hero ?? 'Ad-hoc'} — {a.dpi} DPI</option>
+              ))}
+            </select>
+          )}
+          {btActives.length === 1 && (
+            <div className="text-[10px] text-[var(--faint-2)] -mt-1 mb-2 truncate">{bt!.hero ?? 'ad-hoc'}</div>
+          )}
           {bt ? (
             <div className="flex-1 grid grid-cols-[auto_auto] items-center gap-x-3 gap-y-1.5 place-content-center">
               <Odometer value={btTestLeft} />
@@ -215,7 +249,7 @@ export default function Prematch() {
 
           {/* Idle state has no sibling drum row to align with, so the backlog
               counter gets its own simple centered row here instead. */}
-          {!bt && (
+          {btActives.length === 0 && (
             <div className="flex items-center justify-center gap-3 pt-3 mt-2">
               <Odometer value={backlogCount} />
               <div className="leading-tight">

@@ -69,12 +69,13 @@ function initSchema(db: DatabaseSync) {
     db.exec(`UPDATE matches SET dpi = 1600 WHERE dpi IS NULL`);
   }
 
-  // Blind-trial bookkeeping. blind_trial flags a match whose sensitivity was set
-  // via a hidden DPI stage. rel_pos is the mouse position RELATIVE to the
-  // scramble start (clicks mod n) — the only thing known at log time, since the
-  // absolute slot (and thus dpi) stays unknown until reveal back-solves the
-  // offset. stage_index + dpi are filled in at reveal. revealed gates whether the
-  // resolved dpi/sens may leave the API. Non-blind rows are revealed=1.
+  // DPI stage-trial bookkeeping. blind_trial flags a match logged while a
+  // stage-trial set was active for its hero; blind_set_id + stage_index say
+  // which set/stage. The stage's DPI is shown on screen the whole time — there
+  // is no hiding or reveal step. rel_pos and revealed are unused leftovers from
+  // an earlier hidden-DPI design and are kept only because dropping columns
+  // from a live SQLite DB isn't worth the risk; nothing reads or writes them
+  // meaningfully anymore.
   for (const [col, ddl] of [
     ['blind_trial', `ALTER TABLE matches ADD COLUMN blind_trial INTEGER DEFAULT 0`],
     ['blind_set_id', `ALTER TABLE matches ADD COLUMN blind_set_id INTEGER`],
@@ -165,15 +166,15 @@ function initSchema(db: DatabaseSync) {
     `);
   }
 
-  // Blind-trial stage sets. Each set is one shuffle of N DPI values across the
-  // mouse's physical slots (blind_stages: slot stage_index → dpi). The player
-  // types those values into the mouse, then "scrambles" (mashes the DPI button
-  // uncounted) so neither they nor the app knows the absolute slot. From then on
-  // the app tracks only cur_rel — the position RELATIVE to the scramble start —
-  // and directs relative moves. batch_size games are played per stage before a
-  // switch; games_on_stage counts toward it. At reveal the player reports the
-  // currently-active slot, which back-solves the offset and resolves every
-  // trial's true dpi at once (resolved=1, revealed_slot recorded).
+  // DPI stage-trial sets. Each set is N DPI values (blind_stages: stage_index →
+  // dpi) shown plainly on screen — no hiding, no shuffle. The player types
+  // those values into the mouse in order, plays batch_size games per stage
+  // (games_on_stage counts toward it), then advances cur_rel to the next stage.
+  // Several sets can be active at once (one per hero, plus at most one ad-hoc
+  // set) so heroes can be tested in parallel. scramble_done, resolved,
+  // revealed_slot, last_click_count are unused leftovers from an earlier
+  // hidden-DPI design, kept only because dropping columns from a live SQLite DB
+  // isn't worth the risk.
   db.exec(`
     CREATE TABLE IF NOT EXISTS blind_stage_sets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
