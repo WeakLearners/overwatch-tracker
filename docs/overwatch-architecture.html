@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Overwatch Analysis — Architecture Map</title>
+<style>
+  :root {
+    --bg: #f5f4f1;
+    --panel-bg: #ffffff;
+    --ink: #1c1b1a;
+    --ink-2: #5c5955;
+    --ink-3: #8a8681;
+    --border: #e4e1da;
+    --accent: #7c3aed;
+    --canvas-bg: #faf9f6;
+    --edge: #b9b4ab;
+    --edge-label-bg: #ffffffee;
+    --shadow: 0 8px 24px rgba(30,25,15,0.08);
+    --node-page: #2563eb;
+    --node-component: #0d9488;
+    --node-context: #9333ea;
+    --node-hook: #4f46e5;
+    --node-lib: #64748b;
+    --node-entry: #b45309;
+    --node-route: #ea580c;
+    --node-serverlib: #be123c;
+    --node-db: #16a34a;
+    --node-external: #57534e;
+  }
+  :root[data-theme="dark"] {
+    --bg: #16151a;
+    --panel-bg: #1e1d24;
+    --ink: #f2f0eb;
+    --ink-2: #b8b4ac;
+    --ink-3: #837f78;
+    --border: #33313a;
+    --accent: #a78bfa;
+    --canvas-bg: #131217;
+    --edge: #4a4854;
+    --edge-label-bg: #1e1d24ee;
+    --shadow: 0 8px 28px rgba(0,0,0,0.45);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16151a;
+      --panel-bg: #1e1d24;
+      --ink: #f2f0eb;
+      --ink-2: #b8b4ac;
+      --ink-3: #837f78;
+      --border: #33313a;
+      --accent: #a78bfa;
+      --canvas-bg: #131217;
+      --edge: #4a4854;
+      --edge-label-bg: #1e1d24ee;
+      --shadow: 0 8px 28px rgba(0,0,0,0.45);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-bg);
+    flex-shrink: 0;
+    z-index: 20;
+  }
+  header h1 {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 0;
+    white-space: nowrap;
+  }
+  header .sub {
+    font-size: 12px;
+    color: var(--ink-3);
+    white-space: nowrap;
+    display: none;
+  }
+  @media (min-width: 860px) { header .sub { display: block; } }
+
+  header .spacer { flex: 1; }
+
+  header input[type="search"] {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 10px;
+    font-size: 12.5px;
+    color: var(--ink);
+    width: 160px;
+    outline: none;
+  }
+  header input[type="search"]:focus { border-color: var(--accent); }
+
+  header button.iconbtn {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    color: var(--ink);
+    font-size: 14px;
+  }
+  header button.iconbtn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .layout {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+  }
+  @media (max-width: 860px) {
+    .layout { flex-direction: column; }
+  }
+
+  .canvas-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    background: var(--canvas-bg);
+    overflow: hidden;
+    cursor: grab;
+  }
+  .canvas-wrap.dragging { cursor: grabbing; }
+  .canvas-wrap svg { display: block; width: 100%; height: 100%; }
+
+  .zoom-controls {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 10;
+  }
+  .zoom-controls button {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--panel-bg);
+    color: var(--ink);
+    font-size: 16px;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+  }
+  .zoom-controls button:hover { color: var(--accent); border-color: var(--accent); }
+
+  .legend {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    box-shadow: var(--shadow);
+    font-size: 11px;
+    color: var(--ink-2);
+    display: grid;
+    grid-template-columns: repeat(2, auto);
+    gap: 4px 16px;
+    z-index: 10;
+    max-width: 320px;
+  }
+  .legend .item { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .legend .swatch { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+  .legend-toggle { cursor: pointer; user-select: none; }
+
+  .flow-banner {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    max-width: 360px;
+    background: var(--panel-bg);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    padding: 10px 14px;
+    box-shadow: var(--shadow);
+    font-size: 12px;
+    color: var(--ink-2);
+    z-index: 10;
+    display: none;
+  }
+  .flow-banner.active { display: block; }
+  .flow-banner strong { color: var(--ink); font-size: 12.5px; }
+
+  /* right panel */
+  .panel {
+    width: 360px;
+    flex-shrink: 0;
+    background: var(--panel-bg);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  @media (max-width: 860px) {
+    .panel { width: 100%; height: 46vh; border-left: none; border-top: 1px solid var(--border); }
+  }
+
+  .panel-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .panel-tabs button {
+    flex: 1;
+    padding: 11px 0;
+    background: none;
+    border: none;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink-3);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+  }
+  .panel-tabs button.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  .panel-body { flex: 1; overflow-y: auto; padding: 10px; }
+  .panel-section { display: none; }
+  .panel-section.active { display: block; }
+
+  .flow-item {
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .flow-item:hover { border-color: var(--accent); }
+  .flow-item.selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .flow-item .fname { font-size: 13px; font-weight: 700; margin-bottom: 3px; }
+  .flow-item .fdesc { font-size: 11.5px; color: var(--ink-2); line-height: 1.45; }
+
+  .step-list { margin-top: 4px; padding-left: 0; list-style: none; }
+  .step-list li {
+    display: flex;
+    gap: 8px;
+    font-size: 11.5px;
+    color: var(--ink-2);
+    padding: 6px 4px;
+    border-radius: 6px;
+    line-height: 1.4;
+  }
+  .step-list li.current { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .step-list .badge {
+    flex-shrink: 0;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+    margin-top: 1px;
+  }
+  .step-list .node-name { font-weight: 700; color: var(--ink); }
+
+  .clear-flow-btn {
+    width: 100%;
+    margin-top: 6px;
+    padding: 8px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--ink-2);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .clear-flow-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .empty-hint {
+    color: var(--ink-3);
+    font-size: 12px;
+    padding: 20px 8px;
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  /* node detail card */
+  .detail-card { padding: 4px; }
+  .detail-card .cat-tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 20px;
+    color: white;
+    margin-bottom: 10px;
+  }
+  .detail-card h3 { margin: 0 0 6px; font-size: 15px; }
+  .detail-card .filepath {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    color: var(--ink-3);
+    background: var(--bg);
+    padding: 5px 8px;
+    border-radius: 6px;
+    margin-bottom: 10px;
+    word-break: break-all;
+  }
+  .detail-card p { font-size: 12.5px; line-height: 1.55; color: var(--ink-2); margin: 0 0 14px; }
+  .detail-card h4 { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); margin: 0 0 8px; }
+  .rel-list { list-style: none; padding: 0; margin: 0 0 6px; }
+  .rel-list li {
+    font-size: 12px;
+    padding: 6px 8px;
+    border-radius: 7px;
+    margin-bottom: 4px;
+    background: var(--bg);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .rel-list li:hover { outline: 1px solid var(--accent); }
+  .rel-list .rlabel { color: var(--ink-3); font-size: 10.5px; text-align: right; }
+
+  /* svg node/edge styling */
+  .node-rect {
+    fill: var(--panel-bg);
+    stroke-width: 1.6;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.12));
+    cursor: pointer;
+    transition: opacity .25s;
+  }
+  .node-group text {
+    fill: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    pointer-events: none;
+    transition: opacity .25s;
+  }
+  .node-group .node-title { font-size: 12.5px; font-weight: 700; }
+  .node-group .node-sub { font-size: 9.5px; fill: var(--ink-3); font-weight: 600; letter-spacing: .02em; text-transform: uppercase; }
+  .node-group { transition: opacity .25s; }
+  .node-group.dim { opacity: 0.18; }
+  .node-group.hi .node-rect { stroke-width: 3; filter: drop-shadow(0 0 8px var(--accent)); }
+  .node-group:hover .node-rect { stroke-width: 2.6; }
+
+  .edge-path { fill: none; stroke: var(--edge); stroke-width: 1.4; transition: opacity .25s, stroke .2s, stroke-width .2s; }
+  .edge-path.api { stroke-dasharray: 5 4; }
+  .edge-path.dim { opacity: 0.08; }
+  .edge-path.hi { stroke: var(--accent); stroke-width: 2.6; opacity: 1; }
+  .edge-hitbox { fill: none; stroke: transparent; stroke-width: 14; cursor: pointer; }
+  .edge-count {
+    font-size: 9px;
+    fill: var(--ink-3);
+    font-weight: 700;
+  }
+  .edge-count-bg { fill: var(--edge-label-bg); }
+
+  .step-badge-group circle { fill: var(--accent); }
+  .step-badge-group text { fill: white; font-size: 10px; font-weight: 800; }
+  .step-badge-group { transition: opacity .2s; }
+
+  .flow-tip {
+    position: absolute;
+    max-width: 280px;
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    border-radius: 8px;
+    padding: 9px 11px;
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--ink-2);
+    pointer-events: none;
+    z-index: 30;
+    display: none;
+  }
+  .flow-tip strong { color: var(--ink); display: block; margin-bottom: 3px; font-size: 12.5px; }
+  .flow-tip .tip-cat { color: var(--ink-3); font-size: 10px; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 5px; display: block; }
+
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Overwatch Analysis — Architecture Map</h1>
+  <span class="sub">React + Express + TypeScript + SQLite · match tracker, LLM advisor, stats, DPI sensitivity study</span>
+  <div class="spacer"></div>
+  <input type="search" id="search" placeholder="Filter nodes…" />
+  <button class="iconbtn" id="themeToggle" title="Toggle theme">◐</button>
+</header>
+
+<div class="layout">
+  <div class="canvas-wrap" id="canvasWrap">
+    <div class="legend" id="legend"></div>
+    <div class="flow-banner" id="flowBanner"></div>
+    <svg id="svg" viewBox="0 0 1900 1650">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--edge)"></path>
+        </marker>
+        <marker id="arrowHi" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"></path>
+        </marker>
+      </defs>
+      <g id="edgeLayer"></g>
+      <g id="nodeLayer"></g>
+      <g id="badgeLayer"></g>
+    </svg>
+    <div class="zoom-controls">
+      <button id="zoomIn">+</button>
+      <button id="zoomReset">⤢</button>
+      <button id="zoomOut">−</button>
+    </div>
+    <div class="flow-tip" id="tip"></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-tabs">
+      <button class="active" data-tab="flows">Flows</button>
+      <button data-tab="details">Details</button>
+    </div>
+    <div class="panel-body">
+      <div class="panel-section active" id="tab-flows"></div>
+      <div class="panel-section" id="tab-details">
+        <div class="empty-hint">Click any node in the diagram to see its details, file path, and direct connections here.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const DATA = {
+  "meta": {
+    "project": "overwatch-analysis",
+    "repo": "~/Code/overwatch",
+    "description": "React + Express + TypeScript + SQLite full-stack app for logging Overwatch 2 matches, a pre-match LLM advisor, a stats/trends dashboard, and an in-house mouse-sensitivity (DPI stage-trial) research study.",
+    "generated": "architecture snapshot, hand-derived from source at analysis time"
+  },
+  "nodes": [
+    { "id": "app", "label": "App.tsx", "category": "client-page", "layer": 0, "file": "client/src/App.tsx", "description": "Root component. Owns dark/light theme toggle, wraps everything in Hero/Map/Match/MatchEdit drawer context providers, mounts the router, and globally mounts the drawers + DeathLogger so they can render on top of any page." },
+
+    { "id": "router", "label": "React Router", "category": "client-page", "layer": 1, "file": "client/src/App.tsx", "description": "BrowserRouter routes. '/', '/prematch', '/log', '/trends' are aliases that all render Dashboard (those sections now live as tabs inside it). '/sens' and '/sens/analysis' are a separate, intentionally unlinked sensitivity-study area sharing the same backend/DB." },
+    { "id": "dashboard", "label": "Dashboard.tsx", "category": "client-page", "layer": 1, "file": "client/src/pages/Dashboard.tsx", "description": "Main single-page app shell. Renders StatCards (overview/streaks), the rolling win-rate trend, mode comparison, and composes the Prematch, LogMatch and TrendsSummary sections as tabs." },
+    { "id": "prematch", "label": "Prematch.tsx", "category": "client-page", "layer": 1, "file": "client/src/pages/Prematch.tsx", "description": "Pre-match prep screen: map picker, LLM tactical advisor (AdvisorCard), map-voting win rates, DPI Stage-Trial Test HUD, session tilt/depth banner, and best-hero-by-hour context." },
+    { "id": "logmatch", "label": "LogMatch.tsx", "category": "client-page", "layer": 1, "file": "client/src/pages/LogMatch.tsx", "description": "Match logging form: hero/role/map/queue-mode/win-loss, in-game sens, 0-100 'feel' slider, freeform notes. Sends no DPI or study flag — the server alone decides whether a match belongs to an active DPI stage-trial." },
+    { "id": "sensLog", "label": "SensLog.tsx", "category": "client-page", "layer": 1, "file": "client/src/pages/SensLog.tsx", "description": "Sensitivity-study control page: create/cancel DPI stage-trial sets (one per hero + one ad-hoc), poll the guided loop's live state, advance stages, and backfill post-match aim/combat stats from the pending queue." },
+    { "id": "sensAnalysis", "label": "SensAnalysis.tsx", "category": "client-page", "layer": 1, "file": "client/src/pages/SensAnalysis.tsx", "description": "Sensitivity study results dashboard: accuracy/win-rate by cm/360 scale, hitscan vs. projectile archetype split, cold-vs-warm session position, and adaptation-since-DPI-change effects." },
+
+    { "id": "advisorCard", "label": "AdvisorCard.tsx", "category": "client-component", "layer": 2, "file": "client/src/components/AdvisorCard.tsx", "description": "Renders the cached/live LLM recommendation: primary + stretch hero picks and one grounded death-pattern coaching sentence, plus the death-axis spectrum bars." },
+    { "id": "deathLogger", "label": "DeathLogger.tsx", "category": "client-component", "layer": 2, "file": "client/src/components/DeathLogger.tsx", "description": "Modal opened after a loss is logged (from MatchContext). Captures per-death factual axis tags (trade/timing/grouping/awareness) on a 0-1 spectrum, written back onto the match's `deaths` JSON column." },
+    { "id": "deathInsights", "label": "DeathInsights.tsx", "category": "client-component", "layer": 2, "file": "client/src/components/DeathInsights.tsx", "description": "Shared presentational panel (used by both drawers) rendering a death-tag breakdown: reason %, win/loss correlation per reason, and deaths-per-win vs. deaths-per-loss." },
+    { "id": "heroDrawer", "label": "HeroDrawer.tsx", "category": "client-component", "layer": 2, "file": "client/src/components/HeroDrawer.tsx", "description": "Slide-over drawer with a hero's full profile: overall/momentum win rate, best/worst maps and game types, last 10 results, and DeathInsights for that hero." },
+    { "id": "mapDrawer", "label": "MapDrawer.tsx", "category": "client-component", "layer": 2, "file": "client/src/components/MapDrawer.tsx", "description": "Slide-over drawer with a map's profile: overall/momentum win rate, best heroes per role, recent results, and DeathInsights for that map." },
+    { "id": "matchEditDrawer", "label": "MatchEditDrawer.tsx", "category": "client-component", "layer": 2, "file": "client/src/components/MatchEditDrawer.tsx", "description": "Slide-over editor for a previously logged match: partial field edit (PUT) or delete, then triggers a global revalidate so every page reflects the change." },
+    { "id": "trendssummary", "label": "TrendsSummary.tsx", "category": "client-component", "layer": 2, "file": "client/src/components/TrendsSummary.tsx", "description": "Draws 4 random one-sentence factoid cards from the server's precomputed insight pool (death-pattern, hot-hand, performance-mismatch, queue-switch tax, crit accuracy, kill-secure rate, best/worst session window)." },
+    { "id": "uiPrimitives", "label": "UI Primitives", "category": "client-component", "layer": 2, "file": "client/src/components/{StatCard,AnimatedNumber,EmptyState,ModeWatermark,PageHeader,SensNav,Odometer,WinRateBar}.tsx", "description": "Small stateless presentational components reused across pages: stat tiles, animated counters, empty states, queue-mode watermark, page headers, the /sens sub-nav, the odometer readout, and win-rate bars." },
+
+    { "id": "matchContext", "label": "MatchContext", "category": "client-context", "layer": 3, "file": "client/src/contexts/MatchContext.tsx", "description": "Global provider holding the in-progress match form (hero/map/queue mode), fetching the LLM advisor recommendation (GET /api/advisor/recommend), and opening DeathLogger when a loss is logged." },
+    { "id": "drawerContexts", "label": "Drawer Contexts", "category": "client-context", "layer": 3, "file": "client/src/contexts/{HeroDrawerContext,MapDrawerContext,MatchEditDrawerContext}.tsx", "description": "Three small open/close state providers — which hero/map/match is currently open in its slide-over drawer. Pure UI state, no data fetching of their own." },
+    { "id": "useApi", "label": "useApi() hook", "category": "client-hook", "layer": 3, "file": "client/src/hooks/useApi.ts", "description": "Generic fetch-and-cache hook every page/component uses to call the Express API. Exposes a global `revalidateAll()` — every mounted useApi subscribes, so one mutation (e.g. logging a match) refreshes the whole app in place." },
+    { "id": "useCounts", "label": "useHeroCounts / useMapCounts", "category": "client-hook", "layer": 3, "file": "client/src/hooks/{useHeroCounts,useMapCounts}.ts", "description": "Today's per-hero and per-map match counts, used to annotate picker options with a '(N) played today' suffix across LogMatch, Prematch, SensLog/Analysis, and both drawers." },
+    { "id": "clientAim", "label": "lib/aim.ts (client)", "category": "client-lib", "layer": 3, "file": "client/src/lib/aim.ts", "description": "Client-side mirror of the server's aim math: MOUSE_DPI constant, eDPI(sens,dpi) and cm360(sens,dpi) — kept in sync by hand with server/src/lib/aim.ts." },
+
+    { "id": "serverIndex", "label": "index.ts", "category": "server-entry", "layer": 4, "file": "server/src/index.ts", "description": "Express app entry point. Loads server/.env, applies CORS (locked to http://localhost:5173) and JSON body parsing, and mounts all 5 routers under /api/*. Listens on port 3001." },
+
+    { "id": "routeMatches", "label": "routes/matches.ts", "category": "server-route", "layer": 5, "file": "server/src/routes/matches.ts", "description": "CRUD for logged matches. On POST, the server (not the client) decides whether an active DPI stage-trial set exists for the match's hero (or an ad-hoc set); if so it stamps the stage's DPI onto the match, increments games_on_stage, and auto-retires the set the instant its last stage hits its game target." },
+    { "id": "routeStats", "label": "routes/stats.ts", "category": "server-route", "layer": 5, "file": "server/src/routes/stats.ts", "description": "The largest router: overview/by-hero/by-map/by-hour/by-day/trends/momentum/weekly/streaks/map-voting/hero-cards/hero-detail/map-detail, plus a family of 'insight' analyses (death-axis vs outcome, hot hand, performance-outcome mismatch, queue-switch tax, crit accuracy, kill-secure rate, best/worst session window) that feed the Trends factoid pool." },
+    { "id": "routeAdvisor", "label": "routes/advisor.ts", "category": "server-route", "layer": 5, "file": "server/src/routes/advisor.ts", "description": "Pre-match tactical recommendation. Picks a data-grounded primary hero (comfort pool x map win rate) and stretch pick, aggregates the player's factual death axes for the map/type/overall scope, and calls Claude Haiku for one coaching sentence — cached 7 days per (map, queue_mode)." },
+    { "id": "routeAim", "label": "routes/aim.ts", "category": "server-route", "layer": 5, "file": "server/src/routes/aim.ts", "description": "Sensitivity-study data plane: the pending-backfill queue (matches with sens logged but no aim_stats yet), upserting per-match combat stats, and /analysis — the full cm/360-bucketed accuracy/win-rate aggregation with cold/warm and adaptation splits." },
+    { "id": "routeBlind", "label": "routes/blind.ts", "category": "server-route", "layer": 5, "file": "server/src/routes/blind.ts", "description": "DPI stage-trial set lifecycle: create (explicit DPI list or auto-generated ±% spread), list, cancel (with a logged-games safety check), live loop state for all concurrently active sets, and advance-to-next-stage. Everything is shown plainly on screen — no hidden/blind mechanic remains." },
+
+    { "id": "libAim", "label": "lib/aim.ts (server)", "category": "server-lib", "layer": 6, "file": "server/src/lib/aim.ts", "description": "Aim-math + session derivations: eDPI, cm360, archetypeOf(hero) (hitscan vs. projectile), deriveSessionPosition (cold/warm), deriveSensAdaptation (matches since last sens/DPI change)." },
+    { "id": "libBlind", "label": "lib/blind.ts", "category": "server-lib", "layer": 6, "file": "server/src/lib/blind.ts", "description": "Stage-generation helpers for a DPI stage-trial set: generateStages(base, pctRange, n) for an auto ±% spread, or stagesFromDpis(list) for hand-picked DPI values." },
+    { "id": "schema", "label": "db/schema.ts", "category": "server-lib", "layer": 6, "file": "server/src/db/schema.ts", "description": "Single getDb() SQLite (node:sqlite) accessor + all additive migrations (ALTER TABLE guarded by PRAGMA table_info checks, one-time rescales guarded by PRAGMA user_version). Owns WAL mode and foreign keys. Every route reaches the DB only through this module." },
+
+    { "id": "tableMatches", "label": "matches (table)", "category": "database", "layer": 7, "file": "server/src/db/schema.ts", "description": "One row per logged game: date/time/hero/role/map/game_type/win, queue_mode, sens+dpi, feel (0-100 perceived speed), notes, deaths (JSON, v2/v3 factual axes), and blind_trial/blind_set_id/stage_index linking a match to its DPI stage-trial set." },
+    { "id": "tableAimStats", "label": "aim_stats (table)", "category": "database", "layer": 7, "file": "server/src/db/schema.ts", "description": "One-to-one with a match (match_id PK), entered separately at match end: overall_acc, crit_acc, hero_stat, elims/final_blows/deaths/damage/duration_min — the combat-output scoreboard used for performance-outcome analysis." },
+    { "id": "tableBlindSets", "label": "blind_stage_sets + blind_stages", "category": "database", "layer": 7, "file": "server/src/db/schema.ts", "description": "A DPI stage-trial set (in_game_sens, base_dpi, batch_size, cur_rel/current stage, active flag, optional hero tag) plus its ordered blind_stages rows (stage_index -> dpi). Several sets can be active concurrently, one per hero plus one ad-hoc." },
+    { "id": "tableAdvisorCache", "label": "advisor_cache (table)", "category": "database", "layer": 7, "file": "server/src/db/schema.ts", "description": "LLM insight cache keyed by (map, queue_mode), TTL 7 days. Only the coaching sentence + stretch pick are cached — death breakdown and hero stats are always recomputed live so a cache hit still reflects newly logged matches." },
+    { "id": "anthropicApi", "label": "Anthropic API (Claude Haiku 4.5)", "category": "external", "layer": 7, "file": "external", "description": "External LLM call via @anthropic-ai/sdk, structured output (json_schema) constrained to {insight, stretch, stretch_untested}. Requires ANTHROPIC_API_KEY; the route responds 503 if it's unset." }
+  ],
+
+  "edges": [
+    { "id": "e1", "source": "app", "target": "router", "type": "compose", "label": "renders" },
+    { "id": "e2", "source": "router", "target": "dashboard", "type": "compose", "label": "routes / , /prematch, /log, /trends" },
+    { "id": "e3", "source": "router", "target": "sensLog", "type": "compose", "label": "route /sens" },
+    { "id": "e4", "source": "router", "target": "sensAnalysis", "type": "compose", "label": "route /sens/analysis" },
+    { "id": "e5", "source": "dashboard", "target": "prematch", "type": "compose", "label": "renders Pre-Match tab" },
+    { "id": "e6", "source": "dashboard", "target": "logmatch", "type": "compose", "label": "renders Log Match tab" },
+    { "id": "e7", "source": "dashboard", "target": "trendssummary", "type": "compose", "label": "renders Trends tab" },
+    { "id": "e8", "source": "app", "target": "heroDrawer", "type": "compose", "label": "mounted globally" },
+    { "id": "e9", "source": "app", "target": "mapDrawer", "type": "compose", "label": "mounted globally" },
+    { "id": "e10", "source": "app", "target": "matchEditDrawer", "type": "compose", "label": "mounted globally" },
+    { "id": "e11", "source": "app", "target": "deathLogger", "type": "compose", "label": "mounted globally" },
+    { "id": "e12", "source": "prematch", "target": "advisorCard", "type": "compose", "label": "renders recommendation" },
+    { "id": "e13", "source": "heroDrawer", "target": "deathInsights", "type": "compose", "label": "renders death breakdown" },
+    { "id": "e14", "source": "mapDrawer", "target": "deathInsights", "type": "compose", "label": "renders death breakdown" },
+    { "id": "e15", "source": "prematch", "target": "uiPrimitives", "type": "compose", "label": "Odometer" },
+    { "id": "e16", "source": "sensLog", "target": "uiPrimitives", "type": "compose", "label": "SensNav" },
+    { "id": "e17", "source": "sensAnalysis", "target": "uiPrimitives", "type": "compose", "label": "SensNav" },
+
+    { "id": "e18", "source": "app", "target": "matchContext", "type": "state", "label": "MatchProvider wraps app" },
+    { "id": "e19", "source": "app", "target": "drawerContexts", "type": "state", "label": "Hero/Map/MatchEdit providers wrap app" },
+    { "id": "e20", "source": "prematch", "target": "matchContext", "type": "state", "label": "reads selected map/hero, triggers advisor fetch" },
+    { "id": "e21", "source": "logmatch", "target": "matchContext", "type": "state", "label": "writes match form state; opens Death Logger on a loss" },
+    { "id": "e22", "source": "matchContext", "target": "deathLogger", "type": "state", "label": "controls open state + receives death-axis tags" },
+    { "id": "e23", "source": "heroDrawer", "target": "drawerContexts", "type": "state", "label": "reads currently-open hero" },
+    { "id": "e24", "source": "mapDrawer", "target": "drawerContexts", "type": "state", "label": "reads currently-open map" },
+    { "id": "e25", "source": "matchEditDrawer", "target": "drawerContexts", "type": "state", "label": "reads match being edited" },
+    { "id": "e26", "source": "prematch", "target": "drawerContexts", "type": "state", "label": "opens hero/map drawer on click" },
+    { "id": "e27", "source": "logmatch", "target": "drawerContexts", "type": "state", "label": "opens hero/map drawer on click" },
+
+    { "id": "e28", "source": "dashboard", "target": "useApi", "type": "call", "label": "useApi(...)" },
+    { "id": "e29", "source": "prematch", "target": "useApi", "type": "call", "label": "useApi(...)" },
+    { "id": "e30", "source": "logmatch", "target": "useApi", "type": "call", "label": "useApi(...) + revalidateAll()" },
+    { "id": "e31", "source": "heroDrawer", "target": "useApi", "type": "call", "label": "useApi(hero-detail)" },
+    { "id": "e32", "source": "mapDrawer", "target": "useApi", "type": "call", "label": "useApi(map-detail)" },
+    { "id": "e33", "source": "matchEditDrawer", "target": "useApi", "type": "call", "label": "revalidateAll() after edit/delete" },
+    { "id": "e34", "source": "trendssummary", "target": "useApi", "type": "call", "label": "useApi(insights)" },
+    { "id": "e35", "source": "sensLog", "target": "useApi", "type": "call", "label": "useApi(...) + revalidateAll()" },
+    { "id": "e36", "source": "sensAnalysis", "target": "useApi", "type": "call", "label": "useApi(analysis)" },
+    { "id": "e37", "source": "prematch", "target": "useCounts", "type": "call", "label": "today's hero/map counts" },
+    { "id": "e38", "source": "logmatch", "target": "useCounts", "type": "call", "label": "today's hero/map counts" },
+    { "id": "e39", "source": "sensLog", "target": "useCounts", "type": "call", "label": "today's hero/map counts" },
+    { "id": "e40", "source": "sensAnalysis", "target": "useCounts", "type": "call", "label": "today's hero counts" },
+    { "id": "e41", "source": "heroDrawer", "target": "useCounts", "type": "call", "label": "today's counts" },
+    { "id": "e42", "source": "mapDrawer", "target": "useCounts", "type": "call", "label": "today's counts" },
+    { "id": "e43", "source": "matchEditDrawer", "target": "useCounts", "type": "call", "label": "today's counts" },
+    { "id": "e44", "source": "advisorCard", "target": "useCounts", "type": "call", "label": "today's counts" },
+    { "id": "e45", "source": "sensLog", "target": "clientAim", "type": "call", "label": "eDPI()" },
+    { "id": "e46", "source": "sensAnalysis", "target": "clientAim", "type": "call", "label": "MOUSE_DPI, eDPI()" },
+
+    { "id": "e47", "source": "dashboard", "target": "routeStats", "type": "api", "label": "GET /api/stats/overview" },
+    { "id": "e48", "source": "dashboard", "target": "routeStats", "type": "api", "label": "GET /api/stats/streaks" },
+    { "id": "e49", "source": "dashboard", "target": "routeStats", "type": "api", "label": "GET /api/stats/trends?window=20" },
+    { "id": "e50", "source": "dashboard", "target": "routeStats", "type": "api", "label": "GET /api/stats/mode-comparison" },
+    { "id": "e51", "source": "dashboard", "target": "routeStats", "type": "api", "label": "GET /api/stats/prematch (tilt banner)" },
+    { "id": "e52", "source": "prematch", "target": "routeStats", "type": "api", "label": "GET /api/stats/prematch?map=..." },
+    { "id": "e53", "source": "prematch", "target": "routeStats", "type": "api", "label": "GET /api/stats/map-voting" },
+    { "id": "e54", "source": "prematch", "target": "routeStats", "type": "api", "label": "GET /api/stats/by-hour" },
+    { "id": "e55", "source": "prematch", "target": "routeStats", "type": "api", "label": "GET /api/stats/streaks" },
+    { "id": "e56", "source": "prematch", "target": "routeBlind", "type": "api", "label": "GET /api/blind/state (DPI Test HUD)" },
+    { "id": "e57", "source": "prematch", "target": "routeAim", "type": "api", "label": "GET /api/aim/pending?limit=1" },
+    { "id": "e58", "source": "logmatch", "target": "routeMatches", "type": "api", "label": "GET /api/matches?from&to (today's log)" },
+    { "id": "e59", "source": "logmatch", "target": "routeMatches", "type": "api", "label": "POST /api/matches (log match)" },
+    { "id": "e60", "source": "matchContext", "target": "routeAdvisor", "type": "api", "label": "GET /api/advisor/recommend?map&queue_mode" },
+    { "id": "e61", "source": "heroDrawer", "target": "routeStats", "type": "api", "label": "GET /api/stats/hero-detail/:hero" },
+    { "id": "e62", "source": "mapDrawer", "target": "routeStats", "type": "api", "label": "GET /api/stats/map-detail/:map" },
+    { "id": "e63", "source": "matchEditDrawer", "target": "routeMatches", "type": "api", "label": "PUT /api/matches/:id" },
+    { "id": "e64", "source": "matchEditDrawer", "target": "routeMatches", "type": "api", "label": "DELETE /api/matches/:id" },
+    { "id": "e65", "source": "trendssummary", "target": "routeStats", "type": "api", "label": "GET /api/stats/insights" },
+    { "id": "e66", "source": "sensLog", "target": "routeBlind", "type": "api", "label": "POST /api/blind/sets (create test)" },
+    { "id": "e67", "source": "sensLog", "target": "routeBlind", "type": "api", "label": "GET /api/blind/state (poll loop)" },
+    { "id": "e68", "source": "sensLog", "target": "routeBlind", "type": "api", "label": "GET /api/blind/sets (history)" },
+    { "id": "e69", "source": "sensLog", "target": "routeBlind", "type": "api", "label": "POST /api/blind/advance (next stage)" },
+    { "id": "e70", "source": "sensLog", "target": "routeBlind", "type": "api", "label": "DELETE /api/blind/sets/:id (cancel)" },
+    { "id": "e71", "source": "sensLog", "target": "routeAim", "type": "api", "label": "GET /api/aim/pending (backfill queue)" },
+    { "id": "e72", "source": "sensLog", "target": "routeAim", "type": "api", "label": "POST /api/aim (submit combat stats)" },
+    { "id": "e73", "source": "sensLog", "target": "routeMatches", "type": "api", "label": "PUT /api/matches/:id (correct sens)" },
+    { "id": "e74", "source": "sensAnalysis", "target": "routeAim", "type": "api", "label": "GET /api/aim/analysis" },
+    { "id": "e75", "source": "useCounts", "target": "routeStats", "type": "api", "label": "GET /api/stats/hero-counts, /map-counts" },
+
+    { "id": "e76", "source": "serverIndex", "target": "routeMatches", "type": "call", "label": "app.use('/api/matches')" },
+    { "id": "e77", "source": "serverIndex", "target": "routeStats", "type": "call", "label": "app.use('/api/stats')" },
+    { "id": "e78", "source": "serverIndex", "target": "routeAdvisor", "type": "call", "label": "app.use('/api/advisor')" },
+    { "id": "e79", "source": "serverIndex", "target": "routeAim", "type": "call", "label": "app.use('/api/aim')" },
+    { "id": "e80", "source": "serverIndex", "target": "routeBlind", "type": "call", "label": "app.use('/api/blind')" },
+    { "id": "e81", "source": "routeAdvisor", "target": "anthropicApi", "type": "llm", "label": "client.messages.create (Claude Haiku 4.5, json_schema output)" },
+    { "id": "e82", "source": "routeAim", "target": "libAim", "type": "call", "label": "cm360, eDPI, archetypeOf, deriveSessionPosition/Adaptation" },
+    { "id": "e83", "source": "routeBlind", "target": "libBlind", "type": "call", "label": "generateStages, stagesFromDpis" },
+    { "id": "e84", "source": "routeBlind", "target": "libAim", "type": "call", "label": "eDPI, cm360 (per-stage summary)" },
+    { "id": "e85", "source": "routeMatches", "target": "schema", "type": "call", "label": "getDb()" },
+    { "id": "e86", "source": "routeStats", "target": "schema", "type": "call", "label": "getDb()" },
+    { "id": "e87", "source": "routeAdvisor", "target": "schema", "type": "call", "label": "getDb()" },
+    { "id": "e88", "source": "routeAim", "target": "schema", "type": "call", "label": "getDb()" },
+    { "id": "e89", "source": "routeBlind", "target": "schema", "type": "call", "label": "getDb()" },
+
+    { "id": "e90", "source": "schema", "target": "tableMatches", "type": "query", "label": "creates/migrates schema" },
+    { "id": "e91", "source": "schema", "target": "tableAimStats", "type": "query", "label": "creates/migrates schema" },
+    { "id": "e92", "source": "schema", "target": "tableBlindSets", "type": "query", "label": "creates/migrates schema" },
+    { "id": "e93", "source": "schema", "target": "tableAdvisorCache", "type": "query", "label": "creates/migrates schema" },
+    { "id": "e94", "source": "routeMatches", "target": "tableMatches", "type": "query", "label": "INSERT / UPDATE / DELETE matches" },
+    { "id": "e95", "source": "routeMatches", "target": "tableBlindSets", "type": "query", "label": "auto-tag DPI from active set; +games_on_stage; auto-retire" },
+    { "id": "e96", "source": "routeStats", "target": "tableMatches", "type": "query", "label": "aggregate SELECTs (overview/by-hero/trends/momentum/...)" },
+    { "id": "e97", "source": "routeStats", "target": "tableAimStats", "type": "query", "label": "JOIN for performance/crit/kill-secure insights" },
+    { "id": "e98", "source": "routeAdvisor", "target": "tableMatches", "type": "query", "label": "comfort pool, death axes, map context" },
+    { "id": "e99", "source": "routeAdvisor", "target": "tableAdvisorCache", "type": "query", "label": "read/write 7-day insight cache" },
+    { "id": "e100", "source": "routeAim", "target": "tableMatches", "type": "query", "label": "pending queue + analysis timeline" },
+    { "id": "e101", "source": "routeAim", "target": "tableAimStats", "type": "query", "label": "upsert per-match combat stats" },
+    { "id": "e102", "source": "routeBlind", "target": "tableBlindSets", "type": "query", "label": "CRUD stage sets & stages" },
+    { "id": "e103", "source": "routeBlind", "target": "tableMatches", "type": "query", "label": "count games logged per set" }
+  ],
+
+  "flows": [
+    {
+      "id": "flow-log-match",
+      "name": "Log a Match",
+      "description": "Player logs a completed match. The server alone decides whether it belongs to an active DPI stage-trial set, silently stamping DPI onto the row and advancing that set's game counter.",
+      "steps": [
+        { "node": "logmatch", "label": "Player fills hero/role/map/win-loss/sens/feel and submits." },
+        { "node": "routeMatches", "label": "POST /api/matches — looks up an active blind_stage_sets row for this hero (or the ad-hoc slot)." },
+        { "node": "schema", "label": "getDb() — single SQLite access point." },
+        { "node": "tableMatches", "label": "INSERT the match row, DPI/sens stamped from the active set if one matched." },
+        { "node": "tableBlindSets", "label": "games_on_stage += 1; set auto-retires (active=0) if this was its last needed game." },
+        { "node": "useApi", "label": "revalidateAll() fires — every mounted useApi hook refetches." },
+        { "node": "dashboard", "label": "Stat cards, streaks and trends update in place with the new match." }
+      ]
+    },
+    {
+      "id": "flow-advisor",
+      "name": "Pre-Match LLM Advisor",
+      "description": "Selecting a map triggers a data-grounded hero recommendation plus one LLM coaching sentence, cached 7 days per (map, queue_mode).",
+      "steps": [
+        { "node": "prematch", "label": "Player picks a map / queue mode." },
+        { "node": "matchContext", "label": "fetchRecommendation() calls the advisor endpoint." },
+        { "node": "routeAdvisor", "label": "GET /api/advisor/recommend — checks the 7-day cache first." },
+        { "node": "tableAdvisorCache", "label": "Cache hit: return cached insight + stretch pick immediately." },
+        { "node": "tableMatches", "label": "Cache miss: pull comfort pool, map context, and factual death axes live." },
+        { "node": "anthropicApi", "label": "Claude Haiku 4.5 call, structured output constrained to {insight, stretch, stretch_untested}." },
+        { "node": "tableAdvisorCache", "label": "Write the fresh insight back to advisor_cache." },
+        { "node": "advisorCard", "label": "Renders primary/stretch hero picks and the grounded coaching sentence." }
+      ]
+    },
+    {
+      "id": "flow-dpi-setup",
+      "name": "DPI Stage-Trial Setup",
+      "description": "Sean creates a new DPI stage-trial set for a hero (or ad-hoc) with either hand-picked DPI values or an auto ±% spread — several sets can be active at once, one per hero.",
+      "steps": [
+        { "node": "sensLog", "label": "Configure sens, batch size, and either explicit DPI values or a base+range." },
+        { "node": "routeBlind", "label": "POST /api/blind/sets — refuses a duplicate active set for the same hero/slot." },
+        { "node": "libBlind", "label": "generateStages() or stagesFromDpis() builds the ordered stage list." },
+        { "node": "schema", "label": "BEGIN transaction — set insert and stage inserts land together or roll back." },
+        { "node": "tableBlindSets", "label": "New blind_stage_sets row (cur_rel=1) plus its blind_stages rows are committed." },
+        { "node": "sensLog", "label": "GET /api/blind/state on the next poll shows the new set's HUD card, stage 1 live." }
+      ]
+    },
+    {
+      "id": "flow-dpi-advance",
+      "name": "Advance a DPI Stage",
+      "description": "Once a stage hits its game target, the player manually advances the set to the next DPI value.",
+      "steps": [
+        { "node": "sensLog", "label": "HUD shows needSwitch=true once games_on_stage >= batch_size." },
+        { "node": "routeBlind", "label": "POST /api/blind/advance {set_id} — refuses if already at the last stage." },
+        { "node": "schema", "label": "getDb()." },
+        { "node": "tableBlindSets", "label": "cur_rel += 1, games_on_stage reset to 0." },
+        { "node": "sensLog", "label": "Next poll shows the new DPI value to dial into the mouse." }
+      ]
+    },
+    {
+      "id": "flow-aim-backfill",
+      "name": "Post-Match Aim Stats Backfill",
+      "description": "Matches carry sens/DPI at log time, but combat stats (accuracy, elims, damage...) are entered afterward from the in-game scoreboard via a pending queue.",
+      "steps": [
+        { "node": "sensLog", "label": "Pending tab: matches with sens logged but no aim_stats row yet." },
+        { "node": "routeAim", "label": "GET /api/aim/pending?limit=40 — LEFT JOIN matches vs. aim_stats." },
+        { "node": "schema", "label": "getDb()." },
+        { "node": "tableMatches", "label": "Rows where sens IS NOT NULL and no matching aim_stats.match_id." },
+        { "node": "sensLog", "label": "Player fills accuracy/elims/damage/duration from the OW scoreboard." },
+        { "node": "routeAim", "label": "POST /api/aim — upsert keyed on match_id (re-submit corrects a prior entry)." },
+        { "node": "tableAimStats", "label": "INSERT ... ON CONFLICT(match_id) DO UPDATE." },
+        { "node": "useApi", "label": "revalidateAll() — the pending queue count and SensAnalysis both refresh." }
+      ]
+    },
+    {
+      "id": "flow-sens-analysis",
+      "name": "Sensitivity Analysis Aggregation",
+      "description": "The core research output: accuracy and win rate bucketed by physical cm/360 sensitivity, split by hitscan/projectile archetype and cold/warm session position.",
+      "steps": [
+        { "node": "sensAnalysis", "label": "Page loads the full study result." },
+        { "node": "routeAim", "label": "GET /api/aim/analysis." },
+        { "node": "schema", "label": "getDb()." },
+        { "node": "tableMatches", "label": "Full match timeline (session gaps, sens-run derivation)." },
+        { "node": "tableAimStats", "label": "JOIN matches for every row with logged accuracy." },
+        { "node": "libAim", "label": "cm360()/eDPI() convert sens+dpi to the physically comparable scale; archetypeOf() tags hitscan vs. projectile; deriveSessionPosition/Adaptation flag cold-start and post-DPI-change matches." },
+        { "node": "routeAim", "label": "Bucket by rounded cm/360, absorbing thin legacy near-2.5-sens points into the nearest blind-trial bucket." },
+        { "node": "sensAnalysis", "label": "Renders byScale/byArchetype charts, cold-vs-warm and adaptation splits, per-hero best scale." }
+      ]
+    },
+    {
+      "id": "flow-dashboard-load",
+      "name": "Dashboard Stats Load",
+      "description": "Landing on the Dashboard fires five parallel stat queries plus the Trends factoid pool.",
+      "steps": [
+        { "node": "dashboard", "label": "Mounts and fires useApi() for overview, streaks, trends, mode-comparison, and the tilt banner." },
+        { "node": "routeStats", "label": "GET /api/stats/{overview,streaks,trends,mode-comparison,prematch}." },
+        { "node": "schema", "label": "getDb()." },
+        { "node": "tableMatches", "label": "Aggregate SELECTs (COUNT/SUM/AVG, window functions for the rolling trend)." },
+        { "node": "dashboard", "label": "Renders StatCards, the rolling win-rate line, and the mode-comparison cards." },
+        { "node": "trendssummary", "label": "Separately loads the precomputed factoid pool." },
+        { "node": "routeStats", "label": "GET /api/stats/insights — 7 independent statistical splits computed server-side." },
+        { "node": "tableAimStats", "label": "JOINed in for the performance/crit/kill-secure splits." },
+        { "node": "trendssummary", "label": "Draws 4 random reliable factoids from the pool on every load." }
+      ]
+    },
+    {
+      "id": "flow-drilldown",
+      "name": "Hero / Map Drill-down with Death Insights",
+      "description": "Clicking a hero or map name anywhere opens its drawer with full stats and a death-pattern breakdown.",
+      "steps": [
+        { "node": "prematch", "label": "Player clicks a hero or map name." },
+        { "node": "drawerContexts", "label": "openHero(name) / openMap(name) sets the drawer's open target." },
+        { "node": "heroDrawer", "label": "Drawer slides in, keyed on the open hero." },
+        { "node": "routeStats", "label": "GET /api/stats/hero-detail/:hero." },
+        { "node": "schema", "label": "getDb()." },
+        { "node": "tableMatches", "label": "Overall/momentum/best-worst-maps/types + deathInsights() aggregation scoped to this hero." },
+        { "node": "heroDrawer", "label": "Renders the profile." },
+        { "node": "deathInsights", "label": "Renders the reason breakdown and win/loss correlation panel." }
+      ]
+    },
+    {
+      "id": "flow-edit-match",
+      "name": "Edit or Delete a Logged Match",
+      "description": "Correcting a mistake in a previously logged match, or removing a bad row entirely.",
+      "steps": [
+        { "node": "dashboard", "label": "Player clicks a match row to correct or remove it." },
+        { "node": "drawerContexts", "label": "openMatch(match) sets the edit target." },
+        { "node": "matchEditDrawer", "label": "Drawer opens with the match's current fields." },
+        { "node": "routeMatches", "label": "PUT /api/matches/:id (partial field update) or DELETE /api/matches/:id." },
+        { "node": "schema", "label": "getDb()." },
+        { "node": "tableMatches", "label": "UPDATE the listed fields only, or DELETE the row." },
+        { "node": "useApi", "label": "revalidateAll() — every page's stats immediately reflect the correction." }
+      ]
+    }
+  ]
+}
+;
+
+const CATEGORY_META = {
+  'client-page':      { color: 'var(--node-page)',      label: 'Client · Page' },
+  'client-component': { color: 'var(--node-component)', label: 'Client · Component' },
+  'client-context':    { color: 'var(--node-context)',   label: 'Client · Context' },
+  'client-hook':       { color: 'var(--node-hook)',      label: 'Client · Hook' },
+  'client-lib':        { color: 'var(--node-lib)',       label: 'Client · Lib' },
+  'server-entry':      { color: 'var(--node-entry)',     label: 'Server · Entry' },
+  'server-route':      { color: 'var(--node-route)',     label: 'Server · Route' },
+  'server-lib':        { color: 'var(--node-serverlib)', label: 'Server · Lib/DB access' },
+  'database':          { color: 'var(--node-db)',        label: 'Database table' },
+  'external':          { color: 'var(--node-external)',  label: 'External service' },
+};
+
+const EDGE_TYPE_META = {
+  compose: 'Renders / composes',
+  state:   'Context / state',
+  call:    'Function call',
+  api:     'HTTP API call',
+  query:   'DB query',
+  llm:     'LLM call',
+};
+
+// ---------- layout ----------
+// Layers flow left -> right as columns; within a column, nodes stack top -> down
+// (not vertically centered), like a stacked list per pipeline stage.
+const ROW_H = 90;
+const COL_W = 260;
+const NODE_W = 178;
+const NODE_H = 60;
+const LEFT_PAD = 110;
+const TOP_PAD = 60;
+
+const byLayer = {};
+DATA.nodes.forEach(n => { (byLayer[n.layer] ??= []).push(n); });
+const layers = Object.keys(byLayer).map(Number).sort((a,b) => a-b);
+const maxRows = Math.max(...layers.map(l => byLayer[l].length));
+const canvasW = layers.length * COL_W + LEFT_PAD + 120;
+const canvasH = Math.max(900, maxRows * ROW_H + TOP_PAD + 80);
+
+const pos = {};
+layers.forEach(l => {
+  const col = byLayer[l];
+  col.forEach((node, i) => {
+    pos[node.id] = { x: LEFT_PAD + l * COL_W, y: TOP_PAD + i * ROW_H };
+  });
+});
+
+document.getElementById('svg').setAttribute('viewBox', `0 0 ${canvasW} ${canvasH}`);
+
+// ---------- dedupe edges for drawing ----------
+const visualEdgeMap = new Map(); // key "src|tgt" -> {source,target,type,labels:[],count}
+DATA.edges.forEach(e => {
+  const key = e.source + '|' + e.target;
+  if (!visualEdgeMap.has(key)) {
+    visualEdgeMap.set(key, { source: e.source, target: e.target, type: e.type, labels: [], count: 0 });
+  }
+  const v = visualEdgeMap.get(key);
+  v.labels.push(e.label);
+  v.count++;
+});
+const visualEdges = [...visualEdgeMap.values()];
+
+const nodeById = new Map(DATA.nodes.map(n => [n.id, n]));
+
+// ---------- render nodes ----------
+const nodeLayer = document.getElementById('nodeLayer');
+const edgeLayer = document.getElementById('edgeLayer');
+const badgeLayer = document.getElementById('badgeLayer');
+const svgNS = 'http://www.w3.org/2000/svg';
+
+function el(tag, attrs, parent) {
+  const e = document.createElementNS(svgNS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
+function edgeAnchor(fromPos, toPos) {
+  // connect from right-center of source to left-center of target when target is
+  // in a later column; for same-column edges (stacked within one layer), use
+  // top/bottom anchors instead.
+  const dx = toPos.x - fromPos.x;
+  if (Math.abs(dx) >= COL_W - 20) {
+    const goingRight = dx > 0;
+    return {
+      x1: fromPos.x + (goingRight ? NODE_W/2 : -NODE_W/2), y1: fromPos.y,
+      x2: toPos.x   + (goingRight ? -NODE_W/2 : NODE_W/2), y2: toPos.y,
+    };
+  }
+  // same column: connect top/bottom, looping out to the side to clear nodes in between
+  const goingDown = toPos.y > fromPos.y;
+  return {
+    x1: fromPos.x, y1: fromPos.y + (goingDown ? NODE_H/2 : -NODE_H/2),
+    x2: toPos.x,   y2: toPos.y   + (goingDown ? -NODE_H/2 : NODE_H/2),
+  };
+}
+
+function pathD(a) {
+  const midX = (a.x1 + a.x2) / 2;
+  if (a.x1 === a.x2) {
+    // same-column: gentle sideways arc so it clears nodes stacked in between
+    const midY = (a.y1 + a.y2) / 2;
+    return `M ${a.x1} ${a.y1} Q ${a.x1 + 60} ${midY} ${a.x2} ${a.y2}`;
+  }
+  return `M ${a.x1} ${a.y1} C ${midX} ${a.y1}, ${midX} ${a.y2}, ${a.x2} ${a.y2}`;
+}
+
+const edgeEls = [];
+visualEdges.forEach(v => {
+  const fromPos = pos[v.source], toPos = pos[v.target];
+  if (!fromPos || !toPos) return;
+  const a = edgeAnchor(fromPos, toPos);
+  const d = pathD(a);
+  const g = el('g', { class: 'edge-g', 'data-src': v.source, 'data-tgt': v.target }, edgeLayer);
+  const path = el('path', {
+    class: 'edge-path' + (v.type === 'api' ? ' api' : ''),
+    d, 'marker-end': 'url(#arrow)',
+  }, g);
+  const hitbox = el('path', { class: 'edge-hitbox', d }, g);
+  hitbox.addEventListener('mouseenter', (ev) => showTip(ev, `<span class="tip-cat">${EDGE_TYPE_META[v.type] || v.type}</span><strong>${nodeById.get(v.source)?.label} → ${nodeById.get(v.target)?.label}</strong>${v.labels.map(l => `· ${l}`).join('<br/>')}`));
+  hitbox.addEventListener('mousemove', moveTip);
+  hitbox.addEventListener('mouseleave', hideTip);
+  edgeEls.push({ v, g, path });
+});
+
+const nodeEls = new Map();
+DATA.nodes.forEach(node => {
+  const p = pos[node.id];
+  const meta = CATEGORY_META[node.category] || { color: '#888', label: node.category };
+  const g = el('g', { class: 'node-group', 'data-id': node.id, transform: `translate(${p.x},${p.y})` }, nodeLayer);
+  el('rect', {
+    class: 'node-rect', x: -NODE_W/2, y: -NODE_H/2, width: NODE_W, height: NODE_H, rx: 11,
+    stroke: meta.color,
+  }, g);
+  el('rect', { x: -NODE_W/2, y: -NODE_H/2, width: 5, height: NODE_H, rx: 2, fill: meta.color }, g);
+  const title = el('text', { class: 'node-title', x: -NODE_W/2 + 14, y: -3, 'text-anchor': 'start' }, g);
+  title.textContent = truncate(node.label, 21);
+  const sub = el('text', { class: 'node-sub', x: -NODE_W/2 + 14, y: 14, 'text-anchor': 'start' }, g);
+  sub.textContent = meta.label;
+
+  g.addEventListener('click', () => selectNode(node.id));
+  g.addEventListener('mouseenter', (ev) => showTip(ev, `<span class="tip-cat">${meta.label}</span><strong>${node.label}</strong>${node.description}`));
+  g.addEventListener('mousemove', moveTip);
+  g.addEventListener('mouseleave', hideTip);
+
+  nodeEls.set(node.id, g);
+});
+
+function truncate(s, n) { return s.length > n ? s.slice(0, n-1) + '…' : s; }
+
+// ---------- tooltip ----------
+const tip = document.getElementById('tip');
+const canvasWrap = document.getElementById('canvasWrap');
+function showTip(ev, html) {
+  tip.innerHTML = html;
+  tip.style.display = 'block';
+  moveTip(ev);
+}
+function moveTip(ev) {
+  const rect = canvasWrap.getBoundingClientRect();
+  let x = ev.clientX - rect.left + 16;
+  let y = ev.clientY - rect.top + 16;
+  if (x + 280 > rect.width) x = ev.clientX - rect.left - 296;
+  tip.style.left = x + 'px';
+  tip.style.top = y + 'px';
+}
+function hideTip() { tip.style.display = 'none'; }
+
+// ---------- pan / zoom ----------
+const svg = document.getElementById('svg');
+let scale = Math.min(1, (canvasWrap.clientWidth - 40) / canvasW);
+let tx = 0, ty = 0;
+let dragging = false, lastX = 0, lastY = 0;
+const rootTransformGroups = [nodeLayer, edgeLayer, badgeLayer];
+
+function applyTransform() {
+  const t = `translate(${tx} ${ty}) scale(${scale})`;
+  [nodeLayer, edgeLayer, badgeLayer].forEach(g => g.setAttribute('transform', t));
+}
+function fitToView() {
+  scale = Math.min(1.05, (canvasWrap.clientWidth - 60) / canvasW);
+  tx = (canvasWrap.clientWidth - canvasW * scale) / 2;
+  ty = 20;
+  applyTransform();
+}
+
+svg.setAttribute('viewBox', `0 0 ${1900} ${900}`); // will be resized by fit logic below via css box; use screen-space transform instead
+function sizeSvgViewport() {
+  const w = canvasWrap.clientWidth, h = canvasWrap.clientHeight;
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+}
+sizeSvgViewport();
+window.addEventListener('resize', () => { sizeSvgViewport(); fitToView(); });
+fitToView();
+
+canvasWrap.addEventListener('wheel', (ev) => {
+  ev.preventDefault();
+  const rect = canvasWrap.getBoundingClientRect();
+  const mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
+  const delta = ev.deltaY < 0 ? 1.1 : 0.9;
+  const newScale = Math.min(2.5, Math.max(0.25, scale * delta));
+  tx = mx - (mx - tx) * (newScale / scale);
+  ty = my - (my - ty) * (newScale / scale);
+  scale = newScale;
+  applyTransform();
+}, { passive: false });
+
+canvasWrap.addEventListener('mousedown', (ev) => {
+  if (ev.target.closest('.node-group') || ev.target.closest('.edge-hitbox')) return;
+  dragging = true; lastX = ev.clientX; lastY = ev.clientY;
+  canvasWrap.classList.add('dragging');
+});
+window.addEventListener('mousemove', (ev) => {
+  if (!dragging) return;
+  tx += ev.clientX - lastX; ty += ev.clientY - lastY;
+  lastX = ev.clientX; lastY = ev.clientY;
+  applyTransform();
+});
+window.addEventListener('mouseup', () => { dragging = false; canvasWrap.classList.remove('dragging'); });
+
+document.getElementById('zoomIn').onclick = () => { scale = Math.min(2.5, scale * 1.2); applyTransform(); };
+document.getElementById('zoomOut').onclick = () => { scale = Math.max(0.25, scale / 1.2); applyTransform(); };
+document.getElementById('zoomReset').onclick = fitToView;
+
+// ---------- legend ----------
+const legend = document.getElementById('legend');
+legend.innerHTML = Object.entries(CATEGORY_META).map(([k, m]) =>
+  `<div class="item"><span class="swatch" style="background:${m.color}"></span>${m.label}</div>`
+).join('');
+
+// ---------- flows panel ----------
+const flowsTab = document.getElementById('tab-flows');
+let activeFlow = null;
+
+flowsTab.innerHTML = DATA.flows.map(f => `
+  <div class="flow-item" data-flow="${f.id}">
+    <div class="fname">${f.name}</div>
+    <div class="fdesc">${f.description}</div>
+  </div>
+`).join('') + `<button class="clear-flow-btn" id="clearFlow">Clear selection — show full graph</button>`;
+
+flowsTab.querySelectorAll('.flow-item').forEach(item => {
+  item.addEventListener('click', () => selectFlow(item.dataset.flow));
+});
+document.getElementById('clearFlow').addEventListener('click', clearFlow);
+
+function selectFlow(flowId) {
+  const flow = DATA.flows.find(f => f.id === flowId);
+  if (!flow) return;
+  activeFlow = flow;
+
+  flowsTab.querySelectorAll('.flow-item').forEach(el2 => el2.classList.toggle('selected', el2.dataset.flow === flowId));
+
+  const stepNodeIds = flow.steps.map(s => s.node);
+  const involvedNodes = new Set(stepNodeIds);
+
+  // dim everything, then un-dim involved
+  nodeEls.forEach((g, id) => g.classList.toggle('dim', !involvedNodes.has(id)));
+  nodeEls.forEach((g, id) => g.classList.toggle('hi', involvedNodes.has(id)));
+
+  // figure out consecutive edges
+  const usedEdgeKeys = new Set();
+  for (let i = 0; i < stepNodeIds.length - 1; i++) {
+    usedEdgeKeys.add(stepNodeIds[i] + '|' + stepNodeIds[i+1]);
+  }
+  edgeEls.forEach(({ v, path }) => {
+    const key = v.source + '|' + v.target;
+    const isUsed = usedEdgeKeys.has(key);
+    path.classList.toggle('dim', !isUsed);
+    path.classList.toggle('hi', isUsed);
+    path.setAttribute('marker-end', isUsed ? 'url(#arrowHi)' : 'url(#arrow)');
+  });
+
+  renderStepBadges(flow);
+  renderStepList(flow, -1);
+
+  const banner = document.getElementById('flowBanner');
+  banner.innerHTML = `<strong>${flow.name}</strong>${flow.description}`;
+  banner.classList.add('active');
+
+  // switch to flows tab if not already
+  switchTab('flows');
+}
+
+function renderStepBadges(flow) {
+  badgeLayer.innerHTML = '';
+  // group steps by node to show multiple badges if a node is revisited
+  const perNode = new Map();
+  flow.steps.forEach((s, i) => { if (!perNode.has(s.node)) perNode.set(s.node, []); perNode.get(s.node).push(i + 1); });
+  perNode.forEach((nums, nodeId) => {
+    const p = pos[nodeId];
+    if (!p) return;
+    const g = el('g', { class: 'step-badge-group', transform: `translate(${p.x + NODE_W/2 - 10},${p.y - NODE_H/2 - 2})` }, badgeLayer);
+    el('circle', { r: 10 }, g);
+    const t = el('text', { 'text-anchor': 'middle', dy: 3.5 }, g);
+    t.textContent = nums.join(',');
+  });
+}
+
+function renderStepList(flow, hoverIdx) {
+  const list = document.createElement('ol');
+  list.className = 'step-list';
+  list.style.listStyle = 'none';
+  list.innerHTML = flow.steps.map((s, i) => {
+    const n = nodeById.get(s.node);
+    return `<li data-idx="${i}"><span class="badge">${i+1}</span><span><span class="node-name">${n ? n.label : s.node}</span> — ${s.label}</span></li>`;
+  }).join('');
+
+  // Replace: show under the selected flow item
+  document.querySelectorAll('.flow-step-inline').forEach(x => x.remove());
+  const selectedItem = flowsTab.querySelector(`.flow-item.selected`);
+  if (selectedItem) {
+    const wrap = document.createElement('div');
+    wrap.className = 'flow-step-inline';
+    wrap.appendChild(list);
+    selectedItem.after(wrap);
+  }
+  list.querySelectorAll('li').forEach(li => {
+    li.addEventListener('mouseenter', () => {
+      const idx = Number(li.dataset.idx);
+      const nodeId = flow.steps[idx].node;
+      focusNodePulse(nodeId);
+    });
+  });
+}
+
+function focusNodePulse(nodeId) {
+  const g = nodeEls.get(nodeId);
+  if (!g) return;
+  g.animate([
+    { filter: 'drop-shadow(0 0 2px var(--accent))' },
+    { filter: 'drop-shadow(0 0 18px var(--accent))' },
+    { filter: 'drop-shadow(0 0 2px var(--accent))' },
+  ], { duration: 700 });
+}
+
+function clearFlow() {
+  activeFlow = null;
+  flowsTab.querySelectorAll('.flow-item').forEach(el2 => el2.classList.remove('selected'));
+  document.querySelectorAll('.flow-step-inline').forEach(x => x.remove());
+  nodeEls.forEach(g => { g.classList.remove('dim'); g.classList.remove('hi'); });
+  edgeEls.forEach(({ path }) => { path.classList.remove('dim'); path.classList.remove('hi'); path.setAttribute('marker-end', 'url(#arrow)'); });
+  badgeLayer.innerHTML = '';
+  document.getElementById('flowBanner').classList.remove('active');
+}
+
+// ---------- details panel ----------
+const detailsTab = document.getElementById('tab-details');
+function selectNode(nodeId) {
+  const node = nodeById.get(nodeId);
+  if (!node) return;
+  const meta = CATEGORY_META[node.category] || { color: '#888', label: node.category };
+
+  const outgoing = DATA.edges.filter(e => e.source === nodeId);
+  const incoming = DATA.edges.filter(e => e.target === nodeId);
+
+  const relHtml = (list, dir) => list.map(e => {
+    const other = dir === 'out' ? e.target : e.source;
+    const on = nodeById.get(other);
+    return `<li data-jump="${other}"><span>${dir === 'out' ? '→ ' : '← '}${on ? on.label : other}</span><span class="rlabel">${e.label}</span></li>`;
+  }).join('');
+
+  detailsTab.innerHTML = `
+    <div class="detail-card">
+      <span class="cat-tag" style="background:${meta.color}">${meta.label}</span>
+      <h3>${node.label}</h3>
+      <div class="filepath">${node.file}</div>
+      <p>${node.description}</p>
+      ${outgoing.length ? `<h4>Depends on / calls (${outgoing.length})</h4><ul class="rel-list">${relHtml(outgoing, 'out')}</ul>` : ''}
+      ${incoming.length ? `<h4>Used by (${incoming.length})</h4><ul class="rel-list">${relHtml(incoming, 'in')}</ul>` : ''}
+    </div>
+  `;
+  detailsTab.querySelectorAll('[data-jump]').forEach(li => {
+    li.addEventListener('click', () => { selectNode(li.dataset.jump); switchTab('details'); });
+  });
+
+  // highlight this node + direct neighbors, dim rest (only if no flow active)
+  if (!activeFlow) {
+    const neighborIds = new Set([nodeId, ...outgoing.map(e => e.target), ...incoming.map(e => e.source)]);
+    nodeEls.forEach((g, id) => {
+      g.classList.toggle('dim', !neighborIds.has(id));
+      g.classList.toggle('hi', id === nodeId);
+    });
+    edgeEls.forEach(({ v, path }) => {
+      const relevant = v.source === nodeId || v.target === nodeId;
+      path.classList.toggle('dim', !relevant);
+      path.classList.toggle('hi', relevant);
+      path.setAttribute('marker-end', relevant ? 'url(#arrowHi)' : 'url(#arrow)');
+    });
+  }
+  switchTab('details');
+}
+
+// clicking empty canvas clears node-focus dimming (but not an active flow)
+canvasWrap.addEventListener('click', (ev) => {
+  if (ev.target === svg || ev.target.id === 'svg') {
+    if (!activeFlow) {
+      nodeEls.forEach(g => { g.classList.remove('dim'); g.classList.remove('hi'); });
+      edgeEls.forEach(({ path }) => { path.classList.remove('dim'); path.classList.remove('hi'); path.setAttribute('marker-end', 'url(#arrow)'); });
+    }
+  }
+});
+
+// ---------- tabs ----------
+function switchTab(name) {
+  document.querySelectorAll('.panel-tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.panel-section').forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+}
+document.querySelectorAll('.panel-tabs button').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+// ---------- search filter ----------
+document.getElementById('search').addEventListener('input', (ev) => {
+  const q = ev.target.value.trim().toLowerCase();
+  if (!q) {
+    if (!activeFlow) { nodeEls.forEach(g => g.classList.remove('dim')); edgeEls.forEach(({path}) => path.classList.remove('dim')); }
+    return;
+  }
+  clearFlow();
+  const matchIds = new Set(DATA.nodes.filter(n =>
+    n.label.toLowerCase().includes(q) || n.file.toLowerCase().includes(q) || n.description.toLowerCase().includes(q)
+  ).map(n => n.id));
+  nodeEls.forEach((g, id) => g.classList.toggle('dim', !matchIds.has(id)));
+  edgeEls.forEach(({ v, path }) => path.classList.toggle('dim', !(matchIds.has(v.source) && matchIds.has(v.target))));
+});
+
+// ---------- theme ----------
+const themeBtn = document.getElementById('themeToggle');
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  localStorage.setItem('ow-arch-theme', t);
+}
+const savedTheme = localStorage.getItem('ow-arch-theme');
+if (savedTheme) applyTheme(savedTheme);
+themeBtn.addEventListener('click', () => {
+  const cur = document.documentElement.getAttribute('data-theme') ||
+    (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  applyTheme(cur === 'dark' ? 'light' : 'dark');
+});
+</script>
+</body>
+</html>
