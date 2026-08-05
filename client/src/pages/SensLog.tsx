@@ -181,6 +181,30 @@ const PHASE3_PLAN = [
   },
 ] as const;
 
+// ── Phase 4 test plan (reference card) ───────────────────────────────────────
+// Narrowed ±25 DPI bracket around each hero's Phase 3 leader (0.4×win% +
+// 0.4×acc% + 0.2×secondary-stat weighting), 5 games/stage instead of 12 —
+// switching to Competitive since QP win% proved too unreliable (bad
+// teammates, ~30-40% of matches) to trust at the narrower gap.
+const PHASE4_PLAN = [
+  {
+    hero: 'Sojourn', archetype: 'Hitscan', dpis: [1725, 1775], gamesPerSlot: 5,
+    note: 'Phase 3 leaned 1750 on win%/hero-stat, but ~half that win-rate gap turned out to be map-mix, not DPI — hold this one loosely.',
+  },
+  {
+    hero: 'Pharah', archetype: 'Projectile', dpis: [1475, 1525], gamesPerSlot: 5,
+    note: "75%-vs-42% swing toward 1500 in Phase 3 survived a map-mix check better than Sojourn's did, but acc/hero-stat still favor 1750 — the most contested pick of the four.",
+  },
+  {
+    hero: 'Shion', archetype: 'Hitscan', dpis: [1725, 1775], gamesPerSlot: 5,
+    note: 'Cleanest Phase 3 signal — win%, acc, crit%, and kills all agreed on 1750, and it held up after adjusting for map mix. Also matches the DPI you said you were hating (1850) losing decisively.',
+  },
+  {
+    hero: 'Tracer', archetype: 'Hitscan', dpis: [1675, 1725], gamesPerSlot: 5,
+    note: 'Phase 3 was a near-exact tie on the weighted score — 1700 edges it only on Pulse Bomb Attach% and elims. Basically a coin flip; this round is to break it.',
+  },
+] as const;
+
 interface PlanHero { hero: string; archetype: string; dpis: readonly number[]; gamesPerSlot: number; note: string }
 interface PlanTab { key: string; label: string; description: string; plan: readonly PlanHero[] }
 
@@ -192,6 +216,10 @@ const PLAN_TABS: readonly PlanTab[] = [
   {
     key: 'phase3', label: 'Phase 3', plan: PHASE3_PLAN,
     description: `In-game sens frozen at 2.50. Two-stage, tighter follow-up per hero — 2 rounds × 12 games. ${PHASE3_PLAN.length} heroes × 2 DPI levels, ${PHASE3_PLAN.reduce((sum, h) => sum + h.dpis.length * h.gamesPerSlot, 0)} games total.`,
+  },
+  {
+    key: 'phase4', label: 'Phase 4', plan: PHASE4_PLAN,
+    description: `In-game sens frozen at 2.50. Narrow ±25 DPI bracket around each Phase 3 leader, now on Competitive instead of QP. ${PHASE4_PLAN.length} heroes × 2 DPI levels, ${PHASE4_PLAN.reduce((sum, h) => sum + h.dpis.length * h.gamesPerSlot, 0)} games total.`,
   },
 ];
 
