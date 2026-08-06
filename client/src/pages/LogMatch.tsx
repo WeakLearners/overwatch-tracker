@@ -3,6 +3,7 @@ import { HEROES, ROLE_COLORS, TYPE_COLORS, DEATH_AXES, QueueMode, QUEUE_MODES, Q
 import { useMatch } from '../contexts/MatchContext';
 import EmptyState from '../components/EmptyState';
 import ModeWatermark from '../components/ModeWatermark';
+import StarRating from '../components/StarRating';
 import { useApi, revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
@@ -68,6 +69,7 @@ export default function LogMatch() {
   const mapCounts = useTodayMapCounts();
   const heroCounts = useTodayHeroCounts();
   const [feel, setFeel] = useState(FEEL_MID);
+  const [teamRating, setTeamRating] = useState(0);
   const [form, setForm] = useState<FormState>(() => {
     const n = new Date();
     let pending: { hero?: string } = {};
@@ -219,6 +221,7 @@ export default function LogMatch() {
           queue_mode: queueMode,
           sens: parseFloat(sens),
           feel,
+          team_rating: teamRating,
           notes: form.notes.trim() || null,
         }),
       });
@@ -228,6 +231,7 @@ export default function LogMatch() {
       setStatus('success');
       clearDeathBuffer();
       setFeel(FEEL_MID);
+      setTeamRating(0);
       dateTouched.current = false;
       timeTouched.current = false;
       setForm(f => ({ ...f, hero: '', win: '', notes: '', date: datePart, time: format(new Date(), 'HH:mm') }));
@@ -315,7 +319,7 @@ export default function LogMatch() {
             <h2 className="text-sm heading-display text-[var(--ink)]">Match Details</h2>
             <button
               type="button"
-              onClick={() => { setForm(f => ({ ...f, hero: '', notes: '' })); setMap(''); setFeel(FEEL_MID); }}
+              onClick={() => { setForm(f => ({ ...f, hero: '', notes: '' })); setMap(''); setFeel(FEEL_MID); setTeamRating(0); }}
               disabled={!form.hero && !map}
               data-inspect-id="logmatch-reset-button"
               className="text-xs text-[var(--faint)] hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--faint)]"
@@ -503,6 +507,11 @@ export default function LogMatch() {
                 data-inspect-id="logmatch-feel-slider"
               />
               <div className="flex justify-between text-[10px] text-[var(--faint-2)] mt-1 px-0.5"><span>Slow</span><span>Just Right</span><span>Fast</span></div>
+            </div>
+
+            <div>
+              <label className="block text-xs text-[var(--muted)] mb-1.5">Team <span className="text-[var(--faint-2)]">— how was the team this match?</span></label>
+              <StarRating value={teamRating} onChange={setTeamRating} dataInspectId="logmatch-team-rating-stars" />
             </div>
 
             <button

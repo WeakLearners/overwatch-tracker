@@ -31,7 +31,7 @@ router.get('/', (req: Request, res: Response) => {
 
 router.post('/', (req: Request, res: Response) => {
   const db = getDb();
-  const { date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, feel, notes } = req.body;
+  const { date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, feel, team_rating, notes } = req.body;
 
   if (!date || !hero || !role || !map || !game_type || win === undefined) {
     res.status(400).json({ error: 'Missing required fields' });
@@ -81,9 +81,9 @@ router.post('/', (req: Request, res: Response) => {
   }
 
   const result = db.prepare(`
-    INSERT INTO matches (date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, dpi, blind_trial, blind_set_id, stage_index, revealed, feel, notes)
-    VALUES (:date, :time, :day_of_week, :hour, :hero, :role, :map, :game_type, :win, :deaths, :queue_mode, :sens, :dpi, :blind_trial, :blind_set_id, :stage_index, 1, :feel, :notes)
-  `).run({ date, time: time ?? null, day_of_week: day_of_week ?? null, hour: hour ?? null, hero, role, map, game_type, win: win ? 1 : 0, deaths: deathsJson, queue_mode: queue_mode ?? 'comp_role', sens: finalSens, dpi: finalDpi, blind_trial: isStudy, blind_set_id: setId, stage_index: stageIdx, feel: feel ?? null, notes: notes?.trim() || null });
+    INSERT INTO matches (date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, dpi, blind_trial, blind_set_id, stage_index, revealed, feel, team_rating, notes)
+    VALUES (:date, :time, :day_of_week, :hour, :hero, :role, :map, :game_type, :win, :deaths, :queue_mode, :sens, :dpi, :blind_trial, :blind_set_id, :stage_index, 1, :feel, :team_rating, :notes)
+  `).run({ date, time: time ?? null, day_of_week: day_of_week ?? null, hour: hour ?? null, hero, role, map, game_type, win: win ? 1 : 0, deaths: deathsJson, queue_mode: queue_mode ?? 'comp_role', sens: finalSens, dpi: finalDpi, blind_trial: isStudy, blind_set_id: setId, stage_index: stageIdx, feel: feel ?? null, team_rating: team_rating ?? null, notes: notes?.trim() || null });
 
   if (isStudy && setId != null) {
     db.prepare('UPDATE blind_stage_sets SET games_on_stage = games_on_stage + 1 WHERE id = :id').run({ id: setId });
@@ -107,7 +107,7 @@ router.post('/', (req: Request, res: Response) => {
 // Partial update of a logged match. Only the columns present in the body are
 // touched, so callers can fix a single field (e.g. the queue mode) without
 // resending the whole record.
-const EDITABLE = ['date', 'time', 'day_of_week', 'hour', 'hero', 'role', 'map', 'game_type', 'win', 'queue_mode', 'sens', 'feel', 'notes'] as const;
+const EDITABLE = ['date', 'time', 'day_of_week', 'hour', 'hero', 'role', 'map', 'game_type', 'win', 'queue_mode', 'sens', 'feel', 'team_rating', 'notes'] as const;
 
 router.put('/:id', (req: Request, res: Response) => {
   const db = getDb();

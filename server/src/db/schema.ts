@@ -148,6 +148,13 @@ function initSchema(db: DatabaseSync) {
     db.exec(`PRAGMA user_version = 1`);
   }
 
+  // team_rating: perceived teammate quality, 0–5 stars in half-star steps.
+  // Captured live in the Match Log alongside feel, same rationale: the
+  // impression fades fast, so it has to be logged in the moment.
+  if (!cols.find(c => c.name === 'team_rating')) {
+    db.exec(`ALTER TABLE matches ADD COLUMN team_rating REAL`);
+  }
+
   // notes: freeform per-match note (fatigue, warmup, just switched stage, etc).
   // Captured live in the Match Log at log time (moved 2026-07-19 from a
   // combat-detail backfilled at /sens, same rationale as feel above — the
