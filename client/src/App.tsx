@@ -11,6 +11,7 @@ import { MatchProvider } from './contexts/MatchContext';
 import { MatchEditDrawerProvider } from './contexts/MatchEditDrawerContext';
 import MatchEditDrawer from './components/MatchEditDrawer';
 import DeathLogger from './components/DeathLogger';
+import InspectorOverlay from './debug/InspectorOverlay';
 
 /**
  * Root application component. Sets up context providers (hero/map drawers),
@@ -33,6 +34,7 @@ export default function App() {
           type="button"
           onClick={() => setDark(d => !d)}
           aria-label="Toggle theme"
+          data-inspect-id="app-theme-toggle"
           className="fixed top-3 right-3 z-30 w-9 h-9 rounded-full grid place-items-center bg-ow-card border border-ow-border shadow-sm text-[var(--ink-2)] hover:text-ow-accent hover:-translate-y-0.5 transition-all"
         >
           {dark ? '☀' : '☾'}
@@ -102,6 +104,7 @@ export default function App() {
     <MapDrawer />
     <HeroDrawer />
     <MatchEditDrawer />
+    {import.meta.env.DEV && <InspectorOverlay />}
     </MatchEditDrawerProvider>
     </MatchProvider>
     </MapDrawerProvider>

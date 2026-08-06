@@ -5,15 +5,16 @@ interface Props {
   title: string;
   hint?: string;
   className?: string;
+  dataInspectId?: string;
 }
 
 /**
  * Centered, intentional empty state — replaces bare one-liners like
  * "No data yet" so unpopulated cards read as designed rather than broken.
  */
-export default function EmptyState({ icon, title, hint, className = '' }: Props) {
+export default function EmptyState({ icon, title, hint, className = '', dataInspectId = 'emptyState-container' }: Props) {
   return (
-    <div className={`flex flex-col items-center justify-center text-center py-8 px-4 ${className}`}>
+    <div data-inspect-id={dataInspectId} className={`flex flex-col items-center justify-center text-center py-8 px-4 ${className}`}>
       {icon && (
         <div className="w-10 h-10 mb-2.5 rounded-full grid place-items-center bg-ow-darker/70 border border-ow-border text-lg text-[var(--faint)]">
           {icon}

@@ -67,5 +67,5 @@ export default function AnimatedNumber({
   const factor = Math.pow(10, decimals);
   const shown = (Math.round(display * factor) / factor).toFixed(decimals);
 
-  return <span style={{ fontVariantNumeric: 'tabular-nums' }}>{prefix}{shown}{suffix}</span>;
+  return <span data-inspect-id="animatedNumber-span" style={{ fontVariantNumeric: 'tabular-nums' }}>{prefix}{shown}{suffix}</span>;
 }

@@ -69,27 +69,27 @@ function StatFields({ s, upd, knownLabels }: {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs text-[var(--muted)] mb-1.5">Overall accuracy %</label>
-          <input type="number" step="0.1" min="0" max="100" inputMode="decimal" value={s.overall_acc} onChange={t('overall_acc')} className={field} placeholder="e.g. 41.2" />
+          <input type="number" step="0.1" min="0" max="100" inputMode="decimal" value={s.overall_acc} onChange={t('overall_acc')} data-inspect-id="sl-overall-acc-input" className={field} placeholder="e.g. 41.2" />
         </div>
         <div>
           <label className="block text-xs text-[var(--muted)] mb-1.5">Crit accuracy % <span className="text-[var(--faint-2)]">— if it applies</span></label>
-          <input type="number" step="0.1" min="0" max="100" inputMode="decimal" value={s.crit_acc} onChange={t('crit_acc')} className={field} placeholder="e.g. 22.5" />
+          <input type="number" step="0.1" min="0" max="100" inputMode="decimal" value={s.crit_acc} onChange={t('crit_acc')} data-inspect-id="sl-crit-acc-input" className={field} placeholder="e.g. 22.5" />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs text-[var(--muted)] mb-1.5">Hero-specific stat <span className="text-[var(--faint-2)]">— remembered per hero</span></label>
-          <input type="text" list="hero-stat-labels" value={s.hero_stat_label} onChange={t('hero_stat_label')} className={field} placeholder="e.g. scoped crit %" />
+          <input type="text" list="hero-stat-labels" value={s.hero_stat_label} onChange={t('hero_stat_label')} data-inspect-id="sl-hero-stat-input" className={field} placeholder="e.g. scoped crit %" />
           <datalist id="hero-stat-labels">{knownLabels.map(l => <option key={l} value={l} />)}</datalist>
         </div>
         <div>
           <label className="block text-xs text-[var(--muted)] mb-1.5">Value</label>
-          <input type="number" step="0.1" inputMode="decimal" value={s.hero_stat_value} onChange={t('hero_stat_value')} className={field} placeholder="e.g. 30.1" />
+          <input type="number" step="0.1" inputMode="decimal" value={s.hero_stat_value} onChange={t('hero_stat_value')} data-inspect-id="sl-hero-stat-value-input" className={field} placeholder="e.g. 30.1" />
         </div>
       </div>
       <div>
         <label className="block text-xs text-[var(--muted)] mb-1.5">Combat <span className="text-[var(--faint-2)]">— endgame scoreboard</span></label>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-4 gap-2" data-inspect-id="sl-combat-stats-inputs">
           {([['final_blows', 'Finals'], ['elims', 'Elims'], ['deaths', 'Deaths'], ['damage', 'Damage']] as const).map(([key, lbl]) => (
             <div key={key}>
               <input type="number" min="0" step="1" inputMode="numeric" value={s[key]} onChange={t(key)} className="w-full field px-2 py-2 text-sm" placeholder="0" aria-label={lbl} />
@@ -129,16 +129,16 @@ export default function SensLog() {
 
   return (
     <div className="mt-2">
-      <SensNav />
+      <SensNav dataInspectId="sl-nav" />
       <div className="mb-6">
-        <h1 className="text-2xl heading-display text-[var(--ink)]">Sensitivity Study</h1>
+        <h1 data-inspect-id="sl-header-title" className="text-2xl heading-display text-[var(--ink)]">Sensitivity Study</h1>
         <p className="text-sm text-[var(--faint)] mt-1">Enter each match's combat details here after the game. DPI stage trials are driven from the panel below and land in the same queue.</p>
       </div>
 
       <BackfillPanel pending={pending} loading={loading} knownLabels={knownLabels} labelFor={labelFor} />
 
       <div className="mt-10 pt-8 border-t border-ow-border">
-        <h2 className="text-sm heading-display text-[var(--ink)] mb-1">DPI stage trials</h2>
+        <h2 data-inspect-id="sl-header-stage-trials" className="text-sm heading-display text-[var(--ink)] mb-1">DPI stage trials</h2>
         <p className="text-xs text-[var(--faint)] mb-4">Set your mouse to the DPI shown, play a batch, switch to the next stage. Log each game in the Match Tracker — it auto-tags to your current stage and queues up above for its combat details. Heroes can be tested in parallel — start as many as you like at once.</p>
         <PlanCard tabs={PLAN_TABS} state={dpiState} />
         <TestPanel state={dpiState} />
@@ -182,25 +182,27 @@ const PHASE3_PLAN = [
 ] as const;
 
 // ── Phase 4 test plan (reference card) ───────────────────────────────────────
-// Narrowed ±25 DPI bracket around each hero's Phase 3 leader (0.4×win% +
-// 0.4×acc% + 0.2×secondary-stat weighting), 5 games/stage instead of 12 —
-// switching to Competitive since QP win% proved too unreliable (bad
-// teammates, ~30-40% of matches) to trust at the narrower gap.
+// ±50 DPI bracket around each hero's Phase 3 leader (0.4×win% + 0.4×acc% +
+// 0.2×secondary-stat weighting), 5 games/stage instead of 12 — switching to
+// Competitive since QP win% proved too unreliable (bad teammates, ~30-40% of
+// matches) to trust at the narrower gap. Originally spec'd as ±25, widened to
+// ±50 on 2026-08-05 — the mouse software's DPI field floors at 50-unit
+// increments, so 25-unit offsets (1725, 1775, etc.) aren't settable in hardware.
 const PHASE4_PLAN = [
   {
-    hero: 'Sojourn', archetype: 'Hitscan', dpis: [1725, 1775], gamesPerSlot: 5,
+    hero: 'Sojourn', archetype: 'Hitscan', dpis: [1700, 1800], gamesPerSlot: 5,
     note: 'Phase 3 leaned 1750 on win%/hero-stat, but ~half that win-rate gap turned out to be map-mix, not DPI — hold this one loosely.',
   },
   {
-    hero: 'Pharah', archetype: 'Projectile', dpis: [1475, 1525], gamesPerSlot: 5,
+    hero: 'Pharah', archetype: 'Projectile', dpis: [1450, 1550], gamesPerSlot: 5,
     note: "75%-vs-42% swing toward 1500 in Phase 3 survived a map-mix check better than Sojourn's did, but acc/hero-stat still favor 1750 — the most contested pick of the four.",
   },
   {
-    hero: 'Shion', archetype: 'Hitscan', dpis: [1725, 1775], gamesPerSlot: 5,
+    hero: 'Shion', archetype: 'Hitscan', dpis: [1700, 1800], gamesPerSlot: 5,
     note: 'Cleanest Phase 3 signal — win%, acc, crit%, and kills all agreed on 1750, and it held up after adjusting for map mix. Also matches the DPI you said you were hating (1850) losing decisively.',
   },
   {
-    hero: 'Tracer', archetype: 'Hitscan', dpis: [1675, 1725], gamesPerSlot: 5,
+    hero: 'Tracer', archetype: 'Hitscan', dpis: [1650, 1750], gamesPerSlot: 5,
     note: 'Phase 3 was a near-exact tie on the weighted score — 1700 edges it only on Pulse Bomb Attach% and elims. Basically a coin flip; this round is to break it.',
   },
 ] as const;
@@ -219,7 +221,7 @@ const PLAN_TABS: readonly PlanTab[] = [
   },
   {
     key: 'phase4', label: 'Phase 4', plan: PHASE4_PLAN,
-    description: `In-game sens frozen at 2.50. Narrow ±25 DPI bracket around each Phase 3 leader, now on Competitive instead of QP. ${PHASE4_PLAN.length} heroes × 2 DPI levels, ${PHASE4_PLAN.reduce((sum, h) => sum + h.dpis.length * h.gamesPerSlot, 0)} games total.`,
+    description: `In-game sens frozen at 2.50. Narrow ±50 DPI bracket around each Phase 3 leader (mouse DPI floors at 50-unit steps), now on Competitive instead of QP. ${PHASE4_PLAN.length} heroes × 2 DPI levels, ${PHASE4_PLAN.reduce((sum, h) => sum + h.dpis.length * h.gamesPerSlot, 0)} games total.`,
   },
 ];
 
@@ -294,11 +296,12 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
   }
 
   return (
-    <div className="card mb-6">
+    <div className="card mb-6" data-inspect-id="sl-plan-card">
       <div className="flex items-center gap-1 mb-3 border-b border-ow-border">
         {tabs.map(t => (
           <button
             key={t.key} type="button" onClick={() => setTabKey(t.key)}
+            data-inspect-id="sl-plan-tabs"
             className={`text-sm heading-display px-3 py-1.5 -mb-px border-b-2 transition-colors ${
               t.key === tabKey
                 ? 'text-[var(--ink)] border-[var(--ink)]'
@@ -310,7 +313,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
         ))}
       </div>
       <p className="text-xs text-[var(--faint)] mb-3">{description}</p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" data-inspect-id="sl-plan-hero-grid">
         {plan.map(h => {
           const s = statuses.get(h.hero)!;
           return (
@@ -329,6 +332,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                 <p className="text-[11px] text-[var(--faint)] leading-snug mb-2">{h.note}</p>
                 <button
                   type="button" onClick={() => createSetForHero(h)} disabled={creating === h.hero}
+                  data-inspect-id="sl-plan-create-btn"
                   className={`${btnSecondary} w-full py-1.5 text-xs`}
                 >
                   {creating === h.hero ? 'Creating…' : 'Create test set'}
@@ -338,6 +342,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
               {s.status !== 'none' && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-ow-card/40 backdrop-blur-[1px]">
                   <span
+                    data-inspect-id="sl-plan-status-badge"
                     className={`heading-display text-[45px] leading-none text-center drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)] ${s.status === 'testing' ? 'text-amber-500' : 'text-emerald-500'}`}
                   >
                     {s.status === 'testing' ? 'In Testing' : 'Completed'}
@@ -348,6 +353,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                       type="button"
                       onClick={() => cancelActiveSet(s.setId!, h.hero, s.totalGames)}
                       disabled={cancelling}
+                      data-inspect-id="sl-plan-cancel-btn"
                       className="mt-1 text-[10px] text-red-400 hover:text-red-300 underline underline-offset-2 disabled:opacity-40"
                     >
                       Cancel test
@@ -433,7 +439,7 @@ function ActiveTestCard({ active }: { active: DpiTestActive }) {
       <div className="card max-w-lg">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm heading-display text-[var(--ink)]">{title} — complete</h2>
-          <button type="button" onClick={loadSummary} className={`${btnSecondary} py-1.5 px-3 text-xs`}>Load summary</button>
+          <button type="button" onClick={loadSummary} data-inspect-id="sl-load-summary-btn" className={`${btnSecondary} py-1.5 px-3 text-xs`}>Load summary</button>
         </div>
         {answer ? <AnswerTable stages={answer} /> : <p className="text-xs text-[var(--faint)]">All stages hit their game target.</p>}
       </div>
@@ -444,7 +450,7 @@ function ActiveTestCard({ active }: { active: DpiTestActive }) {
 
   return (
     <div className="max-w-lg space-y-3">
-      <div className="card text-center">
+      <div className="card text-center" data-inspect-id="sl-active-test-card">
         <div className="text-xs text-[var(--faint)] mb-1">
           {active.hero ? `${active.hero} — ` : ''}Stage {active.cur_stage} of {active.n_stages} — set your mouse to
         </div>
@@ -453,7 +459,7 @@ function ActiveTestCard({ active }: { active: DpiTestActive }) {
         {active.needSwitch ? (
           <>
             <div className="text-xs text-amber-500 font-semibold mt-4 mb-1">Batch complete — switch stages</div>
-            <button type="button" onClick={advance} disabled={busy} className={`${btnSecondary} w-full py-2 text-sm mt-2`}>Get next stage →</button>
+            <button type="button" onClick={advance} disabled={busy} data-inspect-id="sl-advance-stage-btn" className={`${btnSecondary} w-full py-2 text-sm mt-2`}>Get next stage →</button>
           </>
         ) : (
           <>
@@ -465,7 +471,7 @@ function ActiveTestCard({ active }: { active: DpiTestActive }) {
       </div>
 
       <div className="card">
-        <button type="button" onClick={restart} disabled={busy} className="w-full text-xs text-[var(--faint-2)] hover:text-red-400 py-1.5">↺ Restart test from the beginning</button>
+        <button type="button" onClick={restart} disabled={busy} data-inspect-id="sl-restart-test-btn" className="w-full text-xs text-[var(--faint-2)] hover:text-red-400 py-1.5">↺ Restart test from the beginning</button>
       </div>
     </div>
   );
@@ -512,26 +518,26 @@ function CreateTestCard() {
   }
 
   return (
-    <div className="card max-w-lg">
+    <div className="card max-w-lg" data-inspect-id="sl-create-test-card">
       <h2 className="text-sm heading-display text-[var(--ink)] mb-1">Create an ad-hoc DPI test set</h2>
       <p className="text-xs text-[var(--faint)] mb-4">Pick each stage's DPI directly — e.g. levels chosen per hero from the analysis page. Type them into your mouse's DPI stages in this same order; the current stage's value stays visible on screen the whole test.</p>
       <div className="grid grid-cols-2 gap-3 mb-3">
         <label className="block">
           <span className="block text-xs text-[var(--muted)] mb-1.5">In-game sens (frozen)</span>
-          <input type="number" step="0.01" className={field} value={inGameSens} onChange={e => setInGameSens(e.target.value)} />
+          <input type="number" step="0.01" data-inspect-id="sl-ingame-sens-input" className={field} value={inGameSens} onChange={e => setInGameSens(e.target.value)} />
         </label>
         <label className="block">
           <span className="block text-xs text-[var(--muted)] mb-1.5"># Stages</span>
-          <input type="number" step="1" min="2" className={field} value={dpis.length} onChange={e => setSlotCount(e.target.value)} />
+          <input type="number" step="1" min="2" data-inspect-id="sl-num-stages-input" className={field} value={dpis.length} onChange={e => setSlotCount(e.target.value)} />
         </label>
         <label className="block col-span-2">
           <span className="block text-xs text-[var(--muted)] mb-1.5">Games per stage (samples)</span>
-          <input type="number" step="1" min="1" className={field} value={batchSize} onChange={e => setBatchSize(e.target.value)} />
+          <input type="number" step="1" min="1" data-inspect-id="sl-games-per-stage-input" className={field} value={batchSize} onChange={e => setBatchSize(e.target.value)} />
         </label>
       </div>
       <div className="mb-4">
         <span className="block text-xs text-[var(--muted)] mb-1.5">DPI per stage</span>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-2" data-inspect-id="sl-dpi-per-stage-inputs">
           {dpis.map((d, i) => (
             <input
               key={i} type="number" step="50" className={field} value={d} placeholder={`Stage ${i + 1}`}
@@ -541,14 +547,14 @@ function CreateTestCard() {
           ))}
         </div>
       </div>
-      <button type="button" onClick={createSet} disabled={busy} className="btn-primary w-full py-2.5 text-sm">{busy ? 'Creating…' : 'Create test set'}</button>
+      <button type="button" onClick={createSet} disabled={busy} data-inspect-id="sl-create-adhoc-btn" className="btn-primary w-full py-2.5 text-sm">{busy ? 'Creating…' : 'Create test set'}</button>
     </div>
   );
 }
 
 function AnswerTable({ stages }: { stages: AnswerStage[] }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto" data-inspect-id="sl-answer-table">
       <table className="w-full text-xs">
         <thead>
           <tr className="text-[var(--faint-2)] text-left">
@@ -620,7 +626,7 @@ function BackfillPanel({ pending, loading, knownLabels, labelFor }: {
 
   return (
     <div>
-      <h2 className="text-sm heading-display text-[var(--ink)] mb-1">Record combat details</h2>
+      <h2 data-inspect-id="sl-record-combat-header" className="text-sm heading-display text-[var(--ink)] mb-1">Record combat details</h2>
       <p className="text-xs text-[var(--faint)] mb-4">Every match awaiting its aim stats. Matches are logged in the Match Tracker; while a stage test is running they arrive here already tagged with that stage's DPI.</p>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card">
@@ -631,7 +637,7 @@ function BackfillPanel({ pending, loading, knownLabels, labelFor }: {
           {loading ? <p className="text-xs text-[var(--faint)]">Loading…</p>
             : pending.length === 0 ? <p className="text-xs text-[var(--faint)]">All caught up.</p>
             : (
-              <div className="space-y-2">
+              <div className="space-y-2" data-inspect-id="sl-awaiting-stats-list">
                 {pending.map(m => {
                   const c = QUEUE_MODE_COLORS[m.queue_mode]; const active = m.id === selectedId;
                   return (
@@ -658,11 +664,11 @@ function BackfillPanel({ pending, loading, knownLabels, labelFor }: {
             )}
         </div>
 
-        <div className="card">
+        <div className="card" data-inspect-id="sl-aim-stats-card">
           <h3 className="text-sm heading-display text-[var(--ink)] mb-4">Aim Stats</h3>
           {!selected ? <p className="text-xs text-[var(--faint)]">Select a match to enter its stats.</p> : (
             <div className="space-y-4">
-              <div className="rounded-lg bg-ow-darker border border-ow-border px-3 py-2.5">
+              <div className="rounded-lg bg-ow-darker border border-ow-border px-3 py-2.5" data-inspect-id="sl-selected-match-summary">
                 <div className="flex items-center gap-2">
                   <span className={`pill ${ROLE_COLORS[HEROES[selected.hero] ?? ''] ?? ''}`}>{withHeroCount(selected.hero, heroCounts)}</span>
                   <span className="text-sm text-[var(--ink)]">@ {withMapCount(selected.map, mapCounts)}</span>
@@ -671,17 +677,17 @@ function BackfillPanel({ pending, loading, knownLabels, labelFor }: {
                 <div className="flex items-center gap-2 mt-2">
                   {selected.stage_index != null && <span className="text-[11px] text-violet-500 font-semibold">Stage {selected.stage_index}</span>}
                   <label className="text-[11px] text-[var(--faint)]">Sens</label>
-                  <input type="number" step="0.01" min="0" inputMode="decimal" value={sens} onChange={e => setSens(e.target.value)} className="w-16 field px-2 py-1 text-sm num-display" placeholder="—" aria-label="Sensitivity" />
+                  <input type="number" step="0.01" min="0" inputMode="decimal" value={sens} onChange={e => setSens(e.target.value)} data-inspect-id="sl-sens-input" className="w-16 field px-2 py-1 text-sm num-display" placeholder="—" aria-label="Sensitivity" />
                   {parseFloat(sens) > 0 && <span className="text-[11px] text-[var(--faint)]">{Math.round(eDPI(parseFloat(sens)))} eDPI</span>}
                   <label className="text-[11px] font-semibold text-[var(--ink)] ml-auto">Duration <span className="text-violet-500">*</span></label>
-                  <input ref={durationRef} type="number" min="0" step="1" inputMode="numeric" value={stats.duration_min} onChange={e => setStats(s => ({ ...s, duration_min: e.target.value }))} className={`w-16 field px-2 py-1.5 text-sm num-display ${parseFloat(stats.duration_min) > 0 ? '' : 'ring-1 ring-violet-500/60'}`} placeholder="min" aria-label="Duration in minutes" required />
+                  <input ref={durationRef} type="number" min="0" step="1" inputMode="numeric" value={stats.duration_min} onChange={e => setStats(s => ({ ...s, duration_min: e.target.value }))} data-inspect-id="sl-duration-input" className={`w-16 field px-2 py-1.5 text-sm num-display ${parseFloat(stats.duration_min) > 0 ? '' : 'ring-1 ring-violet-500/60'}`} placeholder="min" aria-label="Duration in minutes" required />
                 </div>
               </div>
               <StatFields s={stats} upd={(k, v) => setStats(s => ({ ...s, [k]: v }))} knownLabels={knownLabels} />
-              <button type="button" onClick={save} disabled={!(parseFloat(stats.overall_acc) >= 0 && parseFloat(stats.duration_min) > 0) || status === 'saving'} className="btn-primary w-full py-2.5 text-sm">
+              <button type="button" onClick={save} disabled={!(parseFloat(stats.overall_acc) >= 0 && parseFloat(stats.duration_min) > 0) || status === 'saving'} data-inspect-id="sl-save-stats-btn" className="btn-primary w-full py-2.5 text-sm">
                 {status === 'saving' ? 'Saving…' : status === 'success' ? '✓ Saved' : 'Save Stats'}
               </button>
-              {status === 'error' && <p className="text-red-600 text-xs text-center">Failed to save — is the server running?</p>}
+              {status === 'error' && <p data-inspect-id="sl-save-error-banner" className="text-red-600 text-xs text-center">Failed to save — is the server running?</p>}
             </div>
           )}
         </div>
@@ -690,12 +696,12 @@ function BackfillPanel({ pending, loading, knownLabels, labelFor }: {
       {showCaughtUp && (
         <div className="fixed inset-0 z-50 grid place-items-center">
           <div className="fixed inset-0 bg-black/50" onClick={() => setShowCaughtUp(false)} />
-          <div className="relative card max-w-sm w-full mx-4 text-center">
+          <div className="relative card max-w-sm w-full mx-4 text-center" data-inspect-id="sl-caught-up-modal">
             <h3 className="text-sm heading-display text-[var(--ink)] mb-1.5">All caught up</h3>
             <p className="text-xs text-[var(--faint)] mb-4">No matches left awaiting combat details. Head back to the Match Tracker?</p>
             <div className="flex items-center gap-2">
-              <button type="button" onClick={() => setShowCaughtUp(false)} className={`${btnSecondary} flex-1 py-2 text-sm`}>Stay</button>
-              <button type="button" autoFocus onClick={() => navigate('/')} className="btn-primary flex-1 py-2 text-sm">Leave</button>
+              <button type="button" onClick={() => setShowCaughtUp(false)} data-inspect-id="sl-caught-up-stay-btn" className={`${btnSecondary} flex-1 py-2 text-sm`}>Stay</button>
+              <button type="button" autoFocus onClick={() => navigate('/')} data-inspect-id="sl-caught-up-leave-btn" className="btn-primary flex-1 py-2 text-sm">Leave</button>
             </div>
           </div>
         </div>

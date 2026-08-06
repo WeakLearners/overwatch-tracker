@@ -121,9 +121,9 @@ function bySpeed<T extends { eDPI: number }>(rows: T[]): (T & { sensAt1600: numb
 }
 
 // Card wrapper with a title and one-line explanation of how to read it.
-function Section({ title, hint, children }: { title: string; hint: string; children: React.ReactNode }) {
+function Section({ title, hint, children, dataInspectId }: { title: string; hint: string; children: React.ReactNode; dataInspectId?: string }) {
   return (
-    <div className="card">
+    <div className="card" data-inspect-id={dataInspectId}>
       <h2 className="text-sm heading-display text-[var(--ink)]">{title}</h2>
       <p className="text-xs text-[var(--faint)] mt-1 mb-4">{hint}</p>
       {children}
@@ -566,9 +566,9 @@ export default function SensAnalysis() {
 
   const wrap = (children: React.ReactNode) => (
     <div className="mt-2">
-      <SensNav />
+      <SensNav dataInspectId="sensAnalysis-sensnav" />
       <div className="mb-6">
-        <h1 className="text-2xl heading-display text-[var(--ink)]">Sensitivity Analysis</h1>
+        <h1 data-inspect-id="sensAnalysis-header sensAnalysis-page-title" className="text-2xl heading-display text-[var(--ink)]">Sensitivity Analysis</h1>
         <p className="text-sm text-[var(--faint)] mt-1">
           What the numbers say — and where they agree or disagree with how it felt.
         </p>
@@ -581,7 +581,7 @@ export default function SensAnalysis() {
 
   if (data.summary.n === 0) {
     return wrap(
-      <div className="card">
+      <div className="card" data-inspect-id="sensAnalysis-empty-state-banner sensAnalysis-no-data-banner">
         <p className="text-sm text-[var(--ink)]">No aim data yet.</p>
         <p className="text-xs text-[var(--faint)] mt-1.5">
           Log matches with their sensitivity, then record each one's stats on the{' '}
@@ -642,9 +642,9 @@ export default function SensAnalysis() {
 
   return wrap(
     <div className="space-y-6">
-      <p className="text-xs text-[var(--faint)]">
+      <p className="text-xs text-[var(--faint)]" data-inspect-id="sensAnalysis-summary-banner">
         <span className="text-[var(--ink)] font-semibold">{summary.n}</span> logged matches across{' '}
-        <span className="text-[var(--ink)] font-semibold">{summary.distinctScale}</span> distinct sens (@{MOUSE_DPI} DPI) scales.
+        <span className="text-[var(--ink)] font-semibold" data-inspect-id="sensAnalysis-summary-line">{summary.distinctScale}</span> distinct sens (@{MOUSE_DPI} DPI) scales.
         Accuracy is shown as a delta vs. your own average on each hero, so heroes mix fairly.
         <br />
         <span className="text-[var(--faint-2)]">
@@ -653,7 +653,7 @@ export default function SensAnalysis() {
         </span>
       </p>
 
-      <p className="text-xs text-[var(--faint)] rounded-lg bg-ow-darker border border-ow-border px-3 py-2">
+      <p className="text-xs text-[var(--faint)] rounded-lg bg-ow-darker border border-ow-border px-3 py-2" data-inspect-id="sensAnalysis-standard-of-measure-banner">
         <span className="text-[var(--ink)] font-semibold">Standard of measure:</span> every scale on this page is
         shown as <span className="text-[var(--ink)]">in-game sens at {MOUSE_DPI} DPI</span> (eDPI ÷ {MOUSE_DPI}), not
         cm/360 or the raw DPI tested. DPI is the varied test variable, and the mouse settles back at {MOUSE_DPI} DPI
@@ -664,15 +664,16 @@ export default function SensAnalysis() {
       <Section
         title="Recommendation"
         hint="A DPI suggestion plus a call on whether to keep exploring or start converging — recomputed from the same scale data below."
+        dataInspectId="sensAnalysis-recommendation-card"
       >
         <div className="flex items-start gap-3 flex-wrap">
-          <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${recommendation.verdict === 'narrow' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-violet-500/15 text-violet-500'}`}>
-            {recommendation.verdict === 'narrow' ? 'Narrow focus' : 'Continue testing'}
+          <span data-inspect-id="sensAnalysis-recommendation-verdict-badge" className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${recommendation.verdict === 'narrow' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-violet-500/15 text-violet-500'}`}>
+            <span data-inspect-id="sensAnalysis-recommendation-badge">{recommendation.verdict === 'narrow' ? 'Narrow focus' : 'Continue testing'}</span>
           </span>
           <p className="text-sm text-[var(--ink)] font-semibold flex-1 min-w-[200px]">{recommendation.headline}</p>
         </div>
         {recommendation.points.length > 0 && (
-          <ul className="space-y-2 text-sm text-[var(--ink-2)] list-disc list-inside marker:text-violet-500 mt-3">
+          <ul className="space-y-2 text-sm text-[var(--ink-2)] list-disc list-inside marker:text-violet-500 mt-3" data-inspect-id="sensAnalysis-recommendation-points-list">
             {recommendation.points.map((p, i) => <li key={i}>{p}</li>)}
           </ul>
         )}
@@ -682,9 +683,10 @@ export default function SensAnalysis() {
       <Section
         title="What the Data Shows"
         hint="Auto-generated from the same numbers as the charts below — recomputed every time you log a match."
+        dataInspectId="sensAnalysis-data-shows-card"
       >
         {insights.length > 0 ? (
-          <ul className="space-y-2.5 text-sm text-[var(--ink-2)] list-disc list-inside marker:text-violet-500">
+          <ul className="space-y-2.5 text-sm text-[var(--ink-2)] list-disc list-inside marker:text-violet-500" data-inspect-id="sensAnalysis-insights-list">
             {insights.map((note, i) => <li key={i}>{note}</li>)}
           </ul>
         ) : (
@@ -697,13 +699,14 @@ export default function SensAnalysis() {
         <Section
           title="Feel vs. Data"
           hint={`Each dot is a tested scale, placed by how fast it felt (x) against how it actually performed (y). The crosshair sits at your own averages, so the four quadrants split above/below-average feel × above/below-average accuracy. Bottom-right = feels fast but aims worse than average (gut over-rates it); top-left = feels slow but aims better (underrated).`}
+          dataInspectId="sensAnalysis-feel-vs-data-card"
         >
           <div className="flex gap-2">
             <div className="flex flex-col justify-between text-[10px] text-[var(--faint-2)] py-3 w-12 shrink-0 text-right">
               <span>More accurate</span>
               <span>Less accurate</span>
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0" data-inspect-id="sensAnalysis-feel-vs-data-chart">
               <ResponsiveContainer width="100%" height={280}>
                 <ScatterChart data={feelPts} margin={{ top: 12, right: 12, bottom: 4, left: 0 }}>
                   <CartesianGrid stroke="rgb(var(--ow-border))" />
@@ -730,15 +733,16 @@ export default function SensAnalysis() {
         <Section
           title="Peak Sens by Category"
           hint={`One point per category — Overall, Hitscan, Projectile, and each hero — placed at that category's own best-performing scale (not every tested scale, just the peak). The shaded band marks "close enough" to Overall${Number.isFinite(spread.threshold) ? ` (±${spread.threshold.toFixed(2)} sens)` : ''}; points inside it don't need their own sens, points outside might.`}
+          dataInspectId="sensAnalysis-peak-sens-by-category-chart sensAnalysis-peak-sens-card"
         >
           <div className="flex items-start gap-3 flex-wrap mb-3">
-            <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${spread.verdict === 'scattered' ? 'bg-amber-500/15 text-amber-500' : spread.verdict === 'grouped' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-violet-500/15 text-violet-500'}`}>
-              {spread.verdict === 'scattered' ? 'Split may help' : spread.verdict === 'grouped' ? 'One sens fits all' : 'Not enough data'}
+            <span data-inspect-id="sensAnalysis-peak-sens-verdict-badge" className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${spread.verdict === 'scattered' ? 'bg-amber-500/15 text-amber-500' : spread.verdict === 'grouped' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-violet-500/15 text-violet-500'}`}>
+              <span data-inspect-id="sensAnalysis-peak-sens-badge">{spread.verdict === 'scattered' ? 'Split may help' : spread.verdict === 'grouped' ? 'One sens fits all' : 'Not enough data'}</span>
             </span>
             <p className="text-sm text-[var(--ink)] font-semibold flex-1 min-w-[200px]">{spread.headline}</p>
           </div>
           {spread.points.length >= 2 ? (
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0" data-inspect-id="sensAnalysis-peak-sens-chart">
               <ResponsiveContainer width="100%" height={280}>
                 <ScatterChart data={spread.points} margin={{ top: 16, right: 16, bottom: 24, left: 10 }}>
                   <CartesianGrid stroke="rgb(var(--ow-border))" strokeOpacity={0.5} strokeDasharray="3 3" verticalValues={spreadGridX} horizontalValues={spreadGridY} />
@@ -805,8 +809,8 @@ export default function SensAnalysis() {
 
       {/* Cold vs Warm + Adaptation */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Section title="Cold vs. Warm" hint="First game of a session vs. later ones — is a sens good from the jump, or only once warmed up?">
-          <div className="grid grid-cols-2 gap-3">
+        <Section title="Cold vs. Warm" hint="First game of a session vs. later ones — is a sens good from the jump, or only once warmed up?" dataInspectId="sensAnalysis-cold-warm-card">
+          <div className="grid grid-cols-2 gap-3" data-inspect-id="sensAnalysis-cold-warm-stat-grid sensAnalysis-cold-warm-tiles">
             {coldWarm.map(b => (
               <div key={b.bucket} className="rounded-lg bg-ow-darker border border-ow-border p-3">
                 <div className="text-[11px] text-[var(--faint)] mb-1">{b.bucket}</div>
@@ -817,8 +821,8 @@ export default function SensAnalysis() {
           </div>
         </Section>
 
-        <Section title="Adaptation" hint="Just after a sens change vs. once settled — separates a genuinely worse sens from one you hadn't adjusted to yet.">
-          <div className="grid grid-cols-2 gap-3">
+        <Section title="Adaptation" hint="Just after a sens change vs. once settled — separates a genuinely worse sens from one you hadn't adjusted to yet." dataInspectId="sensAnalysis-adaptation-card">
+          <div className="grid grid-cols-2 gap-3" data-inspect-id="sensAnalysis-adaptation-stat-grid sensAnalysis-adaptation-tiles">
             {adaptation.map(b => (
               <div key={b.bucket} className="rounded-lg bg-ow-darker border border-ow-border p-3">
                 <div className="text-[11px] text-[var(--faint)] mb-1">{b.bucket}</div>
@@ -831,7 +835,7 @@ export default function SensAnalysis() {
       </div>
 
       {/* Per-scale table */}
-      <Section title={`By Scale (sens @${MOUSE_DPI} DPI)`} hint={`Every tested scale, expressed as in-game sens at ${MOUSE_DPI} DPI, with its eDPI and averages. Win % is the actual match win rate at that scale — the outcome that matters, vs. accuracy which is a proxy for it. Δ is accuracy vs. your hero baseline. "Sens" is the raw in-game value actually used during testing (frozen across the DPI stage tests, since DPI was the varied variable).`}>
+      <Section title={`By Scale (sens @${MOUSE_DPI} DPI)`} hint={`Every tested scale, expressed as in-game sens at ${MOUSE_DPI} DPI, with its eDPI and averages. Win % is the actual match win rate at that scale — the outcome that matters, vs. accuracy which is a proxy for it. Δ is accuracy vs. your hero baseline. "Sens" is the raw in-game value actually used during testing (frozen across the DPI stage tests, since DPI was the varied variable).`} dataInspectId="sensAnalysis-by-scale-table">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -860,7 +864,7 @@ export default function SensAnalysis() {
       </Section>
 
       {/* By hero */}
-      <Section title="By Hero" hint={`Sample size per hero — thin rows are noise until they build up. Optimal Sens is the sens (@${MOUSE_DPI} DPI) scale where that hero's own accuracy peaks, with its n in parens — treat it as noise below n=${RELIABLE_N}. Δ Overall/Crit compare that scale's accuracy to the hero's own Overall/Crit average.`}>
+      <Section title="By Hero" hint={`Sample size per hero — thin rows are noise until they build up. Optimal Sens is the sens (@${MOUSE_DPI} DPI) scale where that hero's own accuracy peaks, with its n in parens — treat it as noise below n=${RELIABLE_N}. Δ Overall/Crit compare that scale's accuracy to the hero's own Overall/Crit average.`} dataInspectId="sensAnalysis-by-hero-table">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -906,6 +910,7 @@ export default function SensAnalysis() {
           <Section
             title="Accuracy by Sens — Per Hero"
             hint={`Sens (@${MOUSE_DPI} DPI) on the x-axis, accuracy on the y-axis — one box per hero per scale it's been tested at (needs 2+ logged games there). Each box spans Q1–Q3 with a median line; whiskers mark min/max.${skipped ? ` ${skipped} hero${skipped === 1 ? '' : 's'} skipped — never tested at 2+ games on the same scale.` : ''}`}
+            dataInspectId="sensAnalysis-accuracy-by-sens-per-hero-chart"
           >
             {testedHeroes.length ? (
               <>
@@ -963,6 +968,7 @@ export default function SensAnalysis() {
           <Section
             title="Accuracy by Hero — Per Sens"
             hint={`Hero on the x-axis, accuracy on the y-axis — one box per sens scale that hero's been tested at (needs 2+ logged games there). Each box spans Q1–Q3 with a median line; whiskers mark min/max.${skipped ? ` ${skipped} hero${skipped === 1 ? '' : 's'} skipped — never tested at 2+ games on the same scale.` : ''}`}
+            dataInspectId="sensAnalysis-accuracy-by-hero-per-sens-chart"
           >
             {testedRows.length ? (
               <>

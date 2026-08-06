@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+Before searching for where a specific UI feature or API behavior lives, check `.claude/FEATURE-MAP.md` — it maps every visible feature to a grep-able anchor string, its file, and its backend dependency. Update the relevant row in the same commit whenever a feature is added, renamed, or moved.
+
 ## Commands
 
 From the project root:

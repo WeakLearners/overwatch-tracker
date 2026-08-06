@@ -20,7 +20,7 @@ interface HeroDetail {
 
 function WR({ rate }: { rate: number }) {
   const cls = rate >= 60 ? 'text-emerald-600' : rate >= 50 ? 'text-ow-blue' : rate >= 40 ? 'text-yellow-400' : 'text-red-600';
-  return <span className={`font-bold ${cls}`}>{rate}%</span>;
+  return <span data-inspect-id="hero-drawer-wr-badge" className={`font-bold ${cls}`}>{rate}%</span>;
 }
 
 function DrawerContent({ hero, role }: { hero: string; role?: string }) {
@@ -40,7 +40,7 @@ function DrawerContent({ hero, role }: { hero: string; role?: string }) {
 
       {/* Overall */}
       <div>
-        <div className="text-xs text-[var(--faint)] uppercase tracking-wider mb-2">Overall</div>
+        <div data-inspect-id="hero-drawer-overall-tile" className="text-xs text-[var(--faint)] uppercase tracking-wider mb-2">Overall</div>
         <div className="flex items-end gap-2">
           <span className={`text-4xl font-black ${data.overall.win_rate >= 50 ? 'text-emerald-600' : 'text-red-600'}`}>
             {data.overall.win_rate}%
@@ -53,7 +53,7 @@ function DrawerContent({ hero, role }: { hero: string; role?: string }) {
       {/* Trend */}
       {delta !== null && (
         <div>
-          <div className="text-xs text-[var(--faint)] uppercase tracking-wider mb-2">Trend</div>
+          <div data-inspect-id="hero-drawer-trend-section" className="text-xs text-[var(--faint)] uppercase tracking-wider mb-2">Trend</div>
           <div className="flex items-center gap-2">
             <span className="text-sm text-[var(--muted)]">{prev_wr}%</span>
             <span className="text-[var(--faint-2)]">→</span>
@@ -71,14 +71,14 @@ function DrawerContent({ hero, role }: { hero: string; role?: string }) {
       {/* Maps */}
       {(data.bestMaps.length > 0 || data.worstMaps.length > 0) && (
         <div>
-          <div className="text-xs text-[var(--faint)] uppercase tracking-wider mb-2">Maps</div>
+          <div data-inspect-id="hero-drawer-maps-list" className="text-xs text-[var(--faint)] uppercase tracking-wider mb-2">Maps</div>
           <div className="divide-y divide-ow-border/30">
             {data.bestMaps.map(m => (
               <div key={'b' + m.map} className="flex items-center gap-2 py-1.5">
                 <span className="text-sm text-emerald-700">↑</span>
                 <div className="flex-1 min-w-0">
                   <span className="text-sm text-[var(--ink)] truncate">{withMapCount(m.map, mapCounts)}</span>
-                  <span className={`pill ml-1 ${TYPE_COLORS[m.game_type] ?? ''}`}>{m.game_type}</span>
+                  <span data-inspect-id="hero-drawer-type-pill-badge" className={`pill ml-1 ${TYPE_COLORS[m.game_type] ?? ''}`}>{m.game_type}</span>
                 </div>
                 <WR rate={m.win_rate} />
                 <span className="text-xs text-[var(--faint-2)] w-7 text-right">{m.games}g</span>
@@ -102,7 +102,7 @@ function DrawerContent({ hero, role }: { hero: string; role?: string }) {
       {/* Game modes */}
       {(data.bestType || data.worstType) && (
         <div>
-          <div className="text-xs text-[var(--faint)] uppercase tracking-wider mb-2">Game Mode</div>
+          <div data-inspect-id="hero-drawer-game-mode-list" className="text-xs text-[var(--faint)] uppercase tracking-wider mb-2">Game Mode</div>
           <div className="divide-y divide-ow-border/30">
             {data.bestType && (
               <div className="flex items-center gap-2 py-1.5">
@@ -129,12 +129,12 @@ function DrawerContent({ hero, role }: { hero: string; role?: string }) {
       )}
 
       {/* Death patterns */}
-      <DeathInsights data={data.deaths} label={withHeroCount(hero, heroCounts)} />
+      <DeathInsights dataInspectId="hero-drawer-death-patterns-section" data={data.deaths} label={withHeroCount(hero, heroCounts)} />
 
       {/* Last 10 */}
       {data.recent10.length > 0 && (
         <div>
-          <div className="text-xs text-[var(--faint)] uppercase tracking-wider mb-2">Last {data.recent10.length}</div>
+          <div data-inspect-id="hero-drawer-last10-list" className="text-xs text-[var(--faint)] uppercase tracking-wider mb-2">Last {data.recent10.length}</div>
           <div className="flex items-center gap-1.5 flex-wrap">
             {data.recent10.map((m, i) => (
               <div
@@ -163,15 +163,16 @@ export default function HeroDrawer() {
   return (
     <>
       <div
+        data-inspect-id="hero-drawer-backdrop"
         className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ${activeHero ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={closeHero}
       />
-      <div className={`fixed inset-y-0 right-0 w-96 bg-ow-dark border-l border-ow-border z-50 flex flex-col transition-transform duration-300 ${activeHero ? 'translate-x-0' : 'translate-x-full'}`}>
+      <div data-inspect-id="hero-drawer-panel" className={`fixed inset-y-0 right-0 w-96 bg-ow-dark border-l border-ow-border z-50 flex flex-col transition-transform duration-300 ${activeHero ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="flex items-start justify-between p-5 border-b border-ow-border shrink-0">
           <div>
-            <h2 className="text-lg heading-display text-[var(--ink)] leading-tight">{activeHero ? withHeroCount(activeHero, heroCounts) : ''}</h2>
+            <h2 data-inspect-id="hero-drawer-title-header" className="text-lg heading-display text-[var(--ink)] leading-tight">{activeHero ? withHeroCount(activeHero, heroCounts) : ''}</h2>
           </div>
-          <button onClick={closeHero} className="text-[var(--faint)] hover:text-[var(--ink)] transition-colors text-2xl leading-none ml-4">
+          <button onClick={closeHero} data-inspect-id="hero-drawer-close-button" className="text-[var(--faint)] hover:text-[var(--ink)] transition-colors text-2xl leading-none ml-4">
             ×
           </button>
         </div>

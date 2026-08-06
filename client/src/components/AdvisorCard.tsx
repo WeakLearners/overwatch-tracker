@@ -58,15 +58,22 @@ export default function AdvisorCard({ map, queueLabel, rec, loading, error, onRe
   const mapCounts = useTodayMapCounts();
   const heroCounts = useTodayHeroCounts();
   return (
-    <div className={bare ? '' : 'rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-3'}>
+    <div
+      data-inspect-id="advisorCard-outerCard"
+      className={bare ? '' : 'rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-3'}
+    >
       {!bare && (
         <div className="flex items-center justify-between mb-2">
-          <div className="text-[10px] text-emerald-600 uppercase tracking-widest font-semibold">
+          <div
+            data-inspect-id="advisorCard-header"
+            className="text-[10px] text-emerald-600 uppercase tracking-widest font-semibold"
+          >
             {withMapCount(map, mapCounts)}
             <span className="text-[var(--faint-2)] mx-2">·</span>
             <span className="text-[var(--faint)]">{queueLabel}</span>
           </div>
           <button
+            data-inspect-id="advisorCard-refreshButton"
             onClick={onRefresh}
             disabled={loading}
             className="text-[10px] text-[var(--faint)] hover:text-emerald-600 disabled:opacity-40 uppercase tracking-wider"
@@ -76,21 +83,22 @@ export default function AdvisorCard({ map, queueLabel, rec, loading, error, onRe
         </div>
       )}
 
-      {loading && !rec && <div className="text-xs text-[var(--faint)]">Loading…</div>}
-      {error && <div className="text-xs text-red-600">{error}</div>}
+      {loading && !rec && <div data-inspect-id="advisorCard-loadingIndicator" className="text-xs text-[var(--faint)]">Loading…</div>}
+      {error && <div data-inspect-id="advisorCard-errorBanner" className="text-xs text-red-600">{error}</div>}
 
       {rec && (
         <>
           {/* Primary + stretch hero */}
           <div className="flex items-center gap-2 mb-2 text-sm flex-wrap">
             <button
+              data-inspect-id="advisorCard-primaryHeroButton"
               onClick={() => onOpenHero(rec.primary)}
               className="font-bold text-[var(--ink)] hover:text-ow-accent transition-colors"
             >
               {withHeroCount(rec.primary, heroCounts)}
             </button>
             {rec.primary_stats && (
-              <span className="text-[10px] text-[var(--faint)]">
+              <span data-inspect-id="advisorCard-primaryStatsBadge" className="text-[10px] text-[var(--faint)]">
                 {rec.primary_stats.win_rate}% · {rec.primary_stats.games}g
               </span>
             )}
@@ -98,6 +106,7 @@ export default function AdvisorCard({ map, queueLabel, rec, loading, error, onRe
               <>
                 <span className="text-[var(--faint-2)]">→</span>
                 <button
+                  data-inspect-id="advisorCard-stretchHeroButton"
                   onClick={() => onOpenHero(rec.stretch!)}
                   className={`font-semibold transition-colors ${
                     rec.stretch_untested
@@ -108,6 +117,7 @@ export default function AdvisorCard({ map, queueLabel, rec, loading, error, onRe
                   {withHeroCount(rec.stretch, heroCounts)}
                 </button>
                 <span
+                  data-inspect-id="advisorCard-stretchBadge"
                   className="text-[10px] text-[var(--faint-2)] italic"
                   title={
                     rec.stretch_untested
@@ -124,10 +134,13 @@ export default function AdvisorCard({ map, queueLabel, rec, loading, error, onRe
           {/* Death axes — factual stats from the player's own logs */}
           {rec.death_axes ? (
             <div className="mb-2.5">
-              <div className="text-[10px] text-[var(--faint)] uppercase tracking-wider mb-1.5">
+              <div
+                data-inspect-id="advisorCard-scopeCaption"
+                className="text-[10px] text-[var(--faint)] uppercase tracking-wider mb-1.5"
+              >
                 {scopeCaption(rec, map, rec.death_axes, mapCounts)}
               </div>
-              <div className="space-y-1">
+              <div data-inspect-id="advisorCard-spectrumBars" className="space-y-1">
                 {DEATH_AXES.map(a => {
                   const ax = rec.death_axes!.axes[a.key];
                   return (
@@ -137,7 +150,7 @@ export default function AdvisorCard({ map, queueLabel, rec, loading, error, onRe
                 })}
               </div>
               {rec.death_axes.strongest_lean && (
-                <div className="text-[10px] text-[var(--faint)] mt-1.5">
+                <div data-inspect-id="advisorCard-strongestLean" className="text-[10px] text-[var(--faint)] mt-1.5">
                   Strongest lean: <span className="text-[var(--ink-2)]">
                     {DEATH_AXES.find(a => a.key === rec.death_axes!.strongest_lean!.axis)?.label} — {rec.death_axes.strongest_lean.label}
                   </span> ({rec.death_axes.strongest_lean.n} logged)
@@ -145,12 +158,12 @@ export default function AdvisorCard({ map, queueLabel, rec, loading, error, onRe
               )}
             </div>
           ) : (
-            <div className="text-[10px] text-[var(--faint-2)] mb-2.5">No death tags yet — log a few matches with the new death tagger to unlock patterns.</div>
+            <div data-inspect-id="advisorCard-noDeathTagsMessage" className="text-[10px] text-[var(--faint-2)] mb-2.5">No death tags yet — log a few matches with the new death tagger to unlock patterns.</div>
           )}
 
           {/* One grounded coaching insight */}
           {rec.insight && (
-            <div className="flex items-start gap-2 text-xs text-[var(--ink-2)] border-t border-emerald-500/15 pt-2">
+            <div data-inspect-id="advisorCard-insightCallout" className="flex items-start gap-2 text-xs text-[var(--ink-2)] border-t border-emerald-500/15 pt-2">
               <span className="text-emerald-700 mt-0.5">▸</span>
               <span className="leading-snug">{rec.insight}</span>
             </div>

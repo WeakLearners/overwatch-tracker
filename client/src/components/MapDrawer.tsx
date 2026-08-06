@@ -36,7 +36,7 @@ function DrawerContent({ map }: { map: string }) {
 
       {/* Overall */}
       <div>
-        <div className="text-xs text-[var(--faint)] uppercase tracking-wider mb-2">Overall</div>
+        <div data-inspect-id="mapDrawer-overall-stat" className="text-xs text-[var(--faint)] uppercase tracking-wider mb-2">Overall</div>
         <div className="flex items-end gap-2">
           <span className={`text-4xl font-black ${data.overall.win_rate >= 50 ? 'text-emerald-600' : 'text-red-600'}`}>
             {data.overall.win_rate}%
@@ -49,7 +49,7 @@ function DrawerContent({ map }: { map: string }) {
       {/* Trend */}
       {delta !== null && (
         <div>
-          <div className="text-xs text-[var(--faint)] uppercase tracking-wider mb-2">Trend</div>
+          <div data-inspect-id="mapDrawer-trend-stat" className="text-xs text-[var(--faint)] uppercase tracking-wider mb-2">Trend</div>
           <div className="flex items-center gap-2">
             <span className="text-sm text-[var(--muted)]">{prev_wr}%</span>
             <span className="text-[var(--faint-2)]">→</span>
@@ -69,7 +69,7 @@ function DrawerContent({ map }: { map: string }) {
         const heroes = data.heroes[role];
         if (!heroes?.length) return null;
         return (
-          <div key={role}>
+          <div key={role} data-inspect-id="mapDrawer-heroes-list">
             <div className={`text-xs font-bold uppercase tracking-widest mb-2 ${ROLE_COLORS[role].split(' ')[1]}`}>
               {role}
             </div>
@@ -90,12 +90,12 @@ function DrawerContent({ map }: { map: string }) {
       })}
 
       {/* Death patterns */}
-      <DeathInsights data={data.deaths} label={withMapCount(map, mapCounts)} />
+      <DeathInsights dataInspectId="mapDrawer-death-insights" data={data.deaths} label={withMapCount(map, mapCounts)} />
 
       {/* Last 5 */}
       {data.recent5.length > 0 && (
         <div>
-          <div className="text-xs text-[var(--faint)] uppercase tracking-wider mb-2">Last {data.recent5.length}</div>
+          <div data-inspect-id="mapDrawer-last5-list" className="text-xs text-[var(--faint)] uppercase tracking-wider mb-2">Last {data.recent5.length}</div>
           <div className="flex items-center gap-2">
             {data.recent5.map((m, i) => (
               <div
@@ -126,17 +126,18 @@ export default function MapDrawer() {
     <>
       {/* Backdrop */}
       <div
+        data-inspect-id="mapDrawer-backdrop"
         className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ${activeMap ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={closeMap}
       />
       {/* Drawer */}
-      <div className={`fixed inset-y-0 right-0 w-96 bg-ow-dark border-l border-ow-border z-50 flex flex-col transition-transform duration-300 ${activeMap ? 'translate-x-0' : 'translate-x-full'}`}>
+      <div data-inspect-id="mapDrawer-panel" className={`fixed inset-y-0 right-0 w-96 bg-ow-dark border-l border-ow-border z-50 flex flex-col transition-transform duration-300 ${activeMap ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="flex items-start justify-between p-5 border-b border-ow-border shrink-0">
           <div>
-            <h2 className="text-lg heading-display text-[var(--ink)] leading-tight">{activeMap ? withMapCount(activeMap, mapCounts) : ''}</h2>
-            {mapType && <span className={`pill mt-1 ${TYPE_COLORS[mapType] ?? ''}`}>{mapType}</span>}
+            <h2 data-inspect-id="mapDrawer-title" className="text-lg heading-display text-[var(--ink)] leading-tight">{activeMap ? withMapCount(activeMap, mapCounts) : ''}</h2>
+            {mapType && <span data-inspect-id="mapDrawer-type-badge" className={`pill mt-1 ${TYPE_COLORS[mapType] ?? ''}`}>{mapType}</span>}
           </div>
-          <button onClick={closeMap} className="text-[var(--faint)] hover:text-[var(--ink)] transition-colors text-2xl leading-none ml-4">
+          <button onClick={closeMap} data-inspect-id="mapDrawer-close-button" className="text-[var(--faint)] hover:text-[var(--ink)] transition-colors text-2xl leading-none ml-4">
             ×
           </button>
         </div>

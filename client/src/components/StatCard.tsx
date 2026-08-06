@@ -6,12 +6,13 @@ interface Props {
   /** Decimal places + suffix when value is numeric (e.g. 1 + '%' for win rate). */
   decimals?: number;
   suffix?: string;
+  dataInspectId?: string;
 }
 
-export default function StatCard({ label, value, sub, color, decimals = 0, suffix = '' }: Props) {
+export default function StatCard({ label, value, sub, color, decimals = 0, suffix = '', dataInspectId = 'statCard-card' }: Props) {
   const grad = color === 'win' ? 'grad-win' : color === 'loss' ? 'grad-loss' : 'grad-neutral';
   return (
-    <div className="card">
+    <div className="card" data-inspect-id={dataInspectId}>
       <div className={`text-4xl font-black tracking-tight num-display ${grad}`}>
         {typeof value === 'number'
           ? `${value.toFixed(decimals)}${suffix}`

@@ -71,7 +71,7 @@ export default function TrendsSummary() {
   if (shown.length === 0) return null;
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+    <div data-inspect-id="trendssummary-factoid-grid dash-trends-summary-section" className="grid grid-cols-2 sm:grid-cols-4 gap-4">
       {shown.map(f => (
         <FactoidCard key={f.id} f={f} />
       ))}

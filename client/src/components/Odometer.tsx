@@ -27,10 +27,10 @@ function Drum({ digit, size }: { digit: number; size: number }) {
   );
 }
 
-export default function Odometer({ value, size = 46 }: { value: number; size?: number }) {
+export default function Odometer({ value, size = 46, dataInspectId = 'odometer-display' }: { value: number; size?: number; dataInspectId?: string }) {
   const v = Math.max(0, Math.min(99, Math.round(value)));
   return (
-    <div className="flex gap-0">
+    <div className="flex gap-0" data-inspect-id={dataInspectId}>
       <Drum digit={Math.floor(v / 10)} size={size} />
       <Drum digit={v % 10} size={size} />
     </div>

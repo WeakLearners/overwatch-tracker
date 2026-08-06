@@ -85,7 +85,7 @@ function DrawerForm({ match }: { match: TrendPoint }) {
     <div className="flex-1 overflow-y-auto p-5 space-y-5">
       {/* Mode */}
       <div>
-        <label className="block text-xs text-[var(--muted)] mb-1.5">Mode</label>
+        <label data-inspect-id="matchEditDrawer-mode-toggle" className="block text-xs text-[var(--muted)] mb-1.5">Mode</label>
         <div className="grid grid-cols-3 gap-2">
           {QUEUE_MODES.map(m => {
             const active = form.queue_mode === m.value;
@@ -109,7 +109,7 @@ function DrawerForm({ match }: { match: TrendPoint }) {
 
       {/* Hero */}
       <div>
-        <label className="block text-xs text-[var(--muted)] mb-1.5">Hero</label>
+        <label data-inspect-id="matchEditDrawer-hero-select" className="block text-xs text-[var(--muted)] mb-1.5">Hero</label>
         <select
           value={form.hero}
           onChange={e => setForm(f => ({ ...f, hero: e.target.value }))}
@@ -123,12 +123,12 @@ function DrawerForm({ match }: { match: TrendPoint }) {
             </optgroup>
           ))}
         </select>
-        {heroRole && <span className={`pill mt-1.5 ${ROLE_COLORS[heroRole]}`}>{heroRole}</span>}
+        {heroRole && <span data-inspect-id="matchEditDrawer-hero-role-badge" className={`pill mt-1.5 ${ROLE_COLORS[heroRole]}`}>{heroRole}</span>}
       </div>
 
       {/* Map */}
       <div>
-        <label className="block text-xs text-[var(--muted)] mb-1.5">Map</label>
+        <label data-inspect-id="matchEditDrawer-map-select" className="block text-xs text-[var(--muted)] mb-1.5">Map</label>
         <select
           value={form.map}
           onChange={e => setForm(f => ({ ...f, map: e.target.value }))}
@@ -138,12 +138,12 @@ function DrawerForm({ match }: { match: TrendPoint }) {
             <option key={m} value={m}>{withMapCount(m, mapCounts)} ({MAPS[m]})</option>
           ))}
         </select>
-        {mapType && <span className={`pill mt-1.5 ${TYPE_COLORS[mapType] ?? ''}`}>{mapType}</span>}
+        {mapType && <span data-inspect-id="matchEditDrawer-map-type-badge" className={`pill mt-1.5 ${TYPE_COLORS[mapType] ?? ''}`}>{mapType}</span>}
       </div>
 
       {/* Result */}
       <div>
-        <label className="block text-xs text-[var(--muted)] mb-1.5">Result</label>
+        <label data-inspect-id="matchEditDrawer-result-toggle" className="block text-xs text-[var(--muted)] mb-1.5">Result</label>
         <div className="flex gap-3">
           {[{ v: 1, label: 'Win', cls: 'border-emerald-500 bg-emerald-500/20 text-emerald-600' },
             { v: 0, label: 'Loss', cls: 'border-red-500 bg-red-500/20 text-red-600' }].map(({ v, label, cls }) => (
@@ -163,7 +163,7 @@ function DrawerForm({ match }: { match: TrendPoint }) {
 
       {/* Date */}
       <div>
-        <label className="block text-xs text-[var(--muted)] mb-1.5">Date</label>
+        <label data-inspect-id="matchEditDrawer-date-input" className="block text-xs text-[var(--muted)] mb-1.5">Date</label>
         <input
           type="date"
           value={form.date}
@@ -178,11 +178,12 @@ function DrawerForm({ match }: { match: TrendPoint }) {
           type="button"
           onClick={save}
           disabled={status === 'saving' || !form.hero || !form.map}
+          data-inspect-id="matchEditDrawer-save-button"
           className="btn-primary w-full py-2.5 text-sm"
         >
           {status === 'saving' ? 'Saving…' : 'Save Changes'}
         </button>
-        {status === 'error' && <p className="text-red-600 text-xs text-center">Failed to save — is the server running?</p>}
+        {status === 'error' && <p data-inspect-id="matchEditDrawer-save-error-banner" className="text-red-600 text-xs text-center">Failed to save — is the server running?</p>}
 
         {confirmDelete ? (
           <div className="flex gap-2">
@@ -190,6 +191,7 @@ function DrawerForm({ match }: { match: TrendPoint }) {
               type="button"
               onClick={remove}
               disabled={status === 'saving'}
+              data-inspect-id="matchEditDrawer-confirm-delete-button"
               className="flex-1 py-2 rounded-lg border border-red-500 bg-red-500/15 text-red-600 text-sm font-semibold hover:bg-red-500/25 transition-colors"
             >
               Confirm delete
@@ -197,6 +199,7 @@ function DrawerForm({ match }: { match: TrendPoint }) {
             <button
               type="button"
               onClick={() => setConfirmDelete(false)}
+              data-inspect-id="matchEditDrawer-cancel-delete-button"
               className="flex-1 py-2 rounded-lg border border-ow-border text-[var(--muted)] text-sm hover:text-[var(--ink)] transition-colors"
             >
               Cancel
@@ -206,6 +209,7 @@ function DrawerForm({ match }: { match: TrendPoint }) {
           <button
             type="button"
             onClick={() => setConfirmDelete(true)}
+            data-inspect-id="matchEditDrawer-delete-button"
             className="w-full py-2 rounded-lg border border-ow-border text-xs text-[var(--faint)] hover:text-red-600 hover:border-red-500/50 transition-colors"
           >
             Delete this match
@@ -228,21 +232,22 @@ export default function MatchEditDrawer() {
     <>
       {/* Backdrop */}
       <div
+        data-inspect-id="matchEditDrawer-backdrop"
         className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ${editMatch ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={closeEdit}
       />
       {/* Drawer */}
-      <div className={`fixed inset-y-0 right-0 w-96 bg-ow-dark border-l border-ow-border z-50 flex flex-col transition-transform duration-300 ${editMatch ? 'translate-x-0' : 'translate-x-full'}`}>
+      <div data-inspect-id="matchEditDrawer-panel" className={`fixed inset-y-0 right-0 w-96 bg-ow-dark border-l border-ow-border z-50 flex flex-col transition-transform duration-300 ${editMatch ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="flex items-start justify-between p-5 border-b border-ow-border shrink-0">
           <div>
-            <h2 className="text-lg heading-display text-[var(--ink)] leading-tight">Edit Match</h2>
+            <h2 data-inspect-id="matchEditDrawer-header-title" className="text-lg heading-display text-[var(--ink)] leading-tight">Edit Match</h2>
             {editMatch && (
-              <div className="text-xs text-[var(--faint)] mt-1">
+              <div data-inspect-id="matchEditDrawer-logged-date-label" className="text-xs text-[var(--faint)] mt-1">
                 Logged {format(parseISO(editMatch.date), 'MMM d, yyyy')}
               </div>
             )}
           </div>
-          <button onClick={closeEdit} className="text-[var(--faint)] hover:text-[var(--ink)] transition-colors text-2xl leading-none ml-4">
+          <button onClick={closeEdit} data-inspect-id="matchEditDrawer-close-button" className="text-[var(--faint)] hover:text-[var(--ink)] transition-colors text-2xl leading-none ml-4">
             ×
           </button>
         </div>

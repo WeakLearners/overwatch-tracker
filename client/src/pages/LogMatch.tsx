@@ -262,13 +262,14 @@ export default function LogMatch() {
   return (
     <div className="mt-6">
       {/* Deaths buffered via the floating 💀 button during the match */}
-      <div id="notable-deaths" className="card mb-6 scroll-mt-24">
+      <div id="notable-deaths" className="card mb-6 scroll-mt-24" data-inspect-id="logmatch-deaths-card">
         <div className="flex items-center justify-between mb-1">
           <h2 className="text-sm heading-display text-[var(--ink)]">Deaths</h2>
           {deathBuffer.length > 0 && (
             <button
               type="button"
               onClick={clearDeathBuffer}
+              data-inspect-id="logmatch-clear-all-deaths-button"
               className="text-xs text-[var(--faint)] hover:text-red-600 transition-colors"
             >
               Clear all
@@ -281,7 +282,7 @@ export default function LogMatch() {
             Tap 💀 during the match to log each death as it happens.
           </p>
         ) : (
-          <div className="space-y-1.5">
+          <div className="space-y-1.5" data-inspect-id="logmatch-death-buffer-list">
             {deathBuffer.map((d, i) => {
               const axis = DEATH_AXES.find(a => a.key === d.axis);
               // Word the spectrum position toward the nearer pole (or neutral).
@@ -309,19 +310,20 @@ export default function LogMatch() {
       </div>
 
       <div id="match-details" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="card">
+        <div className="card" data-inspect-id="logmatch-match-details-card">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm heading-display text-[var(--ink)]">Match Details</h2>
             <button
               type="button"
               onClick={() => { setForm(f => ({ ...f, hero: '', notes: '' })); setMap(''); setFeel(FEEL_MID); }}
               disabled={!form.hero && !map}
+              data-inspect-id="logmatch-reset-button"
               className="text-xs text-[var(--faint)] hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--faint)]"
             >
               Reset
             </button>
           </div>
-          <form onSubmit={submit} className="space-y-4">
+          <form onSubmit={submit} className="space-y-4" data-inspect-id="logmatch-match-details-form">
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs text-[var(--muted)] mb-1.5">Date</label>
@@ -329,6 +331,7 @@ export default function LogMatch() {
                   type="date"
                   value={form.date}
                   onChange={set('date')}
+                  data-inspect-id="logmatch-date-input"
                   className="w-full field px-3 py-2 text-sm"
                 />
               </div>
@@ -338,13 +341,14 @@ export default function LogMatch() {
                   type="time"
                   value={form.time}
                   onChange={set('time')}
+                  data-inspect-id="logmatch-time-input"
                   className="w-full field px-3 py-2 text-sm"
                 />
               </div>
               <div>
                 <label className="block text-xs text-[var(--muted)] mb-1.5">Sensitivity</label>
                 {/* Read-only — frozen at the study's in-game value (2.5). */}
-                <div className="w-full field px-3 py-2 text-sm num-display text-[var(--ink)] whitespace-nowrap overflow-hidden">
+                <div data-inspect-id="logmatch-sensitivity-display" className="w-full field px-3 py-2 text-sm num-display text-[var(--ink)] whitespace-nowrap overflow-hidden">
                   {parseFloat(sens) > 0 ? parseFloat(sens).toFixed(2) : '—'}
                 </div>
               </div>
@@ -355,6 +359,7 @@ export default function LogMatch() {
               <select
                 value={form.hero}
                 onChange={set('hero')}
+                data-inspect-id="logmatch-hero-select"
                 className="w-full field px-3 py-2 text-sm"
               >
                 <option value="">— Select hero —</option>
@@ -366,7 +371,7 @@ export default function LogMatch() {
                   </optgroup>
                 ))}
               </select>
-              {heroRole && <span className={`pill mt-1.5 ${ROLE_COLORS[heroRole]}`}>{heroRole}</span>}
+              {heroRole && <span data-inspect-id="logmatch-hero-role-badge" className={`pill mt-1.5 ${ROLE_COLORS[heroRole]}`}>{heroRole}</span>}
             </div>
 
             <div>
@@ -374,10 +379,10 @@ export default function LogMatch() {
               {map ? (
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-[var(--ink)] font-medium">{withMapCount(map, mapCounts)}</span>
-                  {mapType && <span className={`pill ${TYPE_COLORS[mapType] ?? ''}`}>{mapType}</span>}
+                  {mapType && <span data-inspect-id="logmatch-map-type-badge" className={`pill ${TYPE_COLORS[mapType] ?? ''}`}>{mapType}</span>}
                 </div>
               ) : (
-                <div className="text-xs text-[var(--faint)] italic">Pick a map in the Pre-Match section above to log a result.</div>
+                <div data-inspect-id="logmatch-map-display" className="text-xs text-[var(--faint)] italic">Pick a map in the Pre-Match section above to log a result.</div>
               )}
             </div>
 
@@ -385,7 +390,7 @@ export default function LogMatch() {
               <label className="block text-xs text-[var(--muted)] mb-1.5">
                 Mode <span className="text-[var(--faint-2)]">— recording this match as</span>
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-2" data-inspect-id="logmatch-mode-toggle">
                 {QUEUE_MODES.map(m => {
                   const active = queueMode === m.value;
                   const c = QUEUE_MODE_COLORS[m.value];
@@ -415,7 +420,7 @@ export default function LogMatch() {
             </div>
 
             <div>
-              <label className="block text-xs text-[var(--muted)] mb-1.5">Result</label>
+              <label data-inspect-id="logmatch-result-toggle" className="block text-xs text-[var(--muted)] mb-1.5">Result</label>
               <div className="relative flex h-[3.25rem] w-full rounded-lg overflow-hidden">
                 {/* Sliding fill — animates to the selected half and takes its color;
                     hidden until a result is chosen. */}
@@ -478,6 +483,7 @@ export default function LogMatch() {
                 value={form.notes}
                 onChange={set('notes')}
                 rows={2}
+                data-inspect-id="logmatch-notes-textarea"
                 className="w-full field px-3 py-2 text-sm resize-none"
                 placeholder="fatigue, warmup, just switched stage…"
               />
@@ -494,6 +500,7 @@ export default function LogMatch() {
                 onChange={e => setFeel(Number(e.target.value))}
                 className="w-full accent-violet-500"
                 aria-label="Feel — slow to fast"
+                data-inspect-id="logmatch-feel-slider"
               />
               <div className="flex justify-between text-[10px] text-[var(--faint-2)] mt-1 px-0.5"><span>Slow</span><span>Just Right</span><span>Fast</span></div>
             </div>
@@ -501,18 +508,19 @@ export default function LogMatch() {
             <button
               type="submit"
               disabled={!valid || status === 'saving'}
+              data-inspect-id="logmatch-log-match-button"
               className="btn-primary w-full py-2.5 text-sm"
             >
               {status === 'saving' ? 'Saving…' : status === 'success' ? '✓ Saved' : 'Log Match'}
             </button>
-            {status === 'error' && <p className="text-red-600 text-xs text-center">Failed to save — is the server running?</p>}
+            {status === 'error' && <p data-inspect-id="logmatch-save-error-banner" className="text-red-600 text-xs text-center">Failed to save — is the server running?</p>}
           </form>
         </div>
 
-        <div className="card">
+        <div className="card" data-inspect-id="logmatch-recently-logged-card">
           <h2 className="text-sm heading-display text-[var(--ink-2)] mb-4">Recently Logged</h2>
           {recent.length > 0 ? (
-            <div className="space-y-2">
+            <div className="space-y-2" data-inspect-id="logmatch-recently-logged-list">
               {recent.map(r => {
                 // Build 5 display slots: oldest on left, newest on right.
                 // API returns newest-first; display newest on the left (direct index).
@@ -559,6 +567,7 @@ export default function LogMatch() {
             </div>
           ) : (
             <EmptyState
+              dataInspectId="logmatch-nothing-logged-empty-state"
               icon="✎"
               title="Nothing logged today"
               hint="Today's matches show here with each map's recent record, and reset when the day rolls over."

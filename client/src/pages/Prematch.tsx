@@ -188,10 +188,10 @@ export default function Prematch() {
             in its whole test and games left before its next stage switch.
             Drives off the same state the Sens page loop does. Sits where the
             sens picker used to. */}
-        <div className="card aspect-square shrink-0 flex flex-col self-stretch">
+        <div className="card aspect-square shrink-0 flex flex-col self-stretch" data-inspect-id="prematch-dpi-hud-card">
           <div className="flex items-center justify-between mb-2 gap-2">
             <h2 className="text-sm heading-display text-[var(--ink)] whitespace-nowrap">DPI Test</h2>
-            {bt && <span className="text-xs num-display text-[var(--ink)] shrink-0">{bt.dpi} DPI</span>}
+            {bt && <span className="text-xs num-display text-[var(--ink)] shrink-0" data-inspect-id="prematch-dpi-value-badge">{bt.dpi} DPI</span>}
           </div>
           {btActives.length > 1 && (
             <select
@@ -199,6 +199,7 @@ export default function Prematch() {
               onChange={e => setBtHeroPick(e.target.value)}
               className="text-[11px] field px-1.5 py-1 mb-2 w-full"
               aria-label="Hero to show DPI-test progress for"
+              data-inspect-id="prematch-dpi-hero-picker-select"
             >
               {btActives.map(a => (
                 <option key={a.set_id} value={a.hero ?? AD_HOC_KEY}>{a.hero ?? 'Ad-hoc'} — {a.dpi} DPI</option>
@@ -210,12 +211,12 @@ export default function Prematch() {
           )}
           {bt ? (
             <div className="flex-1 grid grid-cols-[auto_auto] items-center gap-x-3 gap-y-1.5 place-content-center">
-              <Odometer value={btTestLeft} />
+              <Odometer value={btTestLeft} dataInspectId="prematch-dpi-matches-left-odometer" />
               <div className="leading-tight">
                 <div className="text-sm text-[var(--ink)]">matches left</div>
                 <div className="text-[10px] text-[var(--faint-2)]">in this test</div>
               </div>
-              <Odometer value={btGamesLeft} />
+              <Odometer value={btGamesLeft} dataInspectId="prematch-dpi-games-left-odometer" />
               <div className="leading-tight">
                 <div className="text-sm text-[var(--ink)]">games left</div>
                 <div className="text-[10px] text-[var(--faint-2)]">in stage {bt.cur_stage}</div>
@@ -224,13 +225,14 @@ export default function Prematch() {
                   being its own grid) so its drum is guaranteed to land in the
                   same x position as the two above — a separate grid re-centers
                   independently and drifts whenever the label text width differs. */}
-              <Odometer value={backlogCount} />
+              <Odometer value={backlogCount} dataInspectId="prematch-backlog-odometer" />
               <div className="leading-tight">
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-[var(--ink)]">in backlog</span>
                   <Link
                     to="/sens"
                     className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-gradient-to-r from-ow-accent to-ow-accentLight text-white shadow-md shadow-ow-accent/30 hover:brightness-110 active:brightness-95 transition-all whitespace-nowrap"
+                    data-inspect-id="prematch-backlog-go-link"
                   >
                     Go →
                   </Link>
@@ -239,7 +241,7 @@ export default function Prematch() {
               </div>
             </div>
           ) : (
-            <div className="flex-1 grid place-items-center text-center px-2">
+            <div className="flex-1 grid place-items-center text-center px-2" data-inspect-id="prematch-dpi-idle-banner">
               <div>
                 <div className="text-xs text-[var(--faint)]">No DPI test running</div>
                 <div className="text-[10px] text-[var(--faint-2)] mt-1">Start one on the Sens page →</div>
@@ -269,17 +271,12 @@ export default function Prematch() {
         </div>
 
         {/* Map Voting */}
-        <div className="card flex-1 min-w-0 flex flex-col">
+        <div className="card flex-1 min-w-0 flex flex-col" data-inspect-id="prematch-map-voting-card">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <h2 className="text-sm heading-display text-[var(--ink)] whitespace-nowrap">Map Voting</h2>
               <span className="text-xs text-[var(--faint)] bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">tap up to 3</span>
             </div>
-            {selected.length > 0 && (
-              <button onClick={() => setSelected([])} className="text-xs text-[var(--faint)] hover:text-[var(--ink)] transition-colors">
-                clear
-              </button>
-            )}
           </div>
 
           {/* Search input */}
@@ -297,11 +294,12 @@ export default function Prematch() {
                 if (e.key === 'Enter' && results.length > 0) selectMap(results[0]);
               }}
               placeholder={selected.length >= 3 ? '3 maps selected' : 'Type a map name…'}
+              data-inspect-id="prematch-map-search-input"
               disabled={selected.length >= 3}
               className="w-full field px-3 py-2 text-sm"
             />
             {open && results.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-ow-card rounded-lg shadow-xl z-30 overflow-hidden">
+              <div className="absolute top-full left-0 right-0 mt-1 bg-ow-card rounded-lg shadow-xl z-30 overflow-hidden" data-inspect-id="prematch-map-search-results-dropdown">
                 {results.map(m => (
                   <button
                     key={m}
@@ -319,7 +317,7 @@ export default function Prematch() {
           {/* Idle: best & worst maps by win rate — tap one to add it to your
               picks (which swaps this block for the chips + vote below). */}
           {selected.length === 0 && rankedMaps.length > 0 && (
-            <div className="flex-1 grid grid-cols-2 gap-x-4 content-center">
+            <div className="flex-1 grid grid-cols-2 gap-x-4 content-center" data-inspect-id="prematch-best-worst-maps-list">
               {([
                 { label: 'Best maps', color: 'text-emerald-600', pct: 'text-emerald-500', list: bestMaps },
                 { label: 'Worst maps', color: 'text-red-500', pct: 'text-red-500', list: worstMaps },
@@ -343,7 +341,7 @@ export default function Prematch() {
 
           {/* Selected chips */}
           {selected.length > 0 && (
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2 flex-wrap" data-inspect-id="prematch-selected-map-chips">
               {selected.map(m => (
                 <button
                   key={m}
@@ -359,6 +357,13 @@ export default function Prematch() {
                   <span className="text-xs opacity-60">×</span>
                 </button>
               ))}
+              <button
+                onClick={() => setSelected([])}
+                className="flex items-center px-3 py-1 rounded-full text-sm font-medium bg-ow-border/40 text-[var(--ink-2)] hover:bg-ow-border/70 hover:text-[var(--ink)] transition-colors"
+                data-inspect-id="prematch-map-voting-clear-button"
+              >
+                Clear
+              </button>
             </div>
           )}
 
@@ -371,7 +376,7 @@ export default function Prematch() {
                 <div className="flex items-center gap-4">
                   <div className="flex-1">
                     <div className="text-xs text-[var(--faint)] mb-1 uppercase tracking-wider">Vote for</div>
-                    <button onClick={() => openMap(winner)} className="text-xl font-bold text-emerald-600 hover:text-emerald-700 transition-colors text-left">
+                    <button onClick={() => openMap(winner)} className="text-xl font-bold text-emerald-600 hover:text-emerald-700 transition-colors text-left" data-inspect-id="prematch-vote-for-button">
                       {withMapCount(winner, mapCounts)}
                     </button>
                     {scoreMap[winner] && (
@@ -394,14 +399,14 @@ export default function Prematch() {
         </div>
 
         {/* Hero Advisor — Map selector */}
-        <div className="card flex-1 min-w-0 flex flex-col">
+        <div className="card flex-1 min-w-0 flex flex-col" data-inspect-id="prematch-hero-advisor-card">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <h2 className="text-sm heading-display text-[var(--ink)] whitespace-nowrap">Hero Advisor</h2>
               <span className="text-xs text-[var(--faint)] bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">pick a map</span>
             </div>
             {map && (
-              <button onClick={() => setMap('')} className="text-xs text-[var(--faint)] hover:text-[var(--ink)] transition-colors">
+              <button onClick={() => setMap('')} className="text-xs text-[var(--faint)] hover:text-[var(--ink)] transition-colors" data-inspect-id="prematch-hero-advisor-clear-button">
                 clear
               </button>
             )}
@@ -412,6 +417,7 @@ export default function Prematch() {
               value={map}
               onChange={e => setMap(e.target.value)}
               className="w-full field px-3 py-2 text-sm"
+              data-inspect-id="prematch-map-select-dropdown"
             >
               <option value="">— Select map —</option>
               {(selected.length > 0 ? selected : Object.keys(MAPS)).sort().map(m => (
@@ -419,12 +425,12 @@ export default function Prematch() {
               ))}
             </select>
           </div>
-          {mapType && <span className={`pill ${TYPE_COLORS[mapType] ?? ''}`}>{mapType}</span>}
+          {mapType && <span className={`pill ${TYPE_COLORS[mapType] ?? ''}`} data-inspect-id="prematch-map-type-badge">{mapType}</span>}
 
           {/* Idle: session & timing snapshot — how you're doing right now */}
           {!map && (
             <div className="flex-1 flex items-stretch content-center mt-1">
-              <div className="flex-1 p-2.5 flex flex-col justify-center items-center text-center">
+              <div className="flex-1 p-2.5 flex flex-col justify-center items-center text-center" data-inspect-id="prematch-today-stat-tile">
                 <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] mb-1">Today</div>
                 {todayRows.length > 0 ? (
                   <div className="text-3xl num-display leading-none">
@@ -435,7 +441,7 @@ export default function Prematch() {
                 )}
               </div>
               <div className="w-px shrink-0 bg-gradient-to-b from-transparent via-ow-border to-transparent" />
-              <div className="flex-1 p-2.5 flex flex-col justify-center items-center text-center">
+              <div className="flex-1 p-2.5 flex flex-col justify-center items-center text-center" data-inspect-id="prematch-streak-stat-tile">
                 <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] mb-1">Streak</div>
                 {streaksData && streaksData.currentStreak > 0 ? (
                   <div className={`text-3xl num-display leading-none ${streaksData.currentStreakType === 1 ? 'text-emerald-500' : 'text-red-500'}`}>
@@ -446,7 +452,7 @@ export default function Prematch() {
                 )}
               </div>
               <div className="w-px shrink-0 bg-gradient-to-b from-transparent via-ow-border to-transparent" />
-              <div className="flex-1 p-2.5 flex flex-col justify-center items-center text-center">
+              <div className="flex-1 p-2.5 flex flex-col justify-center items-center text-center" data-inspect-id="prematch-this-hour-stat-tile">
                 <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] mb-1">This hour</div>
                 {hourRow ? (
                   // Subtext is absolutely positioned so it doesn't push the number
@@ -471,12 +477,12 @@ export default function Prematch() {
           card below the row. When a map is picked these three used to repeat the
           same "what to play" answer across separate cards; here they read as one
           flow: the pick, the coaching behind it, then the full breakdown. */}
-      <div className="card">
+      <div className="card" data-inspect-id="prematch-consolidated-advisor-card">
         <div className="flex items-start justify-between gap-3 mb-1">
           <div>
             <h2 className="text-sm heading-display text-[var(--ink-2)]">
               {map ? (
-                <>Your Heroes on <button onClick={() => openMap(map)} className="text-ow-accent hover:text-ow-accent/80 transition-colors">{withMapCount(map, mapCounts)}</button></>
+                <>Your Heroes on <button onClick={() => openMap(map)} className="text-ow-accent hover:text-ow-accent/80 transition-colors" data-inspect-id="prematch-your-heroes-map-link">{withMapCount(map, mapCounts)}</button></>
               ) : 'Your Best Heroes Overall'}
             </h2>
             <p className="text-xs text-[var(--faint)] mt-0.5">By role · min 2 games · tap hero to pre-fill log</p>
@@ -489,6 +495,7 @@ export default function Prematch() {
                 disabled={recLoading}
                 className="text-[var(--faint)] hover:text-emerald-600 disabled:opacity-40"
                 title="Refresh advisor"
+                data-inspect-id="prematch-refresh-advisor-button"
               >
                 {recLoading ? '…' : '↻'}
               </button>
@@ -499,11 +506,11 @@ export default function Prematch() {
         {/* Recommended pick — only with no map selected; once a map is chosen the
             coaching block's primary stands as the pick, so this would just repeat it. */}
         {recommendation && !map && (
-          <div className="rounded-xl bg-gradient-to-br from-ow-accent/10 via-ow-accent/[0.04] to-transparent px-4 py-3 mt-3">
+          <div className="rounded-xl bg-gradient-to-br from-ow-accent/10 via-ow-accent/[0.04] to-transparent px-4 py-3 mt-3" data-inspect-id="prematch-recommended-pick-card">
             <div className="text-[10px] grad-brand font-bold uppercase tracking-widest mb-1">Recommended pick</div>
             <div className="flex items-center gap-3">
               <div>
-                <button onClick={() => openHero(recommendation.hero)} className="text-xl font-black tracking-tight text-[var(--ink)] hover:text-ow-accent transition-colors text-left">
+                <button onClick={() => openHero(recommendation.hero)} className="text-xl font-black tracking-tight text-[var(--ink)] hover:text-ow-accent transition-colors text-left" data-inspect-id="prematch-recommended-hero-button">
                   {withHeroCount(recommendation.hero, heroCounts)}
                 </button>
                 <span className={`pill ml-2 ${ROLE_COLORS[recommendation.role]}`}>{recommendation.role}</span>
@@ -522,7 +529,7 @@ export default function Prematch() {
 
         {/* Coaching — LLM tactical read + death patterns, only once a map is set */}
         {map && (
-          <div id="coaching" className="scroll-mt-24 rounded-xl bg-emerald-500/5 px-4 py-3 mt-3">
+          <div id="coaching" className="scroll-mt-24 rounded-xl bg-emerald-500/5 px-4 py-3 mt-3" data-inspect-id="prematch-coaching-section">
             <div className="text-[10px] text-emerald-600 uppercase tracking-widest font-semibold mb-2">Coaching</div>
             <AdvisorCard
               bare
@@ -543,9 +550,9 @@ export default function Prematch() {
             trailing stats list, so it doesn't get missed after Coaching above it. */}
         <div className="mt-4 pt-4 border-t border-ow-border/40">
         <div className="rounded-xl bg-violet-500/[0.06] px-4 py-3.5">
-        <h3 className="text-sm grad-brand font-black uppercase tracking-widest mb-3">Select Your Hero</h3>
+        <h3 className="text-sm grad-brand font-black uppercase tracking-widest mb-3" data-inspect-id="prematch-select-your-hero-header">Select Your Hero</h3>
         {topOnMap.length > 0 ? (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4" data-inspect-id="prematch-hero-picker-list">
             {(['DPS', 'Tank', 'Support'] as const).map(role => {
               const { top, other } = byRole[role];
               return (
@@ -572,6 +579,7 @@ export default function Prematch() {
                           <button
                             onClick={() => setExpandedOther(isOpen ? null : role)}
                             className="flex items-center gap-3 w-full text-left px-3 py-2 rounded-lg border border-dashed border-ow-border/70 hover:border-violet-500/50 hover:bg-white/5 transition-colors group"
+                            data-inspect-id="prematch-other-heroes-toggle"
                           >
                             <span className={`text-sm transition-transform ${isOpen ? 'rotate-90' : ''} text-[var(--faint-2)]`}>›</span>
                             <span className="flex-1 text-sm font-medium text-[var(--faint)] italic group-hover:text-[var(--ink)] transition-colors">
@@ -605,6 +613,7 @@ export default function Prematch() {
           </div>
         ) : (
           <EmptyState
+            dataInspectId="prematch-empty-state-banner"
             icon={map ? '⌖' : '☷'}
             title={map ? `No games logged on ${withMapCount(map, mapCounts)} yet` : 'Pick a map to see your heroes'}
             hint={map

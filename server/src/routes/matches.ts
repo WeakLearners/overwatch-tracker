@@ -55,14 +55,19 @@ router.post('/', (req: Request, res: Response) => {
   let setId: number | null = null;
   let stageIdx: number | null = null;
 
-  const activeSet = db.prepare(`
+  // Quick Play games are loggable but never feed the DPI study — only
+  // Competitive matches move a stage-test's counters, so QP play doesn't
+  // dilute the data.
+  const isCompetitive = (queue_mode ?? 'comp_role') !== 'qp_role';
+
+  const activeSet = isCompetitive ? db.prepare(`
     SELECT id, cur_rel, in_game_sens FROM blind_stage_sets
     WHERE active = 1 AND hero = :hero
     UNION ALL
     SELECT id, cur_rel, in_game_sens FROM blind_stage_sets
     WHERE active = 1 AND hero IS NULL AND NOT EXISTS (SELECT 1 FROM blind_stage_sets WHERE active = 1 AND hero = :hero)
     LIMIT 1
-  `).get({ hero }) as { id: number; cur_rel: number; in_game_sens: number } | undefined;
+  `).get({ hero }) as { id: number; cur_rel: number; in_game_sens: number } | undefined : undefined;
   if (activeSet) {
     const stage = db.prepare('SELECT dpi FROM blind_stages WHERE set_id = :sid AND stage_index = :si')
       .get({ sid: activeSet.id, si: activeSet.cur_rel }) as { dpi: number } | undefined;

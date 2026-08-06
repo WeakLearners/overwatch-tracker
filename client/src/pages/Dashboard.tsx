@@ -51,6 +51,7 @@ function ModeTile({ meta, m, selected, onSelect, openHero, lastLog }: {
     <button
       type="button"
       onClick={onSelect}
+      data-inspect-id="dash-mode-tiles"
       className={`relative overflow-hidden text-left rounded-xl p-4 transition-all duration-200 mode-tile hover:-translate-x-1 hover:-translate-y-1 ${selected ? `${c.card} ${c.glow}` : c.tileDim}`}
     >
       {/* 10% larger than the other (selector) watermarks — these tiles are bigger. */}
@@ -128,7 +129,7 @@ function ModeComparisonCard({ data }: { data: ModeComparison[] }) {
   const byMode = Object.fromEntries(data.map(m => [m.queue_mode, m]));
 
   return (
-    <div className="card mb-6">
+    <div className="card mb-6" data-inspect-id="dash-mode-card">
       <h2 className="text-sm heading-display text-[var(--ink-2)] mb-4">Mode</h2>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {QUEUE_MODES.map(meta => (
@@ -190,16 +191,16 @@ export default function Dashboard() {
     <div>
       {modeComparison && <ModeComparisonCard data={modeComparison} />}
 
-      <div className="card mb-6">
+      <div className="card mb-6" data-inspect-id="dash-recent-matches-card">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <h2 className="text-sm heading-display text-[var(--ink-2)]">Recent Matches</h2>
             {recentGames.length > 0 && (
-              <span className="text-xs text-[var(--faint)] bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap">tap to edit</span>
+              <span data-inspect-id="dash-tap-to-edit-badge" className="text-xs text-[var(--faint)] bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap">tap to edit</span>
             )}
           </div>
           {wr25 !== null && (
-            <div className="flex items-baseline gap-2 text-xs">
+            <div className="flex items-baseline gap-2 text-xs" data-inspect-id="dash-recent-form-stat">
               <span className="text-[var(--faint)]">last {last25.length}</span>
               <span className={`text-2xl font-black tracking-tight num-display ${wr25 >= 50 ? 'grad-win' : 'grad-loss'}`}><AnimatedNumber value={wr25} suffix="%" /></span>
               {wrDelta !== null && (
@@ -211,6 +212,7 @@ export default function Dashboard() {
           )}
         </div>
         <div
+          data-inspect-id="dash-recent-match-history-list"
           className="flex gap-1.5 flex-nowrap overflow-hidden py-1"
           style={{
             WebkitMaskImage: 'linear-gradient(to right, #000 72%, transparent)',
@@ -247,6 +249,7 @@ export default function Dashboard() {
           ))}
           {recentGames.length === 0 && (
             <EmptyState
+              dataInspectId="dash-empty-state-banner"
               icon="◴"
               title="No matches logged yet"
               hint="Log your first result below and your recent form will track here."
@@ -256,7 +259,7 @@ export default function Dashboard() {
         </div>
 
         {tilt?.on_tilt && (
-          <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 mt-4">
+          <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 mt-4" data-inspect-id="dash-tilt-warning-banner">
             <span className="text-amber-600 text-lg shrink-0">⚠</span>
             <div>
               <div className="text-sm font-semibold text-amber-700">You've lost 2 in a row today</div>
@@ -271,50 +274,53 @@ export default function Dashboard() {
       </div>
 
       <div className="mt-8 border-t border-ow-border pt-6">
-        <PageHeader title="Match" sub="Prep with the advisor, then log the result.">
+        <PageHeader dataInspectId="dash-match-section-header" title="Match" sub="Prep with the advisor, then log the result.">
           {/* Links to the (otherwise unlinked) sensitivity-study pages, on the
               right of the section header. Open in a new tab so the dashboard
               stays put while stats are logged. */}
           <a
             href="/sens" target="_blank" rel="noreferrer"
+            data-inspect-id="dash-log-sens-stats-link"
             className="shrink-0 bg-ow-card rounded-2xl px-4 py-2 text-sm heading-display text-[var(--ink)] hover:text-ow-accent transition-colors shadow-[var(--card-shadow)]"
           >
             Log sens stats
           </a>
         </PageHeader>
-        <Prematch />
-        <LogMatch />
+        <div className="contents" data-inspect-id="dash-prematch-section"><Prematch /></div>
+        <div className="contents" data-inspect-id="dash-logmatch-section"><LogMatch /></div>
       </div>
 
       <div className="mt-8 border-t border-ow-border pt-6">
-        <PageHeader title="Trends" sub="Recent form and momentum." />
+        <PageHeader dataInspectId="dash-trends-section-header" title="Trends" sub="Recent form and momentum." />
         <TrendsSummary />
       </div>
 
       <div className="mt-8 border-t border-ow-border pt-6">
-        <PageHeader title="Career" sub="All-time totals across every mode." />
+        <PageHeader dataInspectId="dash-career-section-header" title="Career" sub="All-time totals across every mode." />
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-        <StatCard label="Total Games" value={overview?.total ?? '—'} />
+        <StatCard dataInspectId="dash-stat-total-games" label="Total Games" value={overview?.total ?? '—'} />
         <StatCard
+          dataInspectId="dash-stat-win-rate"
           label="Win Rate"
           value={overview ? overview.win_rate : '—'}
           decimals={1}
           suffix="%"
           color={overview && overview.win_rate >= 50 ? 'win' : 'loss'}
         />
-        <StatCard label="Wins" value={overview?.wins ?? '—'} color="win" />
-        <StatCard label="Losses" value={overview ? overview.total - overview.wins : '—'} color="loss" />
+        <StatCard dataInspectId="dash-stat-wins" label="Wins" value={overview?.wins ?? '—'} color="win" />
+        <StatCard dataInspectId="dash-stat-losses" label="Losses" value={overview ? overview.total - overview.wins : '—'} color="loss" />
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Heroes Played" value={overview?.heroes_played ?? '—'} />
-        <StatCard label="Maps Played" value={overview?.maps_played ?? '—'} />
+        <StatCard dataInspectId="dash-stat-heroes-played" label="Heroes Played" value={overview?.heroes_played ?? '—'} />
+        <StatCard dataInspectId="dash-stat-maps-played" label="Maps Played" value={overview?.maps_played ?? '—'} />
         <StatCard
+          dataInspectId="dash-stat-current-streak"
           label="Current Streak"
           value={streaks ? `${streaks.currentStreak} ${streaks.currentStreakType === 1 ? 'W' : 'L'}` : '—'}
           color={streaks?.currentStreakType === 1 ? 'win' : 'loss'}
         />
-        <StatCard label="Longest Win Streak" value={streaks?.longestWin ?? '—'} color="win" />
+        <StatCard dataInspectId="dash-stat-longest-win-streak" label="Longest Win Streak" value={streaks?.longestWin ?? '—'} color="win" />
         </div>
       </div>
     </div>
