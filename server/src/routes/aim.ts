@@ -36,10 +36,11 @@ function groupBy<T>(items: T[], key: (t: T) => string | number): Map<string | nu
 // The "pending" queue the /sens app fills at match end: matches that have a
 // row logged by the match app but no aim_stats yet. Most recent first, capped.
 //
-// Only study matches qualify (they carry a sens value). Pre-study matches
-// (sens IS NULL) predate the odometer and can never get aim stats — the OW
-// client wipes match stats on every update — so including them would leave
-// thousands of un-fillable rows cluttering the queue forever.
+// Only study matches qualify (blind_trial = 1, i.e. this match landed on an
+// active DPI stage-test). sens IS NOT NULL is not a safe proxy for that: the
+// Match Tracker sends a sens value on every match regardless of queue mode,
+// so QP games — which never feed the DPI study — would otherwise pad this
+// backlog too.
 router.get('/pending', (req: Request, res: Response) => {
   const db = getDb();
   const limit = parseInt((req.query.limit as string) ?? '20') || 20;
@@ -48,7 +49,7 @@ router.get('/pending', (req: Request, res: Response) => {
            m.dpi, m.blind_trial, m.blind_set_id, m.stage_index
     FROM matches m
     LEFT JOIN aim_stats a ON a.match_id = m.id
-    WHERE a.match_id IS NULL AND m.sens IS NOT NULL
+    WHERE a.match_id IS NULL AND m.blind_trial = 1
     ORDER BY m.id DESC
     LIMIT :limit
   `).all({ limit }) as Record<string, unknown>[];
@@ -58,7 +59,7 @@ router.get('/pending', (req: Request, res: Response) => {
     SELECT COUNT(*) AS total
     FROM matches m
     LEFT JOIN aim_stats a ON a.match_id = m.id
-    WHERE a.match_id IS NULL AND m.sens IS NOT NULL
+    WHERE a.match_id IS NULL AND m.blind_trial = 1
   `).get() as { total: number };
   res.json({ rows, total });
 });
