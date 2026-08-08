@@ -31,7 +31,7 @@ router.get('/', (req: Request, res: Response) => {
 
 router.post('/', (req: Request, res: Response) => {
   const db = getDb();
-  const { date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, feel, team_rating, notes } = req.body;
+  const { date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, feel, team_rating, notes, heroes } = req.body;
 
   if (!date || !hero || !role || !map || !game_type || win === undefined) {
     res.status(400).json({ error: 'Missing required fields' });
@@ -98,6 +98,22 @@ router.post('/', (req: Request, res: Response) => {
     VALUES (:date, :time, :day_of_week, :hour, :hero, :role, :map, :game_type, :win, :deaths, :queue_mode, :sens, :dpi, :blind_trial, :blind_set_id, :stage_index, 1, :feel, :team_rating, :notes)
   `).run({ date, time: time ?? null, day_of_week: day_of_week ?? null, hour: hour ?? null, hero, role, map, game_type, win: win ? 1 : 0, deaths: deathsJson, queue_mode: queue_mode ?? 'comp_role', sens: finalSens, dpi: finalDpi, blind_trial: isStudy, blind_set_id: setId, stage_index: stageIdx, feel: feel ?? null, team_rating: team_rating ?? null, notes: notes?.trim() || null });
 
+  const matchId = result.lastInsertRowid as number;
+
+  // Slot 1 is always the hero/role already written to the match row above.
+  // `heroes` carries any additional heroes switched to mid-match (slots 2/3),
+  // sent as {hero, role} pairs the same way the primary one is — win/loss
+  // then attributes to every hero actually played, not just the first (see
+  // matches_by_hero in schema.ts).
+  const heroSlots: { hero: string; role: string }[] = [
+    { hero, role },
+    ...(Array.isArray(heroes) ? heroes.filter((h: any) => h?.hero && h?.role).slice(0, 2) : []),
+  ];
+  const insertHeroSlot = db.prepare(
+    'INSERT INTO match_heroes (match_id, slot, hero, role) VALUES (:match_id, :slot, :hero, :role)'
+  );
+  heroSlots.forEach((h, i) => insertHeroSlot.run({ match_id: matchId, slot: i + 1, hero: h.hero, role: h.role }));
+
   if (isStudy && setId != null) {
     db.prepare('UPDATE blind_stage_sets SET games_on_stage = games_on_stage + 1 WHERE id = :id').run({ id: setId });
     // Multiple sets can be active at once now (one per hero), so nothing else
@@ -141,6 +157,14 @@ router.put('/:id', (req: Request, res: Response) => {
   if (result.changes === 0) {
     res.status(404).json({ error: 'Match not found' });
     return;
+  }
+  // Keep match_heroes' slot-1 row (the by-hero stats attribution source) in
+  // sync whenever the primary hero/role is corrected via edit.
+  if (fields.includes('hero') || fields.includes('role')) {
+    db.prepare(`
+      UPDATE match_heroes SET hero = COALESCE(:hero, hero), role = COALESCE(:role, role)
+      WHERE match_id = :id AND slot = 1
+    `).run({ id: req.params.id, hero: fields.includes('hero') ? params.hero : null, role: fields.includes('role') ? params.role : null });
   }
   res.json({ ok: true });
 });

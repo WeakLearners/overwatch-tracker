@@ -53,6 +53,11 @@ router.get('/pending', (req: Request, res: Response) => {
     ORDER BY m.id DESC
     LIMIT :limit
   `).all({ limit }) as Record<string, unknown>[];
+  // Every hero actually played (slot 1 = the one already on m.hero/m.role
+  // above), so the combat-details form can ask for accuracy per hero instead
+  // of assuming the match was played on one hero start to finish.
+  const heroesStmt = db.prepare('SELECT hero, role FROM match_heroes WHERE match_id = :id ORDER BY slot');
+  for (const row of rows) row.heroes = heroesStmt.all({ id: row.id as number });
   // Total backlog size irrespective of `limit` — the Trial HUD's backlog
   // counter needs the true count, not just how many rows this page returned.
   const { total } = db.prepare(`
@@ -90,10 +95,16 @@ router.get('/analysis', (_req: Request, res: Response) => {
   const posById = deriveSessionPosition(timeline);
   const sinceById = deriveSensAdaptation(timeline);
 
+  // Per-hero accuracy (aim_stats_heroes), not the match-level aim_stats row —
+  // a match with a mid-match switch contributes one reading per hero actually
+  // played, each against its own hero baseline below, rather than one
+  // match-level number duplicated across every hero in it.
   const rows = db.prepare(`
-    SELECT m.id, m.hero, m.sens, m.dpi, m.win, m.feel, m.blind_trial, a.overall_acc, a.crit_acc, a.created_at
-    FROM aim_stats a JOIN matches m ON m.id = a.match_id
-    WHERE m.sens IS NOT NULL AND a.overall_acc IS NOT NULL
+    SELECT m.id, ah.hero, m.sens, m.dpi, m.win, m.feel, m.blind_trial, ah.overall_acc, ah.crit_acc, a.created_at
+    FROM aim_stats_heroes ah
+    JOIN aim_stats a ON a.match_id = ah.match_id
+    JOIN matches m ON m.id = ah.match_id
+    WHERE m.sens IS NOT NULL AND ah.overall_acc IS NOT NULL
   `).all() as unknown as {
     id: number; hero: string; sens: number; dpi: number | null; win: 0 | 1; blind_trial: 0 | 1 | null;
     overall_acc: number; crit_acc: number | null; feel: number | null; created_at: string;
@@ -256,11 +267,16 @@ router.get('/', (_req: Request, res: Response) => {
 });
 
 // Upsert aim stats for a match. match_id is the PK, so re-submitting the same
-// match corrects a prior entry rather than erroring.
+// match corrects a prior entry rather than erroring. Accuracy is per hero
+// played (heroes[]) — see aim_stats_heroes in schema.ts; everything else here
+// (hero-specific stat, combat totals) stays one match-level scoreboard entry.
+// final_blows is intentionally left out of both the insert and the update —
+// the form stopped collecting it, and leaving it out of the UPDATE SET
+// (rather than sending null) keeps any already-saved value on old rows intact.
 router.post('/', (req: Request, res: Response) => {
   const db = getDb();
-  const { match_id, overall_acc, crit_acc, hero_stat_label, hero_stat_value,
-    elims, final_blows, deaths, damage, duration_min } = req.body;
+  const { match_id, heroes, hero_stat_label, hero_stat_value,
+    elims, deaths, damage, healing, duration_min } = req.body;
 
   if (match_id === undefined || match_id === null) {
     res.status(400).json({ error: 'match_id required' });
@@ -273,33 +289,41 @@ router.post('/', (req: Request, res: Response) => {
   }
 
   db.prepare(`
-    INSERT INTO aim_stats (match_id, overall_acc, crit_acc, hero_stat_label, hero_stat_value,
-                           elims, final_blows, deaths, damage, duration_min)
-    VALUES (:match_id, :overall_acc, :crit_acc, :hero_stat_label, :hero_stat_value,
-            :elims, :final_blows, :deaths, :damage, :duration_min)
+    INSERT INTO aim_stats (match_id, hero_stat_label, hero_stat_value,
+                           elims, deaths, damage, healing, duration_min)
+    VALUES (:match_id, :hero_stat_label, :hero_stat_value,
+            :elims, :deaths, :damage, :healing, :duration_min)
     ON CONFLICT(match_id) DO UPDATE SET
-      overall_acc     = excluded.overall_acc,
-      crit_acc        = excluded.crit_acc,
       hero_stat_label = excluded.hero_stat_label,
       hero_stat_value = excluded.hero_stat_value,
       elims           = excluded.elims,
-      final_blows     = excluded.final_blows,
       deaths          = excluded.deaths,
       damage          = excluded.damage,
+      healing         = excluded.healing,
       duration_min    = excluded.duration_min,
       created_at      = datetime('now')
   `).run({
     match_id,
-    overall_acc: overall_acc ?? null,
-    crit_acc: crit_acc ?? null,
     hero_stat_label: hero_stat_label ?? null,
     hero_stat_value: hero_stat_value ?? null,
     elims: elims ?? null,
-    final_blows: final_blows ?? null,
     deaths: deaths ?? null,
     damage: damage ?? null,
+    healing: healing ?? null,
     duration_min: duration_min ?? null,
   });
+
+  const insertHeroAcc = db.prepare(`
+    INSERT INTO aim_stats_heroes (match_id, hero, overall_acc, crit_acc)
+    VALUES (:match_id, :hero, :overall_acc, :crit_acc)
+    ON CONFLICT(match_id, hero) DO UPDATE SET
+      overall_acc = excluded.overall_acc,
+      crit_acc    = excluded.crit_acc
+  `);
+  for (const h of Array.isArray(heroes) ? heroes : []) {
+    if (!h?.hero) continue;
+    insertHeroAcc.run({ match_id, hero: h.hero, overall_acc: h.overall_acc ?? null, crit_acc: h.crit_acc ?? null });
+  }
 
   res.json({ ok: true });
 });

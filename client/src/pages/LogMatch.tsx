@@ -17,6 +17,11 @@ interface FormState {
   notes: string;
 }
 
+// Heroes switched to mid-match, 2nd/3rd only — slot 1 is always `form.hero`
+// (pre-filled from the Pre-Match picker). Both stay optional; a match with no
+// switch just sends slot 1, same as before this feature existed.
+type SwitchHeroes = [string, string];
+
 const HERO_LIST = Object.entries(HEROES).sort((a, b) => a[0].localeCompare(b[0]));
 
 // Perceived sens speed, 0 (felt slow) to 10 (felt fast) — not a quality rating.
@@ -62,10 +67,23 @@ function centerLogArea() {
 
 const PENDING_KEY = 'ow-pending-match';
 
+// Active stage-test sets, as returned by /api/blind/state — used to show the
+// in-game sens this match will actually be tagged with, not the stale frozen
+// value in context. Mirrors the priority `matches.ts` uses server-side: a
+// hero-tagged set beats the hero-less ad-hoc one, and only Competitive
+// matches ever land on a stage at all.
+interface DpiTestActive {
+  hero: string | null;
+  in_game_sens: number;
+  sens: number | null;
+}
+interface DpiTestState { actives: DpiTestActive[] }
+
 export default function LogMatch() {
   // Map + queue mode are shared with the Pre-Match section via context; this
   // section only owns date/time/hero/win plus the death tags.
   const { queueMode, setQueueMode, map, setMap, mapType, sens, pendingHero, setPendingHero, revalidateRec, notifyMatchLogged, deathBuffer, removeDeathFromBuffer, clearDeathBuffer } = useMatch();
+  const { data: dpiState } = useApi<DpiTestState>('/api/blind/state');
   const mapCounts = useTodayMapCounts();
   const heroCounts = useTodayHeroCounts();
   const [feel, setFeel] = useState(FEEL_MID);
@@ -84,6 +102,29 @@ export default function LogMatch() {
       notes: '',
     };
   });
+  // 2nd/3rd hero played this match, if the player switched — optional, both
+  // default empty. Result (win/loss) attaches to every non-empty slot.
+  const [switchHeroes, setSwitchHeroes] = useState<SwitchHeroes>(['', '']);
+  const setSwitchHero = (i: 0 | 1) => (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSwitchHeroes(prev => {
+      const next: SwitchHeroes = [...prev];
+      next[i] = e.target.value;
+      return next;
+    });
+  };
+
+  // The in-game sens this match will actually be tagged with. QP never lands
+  // on a stage (matches.ts skips the lookup entirely), so it falls straight
+  // to the frozen fallback; Competitive checks for a set tagged to the
+  // selected hero, then the hero-less ad-hoc set — same priority order the
+  // server uses when it stamps the match.
+  const activeSetSens = (() => {
+    if (queueMode === 'qp_role') return null;
+    const actives = dpiState?.actives ?? [];
+    const active = actives.find(a => a.hero === form.hero) ?? actives.find(a => a.hero === null);
+    return active ? active.sens ?? active.in_game_sens : null;
+  })();
+  const displaySens = activeSetSens ?? (parseFloat(sens) > 0 ? parseFloat(sens) : null);
 
   // The date field defaults to the current day but stays editable for backfill.
   // Once the user manually picks a date we stop auto-advancing it so their choice
@@ -214,6 +255,7 @@ export default function LogMatch() {
           hour,
           hero: form.hero,
           role: heroRole,
+          heroes: switchHeroes.filter(h => h).map(h => ({ hero: h, role: HEROES[h] })),
           map,
           game_type: mapType,
           win: form.win === '1',
@@ -235,6 +277,7 @@ export default function LogMatch() {
       dateTouched.current = false;
       timeTouched.current = false;
       setForm(f => ({ ...f, hero: '', win: '', notes: '', date: datePart, time: format(new Date(), 'HH:mm') }));
+      setSwitchHeroes(['', '']);
       // Clear the carried-over match intent: the Hero Advisor map selector and
       // its dependent advisor reset so nothing lingers from the logged match.
       setMap('');
@@ -319,7 +362,7 @@ export default function LogMatch() {
             <h2 className="text-sm heading-display text-[var(--ink)]">Match Details</h2>
             <button
               type="button"
-              onClick={() => { setForm(f => ({ ...f, hero: '', notes: '' })); setMap(''); setFeel(FEEL_MID); setTeamRating(0); }}
+              onClick={() => { setForm(f => ({ ...f, hero: '', notes: '' })); setSwitchHeroes(['', '']); setMap(''); setFeel(FEEL_MID); setTeamRating(0); }}
               disabled={!form.hero && !map}
               data-inspect-id="logmatch-reset-button"
               className="text-xs text-[var(--faint)] hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--faint)]"
@@ -351,31 +394,68 @@ export default function LogMatch() {
               </div>
               <div>
                 <label className="block text-xs text-[var(--muted)] mb-1.5">Sensitivity</label>
-                {/* Read-only — frozen at the study's in-game value (2.5). */}
+                {/* Read-only — the in-game sens this match will actually be
+                    logged at: the active stage-test's current value if one's
+                    running for this hero (or the ad-hoc set), otherwise the
+                    frozen fallback. Matches what matches.ts stamps server-side. */}
                 <div data-inspect-id="logmatch-sensitivity-display" className="w-full field px-3 py-2 text-sm num-display text-[var(--ink)] whitespace-nowrap overflow-hidden">
-                  {parseFloat(sens) > 0 ? parseFloat(sens).toFixed(2) : '—'}
+                  {displaySens != null ? displaySens.toFixed(2) : '—'}
                 </div>
               </div>
             </div>
 
             <div>
-              <label className="block text-xs text-[var(--muted)] mb-1.5">Hero</label>
-              <select
-                value={form.hero}
-                onChange={set('hero')}
-                data-inspect-id="logmatch-hero-select"
-                className="w-full field px-3 py-2 text-sm"
-              >
-                <option value="">— Select hero —</option>
-                {(['DPS', 'Tank', 'Support'] as const).map(role => (
-                  <optgroup key={role} label={role}>
-                    {HERO_LIST.filter(([, r]) => r === role).map(([h]) => (
-                      <option key={h} value={h}>{withHeroCount(h, heroCounts)}</option>
+              <label className="block text-xs text-[var(--muted)] mb-1.5">
+                Hero <span className="text-[var(--faint-2)]">— 2nd/3rd only if you switched mid-match</span>
+              </label>
+              {/* Three columns: 1st is the match's starting hero (pre-filled
+                  from the Pre-Match picker above), 2nd/3rd are optional
+                  switches made mid-match. The match's result attaches to
+                  every hero filled in, not just the first. */}
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <select
+                    value={form.hero}
+                    onChange={set('hero')}
+                    data-inspect-id="logmatch-hero-select"
+                    className="w-full field px-2 py-2 text-sm"
+                  >
+                    <option value="">— 1st hero —</option>
+                    {(['DPS', 'Tank', 'Support'] as const).map(role => (
+                      <optgroup key={role} label={role}>
+                        {HERO_LIST.filter(([, r]) => r === role).map(([h]) => (
+                          <option key={h} value={h}>{withHeroCount(h, heroCounts)}</option>
+                        ))}
+                      </optgroup>
                     ))}
-                  </optgroup>
-                ))}
-              </select>
-              {heroRole && <span data-inspect-id="logmatch-hero-role-badge" className={`pill mt-1.5 ${ROLE_COLORS[heroRole]}`}>{heroRole}</span>}
+                  </select>
+                  {heroRole && <span data-inspect-id="logmatch-hero-role-badge" className={`pill mt-1.5 ${ROLE_COLORS[heroRole]}`}>{heroRole}</span>}
+                </div>
+                {([0, 1] as const).map(i => {
+                  const h = switchHeroes[i];
+                  const r = h ? HEROES[h] : '';
+                  return (
+                    <div key={i}>
+                      <select
+                        value={h}
+                        onChange={setSwitchHero(i)}
+                        data-inspect-id={`logmatch-hero-switch-select-${i + 2}`}
+                        className="w-full field px-2 py-2 text-sm"
+                      >
+                        <option value="">— {i === 0 ? '2nd' : '3rd'} hero —</option>
+                        {(['DPS', 'Tank', 'Support'] as const).map(role => (
+                          <optgroup key={role} label={role}>
+                            {HERO_LIST.filter(([, rl]) => rl === role).map(([hh]) => (
+                              <option key={hh} value={hh}>{withHeroCount(hh, heroCounts)}</option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                      {r && <span data-inspect-id={`logmatch-hero-switch-role-badge-${i + 2}`} className={`pill mt-1.5 ${ROLE_COLORS[r]}`}>{r}</span>}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             <div>

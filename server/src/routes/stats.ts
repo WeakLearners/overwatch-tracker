@@ -21,11 +21,16 @@ router.get('/overview', (req: Request, res: Response) => {
       COUNT(*) as total,
       SUM(win) as wins,
       ROUND(AVG(win) * 100, 1) as win_rate,
-      COUNT(DISTINCT hero) as heroes_played,
       COUNT(DISTINCT map) as maps_played
     FROM matches ${where}
-  `).get(params);
-  res.json(row);
+  `).get(params) as Record<string, unknown>;
+  // Distinct heroes played, including switches — from the hero-attribution
+  // view, not raw matches, so a hero only ever played as a mid-match switch
+  // still counts.
+  const { heroes_played } = db.prepare(`
+    SELECT COUNT(DISTINCT hero) as heroes_played FROM matches_by_hero ${where}
+  `).get(params) as { heroes_played: number };
+  res.json({ ...row, heroes_played });
 });
 
 router.get('/by-hero', (req: Request, res: Response) => {
@@ -37,7 +42,7 @@ router.get('/by-hero', (req: Request, res: Response) => {
       COUNT(*) as games,
       SUM(win) as wins,
       ROUND(AVG(win) * 100, 1) as win_rate
-    FROM matches ${where}
+    FROM matches_by_hero ${where}
     GROUP BY hero, role
     HAVING games >= 3
     ORDER BY games DESC
@@ -84,7 +89,7 @@ router.get('/hero-counts', (req: Request, res: Response) => {
   const date = (req.query.date as string) ?? '';
   const rows = db.prepare(`
     SELECT hero, COUNT(*) as n
-    FROM matches
+    FROM matches_by_hero
     WHERE date = :date
     GROUP BY hero
   `).all({ date }) as { hero: string; n: number }[];
@@ -170,7 +175,7 @@ router.get('/prematch', (req: Request, res: Response) => {
   const byHero = map ? db.prepare(`
     SELECT hero, role, COUNT(*) as games, SUM(win) as wins,
            ROUND(AVG(win) * 100, 1) as win_rate
-    FROM matches WHERE map = :map ${game_type ? 'AND game_type = :game_type' : ''}
+    FROM matches_by_hero WHERE map = :map ${game_type ? 'AND game_type = :game_type' : ''}
     GROUP BY hero ORDER BY win_rate DESC
   `).all({ map, ...(game_type ? { game_type } : {}) }) : [];
 
@@ -186,7 +191,7 @@ router.get('/prematch', (req: Request, res: Response) => {
   const bestHeroesRaw = db.prepare(`
     SELECT hero, role, COUNT(*) as games, SUM(win) as wins,
            ROUND(AVG(win) * 100, 1) as win_rate
-    FROM matches GROUP BY hero HAVING games >= 5
+    FROM matches_by_hero GROUP BY hero HAVING games >= 5
     ORDER BY role, win_rate DESC
   `).all({}) as any[];
   const roleCounts: Record<string, number> = {};
@@ -238,7 +243,7 @@ router.get('/prematch', (req: Request, res: Response) => {
   // Best hero for the current game type (cross-type optimizer)
   const bestByGameType = game_type ? db.prepare(`
     SELECT hero, role, COUNT(*) as games, ROUND(AVG(win)*100,1) as win_rate
-    FROM matches WHERE game_type = :game_type
+    FROM matches_by_hero WHERE game_type = :game_type
     GROUP BY hero HAVING games >= 5
     ORDER BY win_rate DESC LIMIT 1
   `).get({ game_type }) : null;
@@ -271,7 +276,7 @@ router.get('/momentum', (req: Request, res: Response) => {
       COUNT(CASE WHEN date >= date('now','-30 days') THEN 1 END)                                                           AS recent_games,
       COUNT(CASE WHEN date >= date('now','-120 days') AND date < date('now','-30 days') THEN 1 END)                        AS prev_games,
       CASE WHEN COUNT(CASE WHEN date >= date('now','-120 days') AND date < date('now','-30 days') THEN 1 END) >= 5 THEN 0 ELSE 1 END AS is_new
-    FROM matches
+    FROM matches_by_hero
     GROUP BY hero
     HAVING recent_games >= 5
     ORDER BY is_new ASC, (COALESCE(recent_wr,0) - COALESCE(prev_wr,0)) DESC, recent_wr DESC
@@ -415,28 +420,28 @@ router.get('/hero-cards', (_req: Request, res: Response) => {
 
   const heroes = db.prepare(`
     SELECT hero, role, COUNT(*) as games, ROUND(AVG(win)*100,1) as win_rate
-    FROM matches GROUP BY hero HAVING games >= 3 ORDER BY games DESC
+    FROM matches_by_hero GROUP BY hero HAVING games >= 3 ORDER BY games DESC
   `).all({}) as any[];
 
   const maps = db.prepare(`
     SELECT hero, map, game_type, COUNT(*) as games, ROUND(AVG(win)*100,1) as win_rate
-    FROM matches GROUP BY hero, map HAVING games >= 3
+    FROM matches_by_hero GROUP BY hero, map HAVING games >= 3
   `).all({}) as any[];
 
   const types = db.prepare(`
     SELECT hero, game_type, COUNT(*) as games, ROUND(AVG(win)*100,1) as win_rate
-    FROM matches GROUP BY hero, game_type HAVING games >= 5
+    FROM matches_by_hero GROUP BY hero, game_type HAVING games >= 5
   `).all({}) as any[];
 
   // Per-queue-mode win rate for each hero (no min — column shows "—" when thin).
   const modes = db.prepare(`
     SELECT hero, queue_mode, COUNT(*) as games, ROUND(AVG(win)*100,1) as win_rate
-    FROM matches WHERE queue_mode IS NOT NULL GROUP BY hero, queue_mode
+    FROM matches_by_hero WHERE queue_mode IS NOT NULL GROUP BY hero, queue_mode
   `).all({}) as any[];
 
   // Last 60 matches per hero in chronological order for sparkline
   const history = db.prepare(`
-    SELECT hero, win FROM matches ORDER BY date, time
+    SELECT hero, win FROM matches_by_hero ORDER BY date, time
   `).all({}) as any[];
 
   const historyByHero: Record<string, number[]> = {};
@@ -489,7 +494,7 @@ router.get('/hero-detail/:hero', (req: Request, res: Response) => {
   const overall = db.prepare(`
     SELECT COUNT(*) as games, SUM(win) as wins, SUM(1 - win) as losses,
            ROUND(AVG(win) * 100, 1) as win_rate
-    FROM matches WHERE hero = :hero
+    FROM matches_by_hero WHERE hero = :hero
   `).get({ hero }) as any;
 
   const momentum = db.prepare(`
@@ -498,23 +503,23 @@ router.get('/hero-detail/:hero', (req: Request, res: Response) => {
       ROUND(AVG(CASE WHEN date >= date('now','-120 days') AND date < date('now','-30 days') THEN win END) * 100, 1) AS prev_wr,
       COUNT(CASE WHEN date >= date('now','-30 days') THEN 1 END)                                                    AS recent_games,
       COUNT(CASE WHEN date >= date('now','-120 days') AND date < date('now','-30 days') THEN 1 END)                 AS prev_games
-    FROM matches WHERE hero = :hero
+    FROM matches_by_hero WHERE hero = :hero
   `).get({ hero }) as any;
 
   const maps = db.prepare(`
     SELECT map, game_type, COUNT(*) as games, ROUND(AVG(win) * 100, 1) as win_rate
-    FROM matches WHERE hero = :hero GROUP BY map HAVING COUNT(*) >= 3
+    FROM matches_by_hero WHERE hero = :hero GROUP BY map HAVING COUNT(*) >= 3
     ORDER BY win_rate DESC
   `).all({ hero }) as any[];
 
   const types = db.prepare(`
     SELECT game_type, COUNT(*) as games, ROUND(AVG(win) * 100, 1) as win_rate
-    FROM matches WHERE hero = :hero GROUP BY game_type HAVING COUNT(*) >= 5
+    FROM matches_by_hero WHERE hero = :hero GROUP BY game_type HAVING COUNT(*) >= 5
     ORDER BY win_rate DESC
   `).all({ hero }) as any[];
 
   const recent10 = db.prepare(`
-    SELECT win, map, date FROM matches
+    SELECT win, map, date FROM matches_by_hero
     WHERE hero = :hero ORDER BY date DESC, id DESC LIMIT 10
   `).all({ hero }) as any[];
 
@@ -525,7 +530,7 @@ router.get('/hero-detail/:hero', (req: Request, res: Response) => {
     bestType:  types[0] ?? null,
     worstType: types[types.length - 1] ?? null,
     recent10,
-    deaths: deathInsights(db, 'AND hero = :hero', { hero }),
+    deaths: deathInsights(db, 'AND hero = :hero', { hero }, 'matches_by_hero'),
   });
 });
 
@@ -550,7 +555,7 @@ router.get('/map-detail/:map', (req: Request, res: Response) => {
 
   const heroRows = db.prepare(`
     SELECT hero, role, COUNT(*) as games, ROUND(AVG(win) * 100, 1) as win_rate
-    FROM matches WHERE map = :map AND hero IS NOT NULL AND role IS NOT NULL
+    FROM matches_by_hero WHERE map = :map
     GROUP BY hero, role HAVING COUNT(*) >= 3
     ORDER BY win_rate DESC
   `).all({ map }) as any[];
@@ -587,9 +592,15 @@ interface DeathInsights {
   has_outcome_split: boolean;
 }
 
-function deathInsights(db: ReturnType<typeof getDb>, where: string, params: Record<string, string>): DeathInsights {
+// `table` picks the attribution source: 'matches' (default) for a slice that
+// isn't hero-scoped, where each match must count once; 'matches_by_hero' for
+// a hero-scoped slice, where a match counts once per hero it filters against
+// — safe there since the `where` fragment always pins to a single hero.
+function deathInsights(
+  db: ReturnType<typeof getDb>, where: string, params: Record<string, string>, table: 'matches' | 'matches_by_hero' = 'matches',
+): DeathInsights {
   const rows = (db.prepare(
-    `SELECT deaths, win FROM matches WHERE deaths IS NOT NULL ${where}`
+    `SELECT deaths, win FROM ${table} WHERE deaths IS NOT NULL ${where}`
   ).all(params) as { deaths: string; win: number }[])
     // Legacy reason-format rows only. New factual-axis (v2) rows are excluded —
     // this view shows the frozen historical death data, not the new tagging.
@@ -1177,7 +1188,7 @@ router.get('/death-segments', (_req: Request, res: Response) => {
   const db = getDb();
 
   const heroRows = db.prepare(`
-    SELECT hero, role, COUNT(*) AS n FROM matches WHERE deaths IS NOT NULL
+    SELECT hero, role, COUNT(*) AS n FROM matches_by_hero WHERE deaths IS NOT NULL
     GROUP BY hero HAVING n >= ${SEGMENT_MIN_TAGGED} ORDER BY n DESC
   `).all({}) as { hero: string; role: string }[];
   // Re-filter on legacy tagged_games: the SQL count includes new factual-axis
@@ -1186,7 +1197,7 @@ router.get('/death-segments', (_req: Request, res: Response) => {
   const heroes = heroRows
     .map(h => ({
       key: h.hero, label: h.hero, role: h.role,
-      insights: deathInsights(db, 'AND hero = :hero', { hero: h.hero }),
+      insights: deathInsights(db, 'AND hero = :hero', { hero: h.hero }, 'matches_by_hero'),
     }))
     .filter(h => h.insights.tagged_games >= SEGMENT_MIN_TAGGED);
 
@@ -1215,14 +1226,21 @@ router.get('/mode-comparison', (_req: Request, res: Response) => {
       COUNT(*) as games,
       SUM(win) as wins,
       ROUND(AVG(win) * 100, 1) as win_rate,
-      COUNT(DISTINCT hero) as heroes_played,
       COUNT(DISTINCT map) as maps_played
     FROM matches
     WHERE queue_mode IS NOT NULL
     GROUP BY queue_mode
   `).all({}) as any[];
 
-  // Most-played hero per mode (ties broken by win rate).
+  // Distinct heroes played per mode, including switches.
+  const heroesPlayedByMode = db.prepare(`
+    SELECT queue_mode, COUNT(DISTINCT hero) as heroes_played
+    FROM matches_by_hero WHERE queue_mode IS NOT NULL GROUP BY queue_mode
+  `).all({}) as { queue_mode: string; heroes_played: number }[];
+  const heroesPlayedMap: Record<string, number> = {};
+  for (const h of heroesPlayedByMode) heroesPlayedMap[h.queue_mode] = h.heroes_played;
+
+  // Most-played hero per mode (ties broken by win rate), counting switches too.
   const topHeroes = db.prepare(`
     SELECT queue_mode, hero, role, games, win_rate FROM (
       SELECT
@@ -1232,7 +1250,7 @@ router.get('/mode-comparison', (_req: Request, res: Response) => {
         ROW_NUMBER() OVER (
           PARTITION BY queue_mode ORDER BY COUNT(*) DESC, AVG(win) DESC
         ) as rn
-      FROM matches
+      FROM matches_by_hero
       WHERE queue_mode IS NOT NULL
       GROUP BY queue_mode, hero
     ) WHERE rn = 1
@@ -1274,7 +1292,7 @@ router.get('/mode-comparison', (_req: Request, res: Response) => {
     recent_games: recentByMode[m.queue_mode]?.recent_games ?? 0,
     recent_wins: recentByMode[m.queue_mode]?.recent_wins ?? 0,
     recent_window: RECENT_WINDOW_DAYS,
-    heroes_played: m.heroes_played,
+    heroes_played: heroesPlayedMap[m.queue_mode] ?? 0,
     maps_played: m.maps_played,
     top_hero: topByMode[m.queue_mode] ?? null,
   })));

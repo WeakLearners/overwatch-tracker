@@ -11,6 +11,7 @@ import { useHeroDrawer } from '../contexts/HeroDrawerContext';
 import { useMatch } from '../contexts/MatchContext';
 import { Link } from 'react-router-dom';
 import Odometer from '../components/Odometer';
+import { MOUSE_DPI } from '../lib/aim';
 
 // DPI stage-test HUD state — the dashboard reads this live to show the
 // current stage's DPI plainly (no hiding, no LED colors). Several tests can
@@ -27,6 +28,15 @@ const DPI_TEST_HERO_KEY = 'ow-dpi-test-hero';
 const AD_HOC_KEY = '__adhoc__';
 
 interface HeroRow { hero: string; role: string; games: number; wins: number; win_rate: number }
+
+interface AimAnalysisHero { hero: string; bestScaleEDPI: number; bestScaleN: number }
+
+// Last-30-days vs. prior-90-days win rate per hero, sorted trending-first —
+// see the /api/stats/momentum route for the exact windows and sort order.
+interface MomentumHero {
+  hero: string; role: string; recent_wr: number | null; prev_wr: number | null;
+  recent_games: number; prev_games: number; is_new: 0 | 1;
+}
 
 interface PrematchData {
   byHero:         HeroRow[];
@@ -97,6 +107,15 @@ export default function Prematch() {
   // so it can't double as "what should stay highlighted here."
   const [selectedHero, setSelectedHero] = useState<string | null>(null);
   const inputRef                = useRef<HTMLInputElement>(null);
+  const advisorSelectRef        = useRef<HTMLSelectElement>(null);
+
+  // Once a hero is picked in "Select Your Hero", snap the DPI/sens HUD to
+  // that hero's active test (if it has one) instead of leaving it on
+  // whatever hero was last picked in the HUD's own dropdown.
+  useEffect(() => {
+    if (!selectedHero) return;
+    if (btActives.some(a => a.hero === selectedHero)) setBtHeroPick(selectedHero);
+  }, [selectedHero, btActives]);
 
   // Reset the voting picks after a match is logged (skips the initial mount).
   const didMount = useRef(false);
@@ -177,7 +196,22 @@ export default function Prematch() {
     Tank:    buildRole('Tank'),
     Support: buildRole('Support'),
   };
-  const recommendation = topOnMap.find(h => h.games >= MIN_GAMES) ?? data?.bestHeroes[0];
+  // Recommended pick panel (no-map state): the hottest-trending DPS + Support
+  // pick instead of the single overall-best-win-rate hero — "trending" means
+  // biggest recent(30d)-vs-prior(90d) win-rate climb, per /api/stats/momentum,
+  // which already sorts established heroes by that delta descending (heroes
+  // without a prior-window baseline are current-form-only, no trend to show).
+  // Each is still paired with the in-game sens its own best-tested scale
+  // points to (bestScaleEDPI ÷ locked mouse DPI).
+  const { data: momentum } = useApi<{ byHero: MomentumHero[] }>('/api/stats/momentum');
+  const trendingDps     = momentum?.byHero.find(h => h.role === 'DPS') ?? null;
+  const trendingSupport = momentum?.byHero.find(h => h.role === 'Support') ?? null;
+  const { data: aimAnalysis } = useApi<{ heroes: AimAnalysisHero[] }>('/api/aim/analysis');
+  const sensRecFor = (hero: string | undefined): number | null => {
+    if (!hero) return null;
+    const h = aimAnalysis?.heroes.find(a => a.hero === hero);
+    return h && h.bestScaleN > 0 ? Math.round((h.bestScaleEDPI / MOUSE_DPI) * 100) / 100 : null;
+  };
 
   const queueLabel = QUEUE_MODES.find(q => q.value === queueMode)?.label ?? '';
 
@@ -370,7 +404,7 @@ export default function Prematch() {
                 </button>
               ))}
               <button
-                onClick={() => setSelected([])}
+                onClick={() => { setSelected([]); advisorSelectRef.current?.focus(); }}
                 className="flex items-center px-3 py-1 rounded-full text-sm font-medium bg-ow-border/40 text-[var(--ink-2)] hover:bg-ow-border/70 hover:text-[var(--ink)] transition-colors"
                 data-inspect-id="prematch-map-voting-clear-button"
               >
@@ -426,6 +460,7 @@ export default function Prematch() {
 
           <div className="mb-3">
             <select
+              ref={advisorSelectRef}
               value={map}
               onChange={e => setMap(e.target.value)}
               className="w-full field px-3 py-2 text-sm"
@@ -516,26 +551,54 @@ export default function Prematch() {
         </div>
 
         {/* Recommended pick — only with no map selected; once a map is chosen the
-            coaching block's primary stands as the pick, so this would just repeat it. */}
-        {recommendation && !map && (
-          <div className="rounded-xl bg-gradient-to-br from-ow-accent/10 via-ow-accent/[0.04] to-transparent px-4 py-3 mt-3" data-inspect-id="prematch-recommended-pick-card">
-            <div className="text-[10px] grad-brand font-bold uppercase tracking-widest mb-1">Recommended pick</div>
-            <div className="flex items-center gap-3">
-              <div>
-                <button onClick={() => openHero(recommendation.hero)} className="text-xl font-black tracking-tight text-[var(--ink)] hover:text-ow-accent transition-colors text-left" data-inspect-id="prematch-recommended-hero-button">
-                  {withHeroCount(recommendation.hero, heroCounts)}
-                </button>
-                <span className={`pill ml-2 ${ROLE_COLORS[recommendation.role]}`}>{recommendation.role}</span>
-              </div>
-              <div className="ml-auto text-right">
-                <div className={`text-2xl font-black tracking-tight num-display ${recommendation.win_rate >= 50 ? 'grad-win' : 'grad-loss'}`}>
-                  {recommendation.win_rate}%
+            coaching block's primary stands as the pick, so this would just repeat it.
+            One column per role (DPS / Support), each the hottest-trending hero for
+            that role rather than the single overall-best-win-rate hero, paired with
+            the in-game sens its own best-tested scale points to. */}
+        {(trendingDps || trendingSupport) && !map && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3" data-inspect-id="prematch-recommended-pick-card">
+            {([['DPS', trendingDps], ['Support', trendingSupport]] as const).map(([role, rec]) => {
+              const delta = rec && !rec.is_new && rec.recent_wr != null && rec.prev_wr != null
+                ? Math.round((rec.recent_wr - rec.prev_wr) * 10) / 10 : null;
+              return (
+                <div key={role} className="rounded-xl bg-gradient-to-br from-ow-accent/10 via-ow-accent/[0.04] to-transparent px-4 py-3">
+                  <div className="text-[10px] grad-brand font-bold uppercase tracking-widest mb-1">Trending {role}</div>
+                  {rec ? (
+                    <>
+                      <div className="flex items-center gap-3">
+                        <div>
+                          <button onClick={() => openHero(rec.hero)} className="text-xl font-black tracking-tight text-[var(--ink)] hover:text-ow-accent transition-colors text-left" data-inspect-id="prematch-recommended-hero-button">
+                            {withHeroCount(rec.hero, heroCounts)}
+                          </button>
+                          <span className={`pill ml-2 ${ROLE_COLORS[rec.role]}`}>{rec.role}</span>
+                        </div>
+                        <div className="ml-auto text-right">
+                          <div className={`text-2xl font-black tracking-tight num-display ${(rec.recent_wr ?? 0) >= 50 ? 'grad-win' : 'grad-loss'}`}>
+                            {rec.recent_wr ?? '—'}%
+                          </div>
+                          <div className="text-[11px] text-[var(--muted)]">
+                            {delta != null ? (
+                              <span className={delta >= 0 ? 'text-emerald-500' : 'text-red-500'}>{delta >= 0 ? '▲' : '▼'} {Math.abs(delta)}pt</span>
+                            ) : (
+                              <span>new form</span>
+                            )}
+                            {' · '}{rec.recent_games} games (30d)
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-2 pt-2 border-t border-ow-border/40 flex items-center justify-between" data-inspect-id="prematch-recommended-sens">
+                        <span className="text-[10px] text-[var(--muted)] uppercase tracking-wide">In-game sens</span>
+                        <span className="text-sm num-display font-bold text-[var(--ink)]">
+                          {sensRecFor(rec.hero) != null ? sensRecFor(rec.hero)!.toFixed(2) : 'No data yet'}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-sm text-[var(--faint)]">Not enough games yet</div>
+                  )}
                 </div>
-                <div className="text-[11px] text-[var(--muted)]">
-                  {recommendation.games} games overall
-                </div>
-              </div>
-            </div>
+              );
+            })}
           </div>
         )}
 

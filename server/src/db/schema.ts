@@ -118,6 +118,38 @@ function initSchema(db: DatabaseSync) {
     }
   }
 
+  // healing: endgame scoreboard total, support heroes only (2026-08-08, added
+  // alongside per-hero accuracy below). Sits with the other combat-output
+  // columns above rather than per-hero — it's one match-level scoreboard
+  // number, same as elims/deaths/damage.
+  if (!aimCols.find(c => c.name === 'healing')) {
+    db.exec(`ALTER TABLE aim_stats ADD COLUMN healing INTEGER`);
+  }
+
+  // aim_stats_heroes: one accuracy reading per hero actually played in the
+  // match (mirrors match_heroes — see there for why a match can have more
+  // than one hero). aim_stats.overall_acc/crit_acc above are kept for
+  // existing rows (harmless, additive-only) but are no longer written to —
+  // this table is the column of record for accuracy going forward, entered
+  // once per hero rather than once per match. hero_stat_label/value and the
+  // combat totals stay match-level on aim_stats; those are the endgame
+  // scoreboard, not per-hero.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS aim_stats_heroes (
+      match_id INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+      hero TEXT NOT NULL,
+      overall_acc REAL,
+      crit_acc REAL,
+      PRIMARY KEY (match_id, hero)
+    )
+  `);
+  db.exec(`
+    INSERT INTO aim_stats_heroes (match_id, hero, overall_acc, crit_acc)
+    SELECT a.match_id, m.hero, a.overall_acc, a.crit_acc
+    FROM aim_stats a JOIN matches m ON m.id = a.match_id
+    WHERE a.match_id NOT IN (SELECT match_id FROM aim_stats_heroes)
+  `);
+
   // feel: perceived sens speed, 0 (felt slow) to 100 (felt fast) — not a quality
   // rating. Captured live in the Match Log at log time (moved 2026-07-17 from a
   // combat-detail backfilled at /sens; that flow lost the sensation by the time
@@ -172,6 +204,43 @@ function initSchema(db: DatabaseSync) {
       )
     `);
   }
+
+  // match_heroes: which hero(es) were actually played during a match, in
+  // order (slot 1 = the hero the match started on, 2/3 = switches made
+  // mid-match). matches.hero/role stay the column of record for slot 1 (every
+  // existing query keeps working unchanged); this table is additive-only and
+  // exists so by-hero stats can attribute a match's win/loss to every hero
+  // played, not just the first. Backfilled once per hero-less legacy row below
+  // — the WHERE NOT IN guard makes this a no-op on every later start.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS match_heroes (
+      match_id INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+      slot INTEGER NOT NULL CHECK(slot IN (1, 2, 3)),
+      hero TEXT NOT NULL,
+      role TEXT NOT NULL,
+      PRIMARY KEY (match_id, slot)
+    );
+    CREATE INDEX IF NOT EXISTS idx_match_heroes_hero ON match_heroes(hero);
+  `);
+  db.exec(`
+    INSERT INTO match_heroes (match_id, slot, hero, role)
+    SELECT id, 1, hero, role FROM matches
+    WHERE id NOT IN (SELECT match_id FROM match_heroes WHERE slot = 1)
+  `);
+
+  // matches_by_hero: one row per (match, hero played) — the hero-attribution
+  // view every by-hero stats query reads from instead of `matches` directly,
+  // so a match with a mid-match switch counts toward every hero it touched.
+  // Recreated on every start (cheap) rather than migrated, so it always
+  // reflects whatever columns `matches` currently has.
+  db.exec(`DROP VIEW IF EXISTS matches_by_hero`);
+  db.exec(`
+    CREATE VIEW matches_by_hero AS
+    SELECT m.id, m.date, m.time, m.day_of_week, m.hour, mh.hero, mh.role, m.map, m.game_type, m.win,
+           m.created_at, m.deaths, m.queue_mode, m.sens, m.dpi, m.blind_trial, m.blind_set_id,
+           m.rel_pos, m.stage_index, m.revealed, m.feel, m.team_rating, m.notes, mh.slot
+    FROM matches m JOIN match_heroes mh ON mh.match_id = m.id
+  `);
 
   // DPI stage-trial sets. Each set is N DPI values (blind_stages: stage_index →
   // dpi) shown plainly on screen — no hiding, no shuffle. The player types
