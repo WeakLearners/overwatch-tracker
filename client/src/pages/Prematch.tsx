@@ -18,7 +18,7 @@ import Odometer from '../components/Odometer';
 interface DpiTestHud {
   actives: {
     set_id: number; hero: string | null; cur_stage: number; n_stages: number; totalGames: number;
-    batch_size: number; games_on_stage: number; dpi: number | null;
+    batch_size: number; games_on_stage: number; dpi: number | null; sens: number | null;
   }[];
 }
 
@@ -190,8 +190,12 @@ export default function Prematch() {
             sens picker used to. */}
         <div className="card aspect-square shrink-0 flex flex-col self-stretch" data-inspect-id="prematch-dpi-hud-card">
           <div className="flex items-center justify-between mb-2 gap-2">
-            <h2 className="text-sm heading-display text-[var(--ink)] whitespace-nowrap">DPI Test</h2>
-            {bt && <span className="text-xs num-display text-[var(--ink)] shrink-0" data-inspect-id="prematch-dpi-value-badge">{bt.dpi} DPI</span>}
+            <h2 className="text-sm heading-display text-[var(--ink)] whitespace-nowrap">{bt?.sens != null ? 'Sens Test' : 'DPI Test'}</h2>
+            {bt && (
+              <span className="text-xs num-display text-[var(--ink)] shrink-0" data-inspect-id="prematch-dpi-value-badge">
+                {bt.sens != null ? `${bt.sens.toFixed(2)} sens` : `${bt.dpi} DPI`}
+              </span>
+            )}
           </div>
           {btActives.length > 1 && (
             <select
@@ -202,7 +206,9 @@ export default function Prematch() {
               data-inspect-id="prematch-dpi-hero-picker-select"
             >
               {btActives.map(a => (
-                <option key={a.set_id} value={a.hero ?? AD_HOC_KEY}>{a.hero ?? 'Ad-hoc'} — {a.dpi} DPI</option>
+                <option key={a.set_id} value={a.hero ?? AD_HOC_KEY}>
+                  {a.hero ?? 'Ad-hoc'} — {a.sens != null ? `${a.sens.toFixed(2)} sens` : `${a.dpi} DPI`}
+                </option>
               ))}
             </select>
           )}

@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
-import { generateStages, stagesFromDpis } from '../lib/blind';
+import { generateStages, stagesFromDpis, stagesFromSens, LOCKED_DPI } from '../lib/blind';
 import { cm360, eDPI } from '../lib/aim';
 
 const router = Router();
@@ -9,13 +9,13 @@ interface SetRow {
   id: number; in_game_sens: number; base_dpi: number; created_at: string;
   batch_size: number; cur_rel: number; games_on_stage: number; hero: string | null;
 }
-interface StageRow { stage_index: number; dpi: number; pct_delta: number; }
+interface StageRow { stage_index: number; dpi: number; sens: number | null; pct_delta: number; }
 
 const activeSets = (db: ReturnType<typeof getDb>) =>
   db.prepare('SELECT * FROM blind_stage_sets WHERE active = 1 ORDER BY id').all() as unknown as SetRow[];
 
 const stagesOf = (db: ReturnType<typeof getDb>, setId: number) =>
-  db.prepare('SELECT stage_index, dpi, pct_delta FROM blind_stages WHERE set_id = :id ORDER BY stage_index')
+  db.prepare('SELECT stage_index, dpi, sens, pct_delta FROM blind_stages WHERE set_id = :id ORDER BY stage_index')
     .all({ id: setId }) as unknown as StageRow[];
 
 // Total games ever logged against a set, across all its stages combined —
@@ -24,11 +24,13 @@ const totalGamesOf = (db: ReturnType<typeof getDb>, setId: number) =>
   (db.prepare('SELECT COUNT(*) n FROM matches WHERE blind_set_id = :id').get({ id: setId }) as { n: number }).n;
 
 // ── Create a set ─────────────────────────────────────────────────────────────
-// Stages are shown plainly — no shuffle, no scramble step. Two ways to specify
-// them: pass `dpis` (explicit, hand-picked values — e.g. levels chosen per hero
-// from prior analysis) or omit it and fall back to the auto-generated
-// ±pct_range spread around base_dpi. cur_rel starts at 1 — the set is playable
-// immediately at its first stage.
+// Stages are shown plainly — no shuffle, no scramble step. Three ways to
+// specify them: pass `senses` (explicit, hand-picked in-game sens values —
+// the current path, mouse DPI locked at LOCKED_DPI/1600 on every stage), or
+// the legacy `dpis` path (explicit DPI values, sens frozen), or omit both and
+// fall back to the legacy auto-generated ±pct_range DPI spread around
+// base_dpi. cur_rel starts at 1 — the set is playable immediately at its
+// first stage.
 //
 // Multiple sets can be active at once — each match auto-tags to the active set
 // matching its own hero (or the ad-hoc, hero-less set, if one is running), so
@@ -37,10 +39,9 @@ const totalGamesOf = (db: ReturnType<typeof getDb>, setId: number) =>
 // a second one would leave match auto-tagging ambiguous.
 router.post('/sets', (req: Request, res: Response) => {
   const db = getDb();
-  const in_game_sens = Number(req.body.in_game_sens ?? 2.5);
   const batch_size = Number(req.body.batch_size ?? 10);
   const hero = typeof req.body.hero === 'string' && req.body.hero.trim() ? req.body.hero.trim() : null;
-  if (!(in_game_sens > 0) || !(batch_size >= 1)) {
+  if (!(batch_size >= 1)) {
     res.status(400).json({ error: 'invalid set params' });
     return;
   }
@@ -51,24 +52,37 @@ router.post('/sets', (req: Request, res: Response) => {
     return;
   }
 
+  const sensesInput: number[] | null = Array.isArray(req.body.senses) ? (req.body.senses as unknown[]).map(Number) : null;
   const dpisInput: number[] | null = Array.isArray(req.body.dpis) ? (req.body.dpis as unknown[]).map(Number) : null;
   let stages: ReturnType<typeof generateStages>;
   let base_dpi: number;
+  let in_game_sens: number;
   let n_stages: number;
 
-  if (dpisInput) {
+  if (sensesInput) {
+    if (sensesInput.length < 2 || sensesInput.some(s => !(s > 0))) {
+      res.status(400).json({ error: 'senses must have 2+ positive values' });
+      return;
+    }
+    stages = stagesFromSens(sensesInput);
+    base_dpi = LOCKED_DPI;
+    in_game_sens = Math.round((sensesInput.reduce((a, b) => a + b, 0) / sensesInput.length) * 1000) / 1000;
+    n_stages = sensesInput.length;
+  } else if (dpisInput) {
     if (dpisInput.length < 2 || dpisInput.some(d => !(d > 0))) {
       res.status(400).json({ error: 'dpis must have 2+ positive values' });
       return;
     }
     stages = stagesFromDpis(dpisInput);
     base_dpi = Math.round(dpisInput.reduce((a, b) => a + b, 0) / dpisInput.length);
+    in_game_sens = Number(req.body.in_game_sens ?? 2.5);
     n_stages = dpisInput.length;
   } else {
     base_dpi = Number(req.body.base_dpi ?? 1600);
     const pct_range = Number(req.body.pct_range ?? 10);
     n_stages = Number(req.body.n_stages ?? 5);
-    if (!(base_dpi > 0) || !(n_stages >= 2)) {
+    in_game_sens = Number(req.body.in_game_sens ?? 2.5);
+    if (!(base_dpi > 0) || !(n_stages >= 2) || !(in_game_sens > 0)) {
       res.status(400).json({ error: 'invalid set params' });
       return;
     }
@@ -86,7 +100,7 @@ router.post('/sets', (req: Request, res: Response) => {
       VALUES (:s, :d, 1, :note, :b, 1, 0, 1, 0, :hero)
     `).run({ s: in_game_sens, d: base_dpi, note: req.body.note ?? null, b: batch_size, hero });
     set_id = Number(r.lastInsertRowid);
-    const ins = db.prepare('INSERT INTO blind_stages (set_id, stage_index, dpi, pct_delta) VALUES (:set_id, :stage_index, :dpi, :pct_delta)');
+    const ins = db.prepare('INSERT INTO blind_stages (set_id, stage_index, dpi, sens, pct_delta) VALUES (:set_id, :stage_index, :dpi, :sens, :pct_delta)');
     for (const st of stages) ins.run({ set_id, ...st });
     db.exec('COMMIT');
   } catch (err) {
@@ -169,7 +183,7 @@ router.get('/state', (_req: Request, res: Response) => {
     return {
       set_id: set.id, in_game_sens: set.in_game_sens, base_dpi: set.base_dpi, created_at: set.created_at,
       batch_size: set.batch_size, cur_stage: set.cur_rel, games_on_stage: set.games_on_stage,
-      dpi: curStage?.dpi ?? null, n_stages, hero: set.hero, totalGames, completed,
+      dpi: curStage?.dpi ?? null, sens: curStage?.sens ?? null, n_stages, hero: set.hero, totalGames, completed,
       needSwitch: !completed && set.games_on_stage >= set.batch_size,
       stages,
     };
@@ -193,7 +207,7 @@ router.post('/advance', (req: Request, res: Response) => {
   const next = set.cur_rel + 1;
   db.prepare('UPDATE blind_stage_sets SET cur_rel = :next, games_on_stage = 0 WHERE id = :id').run({ next, id: set.id });
   const stage = stages.find(s => s.stage_index === next);
-  res.json({ cur_stage: next, dpi: stage?.dpi ?? null, n_stages: n });
+  res.json({ cur_stage: next, dpi: stage?.dpi ?? null, sens: stage?.sens ?? null, n_stages: n });
 });
 
 // ── Per-stage summary (feel consistency etc) ──────────────────────────────────
@@ -211,9 +225,12 @@ router.get('/sets/:id', (req: Request, res: Response) => {
     const feels = trials.map(t => t.feel).filter((f): f is number => f != null);
     const feelMean = feels.length ? feels.reduce((a, b) => a + b, 0) / feels.length : null;
     const feelVar = feels.length > 1 ? feels.reduce((a, b) => a + (b - (feelMean as number)) ** 2, 0) / feels.length : null;
+    // Legacy stages (sens null) vary dpi with sens frozen on the set; current
+    // stages (sens populated) vary sens with dpi frozen at LOCKED_DPI.
+    const stageSens = st.sens ?? set.in_game_sens;
     return {
-      stage_index: st.stage_index, dpi: st.dpi, pct_delta: st.pct_delta,
-      eDPI: eDPI(set.in_game_sens, st.dpi), cm360: Math.round(cm360(set.in_game_sens, st.dpi) * 100) / 100,
+      stage_index: st.stage_index, dpi: st.dpi, sens: st.sens, pct_delta: st.pct_delta,
+      eDPI: eDPI(stageSens, st.dpi), cm360: Math.round(cm360(stageSens, st.dpi) * 100) / 100,
       n: trials.length, feelMean, feelVar,
     };
   });

@@ -40,15 +40,23 @@ router.post('/', (req: Request, res: Response) => {
 
   const deathsJson = deaths ? JSON.stringify(deaths) : null;
 
-  // The Match Tracker is a dumb logger — it sends no DPI and no set flag. The
-  // server alone decides: if a stage-test set is running for this hero (or an
-  // ad-hoc, hero-less set with no hero-specific test in the way), this match is
-  // on its current stage, so we look up that stage's DPI and write it directly
-  // — the sens page shows the same value on screen while it's being played, so
-  // there's no hidden state and nothing to reveal later. Several heroes can
-  // have sets active at once, so the lookup is scoped by hero — a hero-tagged
-  // set takes priority over the ad-hoc set. No matching active set → a plain
-  // match with whatever DPI was sent (or none). Either way the log always succeeds.
+  // The Match Tracker is a dumb logger — it sends no DPI/sens and no set
+  // flag. The server alone decides: if a stage-test set is running for this
+  // hero (or an ad-hoc, hero-less set with no hero-specific test in the way),
+  // this match is on its current stage, so we look up that stage's
+  // dpi/sens and write it directly — the sens page shows the same value on
+  // screen while it's being played, so there's no hidden state and nothing
+  // to reveal later. Several heroes can have sets active at once, so the
+  // lookup is scoped by hero — a hero-tagged set takes priority over the
+  // ad-hoc set. No matching active set → a plain match with whatever
+  // sens/dpi was sent (or none). Either way the log always succeeds.
+  //
+  // Mouse DPI locked at 1600 permanently 2026-08-08 — sets created since then
+  // vary in-game sens per stage instead (blind_stages.sens populated, dpi
+  // fixed at 1600 on every row). Sets created before that keep the old
+  // shape (sens frozen on the set, dpi varies per stage) and are read the
+  // same way until they finish — a stage's `sens` being null is what marks
+  // it as one of those legacy rows.
   let finalSens: number | null = sens ?? null;
   let finalDpi: number | null = req.body.dpi ?? null;
   let isStudy = 0;
@@ -69,11 +77,16 @@ router.post('/', (req: Request, res: Response) => {
     LIMIT 1
   `).get({ hero }) as { id: number; cur_rel: number; in_game_sens: number } | undefined : undefined;
   if (activeSet) {
-    const stage = db.prepare('SELECT dpi FROM blind_stages WHERE set_id = :sid AND stage_index = :si')
-      .get({ sid: activeSet.id, si: activeSet.cur_rel }) as { dpi: number } | undefined;
+    const stage = db.prepare('SELECT dpi, sens FROM blind_stages WHERE set_id = :sid AND stage_index = :si')
+      .get({ sid: activeSet.id, si: activeSet.cur_rel }) as { dpi: number; sens: number | null } | undefined;
     if (stage) {
-      finalDpi = stage.dpi;
-      finalSens = activeSet.in_game_sens;
+      if (stage.sens != null) {
+        finalDpi = stage.dpi;
+        finalSens = stage.sens;
+      } else {
+        finalDpi = stage.dpi;
+        finalSens = activeSet.in_game_sens;
+      }
       isStudy = 1;
       setId = activeSet.id;
       stageIdx = activeSet.cur_rel;

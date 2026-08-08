@@ -208,6 +208,19 @@ function initSchema(db: DatabaseSync) {
     );
   `);
 
+  // sens: per-stage varying in-game sensitivity, added when mouse DPI was
+  // locked at 1600 permanently (2026-08-08) in favor of testing finer sens
+  // increments instead (the mouse config app floored DPI at 50-unit steps).
+  // Null on stages from sets created before the lock (those vary dpi instead,
+  // with sens frozen at blind_stage_sets.in_game_sens); populated on stages
+  // from sets created after — dpi on those rows is just the fixed 1600
+  // constant. Which axis a set varies is inferred per-stage from whether this
+  // column is null, not stored as a separate flag.
+  const stageCols = db.prepare(`PRAGMA table_info(blind_stages)`).all() as { name: string }[];
+  if (!stageCols.find(c => c.name === 'sens')) {
+    db.exec(`ALTER TABLE blind_stages ADD COLUMN sens REAL`);
+  }
+
   // Migrate blind_stage_sets created before the guided-loop columns existed.
   const setCols = db.prepare(`PRAGMA table_info(blind_stage_sets)`).all() as { name: string }[];
   for (const [col, ddl] of [

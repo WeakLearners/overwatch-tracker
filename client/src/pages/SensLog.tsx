@@ -23,10 +23,10 @@ interface PendingMatch {
 interface DpiTestActive {
   set_id: number; in_game_sens: number; base_dpi: number; created_at: string;
   batch_size: number; cur_stage: number; games_on_stage: number;
-  dpi: number | null; n_stages: number;
+  dpi: number | null; sens: number | null; n_stages: number;
   hero: string | null; totalGames: number; completed: boolean;
   needSwitch: boolean;
-  stages: { stage_index: number; dpi: number }[];
+  stages: { stage_index: number; dpi: number; sens: number | null }[];
 }
 interface DpiTestState {
   actives: DpiTestActive[];
@@ -36,7 +36,7 @@ interface DpiTestSetSummary {
   batch_size: number; n_stages: number; totalGames: number; created_at: string;
 }
 interface AnswerStage {
-  stage_index: number; dpi: number; pct_delta: number;
+  stage_index: number; dpi: number; sens: number | null; pct_delta: number;
   eDPI: number; cm360: number; n: number; feelMean: number | null; feelVar: number | null;
 }
 interface StatFieldsT {
@@ -138,8 +138,8 @@ export default function SensLog() {
       <BackfillPanel pending={pending} loading={loading} knownLabels={knownLabels} labelFor={labelFor} />
 
       <div className="mt-10 pt-8 border-t border-ow-border">
-        <h2 data-inspect-id="sl-header-stage-trials" className="text-sm heading-display text-[var(--ink)] mb-1">DPI stage trials</h2>
-        <p className="text-xs text-[var(--faint)] mb-4">Set your mouse to the DPI shown, play a batch, switch to the next stage. Log each game in the Match Tracker — it auto-tags to your current stage and queues up above for its combat details. Heroes can be tested in parallel — start as many as you like at once.</p>
+        <h2 data-inspect-id="sl-header-stage-trials" className="text-sm heading-display text-[var(--ink)] mb-1">Sens stage trials</h2>
+        <p className="text-xs text-[var(--faint)] mb-4">Mouse DPI is locked at 1600 permanently — set your in-game sens to the value shown, play a batch, switch to the next stage. Log each game in the Match Tracker — it auto-tags to your current stage and queues up above for its combat details. Heroes can be tested in parallel — start as many as you like at once.</p>
         <PlanCard tabs={PLAN_TABS} state={dpiState} />
         <TestPanel state={dpiState} />
       </div>
@@ -182,33 +182,45 @@ const PHASE3_PLAN = [
 ] as const;
 
 // ── Phase 4 test plan (reference card) ───────────────────────────────────────
-// ±50 DPI bracket around each hero's Phase 3 leader (0.4×win% + 0.4×acc% +
+// Narrow bracket around each hero's Phase 3 leader (0.4×win% + 0.4×acc% +
 // 0.2×secondary-stat weighting), 5 games/stage instead of 12 — switching to
 // Competitive since QP win% proved too unreliable (bad teammates, ~30-40% of
-// matches) to trust at the narrower gap. Originally spec'd as ±25, widened to
-// ±50 on 2026-08-05 — the mouse software's DPI field floors at 50-unit
-// increments, so 25-unit offsets (1725, 1775, etc.) aren't settable in hardware.
+// matches) to trust at the narrower gap.
+//
+// Sojourn's set is already in flight (started 2026-08-05, DPI-varying —
+// values left as the DPIs it's actually running: 1700/1800) and stays that
+// way to completion. Mouse DPI locked at 1600 permanently 2026-08-08 — the
+// mouse config app floored DPI changes at 50-unit steps, too coarse to
+// narrow further, so every hero that hadn't started yet (Pharah, Shion,
+// Tracer) switched to varying in-game sens instead, which has no such floor.
+// Their values below are the exact same eDPI targets their old ±50 DPI
+// brackets were approximating, expressed as sens = (dpi × 2.5) / 1600.
 const PHASE4_PLAN = [
   {
     hero: 'Sojourn', archetype: 'Hitscan', dpis: [1700, 1800], gamesPerSlot: 5,
-    note: 'Phase 3 leaned 1750 on win%/hero-stat, but ~half that win-rate gap turned out to be map-mix, not DPI — hold this one loosely.',
+    note: 'Phase 3 leaned 1750 on win%/hero-stat, but ~half that win-rate gap turned out to be map-mix, not DPI — hold this one loosely. Already in flight on DPI; finishing as started.',
   },
   {
-    hero: 'Pharah', archetype: 'Projectile', dpis: [1450, 1550], gamesPerSlot: 5,
-    note: "75%-vs-42% swing toward 1500 in Phase 3 survived a map-mix check better than Sojourn's did, but acc/hero-stat still favor 1750 — the most contested pick of the four.",
+    hero: 'Pharah', archetype: 'Projectile', senses: [2.27, 2.42], gamesPerSlot: 5,
+    note: "75%-vs-42% swing toward 1500 in Phase 3 survived a map-mix check better than Sojourn's did, but acc/hero-stat still favor 1750 — the most contested pick of the four. Same eDPI target as the old 1450/1550 DPI bracket, via sens now.",
   },
   {
-    hero: 'Shion', archetype: 'Hitscan', dpis: [1700, 1800], gamesPerSlot: 5,
-    note: 'Cleanest Phase 3 signal — win%, acc, crit%, and kills all agreed on 1750, and it held up after adjusting for map mix. Also matches the DPI you said you were hating (1850) losing decisively.',
+    hero: 'Shion', archetype: 'Hitscan', senses: [2.66, 2.81], gamesPerSlot: 5,
+    note: 'Cleanest Phase 3 signal — win%, acc, crit%, and kills all agreed on 1750, and it held up after adjusting for map mix. Also matches the DPI you said you were hating (1850) losing decisively. Same eDPI target as the old 1700/1800 DPI bracket, via sens now.',
   },
   {
-    hero: 'Tracer', archetype: 'Hitscan', dpis: [1650, 1750], gamesPerSlot: 5,
-    note: 'Phase 3 was a near-exact tie on the weighted score — 1700 edges it only on Pulse Bomb Attach% and elims. Basically a coin flip; this round is to break it.',
+    hero: 'Tracer', archetype: 'Hitscan', senses: [2.58, 2.73], gamesPerSlot: 5,
+    note: 'Phase 3 was a near-exact tie on the weighted score — 1700 edges it only on Pulse Bomb Attach% and elims. Basically a coin flip; this round is to break it. Same eDPI target as the old 1650/1750 DPI bracket, via sens now.',
   },
 ] as const;
 
-interface PlanHero { hero: string; archetype: string; dpis: readonly number[]; gamesPerSlot: number; note: string }
+interface PlanHero {
+  hero: string; archetype: string; gamesPerSlot: number; note: string;
+  dpis?: readonly number[]; senses?: readonly number[];
+}
 interface PlanTab { key: string; label: string; description: string; plan: readonly PlanHero[] }
+
+const valuesOf = (h: PlanHero): readonly number[] => h.senses ?? h.dpis ?? [];
 
 const PLAN_TABS: readonly PlanTab[] = [
   {
@@ -221,7 +233,7 @@ const PLAN_TABS: readonly PlanTab[] = [
   },
   {
     key: 'phase4', label: 'Phase 4', plan: PHASE4_PLAN,
-    description: `In-game sens frozen at 2.50. Narrow ±50 DPI bracket around each Phase 3 leader (mouse DPI floors at 50-unit steps), now on Competitive instead of QP. ${PHASE4_PLAN.length} heroes × 2 DPI levels, ${PHASE4_PLAN.reduce((sum, h) => sum + h.dpis.length * h.gamesPerSlot, 0)} games total.`,
+    description: `Mouse DPI locked at 1600 permanently — Sojourn's in-flight set stays DPI-varying to finish as started; Pharah/Shion/Tracer vary in-game sens instead (no more 50-unit DPI floor), at the same eDPI targets their brackets already had. ${PHASE4_PLAN.length} heroes × 2 levels, ${PHASE4_PLAN.reduce((sum, h) => sum + valuesOf(h).length * h.gamesPerSlot, 0)} games total.`,
   },
 ];
 
@@ -258,15 +270,18 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
   const [tabKey, setTabKey] = useState(tabs[tabs.length - 1].key);
   const { plan, description } = tabs.find(t => t.key === tabKey) ?? tabs[tabs.length - 1];
 
-  const statuses = new Map(plan.map(h => [h.hero, statusForHero(h.hero, actives, sets, h.gamesPerSlot, h.dpis.length)]));
+  const statuses = new Map(plan.map(h => [h.hero, statusForHero(h.hero, actives, sets, h.gamesPerSlot, valuesOf(h).length)]));
   const [cancelling, setCancelling] = useState(false);
 
   async function createSetForHero(h: PlanHero) {
     setCreating(h.hero);
     try {
+      const body = h.senses
+        ? { senses: h.senses, batch_size: h.gamesPerSlot, hero: h.hero }
+        : { in_game_sens: 2.5, batch_size: h.gamesPerSlot, dpis: h.dpis, hero: h.hero };
       await fetch('/api/blind/sets', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ in_game_sens: 2.5, batch_size: h.gamesPerSlot, dpis: h.dpis, hero: h.hero }),
+        body: JSON.stringify(body),
       });
       revalidateAll();
     } finally { setCreating(null); }
@@ -324,8 +339,10 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                   <span className="text-[10px] text-[var(--faint-2)] uppercase">{h.archetype}</span>
                 </div>
                 <div className="flex items-center gap-1.5 mb-1.5">
-                  {h.dpis.map(d => (
-                    <span key={d} className="text-xs num-display text-[var(--ink)] bg-ow-border/40 rounded px-1.5 py-0.5">{d}</span>
+                  {valuesOf(h).map(v => (
+                    <span key={v} className="text-xs num-display text-[var(--ink)] bg-ow-border/40 rounded px-1.5 py-0.5">
+                      {h.senses ? v.toFixed(2) : v}
+                    </span>
                   ))}
                   <span className="text-[10px] text-[var(--faint-2)]">× {h.gamesPerSlot}/slot</span>
                 </div>
@@ -451,11 +468,23 @@ function ActiveTestCard({ active }: { active: DpiTestActive }) {
   return (
     <div className="max-w-lg space-y-3">
       <div className="card text-center" data-inspect-id="sl-active-test-card">
-        <div className="text-xs text-[var(--faint)] mb-1">
-          {active.hero ? `${active.hero} — ` : ''}Stage {active.cur_stage} of {active.n_stages} — set your mouse to
-        </div>
-        <div className="text-5xl heading-display text-[var(--ink)] my-2 num-display">{active.dpi ?? '—'}</div>
-        <div className="text-xs text-[var(--faint)]">DPI, in-game sens <b className="num-display">{active.in_game_sens.toFixed(2)}</b></div>
+        {active.sens != null ? (
+          <>
+            <div className="text-xs text-[var(--faint)] mb-1">
+              {active.hero ? `${active.hero} — ` : ''}Stage {active.cur_stage} of {active.n_stages} — set your in-game sens to
+            </div>
+            <div className="text-5xl heading-display text-[var(--ink)] my-2 num-display">{active.sens.toFixed(2)}</div>
+            <div className="text-xs text-[var(--faint)]">sens, mouse DPI locked <b className="num-display">{active.dpi}</b></div>
+          </>
+        ) : (
+          <>
+            <div className="text-xs text-[var(--faint)] mb-1">
+              {active.hero ? `${active.hero} — ` : ''}Stage {active.cur_stage} of {active.n_stages} — set your mouse to
+            </div>
+            <div className="text-5xl heading-display text-[var(--ink)] my-2 num-display">{active.dpi ?? '—'}</div>
+            <div className="text-xs text-[var(--faint)]">DPI, in-game sens <b className="num-display">{active.in_game_sens.toFixed(2)}</b></div>
+          </>
+        )}
         {active.needSwitch ? (
           <>
             <div className="text-xs text-amber-500 font-semibold mt-4 mb-1">Batch complete — switch stages</div>
@@ -481,19 +510,18 @@ function ActiveTestCard({ active }: { active: DpiTestActive }) {
 // e.g. for a one-off test that doesn't fit the current phase's plan. At most
 // one ad-hoc (hero-less) set can be active at a time.
 function CreateTestCard() {
-  const [inGameSens, setInGameSens] = useState('2.50');
   const [batchSize, setBatchSize] = useState('12');
-  const [dpis, setDpis] = useState<string[]>(['1500', '1600', '1700']);
+  const [senses, setSenses] = useState<string[]>(['2.50', '2.65', '2.80']);
   const [busy, setBusy] = useState(false);
 
-  // Resize the DPI list to a new slot count, keeping existing values and
+  // Resize the sens list to a new slot count, keeping existing values and
   // padding new slots off the last one so a bigger test starts from something
   // sane instead of blank.
   function setSlotCount(nStr: string) {
     const n = Math.max(2, parseInt(nStr) || 2);
-    setDpis(prev => {
+    setSenses(prev => {
       const next = prev.slice(0, n);
-      while (next.length < n) next.push(next[next.length - 1] ?? '1600');
+      while (next.length < n) next.push(next[next.length - 1] ?? '2.50');
       return next;
     });
   }
@@ -504,8 +532,8 @@ function CreateTestCard() {
       const res = await fetch('/api/blind/sets', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          in_game_sens: parseFloat(inGameSens), batch_size: parseInt(batchSize),
-          dpis: dpis.map(d => parseInt(d)),
+          batch_size: parseInt(batchSize),
+          senses: senses.map(s => parseFloat(s)),
         }),
       });
       if (!res.ok) {
@@ -519,16 +547,16 @@ function CreateTestCard() {
 
   return (
     <div className="card max-w-lg" data-inspect-id="sl-create-test-card">
-      <h2 className="text-sm heading-display text-[var(--ink)] mb-1">Create an ad-hoc DPI test set</h2>
-      <p className="text-xs text-[var(--faint)] mb-4">Pick each stage's DPI directly — e.g. levels chosen per hero from the analysis page. Type them into your mouse's DPI stages in this same order; the current stage's value stays visible on screen the whole test.</p>
+      <h2 className="text-sm heading-display text-[var(--ink)] mb-1">Create an ad-hoc sens test set</h2>
+      <p className="text-xs text-[var(--faint)] mb-4">Mouse DPI is locked at 1600 permanently. Pick each stage's in-game sens directly — e.g. levels chosen per hero from the analysis page. Type them into your in-game sens setting in this same order; the current stage's value stays visible on screen the whole test.</p>
       <div className="grid grid-cols-2 gap-3 mb-3">
         <label className="block">
-          <span className="block text-xs text-[var(--muted)] mb-1.5">In-game sens (frozen)</span>
-          <input type="number" step="0.01" data-inspect-id="sl-ingame-sens-input" className={field} value={inGameSens} onChange={e => setInGameSens(e.target.value)} />
+          <span className="block text-xs text-[var(--muted)] mb-1.5">Mouse DPI (locked)</span>
+          <input type="number" data-inspect-id="sl-locked-dpi-display" className={`${field} opacity-60`} value={1600} disabled />
         </label>
         <label className="block">
           <span className="block text-xs text-[var(--muted)] mb-1.5"># Stages</span>
-          <input type="number" step="1" min="2" data-inspect-id="sl-num-stages-input" className={field} value={dpis.length} onChange={e => setSlotCount(e.target.value)} />
+          <input type="number" step="1" min="2" data-inspect-id="sl-num-stages-input" className={field} value={senses.length} onChange={e => setSlotCount(e.target.value)} />
         </label>
         <label className="block col-span-2">
           <span className="block text-xs text-[var(--muted)] mb-1.5">Games per stage (samples)</span>
@@ -536,13 +564,13 @@ function CreateTestCard() {
         </label>
       </div>
       <div className="mb-4">
-        <span className="block text-xs text-[var(--muted)] mb-1.5">DPI per stage</span>
-        <div className="grid grid-cols-3 gap-2" data-inspect-id="sl-dpi-per-stage-inputs">
-          {dpis.map((d, i) => (
+        <span className="block text-xs text-[var(--muted)] mb-1.5">In-game sens per stage</span>
+        <div className="grid grid-cols-3 gap-2" data-inspect-id="sl-sens-per-stage-inputs">
+          {senses.map((s, i) => (
             <input
-              key={i} type="number" step="50" className={field} value={d} placeholder={`Stage ${i + 1}`}
-              onChange={e => setDpis(prev => prev.map((v, vi) => (vi === i ? e.target.value : v)))}
-              aria-label={`Stage ${i + 1} DPI`}
+              key={i} type="number" step="0.01" className={field} value={s} placeholder={`Stage ${i + 1}`}
+              onChange={e => setSenses(prev => prev.map((v, vi) => (vi === i ? e.target.value : v)))}
+              aria-label={`Stage ${i + 1} sens`}
             />
           ))}
         </div>
@@ -562,7 +590,7 @@ function AnswerTable({ stages }: { stages: AnswerStage[] }) {
           </tr>
         </thead>
         <tbody className="num-display">
-          {[...stages].sort((a, b) => a.dpi - b.dpi).map(s => (
+          {[...stages].sort((a, b) => (a.sens ?? a.dpi) - (b.sens ?? b.dpi)).map(s => (
             <tr key={s.stage_index} className="border-t border-ow-border">
               <td className="py-1.5 pr-3">#{s.stage_index}</td>
               <td className="py-1.5 pr-3">{s.dpi}</td>
