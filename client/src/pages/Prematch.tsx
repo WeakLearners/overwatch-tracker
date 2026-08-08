@@ -91,6 +91,11 @@ export default function Prematch() {
   const [query, setQuery]       = useState('');
   const [open, setOpen]         = useState(false);
   const [expandedOther, setExpandedOther] = useState<string | null>(null);
+  // Which hero card in "Select Your Hero" is currently picked, kept
+  // separately from the context's `pendingHero` — that one is a one-shot
+  // signal LogMatch consumes and clears the instant it pre-fills the form,
+  // so it can't double as "what should stay highlighted here."
+  const [selectedHero, setSelectedHero] = useState<string | null>(null);
   const inputRef                = useRef<HTMLInputElement>(null);
 
   // Reset the voting picks after a match is logged (skips the initial mount).
@@ -100,6 +105,7 @@ export default function Prematch() {
     setSelected([]);
     setQuery('');
     setOpen(false);
+    setSelectedHero(null);
   }, [matchLoggedSignal]);
 
   // Keep focus on the map search whenever the app is idle (no map selected).
@@ -568,11 +574,17 @@ export default function Prematch() {
                     {top.map(h => (
                       <button
                         key={h.hero}
-                        onClick={() => setPendingHero(h.hero)}
-                        className="flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-lg border border-ow-border bg-ow-darker hover:border-violet-500/70 hover:bg-violet-500/10 active:scale-[0.98] transition-all group"
+                        onClick={() => { setSelectedHero(h.hero); setPendingHero(h.hero); }}
+                        data-inspect-id="prematch-hero-picker-button"
+                        aria-pressed={selectedHero === h.hero}
+                        className={`flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-lg border active:scale-[0.98] transition-all group ${
+                          selectedHero === h.hero
+                            ? 'border-violet-500 bg-violet-500/15'
+                            : 'border-ow-border bg-ow-darker hover:border-violet-500/70 hover:bg-violet-500/10'
+                        }`}
                       >
                         <span className={`text-sm ${h.win_rate >= 50 ? 'text-emerald-700' : 'text-red-500'}`}>{h.win_rate >= 50 ? '↑' : '↓'}</span>
-                        <span className="flex-1 text-sm font-semibold text-[var(--ink)] group-hover:text-violet-500 transition-colors">{withHeroCount(h.hero, heroCounts)}</span>
+                        <span className={`flex-1 text-sm font-semibold transition-colors ${selectedHero === h.hero ? 'text-violet-500' : 'text-[var(--ink)] group-hover:text-violet-500'}`}>{withHeroCount(h.hero, heroCounts)}</span>
                         <span className={`text-sm font-semibold ${h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
                         <span className="text-xs text-[var(--faint-2)] w-7 text-right">{h.games}g</span>
                       </button>
@@ -597,11 +609,17 @@ export default function Prematch() {
                           {isOpen && rest.map(h => (
                             <button
                               key={h.hero}
-                              onClick={() => setPendingHero(h.hero)}
-                              className="flex items-center gap-3 w-full text-left pl-6 pr-3 py-2 ml-2 rounded-lg border border-ow-border/60 bg-ow-darker/60 hover:border-violet-500/70 hover:bg-violet-500/10 active:scale-[0.98] transition-all group"
+                              onClick={() => { setSelectedHero(h.hero); setPendingHero(h.hero); }}
+                              data-inspect-id="prematch-hero-picker-button"
+                              aria-pressed={selectedHero === h.hero}
+                              className={`flex items-center gap-3 w-full text-left pl-6 pr-3 py-2 ml-2 rounded-lg border active:scale-[0.98] transition-all group ${
+                                selectedHero === h.hero
+                                  ? 'border-violet-500 bg-violet-500/15'
+                                  : 'border-ow-border/60 bg-ow-darker/60 hover:border-violet-500/70 hover:bg-violet-500/10'
+                              }`}
                             >
                               <span className={`text-sm ${h.win_rate >= 50 ? 'text-emerald-700' : 'text-red-500'}`}>{h.win_rate >= 50 ? '↑' : '↓'}</span>
-                              <span className="flex-1 text-sm text-[var(--muted)] group-hover:text-violet-500 transition-colors">{withHeroCount(h.hero, heroCounts)}</span>
+                              <span className={`flex-1 text-sm transition-colors ${selectedHero === h.hero ? 'text-violet-500' : 'text-[var(--muted)] group-hover:text-violet-500'}`}>{withHeroCount(h.hero, heroCounts)}</span>
                               <span className={`text-sm font-semibold ${h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
                               <span className="text-xs text-[var(--faint-2)] w-7 text-right">{h.games}g</span>
                             </button>
