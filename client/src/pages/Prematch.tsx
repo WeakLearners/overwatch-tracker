@@ -23,6 +23,15 @@ interface DpiTestHud {
   }[];
 }
 
+// Every stage-test set ever created (active or not) — used to find heroes
+// whose most recent set already finished, so "Select Your Hero" can keep
+// showing them (marked Completed) instead of them just vanishing the moment
+// their set auto-retires.
+interface DpiTestSetSummary {
+  set_id: number; hero: string | null; active: boolean; completed: boolean;
+  batch_size: number; n_stages: number; totalGames: number; created_at: string;
+}
+
 const ALL_MAPS = Object.keys(MAPS).sort();
 const DPI_TEST_HERO_KEY = 'ow-dpi-test-hero';
 const AD_HOC_KEY = '__adhoc__';
@@ -60,6 +69,7 @@ export default function Prematch() {
   const { queueMode, map, setMap, mapType, rec, recLoading, recError, refreshRec, setPendingHero, matchLoggedSignal } = useMatch();
   const { data: dpiHud } = useApi<DpiTestHud>('/api/blind/state');
   const btActives = dpiHud?.actives ?? [];
+  const { data: dpiSets } = useApi<{ sets: DpiTestSetSummary[] }>('/api/blind/sets');
   // Several heroes can be "In Testing" at once, but the mouse can only be set
   // to one DPI at a time — so the HUD tracks whichever hero you're about to
   // play next, not an aggregate across all of them. Persisted so the choice
@@ -172,12 +182,29 @@ export default function Prematch() {
   const ranked  = [...selected].sort((a, b) => (scoreMap[b]?.blended_score ?? 0) - (scoreMap[a]?.blended_score ?? 0));
   const winner  = ranked[0];
   const topOnMap = data?.byHero ?? [];
-  // "Select Your Hero" only surfaces heroes with an active (in-testing) DPI
-  // test — picking here is meant to feed the test, not just log any match.
+  // "Select Your Hero" surfaces heroes with an active (in-testing) DPI test —
+  // picking here is meant to feed a test, not just log any match.
   const inTestingHeroes = new Set(btActives.map(a => a.hero).filter((h): h is string => !!h));
-  // Every hero surfaced below is, by construction, in an active stage test —
-  // so this always resolves for them. Sens supersedes DPI post-lock; DPI is
-  // the fallback for any pre-lock stage still running on the old axis.
+  // Heroes whose most recent stage-test set already finished (and so auto-
+  // retired — active=0) stay visible here too, marked Completed, rather than
+  // vanishing from the picker the moment their set wraps up. "Most recent"
+  // mirrors SensLog's statusForHero: an older completed set doesn't override
+  // a hero's current in-progress one.
+  const latestSetByHero = new Map<string, DpiTestSetSummary>();
+  for (const s of dpiSets?.sets ?? []) {
+    if (!s.hero) continue;
+    const cur = latestSetByHero.get(s.hero);
+    if (!cur || s.set_id > cur.set_id) latestSetByHero.set(s.hero, s);
+  }
+  const completedHeroes = new Set(
+    [...latestSetByHero.values()].filter(s => s.completed && !inTestingHeroes.has(s.hero!)).map(s => s.hero!),
+  );
+  const selectableHeroes = new Set([...inTestingHeroes, ...completedHeroes]);
+  // Every hero surfaced below is, by construction, either actively testing
+  // (has a sens/DPI value here) or already completed (no active set to read a
+  // value from — see the Completed badge instead). Sens supersedes DPI
+  // post-lock; DPI is the fallback for any pre-lock stage still running on
+  // the old axis.
   const testValueFor = (hero: string): string | null => {
     const a = btActives.find(a => a.hero === hero);
     if (!a) return null;
@@ -190,7 +217,7 @@ export default function Prematch() {
   const MIN_GAMES = 2;
   const TOP_N = 5;
   function buildRole(role: string) {
-    const all = topOnMap.filter(h => h.role === role && inTestingHeroes.has(h.hero)); // already win_rate desc
+    const all = topOnMap.filter(h => h.role === role && selectableHeroes.has(h.hero)); // already win_rate desc
     const top = all.filter(h => h.games >= MIN_GAMES).slice(0, TOP_N);
     const topSet = new Set(top.map(h => h.hero));
     const rest = all.filter(h => !topSet.has(h.hero));
@@ -655,7 +682,7 @@ export default function Prematch() {
         <div className="mt-4 pt-4 border-t border-ow-border/40">
         <div className="rounded-xl bg-violet-500/[0.06] px-4 py-3.5">
         <h3 className="text-sm grad-brand font-black uppercase tracking-widest mb-3" data-inspect-id="prematch-select-your-hero-header">Select Your Hero</h3>
-        {inTestingHeroes.size > 0 ? (
+        {selectableHeroes.size > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" data-inspect-id="prematch-hero-picker-list">
             {(['DPS', 'Support'] as const).map(role => {
               const { top, other } = byRole[role];
@@ -679,13 +706,16 @@ export default function Prematch() {
                         <span className={`flex-1 text-sm font-semibold transition-colors ${selectedHero === h.hero ? 'text-violet-500' : 'text-[var(--ink)] group-hover:text-violet-500'}`}>
                           {withHeroCount(h.hero, heroCounts)}{testValueFor(h.hero) && ` @ ${testValueFor(h.hero)}`}
                         </span>
+                        {completedHeroes.has(h.hero) && (
+                          <span className="text-[9px] font-bold uppercase tracking-wide text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded-full shrink-0">Completed</span>
+                        )}
                         <span className={`text-sm font-semibold ${h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
                         <span className="text-xs text-[var(--faint-2)] w-7 text-right">{h.games}g</span>
                       </button>
                     ))}
                     {other && (() => {
                       const isOpen = expandedOther === role;
-                      const rest = topOnMap.filter(h => h.role === role && inTestingHeroes.has(h.hero) && !byRole[role].top.find(t => t.hero === h.hero));
+                      const rest = topOnMap.filter(h => h.role === role && selectableHeroes.has(h.hero) && !byRole[role].top.find(t => t.hero === h.hero));
                       return (
                         <>
                           <button
@@ -716,6 +746,9 @@ export default function Prematch() {
                               <span className={`flex-1 text-sm transition-colors ${selectedHero === h.hero ? 'text-violet-500' : 'text-[var(--muted)] group-hover:text-violet-500'}`}>
                                 {withHeroCount(h.hero, heroCounts)}{testValueFor(h.hero) && ` @ ${testValueFor(h.hero)}`}
                               </span>
+                              {completedHeroes.has(h.hero) && (
+                                <span className="text-[9px] font-bold uppercase tracking-wide text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded-full shrink-0">Completed</span>
+                              )}
                               <span className={`text-sm font-semibold ${h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
                               <span className="text-xs text-[var(--faint-2)] w-7 text-right">{h.games}g</span>
                             </button>
