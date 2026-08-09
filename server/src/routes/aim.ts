@@ -267,16 +267,18 @@ router.get('/', (_req: Request, res: Response) => {
 });
 
 // Upsert aim stats for a match. match_id is the PK, so re-submitting the same
-// match corrects a prior entry rather than erroring. Accuracy is per hero
-// played (heroes[]) — see aim_stats_heroes in schema.ts; everything else here
-// (hero-specific stat, combat totals) stays one match-level scoreboard entry.
+// match corrects a prior entry rather than erroring. Accuracy AND duration are
+// per hero played (heroes[]) — see aim_stats_heroes in schema.ts; everything
+// else here (combat totals) stays one match-level scoreboard entry.
+// aim_stats.duration_min is kept as the sum of the per-hero durations, since
+// the match-total rate stats (damage/elims/final_blows per 10 min) still
+// operate on the whole match, not a single hero within it.
 // final_blows is intentionally left out of both the insert and the update —
 // the form stopped collecting it, and leaving it out of the UPDATE SET
 // (rather than sending null) keeps any already-saved value on old rows intact.
 router.post('/', (req: Request, res: Response) => {
   const db = getDb();
-  const { match_id, heroes, hero_stat_label, hero_stat_value,
-    elims, deaths, damage, healing, duration_min } = req.body;
+  const { match_id, heroes, elims, deaths, damage, healing } = req.body;
 
   if (match_id === undefined || match_id === null) {
     res.status(400).json({ error: 'match_id required' });
@@ -288,14 +290,14 @@ router.post('/', (req: Request, res: Response) => {
     return;
   }
 
+  const heroList = (Array.isArray(heroes) ? heroes : []).filter(h => h?.hero);
+  const durations = heroList.map(h => h.duration_min).filter((d): d is number => typeof d === 'number');
+  const totalDuration = durations.length ? durations.reduce((a, b) => a + b, 0) : null;
+
   db.prepare(`
-    INSERT INTO aim_stats (match_id, hero_stat_label, hero_stat_value,
-                           elims, deaths, damage, healing, duration_min)
-    VALUES (:match_id, :hero_stat_label, :hero_stat_value,
-            :elims, :deaths, :damage, :healing, :duration_min)
+    INSERT INTO aim_stats (match_id, elims, deaths, damage, healing, duration_min)
+    VALUES (:match_id, :elims, :deaths, :damage, :healing, :duration_min)
     ON CONFLICT(match_id) DO UPDATE SET
-      hero_stat_label = excluded.hero_stat_label,
-      hero_stat_value = excluded.hero_stat_value,
       elims           = excluded.elims,
       deaths          = excluded.deaths,
       damage          = excluded.damage,
@@ -304,25 +306,26 @@ router.post('/', (req: Request, res: Response) => {
       created_at      = datetime('now')
   `).run({
     match_id,
-    hero_stat_label: hero_stat_label ?? null,
-    hero_stat_value: hero_stat_value ?? null,
     elims: elims ?? null,
     deaths: deaths ?? null,
     damage: damage ?? null,
     healing: healing ?? null,
-    duration_min: duration_min ?? null,
+    duration_min: totalDuration,
   });
 
   const insertHeroAcc = db.prepare(`
-    INSERT INTO aim_stats_heroes (match_id, hero, overall_acc, crit_acc)
-    VALUES (:match_id, :hero, :overall_acc, :crit_acc)
+    INSERT INTO aim_stats_heroes (match_id, hero, overall_acc, crit_acc, duration_min)
+    VALUES (:match_id, :hero, :overall_acc, :crit_acc, :duration_min)
     ON CONFLICT(match_id, hero) DO UPDATE SET
-      overall_acc = excluded.overall_acc,
-      crit_acc    = excluded.crit_acc
+      overall_acc  = excluded.overall_acc,
+      crit_acc     = excluded.crit_acc,
+      duration_min = excluded.duration_min
   `);
-  for (const h of Array.isArray(heroes) ? heroes : []) {
-    if (!h?.hero) continue;
-    insertHeroAcc.run({ match_id, hero: h.hero, overall_acc: h.overall_acc ?? null, crit_acc: h.crit_acc ?? null });
+  for (const h of heroList) {
+    insertHeroAcc.run({
+      match_id, hero: h.hero, overall_acc: h.overall_acc ?? null, crit_acc: h.crit_acc ?? null,
+      duration_min: h.duration_min ?? null,
+    });
   }
 
   res.json({ ok: true });

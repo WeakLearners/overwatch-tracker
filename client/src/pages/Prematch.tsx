@@ -172,13 +172,16 @@ export default function Prematch() {
   const ranked  = [...selected].sort((a, b) => (scoreMap[b]?.blended_score ?? 0) - (scoreMap[a]?.blended_score ?? 0));
   const winner  = ranked[0];
   const topOnMap = data?.byHero ?? [];
+  // "Select Your Hero" only surfaces heroes with an active (in-testing) DPI
+  // test — picking here is meant to feed the test, not just log any match.
+  const inTestingHeroes = new Set(btActives.map(a => a.hero).filter((h): h is string => !!h));
 
   // For each role, show up to 5 qualified heroes (>=2 games), then roll the
   // remaining heroes on this map into a single combined "Other heroes" slot.
   const MIN_GAMES = 2;
   const TOP_N = 5;
   function buildRole(role: string) {
-    const all = topOnMap.filter(h => h.role === role); // already win_rate desc
+    const all = topOnMap.filter(h => h.role === role && inTestingHeroes.has(h.hero)); // already win_rate desc
     const top = all.filter(h => h.games >= MIN_GAMES).slice(0, TOP_N);
     const topSet = new Set(top.map(h => h.hero));
     const rest = all.filter(h => !topSet.has(h.hero));
@@ -193,7 +196,6 @@ export default function Prematch() {
   }
   const byRole = {
     DPS:     buildRole('DPS'),
-    Tank:    buildRole('Tank'),
     Support: buildRole('Support'),
   };
   // Recommended pick panel (no-map state): the hottest-trending DPS + Support
@@ -626,9 +628,9 @@ export default function Prematch() {
         <div className="mt-4 pt-4 border-t border-ow-border/40">
         <div className="rounded-xl bg-violet-500/[0.06] px-4 py-3.5">
         <h3 className="text-sm grad-brand font-black uppercase tracking-widest mb-3" data-inspect-id="prematch-select-your-hero-header">Select Your Hero</h3>
-        {topOnMap.length > 0 ? (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4" data-inspect-id="prematch-hero-picker-list">
-            {(['DPS', 'Tank', 'Support'] as const).map(role => {
+        {inTestingHeroes.size > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" data-inspect-id="prematch-hero-picker-list">
+            {(['DPS', 'Support'] as const).map(role => {
               const { top, other } = byRole[role];
               return (
                 <div key={role}>
@@ -654,7 +656,7 @@ export default function Prematch() {
                     ))}
                     {other && (() => {
                       const isOpen = expandedOther === role;
-                      const rest = topOnMap.filter(h => h.role === role && !byRole[role].top.find(t => t.hero === h.hero));
+                      const rest = topOnMap.filter(h => h.role === role && inTestingHeroes.has(h.hero) && !byRole[role].top.find(t => t.hero === h.hero));
                       return (
                         <>
                           <button

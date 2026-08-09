@@ -143,11 +143,35 @@ function initSchema(db: DatabaseSync) {
       PRIMARY KEY (match_id, hero)
     )
   `);
+
+  // duration_min: how long THIS hero was actually played, entered per hero
+  // row in the Aim Stats form (a mid-match switch can leave one hero on
+  // screen for 2 minutes and another for 15 — a single match-wide duration
+  // hid that). aim_stats.duration_min stays the column of record for the
+  // match-total rate stats (damage/elims/final_blows per 10 min are still
+  // match-level scoreboard totals) — it's kept in sync as the sum of the
+  // per-hero durations below, not replaced by them.
+  const heroCols = db.prepare(`PRAGMA table_info(aim_stats_heroes)`).all() as { name: string }[];
+  if (!heroCols.find(c => c.name === 'duration_min')) {
+    db.exec(`ALTER TABLE aim_stats_heroes ADD COLUMN duration_min INTEGER`);
+  }
+
   db.exec(`
-    INSERT INTO aim_stats_heroes (match_id, hero, overall_acc, crit_acc)
-    SELECT a.match_id, m.hero, a.overall_acc, a.crit_acc
+    INSERT INTO aim_stats_heroes (match_id, hero, overall_acc, crit_acc, duration_min)
+    SELECT a.match_id, m.hero, a.overall_acc, a.crit_acc, a.duration_min
     FROM aim_stats a JOIN matches m ON m.id = a.match_id
     WHERE a.match_id NOT IN (SELECT match_id FROM aim_stats_heroes)
+  `);
+  // One-time carry-forward for rows already backfilled above (before this
+  // column existed) — only safe for single-hero matches, where the old
+  // match-total duration unambiguously belongs to that one hero.
+  db.exec(`
+    UPDATE aim_stats_heroes SET duration_min = (
+      SELECT a.duration_min FROM aim_stats a WHERE a.match_id = aim_stats_heroes.match_id
+    )
+    WHERE duration_min IS NULL
+      AND match_id IN (SELECT match_id FROM aim_stats_heroes GROUP BY match_id HAVING COUNT(*) = 1)
+      AND EXISTS (SELECT 1 FROM aim_stats a WHERE a.match_id = aim_stats_heroes.match_id AND a.duration_min IS NOT NULL)
   `);
 
   // feel: perceived sens speed, 0 (felt slow) to 100 (felt fast) — not a quality

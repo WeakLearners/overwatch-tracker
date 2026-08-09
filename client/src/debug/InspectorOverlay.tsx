@@ -108,6 +108,8 @@ export default function InspectorOverlay() {
     navigator.clipboard.writeText(buildPrompt(bubble.el, note)).then(() => {
       showToast('Prompt copied');
       closeBubble();
+      setEnabled(false);
+      localStorage.setItem(STORAGE_KEY, '0');
     });
   }, [bubble, note, showToast, closeBubble]);
 
@@ -187,9 +189,17 @@ export default function InspectorOverlay() {
       window.removeEventListener('click', onClick, true);
       window.removeEventListener('keydown', onKeyDown);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
   }, [enabled, toggle]);
+
+  // Toast auto-hide is intentionally on its own unmount-only cleanup, not
+  // folded into the effect above — that one re-runs (and used to cancel this
+  // timer) on every `enabled` flip, including the auto-disable copyPrompt
+  // triggers right after showToast(), which cancelled the hide timer before
+  // it could fire and left the toast stuck on screen permanently.
+  useEffect(() => () => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+  }, []);
 
   let bubbleLeft = 0;
   let bubbleTop = 0;

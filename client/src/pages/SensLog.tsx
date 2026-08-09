@@ -42,36 +42,31 @@ interface AnswerStage {
   stage_index: number; dpi: number; sens: number | null; pct_delta: number;
   eDPI: number; cm360: number; n: number; feelMean: number | null; feelVar: number | null;
 }
-// One overall/crit accuracy reading per hero actually played — a match with
-// a mid-match switch gets one row per hero here instead of a single
-// match-wide number.
-interface HeroAccStat { hero: string; overall_acc: string; crit_acc: string }
+// One overall/crit accuracy + duration reading per hero actually played — a
+// match with a mid-match switch gets one row per hero here instead of a
+// single match-wide number (duration especially: a switch can leave one hero
+// on-screen for 2 minutes and another for 15).
+interface HeroAccStat { hero: string; overall_acc: string; crit_acc: string; duration_min: string }
 interface StatFieldsT {
-  heroAcc: HeroAccStat[]; hero_stat_label: string; hero_stat_value: string;
-  elims: string; deaths: string; damage: string; healing: string; duration_min: string;
+  heroAcc: HeroAccStat[];
+  elims: string; deaths: string; damage: string; healing: string;
 }
 
 const emptyStats = (heroes: { hero: string }[]): StatFieldsT => ({
-  heroAcc: heroes.map(h => ({ hero: h.hero, overall_acc: '', crit_acc: '' })),
-  hero_stat_label: '', hero_stat_value: '',
-  elims: '', deaths: '', damage: '', healing: '', duration_min: '',
+  heroAcc: heroes.map(h => ({ hero: h.hero, overall_acc: '', crit_acc: '', duration_min: '' })),
+  elims: '', deaths: '', damage: '', healing: '',
 });
-
-const HERO_STAT_DEFAULT: Record<string, string> = {
-  Ashe: 'scoped crit %', Widowmaker: 'scoped crit %', Hanzo: 'scoped crit %', Ana: 'unscoped crit %',
-  Cassidy: 'crit %', 'Soldier: 76': 'crit %', Sojourn: 'railgun crit %', Sombra: 'crit %',
-  Reaper: 'crit %', Genji: 'crit %', Bastion: 'crit %', Zenyatta: 'crit %', Baptiste: 'crit %', Venture: 'crit %',
-};
 
 const num = (s: string) => (s.trim() === '' ? null : parseFloat(s));
 const field = 'w-full field px-3 py-2 text-sm';
 const btnSecondary = 'border border-ow-border rounded-lg text-[var(--ink)] font-semibold hover:border-gray-500 transition-all disabled:opacity-40 disabled:cursor-not-allowed';
 
 // ── Shared aim-stat inputs (used by both the stage-trial loop and the backfill form) ─
-function StatFields({ s, upd, updHeroAcc, knownLabels, showHealing }: {
+function StatFields({ s, upd, updHeroAcc, showHealing, firstDurationRef }: {
   s: StatFieldsT; upd: <K extends Exclude<keyof StatFieldsT, 'heroAcc'>>(k: K, v: StatFieldsT[K]) => void;
-  updHeroAcc: (i: number, k: 'overall_acc' | 'crit_acc', v: string) => void;
-  knownLabels: string[]; showHealing: boolean;
+  updHeroAcc: (i: number, k: 'overall_acc' | 'crit_acc' | 'duration_min', v: string) => void;
+  showHealing: boolean;
+  firstDurationRef?: React.RefObject<HTMLInputElement>;
 }) {
   const t = (k: Exclude<keyof StatFieldsT, 'heroAcc'>) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => upd(k, e.target.value as never);
   const combatFields = showHealing
@@ -79,34 +74,36 @@ function StatFields({ s, upd, updHeroAcc, knownLabels, showHealing }: {
     : ([['elims', 'Elims'], ['deaths', 'Deaths'], ['damage', 'Damage']] as const);
   return (
     <>
-      {/* One overall/crit accuracy row per hero played — most matches are one
-          row (no switch), but a mid-match switch gets a row per hero. */}
-      <div className="space-y-2" data-inspect-id="sl-hero-acc-inputs">
+      {/* One overall/crit accuracy + duration row per hero played — most
+          matches are one row (no switch), but a mid-match switch gets a row
+          per hero, since time-on-hero varies switch to switch. */}
+      <div className="space-y-3" data-inspect-id="sl-hero-acc-inputs">
         {s.heroAcc.map((h, i) => (
-          <div key={h.hero} className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-[var(--muted)] mb-1.5">
-                {h.hero} overall accuracy % {i === 0 && <span className="text-[var(--faint-2)]">— 1st hero</span>}
-              </label>
-              <input type="number" step="0.1" min="0" max="100" inputMode="decimal" value={h.overall_acc} onChange={e => updHeroAcc(i, 'overall_acc', e.target.value)} data-inspect-id="sl-overall-acc-input" className={field} placeholder="e.g. 41.2" />
-            </div>
-            <div>
-              <label className="block text-xs text-[var(--muted)] mb-1.5">{h.hero} crit accuracy % <span className="text-[var(--faint-2)]">— if it applies</span></label>
-              <input type="number" step="0.1" min="0" max="100" inputMode="decimal" value={h.crit_acc} onChange={e => updHeroAcc(i, 'crit_acc', e.target.value)} data-inspect-id="sl-crit-acc-input" className={field} placeholder="e.g. 22.5" />
+          <div key={h.hero}>
+            <div className="text-xs font-semibold text-[var(--ink)] mb-1.5">{h.hero}</div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs text-[var(--muted)] mb-1.5">Overall %</label>
+                <input type="number" step="0.1" min="0" max="100" inputMode="decimal" value={h.overall_acc} onChange={e => updHeroAcc(i, 'overall_acc', e.target.value)} data-inspect-id="sl-overall-acc-input" className={field} placeholder="e.g. 41.2" aria-label={`${h.hero} overall accuracy %`} />
+              </div>
+              <div>
+                <label className="block text-xs text-[var(--muted)] mb-1.5">Crit %</label>
+                <input type="number" step="0.1" min="0" max="100" inputMode="decimal" value={h.crit_acc} onChange={e => updHeroAcc(i, 'crit_acc', e.target.value)} data-inspect-id="sl-crit-acc-input" className={field} placeholder="e.g. 22.5" aria-label={`${h.hero} crit accuracy %`} />
+              </div>
+              <div>
+                <label className="block text-xs text-[var(--muted)] mb-1.5">Duration <span className="text-violet-500">*</span></label>
+                <input
+                  ref={i === 0 ? firstDurationRef : undefined}
+                  type="number" min="0" step="1" inputMode="numeric" value={h.duration_min}
+                  onChange={e => updHeroAcc(i, 'duration_min', e.target.value)}
+                  data-inspect-id="sl-hero-duration-input"
+                  className={`${field} num-display ${parseFloat(h.duration_min) > 0 ? '' : 'ring-1 ring-violet-500/60'}`}
+                  placeholder="min" aria-label={`${h.hero} duration in minutes`} required
+                />
+              </div>
             </div>
           </div>
         ))}
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs text-[var(--muted)] mb-1.5">Hero-specific stat <span className="text-[var(--faint-2)]">— remembered per hero</span></label>
-          <input type="text" list="hero-stat-labels" value={s.hero_stat_label} onChange={t('hero_stat_label')} data-inspect-id="sl-hero-stat-input" className={field} placeholder="e.g. scoped crit %" />
-          <datalist id="hero-stat-labels">{knownLabels.map(l => <option key={l} value={l} />)}</datalist>
-        </div>
-        <div>
-          <label className="block text-xs text-[var(--muted)] mb-1.5">Value</label>
-          <input type="number" step="0.1" inputMode="decimal" value={s.hero_stat_value} onChange={t('hero_stat_value')} data-inspect-id="sl-hero-stat-value-input" className={field} placeholder="e.g. 30.1" />
-        </div>
       </div>
       <div>
         <label className="block text-xs text-[var(--muted)] mb-1.5">Combat <span className="text-[var(--faint-2)]">— endgame scoreboard</span></label>
@@ -125,28 +122,16 @@ function StatFields({ s, upd, updHeroAcc, knownLabels, showHealing }: {
 
 const statsBody = (match_id: number, s: StatFieldsT) => ({
   match_id,
-  heroes: s.heroAcc.map(h => ({ hero: h.hero, overall_acc: num(h.overall_acc), crit_acc: num(h.crit_acc) })),
-  hero_stat_label: s.hero_stat_label.trim() || null, hero_stat_value: num(s.hero_stat_value),
+  heroes: s.heroAcc.map(h => ({
+    hero: h.hero, overall_acc: num(h.overall_acc), crit_acc: num(h.crit_acc), duration_min: num(h.duration_min),
+  })),
   elims: num(s.elims), deaths: num(s.deaths), damage: num(s.damage), healing: num(s.healing),
-  duration_min: num(s.duration_min),
 });
 
 export default function SensLog() {
   const { data: dpiState } = useApi<DpiTestState>('/api/blind/state');
   const { data: pendingData, loading } = useApi<{ rows: PendingMatch[] }>('/api/aim/pending?limit=40');
   const pending = pendingData?.rows ?? [];
-  const { data: loggedData } = useApi<{ rows: { hero: string; hero_stat_label: string | null }[] }>('/api/aim');
-
-  const heroMemory = useMemo(() => {
-    const m: Record<string, string> = {};
-    for (const r of loggedData?.rows ?? []) if (r.hero_stat_label && !(r.hero in m)) m[r.hero] = r.hero_stat_label;
-    return m;
-  }, [loggedData]);
-  const labelFor = (hero: string) => heroMemory[hero] ?? HERO_STAT_DEFAULT[hero] ?? '';
-  const knownLabels = useMemo(
-    () => [...new Set([...Object.values(HERO_STAT_DEFAULT), ...Object.values(heroMemory)])].sort(),
-    [heroMemory],
-  );
 
   return (
     <div className="mt-2">
@@ -156,7 +141,7 @@ export default function SensLog() {
         <p className="text-sm text-[var(--faint)] mt-1">Enter each match's combat details here after the game. DPI stage trials are driven from the panel below and land in the same queue.</p>
       </div>
 
-      <BackfillPanel pending={pending} loading={loading} knownLabels={knownLabels} labelFor={labelFor} />
+      <BackfillPanel pending={pending} loading={loading} />
 
       <div className="mt-10 pt-8 border-t border-ow-border">
         <h2 data-inspect-id="sl-header-stage-trials" className="text-sm heading-display text-[var(--ink)] mb-1">Sens stage trials</h2>
@@ -682,8 +667,8 @@ function AnswerTable({ stages }: { stages: AnswerStage[] }) {
 }
 
 // ── Non-blind backfill (matches logged elsewhere that still need stats) ───────
-function BackfillPanel({ pending, loading, knownLabels, labelFor }: {
-  pending: PendingMatch[]; loading: boolean; knownLabels: string[]; labelFor: (h: string) => string;
+function BackfillPanel({ pending, loading }: {
+  pending: PendingMatch[]; loading: boolean;
 }) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [sens, setSens] = useState('');
@@ -706,14 +691,15 @@ function BackfillPanel({ pending, loading, knownLabels, labelFor }: {
   function selectMatch(m: PendingMatch) {
     setSelectedId(m.id);
     setSens(m.sens != null ? String(m.sens) : '');
-    setStats({ ...emptyStats(m.heroes), hero_stat_label: labelFor(m.hero) });
+    setStats(emptyStats(m.heroes));
     setStatus('idle');
   }
 
   const primaryAccValid = parseFloat(stats.heroAcc[0]?.overall_acc ?? '') >= 0;
+  const durationsValid = stats.heroAcc.length > 0 && stats.heroAcc.every(h => parseFloat(h.duration_min) > 0);
 
   async function save() {
-    if (!selected || !(primaryAccValid && parseFloat(stats.duration_min) > 0)) return;
+    if (!selected || !(primaryAccValid && durationsValid)) return;
     setStatus('saving');
     try {
       const putRes = await fetch(`/api/matches/${selected.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sens: num(sens) }) });
@@ -748,8 +734,10 @@ function BackfillPanel({ pending, loading, knownLabels, labelFor }: {
                     <button key={m.id} type="button" onClick={() => selectMatch(m)}
                       className={`w-full text-left py-2.5 px-3 rounded-lg border transition-all ${active ? `${c.card} ${c.accent} ${c.glow}` : 'border-ow-border bg-ow-darker hover:border-gray-500'}`}>
                       <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className={`pill ${ROLE_COLORS[m.role] ?? ''}`}>{withHeroCount(m.hero, heroCounts)}</span>
+                        <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                          {m.heroes.map(h => (
+                            <span key={h.hero} className={`pill ${ROLE_COLORS[h.role] ?? ''}`}>{withHeroCount(h.hero, heroCounts)}</span>
+                          ))}
                           <span className="text-sm text-[var(--ink)] truncate">{withMapCount(m.map, mapCounts)}</span>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
@@ -785,18 +773,16 @@ function BackfillPanel({ pending, loading, knownLabels, labelFor }: {
                   <label className="text-[11px] text-[var(--faint)]">Sens</label>
                   <input type="number" step="0.01" min="0" inputMode="decimal" value={sens} onChange={e => setSens(e.target.value)} data-inspect-id="sl-sens-input" className="w-16 field px-2 py-1 text-sm num-display" placeholder="—" aria-label="Sensitivity" />
                   {parseFloat(sens) > 0 && <span className="text-[11px] text-[var(--faint)]">{Math.round(eDPI(parseFloat(sens)))} eDPI</span>}
-                  <label className="text-[11px] font-semibold text-[var(--ink)] ml-auto">Duration <span className="text-violet-500">*</span></label>
-                  <input ref={durationRef} type="number" min="0" step="1" inputMode="numeric" value={stats.duration_min} onChange={e => setStats(s => ({ ...s, duration_min: e.target.value }))} data-inspect-id="sl-duration-input" className={`w-16 field px-2 py-1.5 text-sm num-display ${parseFloat(stats.duration_min) > 0 ? '' : 'ring-1 ring-violet-500/60'}`} placeholder="min" aria-label="Duration in minutes" required />
                 </div>
               </div>
               <StatFields
                 s={stats}
                 upd={(k, v) => setStats(s => ({ ...s, [k]: v }))}
                 updHeroAcc={(i, k, v) => setStats(s => ({ ...s, heroAcc: s.heroAcc.map((h, hi) => hi === i ? { ...h, [k]: v } : h) }))}
-                knownLabels={knownLabels}
                 showHealing={showHealing}
+                firstDurationRef={durationRef}
               />
-              <button type="button" onClick={save} disabled={!(primaryAccValid && parseFloat(stats.duration_min) > 0) || status === 'saving'} data-inspect-id="sl-save-stats-btn" className="btn-primary w-full py-2.5 text-sm">
+              <button type="button" onClick={save} disabled={!(primaryAccValid && durationsValid) || status === 'saving'} data-inspect-id="sl-save-stats-btn" className="btn-primary w-full py-2.5 text-sm">
                 {status === 'saving' ? 'Saving…' : status === 'success' ? '✓ Saved' : 'Save Stats'}
               </button>
               {status === 'error' && <p data-inspect-id="sl-save-error-banner" className="text-red-600 text-xs text-center">Failed to save — is the server running?</p>}

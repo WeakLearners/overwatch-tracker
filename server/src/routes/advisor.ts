@@ -69,18 +69,30 @@ interface AxisPayload {
   strongest_lean: { axis: DeathAxisKey; mean: number; n: number; label: string } | null;
 }
 
-function getComfortPool(db: ReturnType<typeof getDb>, mode: QueueMode): HeroStat[] {
+// Heroes with a currently-active (in-testing) DPI stage set — every
+// recommendation surface (Prematch hero picker, Log Match dropdowns, and this
+// advisor) is scoped to these so a pick always feeds a running test.
+function getInTestingHeroes(db: ReturnType<typeof getDb>): Set<string> {
+  const rows = db.prepare(
+    `SELECT DISTINCT hero FROM blind_stage_sets WHERE active = 1 AND hero IS NOT NULL`,
+  ).all() as { hero: string }[];
+  return new Set(rows.map(r => r.hero));
+}
+
+function getComfortPool(db: ReturnType<typeof getDb>, mode: QueueMode, inTesting: Set<string>): HeroStat[] {
   const roles = allowedRoles(mode);
+  if (inTesting.size === 0) return [];
   const placeholders = roles.map(() => '?').join(',');
+  const heroPlaceholders = [...inTesting].map(() => '?').join(',');
   // Comfort = at least COMFORT_MIN_GAMES total games on this hero, regardless of mode.
   return db.prepare(`
     SELECT hero, role, COUNT(*) games, ROUND(AVG(win)*100, 1) win_rate
     FROM matches
-    WHERE role IN (${placeholders})
+    WHERE role IN (${placeholders}) AND hero IN (${heroPlaceholders})
     GROUP BY hero, role
     HAVING games >= ${COMFORT_MIN_GAMES}
     ORDER BY games DESC
-  `).all(...roles) as unknown as HeroStat[];
+  `).all(...roles, ...inTesting) as unknown as HeroStat[];
 }
 
 function pickPrimary(db: ReturnType<typeof getDb>, map: string, mode: QueueMode, pool: HeroStat[]): HeroStat | null {
@@ -258,7 +270,9 @@ function getStretchCandidates(
   map: string,
   mode: QueueMode,
   poolHeroes: Set<string>,
+  inTesting: Set<string>,
 ): StretchCandidate[] {
+  if (inTesting.size === 0) return [];
   const roles = allowedRoles(mode);
   const placeholders = roles.map(() => '?').join(',');
   const rows = db.prepare(`
@@ -276,7 +290,7 @@ function getStretchCandidates(
   return rows
     // Require a minimum sample so a 1-game fluke isn't sold as "grounded".
     // Thinner heroes fall through to the untested pool, which is labeled as such.
-    .filter(r => canonical.has(r.hero) && !poolHeroes.has(r.hero) && r.career_games >= MIN_GAMES_FOR_PICK)
+    .filter(r => canonical.has(r.hero) && !poolHeroes.has(r.hero) && r.career_games >= MIN_GAMES_FOR_PICK && inTesting.has(r.hero))
     .slice(0, 12);
 }
 
@@ -288,6 +302,7 @@ function getUntestedMetaPool(
   db: ReturnType<typeof getDb>,
   mode: QueueMode,
   exclude: Set<string>,
+  inTesting: Set<string>,
 ): string[] {
   const roles = allowedRoles(mode);
   const placeholders = roles.map(() => '?').join(',');
@@ -295,7 +310,7 @@ function getUntestedMetaPool(
     (db.prepare(`SELECT DISTINCT hero FROM matches WHERE role IN (${placeholders})`)
       .all(...roles) as { hero: string }[]).map(r => r.hero),
   );
-  return ALL_HEROES_BY_ROLE(roles).filter(h => !played.has(h) && !exclude.has(h));
+  return ALL_HEROES_BY_ROLE(roles).filter(h => !played.has(h) && !exclude.has(h) && inTesting.has(h));
 }
 
 // Only the LLM insight + stretch pick are cached. The death breakdown and
@@ -391,12 +406,13 @@ router.get('/recommend', async (req: Request, res: Response) => {
     return;
   }
 
-  const pool = getComfortPool(db, mode);
+  const inTesting = getInTestingHeroes(db);
+  const pool = getComfortPool(db, mode, inTesting);
   const primary = pickPrimary(db, map, mode, pool);
   const mapCtx = getMapContext(db, map);
 
   if (!primary) {
-    res.status(404).json({ error: `No comfort heroes available for ${mode}` });
+    res.status(404).json({ error: `No heroes with an active DPI test available for ${mode}` });
     return;
   }
 
@@ -413,10 +429,13 @@ router.get('/recommend', async (req: Request, res: Response) => {
     user_map_stats: { games: mapCtx.games, win_rate: mapCtx.win_rate },
   };
 
-  // Cache check (skip on refresh)
+  // Cache check (skip on refresh). A cached stretch pick from before its hero's
+  // test wrapped up (or before this filter existed) would otherwise keep
+  // surfacing a no-longer-in-testing hero for up to CACHE_TTL_DAYS — drop it
+  // rather than trust a stale pick.
   if (!refresh) {
     const cached = readCachedInsight(db, map, mode);
-    if (cached) {
+    if (cached && (cached.stretch === null || inTesting.has(cached.stretch))) {
       res.json({
         primary: primary.hero,
         stretch: cached.stretch,
@@ -443,11 +462,11 @@ router.get('/recommend', async (req: Request, res: Response) => {
   // minus their comfort pool. Never recommends heroes they've never touched. Each
   // candidate carries career + this-map win rates so the pick is grounded in data.
   const poolHeroes = new Set(pool.map(h => h.hero));
-  const stretchCandidates = getStretchCandidates(db, map, mode, poolHeroes);
+  const stretchCandidates = getStretchCandidates(db, map, mode, poolHeroes, inTesting);
   // Fallback pool of never-played meta heroes, so role-queue players with a
   // narrow hero pool still get a varied stretch suggestion (clearly flagged
   // "untested" since it isn't backed by their own data).
-  const untestedMeta = getUntestedMetaPool(db, mode, poolHeroes);
+  const untestedMeta = getUntestedMetaPool(db, mode, poolHeroes, inTesting);
   const hasStretch = stretchCandidates.length > 0 || untestedMeta.length > 0;
 
   const scopeLabel = deathScope === 'map'

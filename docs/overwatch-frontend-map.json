@@ -4,7 +4,7 @@
     "repo": "~/Code/overwatch",
     "description": "Frontend-only map of the Overwatch match-tracker React app: every page and component down to individual UI elements (buttons, inputs, cards, charts, etc.), each carrying a copy-pasteable `grep` command that jumps straight to its exact source line. Intended both for Sean to click through in the browser and for Claude Code to read directly as a lookup table when asked to change a specific piece of UI.",
     "generated": "frontend UI-element snapshot, extracted from live source (client/src) via parallel agent read + grep-verified anchors, at analysis time",
-    "howToUse": "Click a node to see its file and, for page/component nodes, a 'UI Elements' list. Each element's locate.grep is a ready-to-paste `grep -n -F -- \"<anchor>\" <file>` command \u2014 run it in the repo root (~/Code/overwatch) to land on the exact line. Uses plain grep (not ripgrep) deliberately: ripgrep isn't installed on this machine outside the Claude Code sandbox, so grep is what will actually work when pasted into a real terminal. locate.path is the file:line at extraction time as a secondary reference (may drift if the file is edited above that line; the grep command will not)."
+    "howToUse": "Click a node to see its file and, for page/component nodes, a 'UI Elements' list. Each element's locate.grep is a ready-to-paste `grep -n -F -- \"<anchor>\" <file>` command — run it in the repo root (~/Code/overwatch) to land on the exact line. Uses plain grep (not ripgrep) deliberately: ripgrep isn't installed on this machine outside the Claude Code sandbox, so grep is what will actually work when pasted into a real terminal. locate.path is the file:line at extraction time as a secondary reference (may drift if the file is edited above that line; the grep command will not)."
   },
   "nodes": [
     {
@@ -361,9 +361,9 @@
         },
         {
           "id": "prematch-backlog-go-link",
-          "label": "Backlog 'Go \u2192' link",
+          "label": "Backlog 'Go →' link",
           "kind": "link",
-          "description": "Link that navigates to the Sens page so the user can work through the backlog of matches awaiting stats. (duplicated for the active-test and idle-test layouts \u2014 locate command matches both.)",
+          "description": "Link that navigates to the Sens page so the user can work through the backlog of matches awaiting stats. (duplicated for the active-test and idle-test layouts — locate command matches both.)",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:231",
             "grep": "grep -n -F -- 'rounded-md bg-gradient-to-r from-ow-accent to-ow-accentLight' client/src/pages/Prematch.tsx"
@@ -396,7 +396,7 @@
           "description": "Text input for filtering/searching maps by name to add to the up-to-3 voting picks; auto-focused whenever no map is currently selected.",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:299",
-            "grep": "grep -n -F -- ''\"'\"'Type a map name\u2026'\"'\"'' client/src/pages/Prematch.tsx"
+            "grep": "grep -n -F -- ''\"'\"'Type a map name…'\"'\"'' client/src/pages/Prematch.tsx"
           }
         },
         {
@@ -476,7 +476,7 @@
           "description": "Dropdown to choose the current match's map, which drives hero recommendations, coaching, and the your-heroes breakdown across the page.",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:416",
-            "grep": "grep -n -F -- '\u2014 Select map \u2014' client/src/pages/Prematch.tsx"
+            "grep": "grep -n -F -- '— Select map —' client/src/pages/Prematch.tsx"
           }
         },
         {
@@ -526,7 +526,7 @@
           "description": "Main card below the top row combining the recommended hero pick, LLM coaching, and the full your-heroes-by-role breakdown for the selected map.",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:470",
-            "grep": "grep -n -F -- 'Consolidated advisor \u2014 recommendation + coaching' client/src/pages/Prematch.tsx"
+            "grep": "grep -n -F -- 'Consolidated advisor — recommendation + coaching' client/src/pages/Prematch.tsx"
           }
         },
         {
@@ -543,7 +543,7 @@
           "id": "prematch-refresh-advisor-button",
           "label": "Refresh advisor icon-button",
           "kind": "icon-button",
-          "description": "Icon button (\u21bb) that re-fetches the LLM pre-match advisor recommendation for the current map and queue mode.",
+          "description": "Icon button (↻) that re-fetches the LLM pre-match advisor recommendation for the current map and queue mode.",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:487",
             "grep": "grep -n -F -- 'title=\"Refresh advisor\"' client/src/pages/Prematch.tsx"
@@ -617,6 +617,26 @@
           "locate": {
             "path": "client/src/pages/Prematch.tsx:607",
             "grep": "grep -n -F -- 'No games logged on ${withMapCount(map, mapCounts)} yet' client/src/pages/Prematch.tsx"
+          }
+        },
+        {
+          "id": "prematch-recommended-sens",
+          "label": "Recommended pick in-game sens",
+          "kind": "stat-tile",
+          "description": "In-game sens paired with the trending hero pick, derived from that hero's own best-tested DPI scale.",
+          "locate": {
+            "path": "client/src/pages/Prematch.tsx:591",
+            "grep": "grep -n -F -- 'prematch-recommended-sens' client/src/pages/Prematch.tsx"
+          }
+        },
+        {
+          "id": "prematch-hero-picker-button",
+          "label": "Hero picker button",
+          "kind": "button",
+          "description": "Selects a hero from the Select Your Hero list (filtered to heroes with an active DPI test) and pre-fills it into the Match Log.",
+          "locate": {
+            "path": "client/src/pages/Prematch.tsx:643",
+            "grep": "grep -n -F -- 'prematch-hero-picker-button' client/src/pages/Prematch.tsx"
           }
         }
       ]
@@ -730,7 +750,7 @@
           "description": "Dropdown grouped by role (DPS/Tank/Support) for choosing the hero played in this match; each option shows today's play count for that hero.",
           "locate": {
             "path": "client/src/pages/LogMatch.tsx:355",
-            "grep": "grep -n -F -- '\u2014 Select hero \u2014' client/src/pages/LogMatch.tsx"
+            "grep": "grep -n -F -- '— Select hero —' client/src/pages/LogMatch.tsx"
           }
         },
         {
@@ -790,7 +810,7 @@
           "description": "Free-text field for notes on perceived factors affecting the match (e.g. fatigue, warmup, stage change), saved with the logged match.",
           "locate": {
             "path": "client/src/pages/LogMatch.tsx:477",
-            "grep": "grep -n -F -- 'fatigue, warmup, just switched stage\u2026' client/src/pages/LogMatch.tsx"
+            "grep": "grep -n -F -- 'fatigue, warmup, just switched stage…' client/src/pages/LogMatch.tsx"
           }
         },
         {
@@ -800,17 +820,17 @@
           "description": "Range slider (0-100) capturing whether the sensitivity felt slow or fast during this specific match, captured live since the sensation fades before the next match.",
           "locate": {
             "path": "client/src/pages/LogMatch.tsx:488",
-            "grep": "grep -n -F -- 'aria-label=\"Feel \u2014 slow to fast\"' client/src/pages/LogMatch.tsx"
+            "grep": "grep -n -F -- 'aria-label=\"Feel — slow to fast\"' client/src/pages/LogMatch.tsx"
           }
         },
         {
           "id": "logmatch-log-match-button",
           "label": "Log Match button",
           "kind": "button",
-          "description": "Primary submit button that saves the match to the database (POST /api/matches); shows Saving\u2026/\u2713 Saved states and is disabled until hero, map, result, date, and sens are all valid.",
+          "description": "Primary submit button that saves the match to the database (POST /api/matches); shows Saving…/✓ Saved states and is disabled until hero, map, result, date, and sens are all valid.",
           "locate": {
             "path": "client/src/pages/LogMatch.tsx:501",
-            "grep": "grep -n -F -- 'status === '\"'\"'success'\"'\"' ? '\"'\"'\u2713 Saved'\"'\"' : '\"'\"'Log Match'\"'\"'' client/src/pages/LogMatch.tsx"
+            "grep": "grep -n -F -- 'status === '\"'\"'success'\"'\"' ? '\"'\"'✓ Saved'\"'\"' : '\"'\"'Log Match'\"'\"'' client/src/pages/LogMatch.tsx"
           }
         },
         {
@@ -820,7 +840,7 @@
           "description": "Inline error message shown briefly under the Log Match button if saving the match to the server fails.",
           "locate": {
             "path": "client/src/pages/LogMatch.tsx:508",
-            "grep": "grep -n -F -- 'Failed to save \u2014 is the server running?' client/src/pages/LogMatch.tsx"
+            "grep": "grep -n -F -- 'Failed to save — is the server running?' client/src/pages/LogMatch.tsx"
           }
         },
         {
@@ -851,6 +871,16 @@
           "locate": {
             "path": "client/src/pages/LogMatch.tsx:561",
             "grep": "grep -n -F -- 'title=\"Nothing logged today\"' client/src/pages/LogMatch.tsx"
+          }
+        },
+        {
+          "id": "logmatch-team-rating-stars",
+          "label": "Team rating stars",
+          "kind": "input",
+          "description": "Perceived teammate-quality rating, 0-5 stars in half-star steps, captured live at log time.",
+          "locate": {
+            "path": "client/src/pages/LogMatch.tsx:599",
+            "grep": "grep -n -F -- 'dataInspectId=\"logmatch-team-rating-stars\"' client/src/pages/LogMatch.tsx"
           }
         }
       ]
@@ -894,30 +924,10 @@
           }
         },
         {
-          "id": "sl-hero-stat-input",
-          "label": "Hero-specific stat input",
-          "kind": "input",
-          "description": "Free-text input, with an autocomplete datalist of previously used labels, naming the hero-specific stat being recorded (e.g. \"scoped crit %\").",
-          "locate": {
-            "path": "client/src/pages/SensLog.tsx:82",
-            "grep": "grep -n -F -- 'list=\"hero-stat-labels\"' client/src/pages/SensLog.tsx"
-          }
-        },
-        {
-          "id": "sl-hero-stat-value-input",
-          "label": "Hero-specific stat value input",
-          "kind": "input",
-          "description": "Numeric value input paired with the hero-specific stat label above it.",
-          "locate": {
-            "path": "client/src/pages/SensLog.tsx:87",
-            "grep": "grep -n -F -- 'placeholder=\"e.g. 30.1\"' client/src/pages/SensLog.tsx"
-          }
-        },
-        {
           "id": "sl-combat-stats-inputs",
           "label": "Combat stats inputs (Finals/Elims/Deaths/Damage)",
           "kind": "input",
-          "description": "Four endgame-scoreboard number inputs \u2014 Final blows, Eliminations, Deaths, Damage \u2014 for the match being recorded.",
+          "description": "Four endgame-scoreboard number inputs — Final blows, Eliminations, Deaths, Damage — for the match being recorded.",
           "locate": {
             "path": "client/src/pages/SensLog.tsx:92",
             "grep": "grep -n -F -- '['\"'\"'final_blows'\"'\"', '\"'\"'Finals'\"'\"']' client/src/pages/SensLog.tsx"
@@ -990,7 +1000,7 @@
           "description": "Starts a new blind DPI stage-trial set for that specific hero using the plan's preset DPIs and games-per-slot via POST /api/blind/sets.",
           "locate": {
             "path": "client/src/pages/SensLog.tsx:332",
-            "grep": "grep -n -F -- 'creating === h.hero ? '\"'\"'Creating\u2026'\"'\"' : '\"'\"'Create test set'\"'\"'' client/src/pages/SensLog.tsx"
+            "grep": "grep -n -F -- 'creating === h.hero ? '\"'\"'Creating…'\"'\"' : '\"'\"'Create test set'\"'\"'' client/src/pages/SensLog.tsx"
           }
         },
         {
@@ -1035,12 +1045,12 @@
         },
         {
           "id": "sl-advance-stage-btn",
-          "label": "\"Get next stage \u2192\" button",
+          "label": "\"Get next stage →\" button",
           "kind": "button",
           "description": "Advances the active DPI test set to its next stage once the current batch's game quota is met, via POST /api/blind/advance.",
           "locate": {
             "path": "client/src/pages/SensLog.tsx:458",
-            "grep": "grep -n -F -- 'Get next stage \u2192' client/src/pages/SensLog.tsx"
+            "grep": "grep -n -F -- 'Get next stage →' client/src/pages/SensLog.tsx"
           }
         },
         {
@@ -1110,7 +1120,7 @@
           "description": "Submits the ad-hoc DPI test set form, creating a new hero-less test set via POST /api/blind/sets.",
           "locate": {
             "path": "client/src/pages/SensLog.tsx:546",
-            "grep": "grep -n -F -- 'busy ? '\"'\"'Creating\u2026'\"'\"' : '\"'\"'Create test set'\"'\"'' client/src/pages/SensLog.tsx"
+            "grep": "grep -n -F -- 'busy ? '\"'\"'Creating…'\"'\"' : '\"'\"'Create test set'\"'\"'' client/src/pages/SensLog.tsx"
           }
         },
         {
@@ -1174,23 +1184,13 @@
           }
         },
         {
-          "id": "sl-duration-input",
-          "label": "Duration input",
-          "kind": "input",
-          "description": "Required number input for match duration in minutes, auto-focused when a pending match is selected; gates whether Save Stats is enabled.",
-          "locate": {
-            "path": "client/src/pages/SensLog.tsx:679",
-            "grep": "grep -n -F -- 'aria-label=\"Duration in minutes\"' client/src/pages/SensLog.tsx"
-          }
-        },
-        {
           "id": "sl-save-stats-btn",
           "label": "\"Save Stats\" button",
           "kind": "button",
           "description": "Saves the selected match's sensitivity and aim/combat stats via PUT /api/matches/:id and POST /api/aim; disabled until required fields are filled.",
           "locate": {
             "path": "client/src/pages/SensLog.tsx:683",
-            "grep": "grep -n -F -- ''\"'\"'\u2713 Saved'\"'\"' : '\"'\"'Save Stats'\"'\"'' client/src/pages/SensLog.tsx"
+            "grep": "grep -n -F -- ''\"'\"'✓ Saved'\"'\"' : '\"'\"'Save Stats'\"'\"'' client/src/pages/SensLog.tsx"
           }
         },
         {
@@ -1200,7 +1200,7 @@
           "description": "Inline error message shown when saving the aim stats fails.",
           "locate": {
             "path": "client/src/pages/SensLog.tsx:686",
-            "grep": "grep -n -F -- 'Failed to save \u2014 is the server running?' client/src/pages/SensLog.tsx"
+            "grep": "grep -n -F -- 'Failed to save — is the server running?' client/src/pages/SensLog.tsx"
           }
         },
         {
@@ -1231,6 +1231,46 @@
           "locate": {
             "path": "client/src/pages/SensLog.tsx:700",
             "grep": "grep -n -F -- '>Leave</button>' client/src/pages/SensLog.tsx"
+          }
+        },
+        {
+          "id": "sl-hero-acc-inputs",
+          "label": "Hero accuracy + duration rows",
+          "kind": "list",
+          "description": "One row per hero actually played in the selected match, each with overall accuracy, crit accuracy, and duration inputs.",
+          "locate": {
+            "path": "client/src/pages/SensLog.tsx:80",
+            "grep": "grep -n -F -- 'sl-hero-acc-inputs' client/src/pages/SensLog.tsx"
+          }
+        },
+        {
+          "id": "sl-hero-duration-input",
+          "label": "Per-hero duration input",
+          "kind": "input",
+          "description": "Required number input for how long this specific hero was played, one per hero row (a mid-match switch gets one each) — gates whether Save Stats is enabled.",
+          "locate": {
+            "path": "client/src/pages/SensLog.tsx:99",
+            "grep": "grep -n -F -- 'sl-hero-duration-input' client/src/pages/SensLog.tsx"
+          }
+        },
+        {
+          "id": "sl-locked-dpi-display",
+          "label": "Locked DPI display",
+          "kind": "input",
+          "description": "Disabled input showing the permanently locked mouse DPI (1600) for the ad-hoc test-set creator.",
+          "locate": {
+            "path": "client/src/pages/SensLog.tsx:612",
+            "grep": "grep -n -F -- 'sl-locked-dpi-display' client/src/pages/SensLog.tsx"
+          }
+        },
+        {
+          "id": "sl-sens-per-stage-inputs",
+          "label": "Sens per stage inputs",
+          "kind": "list",
+          "description": "One in-game sens input per stage for the ad-hoc DPI test-set creator.",
+          "locate": {
+            "path": "client/src/pages/SensLog.tsx:625",
+            "grep": "grep -n -F -- 'sl-sens-per-stage-inputs' client/src/pages/SensLog.tsx"
           }
         }
       ]
@@ -1538,22 +1578,22 @@
         },
         {
           "id": "sensAnalysis-accuracy-by-sens-per-hero-chart",
-          "label": "Accuracy by Sens \u2014 Per Hero box-plot chart",
+          "label": "Accuracy by Sens — Per Hero box-plot chart",
           "kind": "chart",
           "description": "Grouped box-plot chart showing accuracy distribution (min/Q1/median/Q3/max) per hero at each tested sens scale, with a hero color-key legend below it.",
           "locate": {
             "path": "client/src/pages/SensAnalysis.tsx:907",
-            "grep": "grep -n -F -- 'Accuracy by Sens \u2014 Per Hero' client/src/pages/SensAnalysis.tsx"
+            "grep": "grep -n -F -- 'Accuracy by Sens — Per Hero' client/src/pages/SensAnalysis.tsx"
           }
         },
         {
           "id": "sensAnalysis-accuracy-by-hero-per-sens-chart",
-          "label": "Accuracy by Hero \u2014 Per Sens box-plot chart",
+          "label": "Accuracy by Hero — Per Sens box-plot chart",
           "kind": "chart",
           "description": "Grouped box-plot chart showing accuracy distribution per sens scale for each hero, pivoted the opposite way from the chart above, with a scale color-key legend below it.",
           "locate": {
             "path": "client/src/pages/SensAnalysis.tsx:964",
-            "grep": "grep -n -F -- 'Accuracy by Hero \u2014 Per Sens' client/src/pages/SensAnalysis.tsx"
+            "grep": "grep -n -F -- 'Accuracy by Hero — Per Sens' client/src/pages/SensAnalysis.tsx"
           }
         }
       ]
@@ -1588,9 +1628,9 @@
         },
         {
           "id": "advisorCard-refreshButton",
-          "label": "Refresh button (\u21bb)",
+          "label": "Refresh button (↻)",
           "kind": "icon-button",
-          "description": "Icon button showing an ellipsis while loading or a refresh glyph (\u21bb) otherwise; clicking it calls onRefresh to re-fetch the hero recommendation for the current map/queue.",
+          "description": "Icon button showing an ellipsis while loading or a refresh glyph (↻) otherwise; clicking it calls onRefresh to re-fetch the hero recommendation for the current map/queue.",
           "locate": {
             "path": "client/src/components/AdvisorCard.tsx:69",
             "grep": "grep -n -F -- 'onClick={onRefresh}' client/src/components/AdvisorCard.tsx"
@@ -1600,10 +1640,10 @@
           "id": "advisorCard-loadingIndicator",
           "label": "Loading indicator",
           "kind": "banner",
-          "description": "Small \"Loading\u2026\" text shown while the recommendation is being fetched and no cached recommendation exists yet.",
+          "description": "Small \"Loading…\" text shown while the recommendation is being fetched and no cached recommendation exists yet.",
           "locate": {
             "path": "client/src/components/AdvisorCard.tsx:79",
-            "grep": "grep -n -F -- 'Loading\u2026</div>' client/src/components/AdvisorCard.tsx"
+            "grep": "grep -n -F -- 'Loading…</div>' client/src/components/AdvisorCard.tsx"
           }
         },
         {
@@ -1650,10 +1690,10 @@
           "id": "advisorCard-stretchBadge",
           "label": "Stretch/untested badge",
           "kind": "badge",
-          "description": "Small italic label next to the stretch hero reading \"untested \u00b7 meta\" or \"stretch\", with a tooltip explaining whether the pick is a data-backed off-main or an untested meta suggestion.",
+          "description": "Small italic label next to the stretch hero reading \"untested · meta\" or \"stretch\", with a tooltip explaining whether the pick is a data-backed off-main or an untested meta suggestion.",
           "locate": {
             "path": "client/src/components/AdvisorCard.tsx:110",
-            "grep": "grep -n -F -- ''\"'\"'untested \u00b7 meta'\"'\"' : '\"'\"'stretch'\"'\"'' client/src/components/AdvisorCard.tsx"
+            "grep": "grep -n -F -- ''\"'\"'untested · meta'\"'\"' : '\"'\"'stretch'\"'\"'' client/src/components/AdvisorCard.tsx"
           }
         },
         {
@@ -1693,14 +1733,14 @@
           "description": "Fallback note shown instead of the death-axis chart when the player has no death-tagged matches yet, prompting them to log some with the death tagger.",
           "locate": {
             "path": "client/src/components/AdvisorCard.tsx:148",
-            "grep": "grep -n -F -- 'No death tags yet \u2014 log a few matches' client/src/components/AdvisorCard.tsx"
+            "grep": "grep -n -F -- 'No death tags yet — log a few matches' client/src/components/AdvisorCard.tsx"
           }
         },
         {
           "id": "advisorCard-insightCallout",
           "label": "Coaching insight callout",
           "kind": "card",
-          "description": "Bordered callout with a \"\u25b8\" bullet showing one grounded coaching insight generated from the player's own data, shown when the recommendation includes one.",
+          "description": "Bordered callout with a \"▸\" bullet showing one grounded coaching insight generated from the player's own data, shown when the recommendation includes one.",
           "locate": {
             "path": "client/src/components/AdvisorCard.tsx:152",
             "grep": "grep -n -F -- 'border-t border-emerald-500/15 pt-2' client/src/components/AdvisorCard.tsx"
@@ -1728,19 +1768,19 @@
         },
         {
           "id": "deathLogger-popoverTitle",
-          "label": "Popover title ('Death N \u00b7 Axis')",
+          "label": "Popover title ('Death N · Axis')",
           "kind": "header",
           "description": "Label at the top of the logging popover showing the ordinal number of the death being logged and the current death axis (e.g. 'Trade').",
           "locate": {
             "path": "client/src/components/DeathLogger.tsx:51",
-            "grep": "grep -n -F -- 'Death {count + 1} \u00b7 {spec.label}' client/src/components/DeathLogger.tsx"
+            "grep": "grep -n -F -- 'Death {count + 1} · {spec.label}' client/src/components/DeathLogger.tsx"
           }
         },
         {
           "id": "deathLogger-popoverCancelButton",
-          "label": "Popover cancel (\u00d7) button",
+          "label": "Popover cancel (×) button",
           "kind": "icon-button",
-          "description": "Small \u00d7 button in the top-right of the logging popover that closes it without recording a death.",
+          "description": "Small × button in the top-right of the logging popover that closes it without recording a death.",
           "locate": {
             "path": "client/src/components/DeathLogger.tsx:57",
             "grep": "grep -n -F -- 'aria-label=\"Cancel\"' client/src/components/DeathLogger.tsx"
@@ -1788,9 +1828,9 @@
         },
         {
           "id": "deathLogger-removeBufferedDeathButton",
-          "label": "Remove buffered death (\u00d7) button",
+          "label": "Remove buffered death (×) button",
           "kind": "icon-button",
-          "description": "Per-row \u00d7 button in the buffer review list that removes that specific buffered death entry from the current match's death log.",
+          "description": "Per-row × button in the buffer review list that removes that specific buffered death entry from the current match's death log.",
           "locate": {
             "path": "client/src/components/DeathLogger.tsx:109",
             "grep": "grep -n -F -- 'aria-label=\"Remove\"' client/src/components/DeathLogger.tsx"
@@ -1900,7 +1940,7 @@
           "id": "hero-drawer-wr-badge",
           "label": "Win-rate (WR) badge",
           "kind": "badge",
-          "description": "Reusable inline badge rendering a win-rate percentage, color-coded by tier (emerald \u226560%, blue \u226550%, yellow \u226540%, red below 40%), reused throughout the drawer.",
+          "description": "Reusable inline badge rendering a win-rate percentage, color-coded by tier (emerald ≥60%, blue ≥50%, yellow ≥40%, red below 40%), reused throughout the drawer.",
           "locate": {
             "path": "client/src/components/HeroDrawer.tsx:23",
             "grep": "grep -n -F -- 'rate >= 60 ? '\"'\"'text-emerald-600'\"'\"' : rate >= 50' client/src/components/HeroDrawer.tsx"
@@ -1940,7 +1980,7 @@
           "id": "hero-drawer-type-pill-badge",
           "label": "Game type pill badge",
           "kind": "badge",
-          "description": "Small colored pill badge showing the game type (e.g. Control, Escort) next to map and game-mode rows, colored via the TYPE_COLORS map. (the same pill markup is duplicated across the Best Maps and Worst Maps loops \u2014 locate command matches both.)",
+          "description": "Small colored pill badge showing the game type (e.g. Control, Escort) next to map and game-mode rows, colored via the TYPE_COLORS map. (the same pill markup is duplicated across the Best Maps and Worst Maps loops — locate command matches both.)",
           "locate": {
             "path": "client/src/components/HeroDrawer.tsx:81",
             "grep": "grep -n -F -- 'pill ml-1 ${TYPE_COLORS[m.game_type] ?? '\"'\"''\"'\"'}' client/src/components/HeroDrawer.tsx"
@@ -2008,7 +2048,7 @@
         },
         {
           "id": "hero-drawer-close-button",
-          "label": "Close (\u00d7) button",
+          "label": "Close (×) button",
           "kind": "icon-button",
           "description": "Icon-only button in the drawer's header that closes the hero drawer when clicked.",
           "locate": {
@@ -2118,9 +2158,9 @@
         },
         {
           "id": "mapDrawer-close-button",
-          "label": "Close (\u00d7) button",
+          "label": "Close (×) button",
           "kind": "icon-button",
-          "description": "The \u00d7 button in the drawer header; clicking it calls closeMap to close the map drawer.",
+          "description": "The × button in the drawer header; clicking it calls closeMap to close the map drawer.",
           "locate": {
             "path": "client/src/components/MapDrawer.tsx:139",
             "grep": "grep -n -F -- 'text-2xl leading-none ml-4' client/src/components/MapDrawer.tsx"
@@ -2210,7 +2250,7 @@
           "id": "matchEditDrawer-save-button",
           "label": "Save Changes button",
           "kind": "button",
-          "description": "Primary submit button that PUTs the edited hero/map/result/date/mode to /api/matches/:id, revalidates data, and closes the drawer; disabled while saving or if hero/map is empty, showing 'Saving\u2026' mid-request.",
+          "description": "Primary submit button that PUTs the edited hero/map/result/date/mode to /api/matches/:id, revalidates data, and closes the drawer; disabled while saving or if hero/map is empty, showing 'Saving…' mid-request.",
           "locate": {
             "path": "client/src/components/MatchEditDrawer.tsx:177",
             "grep": "grep -n -F -- ''\"'\"'Save Changes'\"'\"'' client/src/components/MatchEditDrawer.tsx"
@@ -2223,7 +2263,7 @@
           "description": "Inline red error text that appears below the Save button when the PUT request to update the match fails.",
           "locate": {
             "path": "client/src/components/MatchEditDrawer.tsx:185",
-            "grep": "grep -n -F -- 'Failed to save \u2014 is the server running?' client/src/components/MatchEditDrawer.tsx"
+            "grep": "grep -n -F -- 'Failed to save — is the server running?' client/src/components/MatchEditDrawer.tsx"
           }
         },
         {
@@ -2298,9 +2338,9 @@
         },
         {
           "id": "matchEditDrawer-close-button",
-          "label": "Close (\u00d7) button",
+          "label": "Close (×) button",
           "kind": "icon-button",
-          "description": "'\u00d7' icon button in the drawer header that closes the edit drawer without saving changes.",
+          "description": "'×' icon button in the drawer header that closes the edit drawer without saving changes.",
           "locate": {
             "path": "client/src/components/MatchEditDrawer.tsx:245",
             "grep": "grep -n -F -- 'transition-colors text-2xl leading-none ml-4' client/src/components/MatchEditDrawer.tsx"
@@ -2314,7 +2354,7 @@
       "category": "client-component",
       "layer": 2,
       "file": "client/src/components/TrendsSummary.tsx",
-      "description": "Renders a scrolling set of Trend Factoid Cards \u2014 random one-sentence factoids drawn from the server's precomputed insight pool.",
+      "description": "Renders a scrolling set of Trend Factoid Cards — random one-sentence factoids drawn from the server's precomputed insight pool.",
       "calls": [
         "GET /api/stats/insights"
       ],
@@ -2357,7 +2397,7 @@
       "category": "client-component",
       "layer": 2,
       "file": "client/src/components/AnimatedNumber.tsx",
-      "description": "A bare inline number span that tweens to its target value with an eased roll instead of snapping \u2014 used anywhere a live-refetched stat (like a win rate) should visibly update in place.",
+      "description": "A bare inline number span that tweens to its target value with an eased roll instead of snapping — used anywhere a live-refetched stat (like a win rate) should visibly update in place.",
       "uiElements": [
         {
           "id": "animatedNumber-span",
@@ -2377,7 +2417,7 @@
       "category": "client-component",
       "layer": 2,
       "file": "client/src/components/EmptyState.tsx",
-      "description": "Centered icon + title + hint placeholder shown wherever a card has no data yet \u2014 replaces bare 'No data' one-liners across Dashboard, LogMatch and Prematch.",
+      "description": "Centered icon + title + hint placeholder shown wherever a card has no data yet — replaces bare 'No data' one-liners across Dashboard, LogMatch and Prematch.",
       "uiElements": [
         {
           "id": "emptyState-container",
@@ -2466,7 +2506,7 @@
           "description": "Right-aligned link that navigates back to the main Match Tracker dashboard at the root route, separate from the sens-study tabs.",
           "locate": {
             "path": "client/src/components/SensNav.tsx:26",
-            "grep": "grep -n -F -- '\u2190 Match Tracker' client/src/components/SensNav.tsx"
+            "grep": "grep -n -F -- '← Match Tracker' client/src/components/SensNav.tsx"
           }
         }
       ]
@@ -2497,7 +2537,7 @@
       "category": "client-component",
       "layer": 2,
       "file": "client/src/components/WinRateBar.tsx",
-      "description": "A win-rate progress bar + percentage label + game-count badge. Currently UNUSED \u2014 no importer found anywhere in the live codebase (verified via grep on 2026-08-06); either dead code or a component staged for a future call site.",
+      "description": "A win-rate progress bar + percentage label + game-count badge. Currently UNUSED — no importer found anywhere in the live codebase (verified via grep on 2026-08-06); either dead code or a component staged for a future call site.",
       "uiElements": [
         {
           "id": "winRateBar-progress",
@@ -2549,7 +2589,7 @@
       "category": "client-context",
       "layer": 3,
       "file": "client/src/contexts/{HeroDrawerContext,MapDrawerContext,MatchEditDrawerContext}.tsx",
-      "description": "Three small open/close state providers \u2014 which hero/map/match is currently open in its slide-over drawer. Pure UI state, no data fetching of their own.",
+      "description": "Three small open/close state providers — which hero/map/match is currently open in its slide-over drawer. Pure UI state, no data fetching of their own.",
       "uiElements": []
     },
     {
@@ -2558,7 +2598,7 @@
       "category": "client-hook",
       "layer": 3,
       "file": "client/src/hooks/useApi.ts",
-      "description": "Generic fetch-and-cache hook every page/component uses to call the Express API. Exposes a global revalidateAll() \u2014 every mounted useApi subscribes, so one mutation (e.g. logging a match) refreshes the whole app in place.",
+      "description": "Generic fetch-and-cache hook every page/component uses to call the Express API. Exposes a global revalidateAll() — every mounted useApi subscribes, so one mutation (e.g. logging a match) refreshes the whole app in place.",
       "uiElements": []
     },
     {
@@ -2579,7 +2619,7 @@
       "category": "client-lib",
       "layer": 3,
       "file": "client/src/lib/aim.ts",
-      "description": "Client-side mirror of the server's aim math: MOUSE_DPI constant, eDPI(sens,dpi) and cm360(sens,dpi) \u2014 kept in sync by hand with server/src/lib/aim.ts.",
+      "description": "Client-side mirror of the server's aim math: MOUSE_DPI constant, eDPI(sens,dpi) and cm360(sens,dpi) — kept in sync by hand with server/src/lib/aim.ts.",
       "uiElements": []
     }
   ],

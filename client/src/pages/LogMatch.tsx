@@ -124,6 +124,11 @@ export default function LogMatch() {
     const active = actives.find(a => a.hero === form.hero) ?? actives.find(a => a.hero === null);
     return active ? active.sens ?? active.in_game_sens : null;
   })();
+
+  // Hero dropdowns only offer heroes with an active (in-testing) DPI test —
+  // logging is meant to feed the running test, not just record any match.
+  const inTestingHeroes = new Set((dpiState?.actives ?? []).map(a => a.hero).filter((h): h is string => !!h));
+  const HERO_TEST_LIST = HERO_LIST.filter(([h]) => inTestingHeroes.has(h));
   const displaySens = activeSetSens ?? (parseFloat(sens) > 0 ? parseFloat(sens) : null);
 
   // The date field defaults to the current day but stays editable for backfill.
@@ -423,7 +428,7 @@ export default function LogMatch() {
                     <option value="">— 1st hero —</option>
                     {(['DPS', 'Tank', 'Support'] as const).map(role => (
                       <optgroup key={role} label={role}>
-                        {HERO_LIST.filter(([, r]) => r === role).map(([h]) => (
+                        {HERO_TEST_LIST.filter(([, r]) => r === role).map(([h]) => (
                           <option key={h} value={h}>{withHeroCount(h, heroCounts)}</option>
                         ))}
                       </optgroup>
@@ -445,7 +450,7 @@ export default function LogMatch() {
                         <option value="">— {i === 0 ? '2nd' : '3rd'} hero —</option>
                         {(['DPS', 'Tank', 'Support'] as const).map(role => (
                           <optgroup key={role} label={role}>
-                            {HERO_LIST.filter(([, rl]) => rl === role).map(([hh]) => (
+                            {HERO_TEST_LIST.filter(([, rl]) => rl === role).map(([hh]) => (
                               <option key={hh} value={hh}>{withHeroCount(hh, heroCounts)}</option>
                             ))}
                           </optgroup>

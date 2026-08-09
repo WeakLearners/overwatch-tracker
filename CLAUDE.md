@@ -4,6 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Before searching for where a specific UI feature or API behavior lives, check `.claude/FEATURE-MAP.md` — it maps every visible feature to a grep-able anchor string, its file, and its backend dependency. Update the relevant row in the same commit whenever a feature is added, renamed, or moved.
 
+Whenever a `data-inspect-id`/`dataInspectId` is added, removed, or renamed anywhere in `client/src/`, update `docs/overwatch-frontend-map.json` in the same change (add/remove/rename the matching entry under that file's node in `uiElements`). This file is the index the in-app element inspector (`client/src/debug/InspectorOverlay.tsx`) dynamically imports at runtime to resolve a clicked element to its label/description/locate-grep — an id missing from it silently breaks that element's inspector click (the hover highlight still works since that doesn't consult the map, which makes the failure easy to miss). Keep `locate.grep` anchored to a stable string in the element's JSX, not a line number.
+
 ## Commands
 
 From the project root:
