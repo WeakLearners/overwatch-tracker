@@ -58,6 +58,12 @@ const emptyStats = (heroes: { hero: string }[]): StatFieldsT => ({
 });
 
 const num = (s: string) => (s.trim() === '' ? null : parseFloat(s));
+// Duration is entered as m:ss (e.g. "4:32", "12:01") rather than decimal
+// minutes — easier to read off the in-game match timer than converting.
+const parseDurationMin = (s: string): number | null => {
+  const m = s.trim().match(/^(\d{1,3}):([0-5]\d)$/);
+  return m ? parseInt(m[1], 10) + parseInt(m[2], 10) / 60 : null;
+};
 const field = 'w-full field px-3 py-2 text-sm';
 const btnSecondary = 'border border-ow-border rounded-lg text-[var(--ink)] font-semibold hover:border-gray-500 transition-all disabled:opacity-40 disabled:cursor-not-allowed';
 
@@ -94,11 +100,11 @@ function StatFields({ s, upd, updHeroAcc, showHealing, firstDurationRef }: {
                 <label className="block text-xs text-[var(--muted)] mb-1.5">Duration <span className="text-violet-500">*</span></label>
                 <input
                   ref={i === 0 ? firstDurationRef : undefined}
-                  type="number" min="0" step="1" inputMode="numeric" value={h.duration_min}
+                  type="text" inputMode="numeric" value={h.duration_min}
                   onChange={e => updHeroAcc(i, 'duration_min', e.target.value)}
                   data-inspect-id="sl-hero-duration-input"
-                  className={`${field} num-display ${parseFloat(h.duration_min) > 0 ? '' : 'ring-1 ring-violet-500/60'}`}
-                  placeholder="min" aria-label={`${h.hero} duration in minutes`} required
+                  className={`${field} num-display ${parseDurationMin(h.duration_min) != null ? '' : 'ring-1 ring-violet-500/60'}`}
+                  placeholder="m:ss" aria-label={`${h.hero} duration, minutes:seconds`} required
                 />
               </div>
             </div>
@@ -123,7 +129,7 @@ function StatFields({ s, upd, updHeroAcc, showHealing, firstDurationRef }: {
 const statsBody = (match_id: number, s: StatFieldsT) => ({
   match_id,
   heroes: s.heroAcc.map(h => ({
-    hero: h.hero, overall_acc: num(h.overall_acc), crit_acc: num(h.crit_acc), duration_min: num(h.duration_min),
+    hero: h.hero, overall_acc: num(h.overall_acc), crit_acc: num(h.crit_acc), duration_min: parseDurationMin(h.duration_min),
   })),
   elims: num(s.elims), deaths: num(s.deaths), damage: num(s.damage), healing: num(s.healing),
 });
@@ -696,7 +702,7 @@ function BackfillPanel({ pending, loading }: {
   }
 
   const primaryAccValid = parseFloat(stats.heroAcc[0]?.overall_acc ?? '') >= 0;
-  const durationsValid = stats.heroAcc.length > 0 && stats.heroAcc.every(h => parseFloat(h.duration_min) > 0);
+  const durationsValid = stats.heroAcc.length > 0 && stats.heroAcc.every(h => parseDurationMin(h.duration_min) != null);
 
   async function save() {
     if (!selected || !(primaryAccValid && durationsValid)) return;

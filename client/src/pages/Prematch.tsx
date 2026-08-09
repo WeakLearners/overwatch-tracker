@@ -175,6 +175,15 @@ export default function Prematch() {
   // "Select Your Hero" only surfaces heroes with an active (in-testing) DPI
   // test — picking here is meant to feed the test, not just log any match.
   const inTestingHeroes = new Set(btActives.map(a => a.hero).filter((h): h is string => !!h));
+  // Every hero surfaced below is, by construction, in an active stage test —
+  // so this always resolves for them. Sens supersedes DPI post-lock; DPI is
+  // the fallback for any pre-lock stage still running on the old axis.
+  const testValueFor = (hero: string): string | null => {
+    const a = btActives.find(a => a.hero === hero);
+    if (!a) return null;
+    const v = a.sens ?? a.dpi;
+    return v != null ? v.toFixed(2) : null;
+  };
 
   // For each role, show up to 5 qualified heroes (>=2 games), then roll the
   // remaining heroes on this map into a single combined "Other heroes" slot.
@@ -649,7 +658,9 @@ export default function Prematch() {
                         }`}
                       >
                         <span className={`text-sm ${h.win_rate >= 50 ? 'text-emerald-700' : 'text-red-500'}`}>{h.win_rate >= 50 ? '↑' : '↓'}</span>
-                        <span className={`flex-1 text-sm font-semibold transition-colors ${selectedHero === h.hero ? 'text-violet-500' : 'text-[var(--ink)] group-hover:text-violet-500'}`}>{withHeroCount(h.hero, heroCounts)}</span>
+                        <span className={`flex-1 text-sm font-semibold transition-colors ${selectedHero === h.hero ? 'text-violet-500' : 'text-[var(--ink)] group-hover:text-violet-500'}`}>
+                          {withHeroCount(h.hero, heroCounts)}{testValueFor(h.hero) && ` @ ${testValueFor(h.hero)}`}
+                        </span>
                         <span className={`text-sm font-semibold ${h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
                         <span className="text-xs text-[var(--faint-2)] w-7 text-right">{h.games}g</span>
                       </button>
@@ -684,7 +695,9 @@ export default function Prematch() {
                               }`}
                             >
                               <span className={`text-sm ${h.win_rate >= 50 ? 'text-emerald-700' : 'text-red-500'}`}>{h.win_rate >= 50 ? '↑' : '↓'}</span>
-                              <span className={`flex-1 text-sm transition-colors ${selectedHero === h.hero ? 'text-violet-500' : 'text-[var(--muted)] group-hover:text-violet-500'}`}>{withHeroCount(h.hero, heroCounts)}</span>
+                              <span className={`flex-1 text-sm transition-colors ${selectedHero === h.hero ? 'text-violet-500' : 'text-[var(--muted)] group-hover:text-violet-500'}`}>
+                                {withHeroCount(h.hero, heroCounts)}{testValueFor(h.hero) && ` @ ${testValueFor(h.hero)}`}
+                              </span>
                               <span className={`text-sm font-semibold ${h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
                               <span className="text-xs text-[var(--faint-2)] w-7 text-right">{h.games}g</span>
                             </button>
