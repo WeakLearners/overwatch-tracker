@@ -89,14 +89,6 @@ function StatFields({ s, upd, updHeroAcc, showHealing, firstDurationRef }: {
             <div className="text-xs font-semibold text-[var(--ink)] mb-1.5">{h.hero}</div>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs text-[var(--muted)] mb-1.5">Overall %</label>
-                <input type="number" step="0.1" min="0" max="100" inputMode="decimal" value={h.overall_acc} onChange={e => updHeroAcc(i, 'overall_acc', e.target.value)} data-inspect-id="sl-overall-acc-input" className={field} placeholder="e.g. 41.2" aria-label={`${h.hero} overall accuracy %`} />
-              </div>
-              <div>
-                <label className="block text-xs text-[var(--muted)] mb-1.5">Crit %</label>
-                <input type="number" step="0.1" min="0" max="100" inputMode="decimal" value={h.crit_acc} onChange={e => updHeroAcc(i, 'crit_acc', e.target.value)} data-inspect-id="sl-crit-acc-input" className={field} placeholder="e.g. 22.5" aria-label={`${h.hero} crit accuracy %`} />
-              </div>
-              <div>
                 <label className="block text-xs text-[var(--muted)] mb-1.5">Duration <span className="text-violet-500">*</span></label>
                 <input
                   ref={i === 0 ? firstDurationRef : undefined}
@@ -106,6 +98,14 @@ function StatFields({ s, upd, updHeroAcc, showHealing, firstDurationRef }: {
                   className={`${field} num-display ${parseDurationMin(h.duration_min) != null ? '' : 'ring-1 ring-violet-500/60'}`}
                   placeholder="m:ss" aria-label={`${h.hero} duration, minutes:seconds`} required
                 />
+              </div>
+              <div>
+                <label className="block text-xs text-[var(--muted)] mb-1.5">Overall %</label>
+                <input type="number" step="0.1" min="0" max="100" inputMode="decimal" value={h.overall_acc} onChange={e => updHeroAcc(i, 'overall_acc', e.target.value)} data-inspect-id="sl-overall-acc-input" className={field} placeholder="e.g. 41.2" aria-label={`${h.hero} overall accuracy %`} />
+              </div>
+              <div>
+                <label className="block text-xs text-[var(--muted)] mb-1.5">Crit %</label>
+                <input type="number" step="0.1" min="0" max="100" inputMode="decimal" value={h.crit_acc} onChange={e => updHeroAcc(i, 'crit_acc', e.target.value)} data-inspect-id="sl-crit-acc-input" className={field} placeholder="e.g. 22.5" aria-label={`${h.hero} crit accuracy %`} />
               </div>
             </div>
           </div>
