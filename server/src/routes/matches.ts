@@ -102,17 +102,21 @@ router.post('/', (req: Request, res: Response) => {
 
   // Slot 1 is always the hero/role already written to the match row above.
   // `heroes` carries any additional heroes switched to mid-match (slots 2/3),
-  // sent as {hero, role} pairs the same way the primary one is — win/loss
-  // then attributes to every hero actually played, not just the first (see
-  // matches_by_hero in schema.ts).
-  const heroSlots: { hero: string; role: string }[] = [
-    { hero, role },
-    ...(Array.isArray(heroes) ? heroes.filter((h: any) => h?.hero && h?.role).slice(0, 2) : []),
+  // sent as {hero, role, feel} tuples the same way the primary one is —
+  // win/loss then attributes to every hero actually played, not just the
+  // first (see matches_by_hero in schema.ts). feel is per hero (LogMatch
+  // shows one slider per hero played) — slot 1's feel also mirrors into
+  // matches.feel above since that's what blind.ts's per-stage analysis reads.
+  const heroSlots: { hero: string; role: string; feel: number | null }[] = [
+    { hero, role, feel: typeof feel === 'number' ? feel : null },
+    ...(Array.isArray(heroes) ? heroes.filter((h: any) => h?.hero && h?.role).slice(0, 2).map((h: any) => ({
+      hero: h.hero, role: h.role, feel: typeof h.feel === 'number' ? h.feel : null,
+    })) : []),
   ];
   const insertHeroSlot = db.prepare(
-    'INSERT INTO match_heroes (match_id, slot, hero, role) VALUES (:match_id, :slot, :hero, :role)'
+    'INSERT INTO match_heroes (match_id, slot, hero, role, feel) VALUES (:match_id, :slot, :hero, :role, :feel)'
   );
-  heroSlots.forEach((h, i) => insertHeroSlot.run({ match_id: matchId, slot: i + 1, hero: h.hero, role: h.role }));
+  heroSlots.forEach((h, i) => insertHeroSlot.run({ match_id: matchId, slot: i + 1, hero: h.hero, role: h.role, feel: h.feel }));
 
   if (isStudy && setId != null) {
     db.prepare('UPDATE blind_stage_sets SET games_on_stage = games_on_stage + 1 WHERE id = :id').run({ id: setId });

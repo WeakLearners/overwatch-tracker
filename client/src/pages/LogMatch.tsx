@@ -86,7 +86,13 @@ export default function LogMatch() {
   const { data: dpiState } = useApi<DpiTestState>('/api/blind/state');
   const mapCounts = useTodayMapCounts();
   const heroCounts = useTodayHeroCounts();
-  const [feel, setFeel] = useState(FEEL_MID);
+  // One feel reading per hero actually played (mirrors switchHeroes/duration_min
+  // per-hero) — a mid-match switch can feel different on the hero you started
+  // on than the one you switched to, especially if they're on different sens.
+  // Keyed by hero name; a hero not yet in here just reads as FEEL_MID.
+  const [feelByHero, setFeelByHero] = useState<Record<string, number>>({});
+  const feelFor = (h: string) => feelByHero[h] ?? FEEL_MID;
+  const setFeelFor = (h: string, v: number) => setFeelByHero(prev => ({ ...prev, [h]: v }));
   const [teamRating, setTeamRating] = useState(0);
   const [form, setForm] = useState<FormState>(() => {
     const n = new Date();
@@ -118,18 +124,26 @@ export default function LogMatch() {
   // to the frozen fallback; Competitive checks for a set tagged to the
   // selected hero, then the hero-less ad-hoc set — same priority order the
   // server uses when it stamps the match.
-  const activeSetSens = (() => {
-    if (queueMode === 'qp_role') return null;
+  // Same lookup as activeSetSens below, generalized to any hero — used to
+  // label each hero's own Feel slider with the sens it was actually played
+  // at, since a mid-match switch can land on a different hero's own test.
+  const sensForHero = (h: string): number | null => {
+    if (!h || queueMode === 'qp_role') return null;
     const actives = dpiState?.actives ?? [];
-    const active = actives.find(a => a.hero === form.hero) ?? actives.find(a => a.hero === null);
+    const active = actives.find(a => a.hero === h) ?? actives.find(a => a.hero === null);
     return active ? active.sens ?? active.in_game_sens : null;
-  })();
+  };
+  const displaySensForHero = (h: string): number | null => sensForHero(h) ?? (parseFloat(sens) > 0 ? parseFloat(sens) : null);
+  const activeSetSens = sensForHero(form.hero);
 
   // Hero dropdowns only offer heroes with an active (in-testing) DPI test —
   // logging is meant to feed the running test, not just record any match.
   const inTestingHeroes = new Set((dpiState?.actives ?? []).map(a => a.hero).filter((h): h is string => !!h));
   const HERO_TEST_LIST = HERO_LIST.filter(([h]) => inTestingHeroes.has(h));
   const displaySens = activeSetSens ?? (parseFloat(sens) > 0 ? parseFloat(sens) : null);
+  // Every hero actually played this match, in slot order, deduped (picking
+  // the same hero twice in the switch dropdowns shouldn't double its slider).
+  const playedHeroes = [...new Set([form.hero, ...switchHeroes].filter((h): h is string => !!h))];
 
   // The date field defaults to the current day but stays editable for backfill.
   // Once the user manually picks a date we stop auto-advancing it so their choice
@@ -260,14 +274,14 @@ export default function LogMatch() {
           hour,
           hero: form.hero,
           role: heroRole,
-          heroes: switchHeroes.filter(h => h).map(h => ({ hero: h, role: HEROES[h] })),
+          heroes: switchHeroes.filter(h => h).map(h => ({ hero: h, role: HEROES[h], feel: feelFor(h) })),
           map,
           game_type: mapType,
           win: form.win === '1',
           deaths: deathBuffer.length > 0 ? { v: 3, deaths: deathBuffer } : null,
           queue_mode: queueMode,
           sens: parseFloat(sens),
-          feel,
+          feel: feelFor(form.hero),
           team_rating: teamRating,
           notes: form.notes.trim() || null,
         }),
@@ -277,7 +291,7 @@ export default function LogMatch() {
       const loggedWin = form.win === '1';
       setStatus('success');
       clearDeathBuffer();
-      setFeel(FEEL_MID);
+      setFeelByHero({});
       setTeamRating(0);
       dateTouched.current = false;
       timeTouched.current = false;
@@ -367,7 +381,7 @@ export default function LogMatch() {
             <h2 className="text-sm heading-display text-[var(--ink)]">Match Details</h2>
             <button
               type="button"
-              onClick={() => { setForm(f => ({ ...f, hero: '', notes: '' })); setSwitchHeroes(['', '']); setMap(''); setFeel(FEEL_MID); setTeamRating(0); }}
+              onClick={() => { setForm(f => ({ ...f, hero: '', notes: '' })); setSwitchHeroes(['', '']); setMap(''); setFeelByHero({}); setTeamRating(0); }}
               disabled={!form.hero && !map}
               data-inspect-id="logmatch-reset-button"
               className="text-xs text-[var(--faint)] hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--faint)]"
@@ -578,20 +592,30 @@ export default function LogMatch() {
               />
             </div>
 
-            <div>
-              <label className="block text-xs text-[var(--muted)] mb-1.5">Feel <span className="text-[var(--faint-2)]">— did the sens feel slow or fast?</span></label>
-              <input
-                type="range"
-                min={FEEL_MIN}
-                max={FEEL_MAX}
-                step={1}
-                value={feel}
-                onChange={e => setFeel(Number(e.target.value))}
-                className="w-full accent-violet-500"
-                aria-label="Feel — slow to fast"
-                data-inspect-id="logmatch-feel-slider"
-              />
-              <div className="flex justify-between text-[10px] text-[var(--faint-2)] mt-1 px-0.5"><span>Slow</span><span>Just Right</span><span>Fast</span></div>
+            <div className="space-y-3" data-inspect-id="logmatch-feel-sliders">
+              {playedHeroes.map(h => {
+                const heroSens = displaySensForHero(h);
+                return (
+                  <div key={h}>
+                    <label className="block text-xs text-[var(--muted)] mb-1.5">
+                      Feel <span className="text-[var(--ink)] font-semibold">— {h}{heroSens != null ? ` @ ${heroSens.toFixed(2)}` : ''}</span>
+                      <span className="text-[var(--faint-2)]"> — did the sens feel slow or fast?</span>
+                    </label>
+                    <input
+                      type="range"
+                      min={FEEL_MIN}
+                      max={FEEL_MAX}
+                      step={1}
+                      value={feelFor(h)}
+                      onChange={e => setFeelFor(h, Number(e.target.value))}
+                      className="w-full accent-violet-500"
+                      aria-label={`Feel — slow to fast — ${h}`}
+                      data-inspect-id="logmatch-feel-slider"
+                    />
+                    <div className="flex justify-between text-[10px] text-[var(--faint-2)] mt-1 px-0.5"><span>Slow</span><span>Just Right</span><span>Fast</span></div>
+                  </div>
+                );
+              })}
             </div>
 
             <div>

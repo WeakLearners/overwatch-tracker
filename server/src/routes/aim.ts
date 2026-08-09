@@ -100,10 +100,11 @@ router.get('/analysis', (_req: Request, res: Response) => {
   // played, each against its own hero baseline below, rather than one
   // match-level number duplicated across every hero in it.
   const rows = db.prepare(`
-    SELECT m.id, ah.hero, m.sens, m.dpi, m.win, m.feel, m.blind_trial, ah.overall_acc, ah.crit_acc, a.created_at
+    SELECT m.id, ah.hero, m.sens, m.dpi, m.win, mh.feel, m.blind_trial, ah.overall_acc, ah.crit_acc, a.created_at
     FROM aim_stats_heroes ah
     JOIN aim_stats a ON a.match_id = ah.match_id
     JOIN matches m ON m.id = ah.match_id
+    LEFT JOIN match_heroes mh ON mh.match_id = ah.match_id AND mh.hero = ah.hero
     WHERE m.sens IS NOT NULL AND ah.overall_acc IS NOT NULL
   `).all() as unknown as {
     id: number; hero: string; sens: number; dpi: number | null; win: 0 | 1; blind_trial: 0 | 1 | null;

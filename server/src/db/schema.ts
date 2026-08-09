@@ -252,6 +252,28 @@ function initSchema(db: DatabaseSync) {
     WHERE id NOT IN (SELECT match_id FROM match_heroes WHERE slot = 1)
   `);
 
+  // feel: same per-hero split as aim_stats_heroes.duration_min above, for the
+  // same reason — a mid-match switch means the sens felt a certain way on one
+  // hero and possibly differently on another, so one match-wide value hid
+  // that. Captured once per hero actually played (LogMatch's Feel slider),
+  // rather than once per match. matches.feel stays the column of record for
+  // the *tested* hero specifically (slot 1 — the hero a stage-test set's
+  // hero lookup in matches.ts is always keyed on) since blind.ts's per-stage
+  // feelMean/feelVar reads it directly; this table is what per-hero analysis
+  // (aim.ts /analysis) reads instead of duplicating matches.feel across every
+  // hero in a switch match.
+  const mhCols = db.prepare(`PRAGMA table_info(match_heroes)`).all() as { name: string }[];
+  if (!mhCols.find(c => c.name === 'feel')) {
+    db.exec(`ALTER TABLE match_heroes ADD COLUMN feel INTEGER`);
+    db.exec(`
+      UPDATE match_heroes SET feel = (
+        SELECT m.feel FROM matches m WHERE m.id = match_heroes.match_id
+      )
+      WHERE slot = 1 AND feel IS NULL
+        AND EXISTS (SELECT 1 FROM matches m WHERE m.id = match_heroes.match_id AND m.feel IS NOT NULL)
+    `);
+  }
+
   // matches_by_hero: one row per (match, hero played) — the hero-attribution
   // view every by-hero stats query reads from instead of `matches` directly,
   // so a match with a mid-match switch counts toward every hero it touched.
