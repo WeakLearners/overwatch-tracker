@@ -12,11 +12,12 @@ const MIN_GAMES_FOR_PICK = 3;
 const DEATH_GAMES_MIN_MAP = 3;
 const DEATH_GAMES_MIN_TYPE = 5;
 
-// Role queue (qp_role + comp_role) locks user to DPS. Open queue allows DPS + Support.
 type QueueMode = 'qp_role' | 'comp_role' | 'comp_open';
-function allowedRoles(mode: QueueMode): string[] {
-  return mode === 'comp_open' ? ['DPS', 'Support'] : ['DPS'];
-}
+// Coaching always surfaces both a DPS and a Support pick, side by side,
+// regardless of queue mode — role queue only locks which role you queue AS
+// for a given match, not which role's data is worth coaching on.
+type AdvisorRole = 'DPS' | 'Support';
+const ADVISOR_ROLES: AdvisorRole[] = ['DPS', 'Support'];
 
 // Heroes the user has played enough to be considered "comfort pool".
 const COMFORT_MIN_GAMES = 20;
@@ -79,23 +80,21 @@ function getInTestingHeroes(db: ReturnType<typeof getDb>): Set<string> {
   return new Set(rows.map(r => r.hero));
 }
 
-function getComfortPool(db: ReturnType<typeof getDb>, mode: QueueMode, inTesting: Set<string>): HeroStat[] {
-  const roles = allowedRoles(mode);
+function getComfortPool(db: ReturnType<typeof getDb>, role: AdvisorRole, inTesting: Set<string>): HeroStat[] {
   if (inTesting.size === 0) return [];
-  const placeholders = roles.map(() => '?').join(',');
   const heroPlaceholders = [...inTesting].map(() => '?').join(',');
   // Comfort = at least COMFORT_MIN_GAMES total games on this hero, regardless of mode.
   return db.prepare(`
     SELECT hero, role, COUNT(*) games, ROUND(AVG(win)*100, 1) win_rate
     FROM matches
-    WHERE role IN (${placeholders}) AND hero IN (${heroPlaceholders})
+    WHERE role = ? AND hero IN (${heroPlaceholders})
     GROUP BY hero, role
     HAVING games >= ${COMFORT_MIN_GAMES}
     ORDER BY games DESC
-  `).all(...roles, ...inTesting) as unknown as HeroStat[];
+  `).all(role, ...inTesting) as unknown as HeroStat[];
 }
 
-function pickPrimary(db: ReturnType<typeof getDb>, map: string, mode: QueueMode, pool: HeroStat[]): HeroStat | null {
+function pickPrimary(db: ReturnType<typeof getDb>, map: string, pool: HeroStat[]): HeroStat | null {
   if (pool.length === 0) return null;
   const heroNames = pool.map(h => h.hero);
   const placeholders = heroNames.map(() => '?').join(',');
@@ -268,13 +267,11 @@ interface StretchCandidate {
 function getStretchCandidates(
   db: ReturnType<typeof getDb>,
   map: string,
-  mode: QueueMode,
+  role: AdvisorRole,
   poolHeroes: Set<string>,
   inTesting: Set<string>,
 ): StretchCandidate[] {
   if (inTesting.size === 0) return [];
-  const roles = allowedRoles(mode);
-  const placeholders = roles.map(() => '?').join(',');
   const rows = db.prepare(`
     SELECT hero, role,
       COUNT(*) career_games,
@@ -282,11 +279,11 @@ function getStretchCandidates(
       SUM(CASE WHEN map = ? THEN 1 ELSE 0 END) map_games,
       ROUND(AVG(CASE WHEN map = ? THEN win*100.0 END), 1) map_win_rate
     FROM matches
-    WHERE role IN (${placeholders})
+    WHERE role = ?
     GROUP BY hero, role
     ORDER BY map_games DESC, career_games DESC
-  `).all(map, map, ...roles) as unknown as StretchCandidate[];
-  const canonical = new Set(ALL_HEROES_BY_ROLE(roles));
+  `).all(map, map, role) as unknown as StretchCandidate[];
+  const canonical = new Set(ALL_HEROES_BY_ROLE([role]));
   return rows
     // Require a minimum sample so a 1-game fluke isn't sold as "grounded".
     // Thinner heroes fall through to the untested pool, which is labeled as such.
@@ -300,25 +297,29 @@ function getStretchCandidates(
 // "untested" so the UI can label them as out-of-data, not from the player's log.
 function getUntestedMetaPool(
   db: ReturnType<typeof getDb>,
-  mode: QueueMode,
+  role: AdvisorRole,
   exclude: Set<string>,
   inTesting: Set<string>,
 ): string[] {
-  const roles = allowedRoles(mode);
-  const placeholders = roles.map(() => '?').join(',');
   const played = new Set(
-    (db.prepare(`SELECT DISTINCT hero FROM matches WHERE role IN (${placeholders})`)
-      .all(...roles) as { hero: string }[]).map(r => r.hero),
+    (db.prepare(`SELECT DISTINCT hero FROM matches WHERE role = ?`)
+      .all(role) as { hero: string }[]).map(r => r.hero),
   );
-  return ALL_HEROES_BY_ROLE(roles).filter(h => !played.has(h) && !exclude.has(h) && inTesting.has(h));
+  return ALL_HEROES_BY_ROLE([role]).filter(h => !played.has(h) && !exclude.has(h) && inTesting.has(h));
 }
 
-// Only the LLM insight + stretch pick are cached. The death breakdown and
-// hero stats are recomputed live on every request (cheap, and reflects newly
-// logged matches even on a cache hit). focus_json now holds { insight }.
-function readCachedInsight(db: ReturnType<typeof getDb>, map: string, mode: QueueMode): { insight: string; stretch: string | null; stretchUntested: boolean } | null {
+interface CachedRoleStretch { stretch: string | null; stretchUntested: boolean }
+interface CachedInsight { insight: string; byRole: Record<AdvisorRole, CachedRoleStretch> }
+
+// Only the LLM insight + stretch picks are cached (one LLM call covers both
+// roles — the insight is about death patterns, which don't depend on which
+// role you're coaching). The death breakdown and hero stats are recomputed
+// live on every request (cheap, and reflects newly logged matches even on a
+// cache hit). primary_hero/stretch_hero stay informational-only (DPS side)
+// now that focus_json carries both roles' stretch picks.
+function readCachedInsight(db: ReturnType<typeof getDb>, map: string, mode: QueueMode): CachedInsight | null {
   const row = db.prepare(`
-    SELECT stretch_hero, focus_json, created_at
+    SELECT focus_json, created_at
     FROM advisor_cache WHERE map = ? AND queue_mode = ?
   `).get(map, mode) as any;
   if (!row) return null;
@@ -326,12 +327,12 @@ function readCachedInsight(db: ReturnType<typeof getDb>, map: string, mode: Queu
   if (ageMs > CACHE_TTL_DAYS * 24 * 60 * 60 * 1000) return null;
   try {
     const parsed = JSON.parse(row.focus_json);
-    if (typeof parsed?.insight !== 'string') return null; // old array format -> regenerate
-    return { insight: parsed.insight, stretch: row.stretch_hero ?? null, stretchUntested: parsed.stretchUntested === true };
+    if (typeof parsed?.insight !== 'string' || !parsed?.byRole) return null; // old shape -> regenerate
+    return { insight: parsed.insight, byRole: parsed.byRole };
   } catch { return null; }
 }
 
-function writeCache(db: ReturnType<typeof getDb>, map: string, mode: QueueMode, primary: string, stretch: string | null, stretchUntested: boolean, insight: string) {
+function writeCache(db: ReturnType<typeof getDb>, map: string, mode: QueueMode, primaryDps: string | null, insight: string, byRole: Record<AdvisorRole, CachedRoleStretch>) {
   db.prepare(`
     INSERT INTO advisor_cache (map, queue_mode, primary_hero, stretch_hero, focus_json, created_at)
     VALUES (?, ?, ?, ?, ?, datetime('now'))
@@ -340,27 +341,33 @@ function writeCache(db: ReturnType<typeof getDb>, map: string, mode: QueueMode, 
       stretch_hero = excluded.stretch_hero,
       focus_json   = excluded.focus_json,
       created_at   = excluded.created_at
-  `).run(map, mode, primary, stretch, JSON.stringify({ insight, stretchUntested }));
+  `).run(map, mode, primaryDps ?? '', byRole.DPS.stretch, JSON.stringify({ insight, byRole }));
 }
 
-function buildSchema(hasStretchPool: boolean) {
+// roleHasStretchPool flags which of DPS/Support have a non-empty stretch pool
+// to offer — a role with no primary hero at all is excluded entirely (its key
+// simply isn't in the map), a role with a primary but no eligible stretch
+// pool is included as false (insight-only, no stretch fields required for it).
+function buildSchema(roleHasStretchPool: Partial<Record<AdvisorRole, boolean>>) {
   const props: any = {
     insight: {
       type: 'string',
-      description: "One plain-English coaching insight, max 35 words, grounded in the player's death AXIS numbers. Each axis has a mean from 0.0 to 1.0 and a sample count n. Name the strongest lean in words (e.g. 'your deaths lean wasted' or 'you tend to die first'), say whether it's a recurring habit or map-specific (compare deaths_here vs deaths_overall), and give one concrete BEHAVIORAL adjustment. If note_no_death_data is present, instead return one sentence saying death coaching unlocks once they tag a few matches. Never invent map geometry.",
+      description: "One plain-English coaching insight, max 35 words, grounded in the player's death AXIS numbers. Each axis has a mean from 0.0 to 1.0 and a sample count n. Name the strongest lean in words (e.g. 'your deaths lean wasted' or 'you tend to die first'), say whether it's a recurring habit or map-specific (compare deaths_here vs deaths_overall), and give one concrete BEHAVIORAL adjustment. If note_no_death_data is present, instead return one sentence saying death coaching unlocks once they tag a few matches. Never invent map geometry. This single insight covers BOTH roles below — it's about the player's death patterns, not role-specific tactics.",
     },
   };
   const required = ['insight'];
-  if (hasStretchPool) {
-    props.stretch = {
+  for (const role of ADVISOR_ROLES) {
+    if (!roleHasStretchPool[role]) continue;
+    const key = role.toLowerCase();
+    props[`stretch_${key}`] = {
       type: 'string',
-      description: "The stretch hero to suggest. PREFER candidate_stretch_pool (heroes the player has actually played, with stats): pick the entry with the strongest performance for this map+mode — rank by map_win_rate (weighted by map_games), falling back to career_win_rate when the this-map sample is thin. Only when candidate_stretch_pool is empty OR every grounded option is weak (career_win_rate below ~45% on a thin sample) may you instead pick from untested_meta_pool. Must exactly match a name from whichever pool you chose.",
+      description: `The stretch ${role} hero to suggest. PREFER candidate_stretch_pool_${key} (heroes the player has actually played, with stats): pick the entry with the strongest performance for this map+mode — rank by map_win_rate (weighted by map_games), falling back to career_win_rate when the this-map sample is thin. Only when candidate_stretch_pool_${key} is empty OR every grounded option is weak (career_win_rate below ~45% on a thin sample) may you instead pick from untested_meta_pool_${key}. Must exactly match a name from whichever pool you chose.`,
     };
-    props.stretch_untested = {
+    props[`stretch_${key}_untested`] = {
       type: 'boolean',
-      description: 'true if `stretch` was taken from untested_meta_pool (a hero the player has NEVER played, suggested on general meta); false if taken from candidate_stretch_pool (grounded in their own stats).',
+      description: `true if stretch_${key} was taken from untested_meta_pool_${key} (a hero the player has NEVER played, suggested on general meta); false if taken from candidate_stretch_pool_${key} (grounded in their own stats).`,
     };
-    required.push('stretch', 'stretch_untested');
+    required.push(`stretch_${key}`, `stretch_${key}_untested`);
   }
   return { type: 'object', properties: props, required, additionalProperties: false };
 }
@@ -382,10 +389,10 @@ Death axes (each is a spectrum the player rated 0.0–1.0, with a sample count n
 - awareness (0 = caught out, 1 = read it): low = died to information you did NOT have (an unseen flanker, a hidden teammate, an angle you never checked); high = you HAD the full read and died anyway (lost a fair duel, or knowingly took a risky play).
 Interpretation hints: low trade + low grouping + low awareness = dying isolated to info gaps (work pre-fight information and staying with the team); low timing = entry timing; high timing = disengage discipline; low awareness = recurring information/awareness gaps; high awareness = the reads were there, the loss was on fight selection or execution.
 
-Stretch pick — you may be given two pools:
-- candidate_stretch_pool (PREFERRED): heroes the player has actually played but doesn't main. Each entry has their own stats: career_games, career_win_rate, map_games (games on THIS map), map_win_rate (win rate on THIS map, null if none). Rank by performance ON THIS MAP first — highest map_win_rate backed by a meaningful map_games sample; fall back to career_win_rate when map sample is thin. This is grounded in real data; always prefer it.
-- untested_meta_pool (FALLBACK ONLY): heroes the player has NEVER played, so there is no personal data. Only pick from here when candidate_stretch_pool is empty, or when every grounded option is weak (career_win_rate below ~45% on a thin sample). When you do, choose a hero you have genuine competitive knowledge of for this map and queue mode, and set stretch_untested=true. If you pick from the grounded pool, set stretch_untested=false.
-- Never invent a hero outside the pools you were given.
+Stretch pick — you're coaching DPS and Support independently, each with its own pair of pools (candidate_stretch_pool_dps/untested_meta_pool_dps, and the _support equivalents), present only for whichever role(s) you were asked for:
+- candidate_stretch_pool_<role> (PREFERRED): heroes the player has actually played but doesn't main, in that role. Each entry has their own stats: career_games, career_win_rate, map_games (games on THIS map), map_win_rate (win rate on THIS map, null if none). Rank by performance ON THIS MAP first — highest map_win_rate backed by a meaningful map_games sample; fall back to career_win_rate when map sample is thin. This is grounded in real data; always prefer it.
+- untested_meta_pool_<role> (FALLBACK ONLY): heroes the player has NEVER played in that role, so there is no personal data. Only pick from here when candidate_stretch_pool_<role> is empty, or when every grounded option is weak (career_win_rate below ~45% on a thin sample). When you do, choose a hero you have genuine competitive knowledge of for this map and queue mode, and set stretch_<role>_untested=true. If you pick from the grounded pool, set stretch_<role>_untested=false.
+- Never invent a hero outside the pools you were given, and never cross roles (a stretch_support pick must come from a support pool, never a dps one).
 
 Queue context:
 - Open queue = 6v6, no role lock, expect double tank.
@@ -407,44 +414,65 @@ router.get('/recommend', async (req: Request, res: Response) => {
   }
 
   const inTesting = getInTestingHeroes(db);
-  const pool = getComfortPool(db, mode, inTesting);
-  const primary = pickPrimary(db, map, mode, pool);
   const mapCtx = getMapContext(db, map);
 
-  if (!primary) {
-    res.status(404).json({ error: `No heroes with an active DPI test available for ${mode}` });
+  // Independent primary pick per role — Coaching always shows a DPS column and
+  // a Support column side by side, so this is computed for both regardless of
+  // queue mode. A role with no in-testing hero meeting COMFORT_MIN_GAMES just
+  // gets a null primary (that column renders empty, not an error) unless
+  // BOTH roles come back empty, in which case there's nothing to coach at all.
+  const roleInfo = Object.fromEntries(ADVISOR_ROLES.map(role => {
+    const pool = getComfortPool(db, role, inTesting);
+    const primary = pickPrimary(db, map, pool);
+    return [role, { pool, primary }];
+  })) as Record<AdvisorRole, { pool: HeroStat[]; primary: HeroStat | null }>;
+
+  if (ADVISOR_ROLES.every(r => !roleInfo[r].primary)) {
+    res.status(404).json({ error: 'No heroes with an active DPI test available' });
     return;
   }
 
-  // Death axes are recomputed live every request (cheap) so they always reflect
-  // the latest logged matches, even when the LLM insight is cached.
+  // Death axes are role-independent (about the player's death patterns on this
+  // map, not which hero/role they're playing) — computed once, shared by both
+  // columns. Recomputed live every request (cheap) so it always reflects the
+  // latest logged matches, even when the LLM insight is cached.
   const { scope: deathScope, stats: axes } = scopedAxis(db, map, mapCtx.game_type);
   const hasDeathData = axes.deaths > 0;
   const deathFields = {
     death_axes: hasDeathData ? toAxisPayload(axes) : null,
     death_scope: deathScope,
   };
-  const statFields = {
-    primary_stats: { games: primary.games, win_rate: primary.win_rate },
-    user_map_stats: { games: mapCtx.games, win_rate: mapCtx.win_rate },
+
+  const buildPayload = (role: AdvisorRole, stretch: string | null, stretchUntested: boolean, insight: string, cached: boolean): RecommendationPayload | null => {
+    const primary = roleInfo[role].primary;
+    if (!primary) return null;
+    return {
+      primary: primary.hero,
+      stretch,
+      stretch_untested: stretchUntested,
+      insight,
+      ...deathFields,
+      primary_stats: { games: primary.games, win_rate: primary.win_rate },
+      user_map_stats: { games: mapCtx.games, win_rate: mapCtx.win_rate },
+      cached,
+    };
   };
 
   // Cache check (skip on refresh). A cached stretch pick from before its hero's
   // test wrapped up (or before this filter existed) would otherwise keep
-  // surfacing a no-longer-in-testing hero for up to CACHE_TTL_DAYS — drop it
-  // rather than trust a stale pick.
+  // surfacing a no-longer-in-testing hero for up to CACHE_TTL_DAYS — drop the
+  // whole cached entry (both roles) rather than trust a stale pick.
   if (!refresh) {
     const cached = readCachedInsight(db, map, mode);
-    if (cached && (cached.stretch === null || inTesting.has(cached.stretch))) {
-      res.json({
-        primary: primary.hero,
-        stretch: cached.stretch,
-        stretch_untested: cached.stretchUntested,
-        insight: cached.insight,
-        ...deathFields,
-        ...statFields,
-        cached: true,
-      } satisfies RecommendationPayload);
+    const stillFresh = cached && ADVISOR_ROLES.every(role => {
+      if (!roleInfo[role].primary) return true; // no column to validate
+      const s = cached.byRole[role]?.stretch ?? null;
+      return s === null || inTesting.has(s);
+    });
+    if (cached && stillFresh) {
+      res.json(Object.fromEntries(ADVISOR_ROLES.map(role => [
+        role, buildPayload(role, cached!.byRole[role]?.stretch ?? null, cached!.byRole[role]?.stretchUntested ?? false, cached!.insight, true),
+      ])));
       return;
     }
   }
@@ -458,16 +486,20 @@ router.get('/recommend', async (req: Request, res: Response) => {
 
   // Overall pattern for the model to compare against (recurring habit vs. map spike).
   const overallAxes = axisStats(db, '', []);
-  // Stretch candidates = heroes the user has ACTUALLY played in the allowed roles,
-  // minus their comfort pool. Never recommends heroes they've never touched. Each
-  // candidate carries career + this-map win rates so the pick is grounded in data.
-  const poolHeroes = new Set(pool.map(h => h.hero));
-  const stretchCandidates = getStretchCandidates(db, map, mode, poolHeroes, inTesting);
-  // Fallback pool of never-played meta heroes, so role-queue players with a
-  // narrow hero pool still get a varied stretch suggestion (clearly flagged
-  // "untested" since it isn't backed by their own data).
-  const untestedMeta = getUntestedMetaPool(db, mode, poolHeroes, inTesting);
-  const hasStretch = stretchCandidates.length > 0 || untestedMeta.length > 0;
+
+  // Stretch pools per role — heroes the user has ACTUALLY played in that role,
+  // minus that role's comfort pool. Never recommends heroes they've never
+  // touched. Each candidate carries career + this-map win rates so the pick is
+  // grounded in data.
+  const stretchInfo = Object.fromEntries(ADVISOR_ROLES.map(role => {
+    if (!roleInfo[role].primary) return [role, { candidates: [], untested: [] }];
+    const poolHeroes = new Set(roleInfo[role].pool.map(h => h.hero));
+    const candidates = getStretchCandidates(db, map, role, poolHeroes, inTesting);
+    // Fallback pool of never-played meta heroes, so a narrow hero pool still
+    // gets a varied stretch suggestion (clearly flagged "untested").
+    const untested = getUntestedMetaPool(db, role, poolHeroes, inTesting);
+    return [role, { candidates, untested }];
+  })) as Record<AdvisorRole, { candidates: StretchCandidate[]; untested: string[] }>;
 
   const scopeLabel = deathScope === 'map'
     ? `this exact map (${map})`
@@ -479,71 +511,79 @@ router.get('/recommend', async (req: Request, res: Response) => {
     map,
     game_type: mapCtx.game_type,
     queue_mode: mode,
-    queue_mode_label: mode === 'comp_open' ? '6v6 Open Queue (no role lock)' : mode === 'qp_role' ? 'Quick Play Role Queue (5v5, DPS locked)' : 'Competitive Role Queue (5v5, DPS locked)',
-    primary_hero: primary.hero,
-    primary_role: primary.role,
-    primary_stats: { career_games: primary.games, career_win_rate: primary.win_rate },
-    user_map_win_rate: mapCtx.win_rate,
-    user_map_games: mapCtx.games,
+    queue_mode_label: mode === 'comp_open' ? '6v6 Open Queue (no role lock)' : mode === 'qp_role' ? 'Quick Play Role Queue (5v5)' : 'Competitive Role Queue (5v5)',
   };
+  for (const role of ADVISOR_ROLES) {
+    const primary = roleInfo[role].primary;
+    if (!primary) continue;
+    const key = role.toLowerCase();
+    userPayload[`primary_${key}`] = primary.hero;
+    userPayload[`primary_${key}_stats`] = { career_games: primary.games, career_win_rate: primary.win_rate };
+    if (stretchInfo[role].candidates.length > 0) {
+      userPayload[`candidate_stretch_pool_${key}`] = stretchInfo[role].candidates.map(c => ({
+        hero: c.hero,
+        career_games: c.career_games,
+        career_win_rate: c.career_win_rate,
+        map_games: c.map_games,
+        map_win_rate: c.map_win_rate,
+      }));
+    }
+    if (stretchInfo[role].untested.length > 0) {
+      userPayload[`untested_meta_pool_${key}`] = stretchInfo[role].untested;
+    }
+  }
+  userPayload.user_map_win_rate = mapCtx.win_rate;
+  userPayload.user_map_games = mapCtx.games;
   if (hasDeathData) {
     userPayload.deaths_here = { scope: scopeLabel, ...toAxisPayload(axes) };
     if (overallAxes.deaths > 0) userPayload.deaths_overall = toAxisPayload(overallAxes);
   } else {
     userPayload.note_no_death_data = 'No factual death tags logged yet. Do NOT invent death analysis — give a one-sentence note that death-pattern coaching appears once they tag a few matches with the new death logger.';
   }
-  if (stretchCandidates.length > 0) {
-    userPayload.candidate_stretch_pool = stretchCandidates.map(c => ({
-      hero: c.hero,
-      career_games: c.career_games,
-      career_win_rate: c.career_win_rate,
-      map_games: c.map_games,
-      map_win_rate: c.map_win_rate,
-    }));
+
+  const roleHasStretchPool: Partial<Record<AdvisorRole, boolean>> = {};
+  for (const role of ADVISOR_ROLES) {
+    if (!roleInfo[role].primary) continue;
+    roleHasStretchPool[role] = stretchInfo[role].candidates.length > 0 || stretchInfo[role].untested.length > 0;
   }
-  if (untestedMeta.length > 0) {
-    userPayload.untested_meta_pool = untestedMeta;
-  }
-  if (!hasStretch) {
-    userPayload.note_no_stretch = 'User has no eligible stretch heroes — return only the insight.';
-  }
+  const anyStretch = Object.values(roleHasStretchPool).some(Boolean);
 
   try {
     const client = new Anthropic();
     const response = await client.messages.create({
       model: 'claude-haiku-4-5',
-      max_tokens: 600,
+      max_tokens: 700,
       system: SYSTEM_PROMPT,
-      output_config: { format: { type: 'json_schema', schema: buildSchema(hasStretch) } } as any,
+      output_config: { format: { type: 'json_schema', schema: buildSchema(roleHasStretchPool) } } as any,
       messages: [{
         role: 'user',
-        content: `Pre-match context:\n${JSON.stringify(userPayload, null, 2)}\n\nReturn ${hasStretch ? 'the stretch pick and ' : ''}one grounded insight.`,
+        content: `Pre-match context:\n${JSON.stringify(userPayload, null, 2)}\n\nReturn ${anyStretch ? 'the stretch pick(s) and ' : ''}one grounded insight.`,
       }],
     });
 
     const textBlock = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
     if (!textBlock) throw new Error('No text response from model');
-    const parsed = JSON.parse(textBlock.text) as { stretch?: string; insight: string };
+    const parsed = JSON.parse(textBlock.text) as Record<string, unknown> & { insight: string };
     const insight = parsed.insight;
-    // Trust the pools, not the model's self-label: derive grounded/untested from
-    // which list the pick actually came from, and drop anything in neither pool.
-    const groundedSet = new Set(stretchCandidates.map(c => c.hero));
-    const untestedSet = new Set(untestedMeta);
-    const rawStretch = parsed.stretch ?? null;
-    const stretch = rawStretch && (groundedSet.has(rawStretch) || untestedSet.has(rawStretch)) ? rawStretch : null;
-    const stretchUntested = stretch != null && !groundedSet.has(stretch);
 
-    writeCache(db, map, mode, primary.hero, stretch, stretchUntested, insight);
+    const byRole = {} as Record<AdvisorRole, CachedRoleStretch>;
+    for (const role of ADVISOR_ROLES) {
+      const key = role.toLowerCase();
+      // Trust the pools, not the model's self-label: derive grounded/untested
+      // from which list the pick actually came from, dropping anything in
+      // neither pool (or any role that wasn't asked for at all).
+      const groundedSet = new Set(stretchInfo[role]?.candidates.map(c => c.hero) ?? []);
+      const untestedSet = new Set(stretchInfo[role]?.untested ?? []);
+      const rawStretch = (parsed[`stretch_${key}`] as string | undefined) ?? null;
+      const stretch = rawStretch && (groundedSet.has(rawStretch) || untestedSet.has(rawStretch)) ? rawStretch : null;
+      byRole[role] = { stretch, stretchUntested: stretch != null && !groundedSet.has(stretch) };
+    }
 
-    res.json({
-      primary: primary.hero,
-      stretch,
-      stretch_untested: stretchUntested,
-      insight,
-      ...deathFields,
-      ...statFields,
-      cached: false,
-    } satisfies RecommendationPayload);
+    writeCache(db, map, mode, roleInfo.DPS.primary?.hero ?? null, insight, byRole);
+
+    res.json(Object.fromEntries(ADVISOR_ROLES.map(role => [
+      role, buildPayload(role, byRole[role].stretch, byRole[role].stretchUntested, insight, false),
+    ])));
   } catch (err: any) {
     console.error('[advisor] LLM call failed:', err?.message ?? err);
     res.status(502).json({ error: `Advisor LLM call failed: ${err?.message ?? 'unknown error'}` });

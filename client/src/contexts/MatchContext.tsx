@@ -1,6 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
 import { MAPS, QUEUE_MODES, QueueMode, Recommendation, DeathRecord, DeathAxisKey, DEATH_AXES } from '../types';
 
+// Coaching always shows a DPS and a Support column side by side — the advisor
+// endpoint returns one recommendation per role (either can be null if that
+// role has no in-testing hero with enough games).
+export type AdvisorByRole = Record<'DPS' | 'Support', Recommendation | null>;
+
 const QUEUE_MODE_KEY = 'ow-last-queue-mode';
 // Last sensitivity used, carried across matches so it only changes when Sean
 // deliberately changes it (the crux of the sens study). Shared here because the
@@ -49,7 +54,7 @@ interface MatchContextValue {
   // In-game sensitivity for the next logged match (kept as the raw input string).
   sens: string;
   setSens: (s: string) => void;
-  rec: Recommendation | null;
+  rec: AdvisorByRole | null;
   recLoading: boolean;
   recError: string | null;
   refreshRec: () => void;
@@ -132,7 +137,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(DEATH_BUFFER_KEY);
   }, []);
 
-  const [rec, setRec] = useState<Recommendation | null>(null);
+  const [rec, setRec] = useState<AdvisorByRole | null>(null);
   const [recLoading, setRecLoading] = useState(false);
   const [recError, setRecError] = useState<string | null>(null);
 

@@ -613,20 +613,38 @@ export default function Prematch() {
           </div>
         )}
 
-        {/* Coaching — LLM tactical read + death patterns, only once a map is set */}
+        {/* Coaching — LLM tactical read + death patterns, only once a map is set.
+            Two columns, DPS and Support, each its own independent primary +
+            stretch pick — a role with no in-testing hero just shows empty
+            rather than an error, since the other column may still have one. */}
         {map && (
           <div id="coaching" className="scroll-mt-24 rounded-xl bg-emerald-500/5 px-4 py-3 mt-3" data-inspect-id="prematch-coaching-section">
             <div className="text-[10px] text-emerald-600 uppercase tracking-widest font-semibold mb-2">Coaching</div>
-            <AdvisorCard
-              bare
-              map={map}
-              queueLabel={queueLabel}
-              rec={rec}
-              loading={recLoading}
-              error={recError}
-              onRefresh={refreshRec}
-              onOpenHero={openHero}
-            />
+            {recLoading && !rec && <div className="text-xs text-[var(--faint)]">Loading…</div>}
+            {recError && <div className="text-xs text-red-600">{recError}</div>}
+            {rec && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" data-inspect-id="prematch-coaching-columns">
+                {(['DPS', 'Support'] as const).map(role => (
+                  <div key={role}>
+                    <div className="text-[10px] text-emerald-600/70 uppercase tracking-widest font-semibold mb-1.5">{role}</div>
+                    {rec[role] ? (
+                      <AdvisorCard
+                        bare
+                        map={map}
+                        queueLabel={queueLabel}
+                        rec={rec[role]}
+                        loading={false}
+                        error={null}
+                        onRefresh={refreshRec}
+                        onOpenHero={openHero}
+                      />
+                    ) : (
+                      <div className="text-xs text-[var(--faint-2)] italic">No active {role} test</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
