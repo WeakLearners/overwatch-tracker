@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMatchEditDrawer } from '../contexts/MatchEditDrawerContext';
 import { revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
@@ -27,6 +27,12 @@ interface EditState {
   queue_mode: QueueMode;
 }
 
+interface MatchHero {
+  hero: string;
+  role: string;
+  feel: number | null;
+}
+
 function DrawerForm({ match }: { match: TrendPoint }) {
   const { closeEdit } = useMatchEditDrawer();
   const [form, setForm] = useState<EditState>({
@@ -38,8 +44,33 @@ function DrawerForm({ match }: { match: TrendPoint }) {
   });
   const [status, setStatus] = useState<'idle' | 'saving' | 'error'>('idle');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Slots 2/3 — heroes switched to mid-match. Slot 1 stays on `form.hero` above.
+  const [extraHeroes, setExtraHeroes] = useState<string[]>([]);
   const mapCounts = useTodayMapCounts();
   const heroCounts = useTodayHeroCounts();
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/matches/${match.id}/heroes`)
+      .then(res => res.json())
+      .then(data => {
+        if (cancelled) return;
+        const rows = (data.rows ?? []) as MatchHero[];
+        setExtraHeroes(rows.slice(1).map(h => h.hero));
+      })
+      .catch(() => { if (!cancelled) setExtraHeroes([]); });
+    return () => { cancelled = true; };
+  }, [match.id]);
+
+  function addHero() {
+    setExtraHeroes(prev => (prev.length >= 2 ? prev : [...prev, HERO_LIST[0][0]]));
+  }
+  function updateHero(i: number, hero: string) {
+    setExtraHeroes(prev => prev.map((h, idx) => (idx === i ? hero : h)));
+  }
+  function removeHero(i: number) {
+    setExtraHeroes(prev => prev.filter((_, idx) => idx !== i));
+  }
 
   const heroRole = form.hero ? HEROES[form.hero] : '';
   const mapType = form.map ? MAPS[form.map] : '';
@@ -59,6 +90,7 @@ function DrawerForm({ match }: { match: TrendPoint }) {
           game_type: mapType,
           win: form.win,
           queue_mode: form.queue_mode,
+          heroes: extraHeroes.map(h => ({ hero: h, role: HEROES[h] })),
         }),
       });
       if (!res.ok) throw new Error('Failed');
@@ -124,6 +156,54 @@ function DrawerForm({ match }: { match: TrendPoint }) {
           ))}
         </select>
         {heroRole && <span data-inspect-id="matchEditDrawer-hero-role-badge" className={`pill mt-1.5 ${ROLE_COLORS[heroRole]}`}>{heroRole}</span>}
+
+        {extraHeroes.length > 0 && (
+          <div data-inspect-id="matchEditDrawer-extra-heroes" className="mt-3 space-y-2">
+            <div className="text-[10px] text-[var(--faint)]">Also played (switched mid-match)</div>
+            {extraHeroes.map((h, i) => {
+              const r = HEROES[h];
+              return (
+                <div key={i} className="flex items-center gap-2">
+                  <select
+                    value={h}
+                    onChange={e => updateHero(i, e.target.value)}
+                    data-inspect-id={`matchEditDrawer-extra-hero-select-${i}`}
+                    className="flex-1 field px-3 py-2 text-sm"
+                  >
+                    {(['DPS', 'Tank', 'Support'] as const).map(role => (
+                      <optgroup key={role} label={role}>
+                        {HERO_LIST.filter(([, rr]) => rr === role).map(([hh]) => (
+                          <option key={hh} value={hh}>{hh}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                  {r && <span className={`pill ${ROLE_COLORS[r]}`}>{r}</span>}
+                  <button
+                    type="button"
+                    onClick={() => removeHero(i)}
+                    data-inspect-id={`matchEditDrawer-extra-hero-remove-${i}`}
+                    className="text-[var(--faint)] hover:text-red-600 transition-colors text-lg leading-none px-1"
+                    aria-label="Remove hero"
+                  >
+                    ×
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {extraHeroes.length < 2 && (
+          <button
+            type="button"
+            onClick={addHero}
+            data-inspect-id="matchEditDrawer-add-hero-button"
+            className="mt-2 w-full py-1.5 rounded-lg border border-dashed border-ow-border text-xs text-[var(--faint)] hover:text-[var(--ink)] hover:border-gray-500 transition-colors"
+          >
+            + Add hero
+          </button>
+        )}
       </div>
 
       {/* Map */}

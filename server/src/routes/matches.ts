@@ -142,34 +142,60 @@ router.post('/', (req: Request, res: Response) => {
 // resending the whole record.
 const EDITABLE = ['date', 'time', 'day_of_week', 'hour', 'hero', 'role', 'map', 'game_type', 'win', 'queue_mode', 'sens', 'feel', 'team_rating', 'notes'] as const;
 
+router.get('/:id/heroes', (req: Request, res: Response) => {
+  const db = getDb();
+  const rows = db.prepare('SELECT hero, role, feel FROM match_heroes WHERE match_id = :id ORDER BY slot')
+    .all({ id: req.params.id }) as Record<string, unknown>[];
+  res.json({ rows });
+});
+
 router.put('/:id', (req: Request, res: Response) => {
   const db = getDb();
   const fields = EDITABLE.filter(k => k in req.body);
-  if (fields.length === 0) {
+  const heroesProvided = Array.isArray(req.body.heroes);
+  if (fields.length === 0 && !heroesProvided) {
     res.status(400).json({ error: 'No editable fields provided' });
     return;
   }
 
-  const params: Record<string, string | number | null> = { id: req.params.id };
-  for (const k of fields) {
-    const v = req.body[k];
-    params[k] = k === 'win' ? (v ? 1 : 0) : v ?? null;
-  }
-  const setClause = fields.map(k => `${k} = :${k}`).join(', ');
+  if (fields.length > 0) {
+    const params: Record<string, string | number | null> = { id: req.params.id };
+    for (const k of fields) {
+      const v = req.body[k];
+      params[k] = k === 'win' ? (v ? 1 : 0) : v ?? null;
+    }
+    const setClause = fields.map(k => `${k} = :${k}`).join(', ');
 
-  const result = db.prepare(`UPDATE matches SET ${setClause} WHERE id = :id`).run(params);
-  if (result.changes === 0) {
-    res.status(404).json({ error: 'Match not found' });
-    return;
+    const result = db.prepare(`UPDATE matches SET ${setClause} WHERE id = :id`).run(params);
+    if (result.changes === 0) {
+      res.status(404).json({ error: 'Match not found' });
+      return;
+    }
+    // Keep match_heroes' slot-1 row (the by-hero stats attribution source) in
+    // sync whenever the primary hero/role is corrected via edit.
+    if (fields.includes('hero') || fields.includes('role')) {
+      db.prepare(`
+        UPDATE match_heroes SET hero = COALESCE(:hero, hero), role = COALESCE(:role, role)
+        WHERE match_id = :id AND slot = 1
+      `).run({ id: req.params.id, hero: fields.includes('hero') ? params.hero : null, role: fields.includes('role') ? params.role : null });
+    }
   }
-  // Keep match_heroes' slot-1 row (the by-hero stats attribution source) in
-  // sync whenever the primary hero/role is corrected via edit.
-  if (fields.includes('hero') || fields.includes('role')) {
-    db.prepare(`
-      UPDATE match_heroes SET hero = COALESCE(:hero, hero), role = COALESCE(:role, role)
-      WHERE match_id = :id AND slot = 1
-    `).run({ id: req.params.id, hero: fields.includes('hero') ? params.hero : null, role: fields.includes('role') ? params.role : null });
+
+  // Slots 2/3 (heroes switched to mid-match) are edited as a full replace —
+  // the drawer always sends the complete additional-heroes list, so stale
+  // slots from a previous save don't linger.
+  if (heroesProvided) {
+    const extra = (req.body.heroes as any[]).filter(h => h?.hero && h?.role).slice(0, 2);
+    db.prepare('DELETE FROM match_heroes WHERE match_id = :id AND slot > 1').run({ id: req.params.id });
+    const insertHeroSlot = db.prepare(
+      'INSERT INTO match_heroes (match_id, slot, hero, role, feel) VALUES (:match_id, :slot, :hero, :role, :feel)'
+    );
+    extra.forEach((h, i) => insertHeroSlot.run({
+      match_id: req.params.id, slot: i + 2, hero: h.hero, role: h.role,
+      feel: typeof h.feel === 'number' ? h.feel : null,
+    }));
   }
+
   res.json({ ok: true });
 });
 

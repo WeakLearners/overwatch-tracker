@@ -252,10 +252,6 @@ const PHASE4_PLAN = [
     note: "30 games logged, no prior phase data — best guess. Slowest-traveling projectile of the group and mostly played at range/stationary — lowest sens bracket here.",
   },
   {
-    hero: 'Emre', archetype: 'Hitscan', senses: [2.45, 2.60], gamesPerSlot: 5,
-    note: "12 games logged, no prior phase data and not enough recent playtime to guess an archetype quirk — defaulted to the generic hitscan bracket.",
-  },
-  {
     hero: 'Reaper', archetype: 'Hitscan', senses: [2.65, 2.80], gamesPerSlot: 5,
     note: "12 games logged, no prior phase data — best guess. Shotgun spread forgives imprecision and he's played up close, where faster turns matter more than fine aim — highest sens bracket of the DPS heroes.",
   },
