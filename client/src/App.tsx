@@ -39,8 +39,8 @@ export default function App() {
             style={{ background: 'linear-gradient(90deg, var(--hud-glow-1), transparent 40%, transparent 60%, var(--hud-glow-2))' }}
             aria-hidden="true"
           />
-          <div className="relative max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="relative max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               {/* Diagonal slash: the orange/cyan split repeated in miniature as
                   a mark, echoing the game's own team-colour divide. */}
               <span
@@ -48,11 +48,14 @@ export default function App() {
                 className="inline-block w-2.5 h-8 shrink-0 bg-gradient-to-br from-ow-accent from-48% to-ow-blue to-52%"
                 style={{ clipPath: 'polygon(35% 0, 100% 0, 65% 100%, 0 100%)' }}
               />
-              <div className="leading-none">
-                <div className="font-display font-black uppercase text-2xl sm:text-3xl tracking-[0.02em] text-[var(--ink)]">
+              <div className="leading-none min-w-0">
+                {/* Sized down before sm — "Overwatch" is one unbreakable word,
+                    so on phone widths it must shrink rather than wrap, or it
+                    pushes the theme toggle off the edge of the viewport. */}
+                <div className="font-display font-black uppercase text-lg sm:text-2xl md:text-3xl tracking-[0.02em] text-[var(--ink)] whitespace-nowrap">
                   Overwatch
                 </div>
-                <div className="text-[10px] uppercase tracking-[0.4em] text-[var(--muted)] mt-0.5">
+                <div className="text-[10px] uppercase tracking-[0.2em] sm:tracking-[0.4em] text-[var(--muted)] mt-0.5 whitespace-nowrap">
                   Match Tracker
                 </div>
               </div>
@@ -62,7 +65,7 @@ export default function App() {
               onClick={() => setDark(d => !d)}
               aria-label="Toggle theme"
               data-inspect-id="app-theme-toggle"
-              className="w-9 h-9 grid place-items-center bg-ow-card border border-ow-border text-[var(--ink-2)] hover:text-ow-accent transition-all"
+              className="w-9 h-9 shrink-0 grid place-items-center bg-ow-card border border-ow-border text-[var(--ink-2)] hover:text-ow-accent transition-all"
               style={{ clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)' }}
             >
               {dark ? '☀' : '☾'}

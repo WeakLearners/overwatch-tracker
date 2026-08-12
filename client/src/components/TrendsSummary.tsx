@@ -33,18 +33,25 @@ function shuffled<T>(items: T[]): T[] {
 
 // Factoid length varies a lot (70–200 chars) — scale the font so a short
 // one-liner actually fills the square instead of sitting tiny in the middle,
-// while a long one still fits without overflowing.
+// while a long one still fits without overflowing. Sized down at the mobile
+// 2-column width (roughly half the desktop 4-column card width) so the same
+// character count doesn't need more lines than an aspect-square card has
+// room for.
 function fontSizeClass(len: number): string {
-  if (len <= 90) return 'text-2xl leading-tight';
-  if (len <= 130) return 'text-xl leading-snug';
-  if (len <= 170) return 'text-lg leading-snug';
-  return 'text-base leading-snug';
+  if (len <= 90) return 'text-lg sm:text-2xl leading-snug sm:leading-tight';
+  if (len <= 130) return 'text-base sm:text-xl leading-snug';
+  if (len <= 170) return 'text-sm sm:text-lg leading-snug';
+  return 'text-sm sm:text-base leading-snug';
 }
 
 function FactoidCard({ f }: { f: Factoid }) {
   const len = f.parts.reduce((n, p) => n + p.text.length, 0);
   return (
-    <div className="card aspect-square flex flex-col overflow-y-auto">
+    // Square only from sm: up — at the narrower mobile 2-column width the
+    // square constraint was clipping factoid text mid-sentence with no
+    // ellipsis (flex's `my-auto` collapses to 0 on overflow, so the tail of
+    // the sentence silently fell past the card's bottom edge).
+    <div className="card aspect-auto sm:aspect-square flex flex-col overflow-visible sm:overflow-y-auto">
       <div className="text-[10px] text-[var(--muted)] uppercase tracking-wider mb-2 shrink-0">{f.category}</div>
       <p className={`font-medium text-[var(--ink)] my-auto ${fontSizeClass(len)}`}>
         {f.parts.map((p, i) => p.color

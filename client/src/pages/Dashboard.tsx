@@ -54,11 +54,14 @@ function ModeTile({ meta, m, selected, onSelect, openHero, lastLog }: {
       data-inspect-id="dash-mode-tiles"
       className={`relative overflow-hidden text-left rounded-xl p-4 transition-all duration-200 mode-tile hover:-translate-x-1 hover:-translate-y-1 ${selected ? `${c.card} ${c.glow}` : c.tileDim}`}
     >
-      {/* 10% larger than the other (selector) watermarks — these tiles are bigger. */}
+      {/* 10% larger than the other (selector) watermarks — these tiles are bigger.
+          Opacity is left at the component default (15%) even when selected —
+          a forced full-opacity override here used to wash out the stat text
+          drawn on top of it. */}
       <ModeWatermark
         mode={meta.value}
         variant="tile"
-        className="scale-[3] translate-x-[19.0%] translate-y-[-7%] !opacity-100"
+        className="scale-[3] translate-x-[19.0%] translate-y-[-7%]"
         color={selected ? undefined : 'text-ow-card'}
       />
       {flash && (
@@ -72,9 +75,9 @@ function ModeTile({ meta, m, selected, onSelect, openHero, lastLog }: {
         </div>
       )}
       <div className="relative z-10">
-      <div className="flex items-center justify-between mb-2">
-        <span className={`pill ${c.selected}`}>{meta.short}</span>
-        {selected && <span className="text-[11px] uppercase tracking-widest font-bold text-white/90">Selected</span>}
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <span className={`pill min-w-0 truncate ${c.selected}`}>{meta.short}</span>
+        {selected && <span className="shrink-0 whitespace-nowrap text-[11px] uppercase tracking-widest font-bold text-white/90">Selected</span>}
       </div>
       {m && m.games > 0 ? (
         <>
@@ -100,7 +103,8 @@ function ModeTile({ meta, m, selected, onSelect, openHero, lastLog }: {
               <div className="flex items-center justify-between">
                 <span
                   onClick={e => { e.stopPropagation(); openHero(m.top_hero!.hero); }}
-                  className="text-sm font-medium text-[var(--ink)] hover:text-ow-accent transition-colors truncate cursor-pointer"
+                  title={m.top_hero.hero}
+                  className="min-w-0 text-sm font-medium text-[var(--ink)] hover:text-ow-accent transition-colors truncate cursor-pointer"
                 >
                   {withHeroCount(m.top_hero.hero, heroCounts)}
                 </span>
@@ -129,9 +133,13 @@ function ModeComparisonCard({ data }: { data: ModeComparison[] }) {
   const byMode = Object.fromEntries(data.map(m => [m.queue_mode, m]));
 
   return (
-    <div className="card mb-6" data-inspect-id="dash-mode-card">
+    <div className="card" data-inspect-id="dash-mode-card">
       <h2 className="text-sm heading-display text-[var(--ink-2)] mb-4">Mode</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {/* Stacks single-column once the desktop grid pairs this card with
+          Recent Matches (lg:col-span-5 of 12, ~400px) — 3-across at that
+          width was crushing each tile to ~95px, clipping "Selected" and
+          hero names. A stacked tile always gets the card's full width. */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-3">
         {QUEUE_MODES.map(meta => (
           <ModeTile
             key={meta.value}
@@ -187,97 +195,156 @@ export default function Dashboard() {
     return acc;
   }, []);
 
+  const sections = [
+    { id: 'sec-mode', label: 'Mode' },
+    { id: 'sec-match', label: 'Match' },
+    { id: 'sec-trends', label: 'Trends' },
+    { id: 'sec-career', label: 'Career' },
+  ];
+
+  // Tracks which section is currently in view so the quick-nav pill can get
+  // the same solid-fill active treatment SensNav already uses, instead of
+  // every pill sitting at the same neutral gray forever. The negative
+  // top margin clears both sticky bars (header + this nav) before a section
+  // counts as "current".
+  const [activeSection, setActiveSection] = useState(sections[0].id);
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        const visible = entries.find(e => e.isIntersecting);
+        if (visible) setActiveSection(visible.target.id);
+      },
+      { rootMargin: '-140px 0px -70% 0px', threshold: 0 },
+    );
+    sections.forEach(s => {
+      const el = document.getElementById(s.id);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div>
-      {modeComparison && (
-        <div className="reveal" style={{ '--reveal-delay': '0ms' } as React.CSSProperties}>
-          <ModeComparisonCard data={modeComparison} />
-        </div>
-      )}
+      {/* Wayfinding rail: the page is one long scroll of readout panels, so a
+          sticky jump-strip stands in for the section tabs a multi-page app
+          would use. Sits flush under the sticky header. */}
+      <nav
+        data-inspect-id="dash-section-nav"
+        aria-label="Jump to section"
+        className="sticky top-16 z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 py-2 mb-6 flex items-center gap-1.5 overflow-x-auto backdrop-blur border-b border-ow-border"
+        style={{ backgroundColor: 'color-mix(in srgb, var(--surface) 88%, transparent)' }}
+      >
+        {sections.map(s => (
+          <a
+            key={s.id}
+            href={`#${s.id}`}
+            aria-current={activeSection === s.id ? 'true' : undefined}
+            className={`pill shrink-0 border transition-colors heading-display tracking-[0.08em] ${
+              activeSection === s.id
+                ? 'bg-ow-accent/15 text-ow-accent border-ow-accent'
+                : 'border-ow-border text-[var(--muted)] hover:text-ow-accent hover:border-ow-accent/60'
+            }`}
+          >
+            {s.label}
+          </a>
+        ))}
+      </nav>
 
-      <div className="card reveal mb-6" style={{ '--reveal-delay': '60ms' } as React.CSSProperties} data-inspect-id="dash-recent-matches-card">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm heading-display text-[var(--ink-2)]">Recent Matches</h2>
-            {recentGames.length > 0 && (
-              <span data-inspect-id="dash-tap-to-edit-badge" className="text-xs text-[var(--faint)] bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap">tap to edit</span>
-            )}
-          </div>
-          {wr25 !== null && (
-            <div className="flex items-baseline gap-2 text-xs" data-inspect-id="dash-recent-form-stat">
-              <span className="text-[var(--faint)]">last {last25.length}</span>
-              <span className={`text-2xl font-black tracking-tight num-display ${wr25 >= 50 ? 'grad-win' : 'grad-loss'}`}><AnimatedNumber value={wr25} suffix="%" /></span>
-              {wrDelta !== null && (
-                <span className={wrDelta > 0 ? 'text-emerald-600' : wrDelta < 0 ? 'text-red-600' : 'text-[var(--faint)]'}>
-                  {wrDelta > 0 ? '▲' : wrDelta < 0 ? '▼' : '±'} {wrDelta > 0 ? '+' : ''}{wrDelta} vs last {last100.length} ({wr100}%)
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-        <div
-          data-inspect-id="dash-recent-match-history-list"
-          className="flex gap-1.5 flex-nowrap overflow-hidden py-1"
-          style={{
-            WebkitMaskImage: 'linear-gradient(to right, #000 72%, transparent)',
-            maskImage: 'linear-gradient(to right, #000 72%, transparent)',
-          }}
-        >
-          {gamesByDay.map((group, i) => (
-            <Fragment key={group.dateStr}>
-              {i > 0 && (
-                <div className="flex flex-col items-center shrink-0 gap-0.5 self-stretch justify-center mx-0.5">
-                  <div className="w-px flex-1 bg-ow-border opacity-60" />
-                  <span className="text-[8px] leading-none text-[var(--faint)]">
-                    {format(parseISO(gamesByDay[i - 1].dateStr), 'M/d')}
-                  </span>
-                  <div className="w-px flex-1 bg-ow-border opacity-60" />
-                </div>
-              )}
-              {group.games.map(g => (
-                <button
-                  key={g.id}
-                  type="button"
-                  onClick={() => openEdit(g)}
-                  title={`${g.win ? 'Win' : 'Loss'} · ${withHeroCount(g.hero, heroCounts)} on ${withMapCount(g.map, mapCounts)} (${format(parseISO(g.date), 'MMM d')}) — tap to edit`}
-                  className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-sm italic font-display font-black transition-all duration-150 cursor-pointer hover:-translate-y-0.5 hover:ring-2 hover:ring-offset-1 hover:ring-offset-transparent ${
-                    g.win
-                      ? 'bg-emerald-100 text-emerald-700 hover:ring-emerald-400/60 dark:bg-emerald-500/15 dark:text-emerald-300'
-                      : 'bg-rose-100 text-rose-700 hover:ring-rose-400/60 dark:bg-rose-500/15 dark:text-rose-300'
-                  }`}
-                >
-                  {MODE_LETTER[g.queue_mode] ?? '·'}
-                </button>
-              ))}
-            </Fragment>
-          ))}
-          {recentGames.length === 0 && (
-            <EmptyState
-              dataInspectId="dash-empty-state-banner"
-              icon="◴"
-              title="No matches logged yet"
-              hint="Log your first result below and your recent form will track here."
-              className="w-full"
-            />
-          )}
-        </div>
-
-        {tilt?.on_tilt && (
-          <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 mt-4" data-inspect-id="dash-tilt-warning-banner">
-            <span className="text-amber-600 text-lg shrink-0">⚠</span>
-            <div>
-              <div className="text-sm font-semibold text-amber-700">You've lost 2 in a row today</div>
-              {tilt.tilt_win_rate !== null && tilt.tilt_games >= 10 && (
-                <div className="text-xs text-amber-600/80 mt-0.5">
-                  Historically your win rate in this situation is {tilt.tilt_win_rate}% — a short break often helps.
-                </div>
-              )}
-            </div>
+      {/* Mode + Recent Matches read as a paired HUD status bank on wide
+          screens — set-up panel and result readout side by side — instead of
+          two full-width cards stacked one after another. */}
+      <div id="sec-mode" className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start scroll-mt-32">
+        {modeComparison && (
+          <div className="reveal lg:col-span-5 min-w-0" style={{ '--reveal-delay': '0ms' } as React.CSSProperties}>
+            <ModeComparisonCard data={modeComparison} />
           </div>
         )}
+
+        <div className="card reveal lg:col-span-7 min-w-0" style={{ '--reveal-delay': '60ms' } as React.CSSProperties} data-inspect-id="dash-recent-matches-card">
+          <div className="flex items-center justify-between flex-wrap gap-y-1 mb-4">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm heading-display text-[var(--ink-2)]">Recent Matches</h2>
+              {recentGames.length > 0 && (
+                <span data-inspect-id="dash-tap-to-edit-badge" className="text-xs text-[var(--faint)] bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap">tap to edit</span>
+              )}
+            </div>
+            {wr25 !== null && (
+              <div className="flex items-baseline gap-2 text-xs" data-inspect-id="dash-recent-form-stat">
+                <span className="text-[var(--faint)]">last {last25.length}</span>
+                <span className={`text-4xl font-black tracking-tight num-display ${wr25 >= 50 ? 'grad-win' : 'grad-loss'}`}><AnimatedNumber value={wr25} suffix="%" /></span>
+                {wrDelta !== null && (
+                  <span className={wrDelta > 0 ? 'text-emerald-600' : wrDelta < 0 ? 'text-red-600' : 'text-[var(--faint)]'}>
+                    {wrDelta > 0 ? '▲' : wrDelta < 0 ? '▼' : '±'} {wrDelta > 0 ? '+' : ''}{wrDelta} vs last {last100.length} ({wr100}%)
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+          <div
+            data-inspect-id="dash-recent-match-history-list"
+            className="flex gap-1.5 flex-nowrap overflow-hidden py-1"
+            style={{
+              WebkitMaskImage: 'linear-gradient(to right, #000 72%, transparent)',
+              maskImage: 'linear-gradient(to right, #000 72%, transparent)',
+            }}
+          >
+            {gamesByDay.map((group, i) => (
+              <Fragment key={group.dateStr}>
+                {i > 0 && (
+                  <div className="flex flex-col items-center shrink-0 gap-0.5 self-stretch justify-center mx-0.5">
+                    <div className="w-px flex-1 bg-ow-border opacity-60" />
+                    <span className="text-[8px] leading-none text-[var(--faint)]">
+                      {format(parseISO(gamesByDay[i - 1].dateStr), 'M/d')}
+                    </span>
+                    <div className="w-px flex-1 bg-ow-border opacity-60" />
+                  </div>
+                )}
+                {group.games.map(g => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => openEdit(g)}
+                    title={`${g.win ? 'Win' : 'Loss'} · ${withHeroCount(g.hero, heroCounts)} on ${withMapCount(g.map, mapCounts)} (${format(parseISO(g.date), 'MMM d')}) — tap to edit`}
+                    className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-sm italic font-display font-black transition-all duration-150 cursor-pointer hover:-translate-y-0.5 hover:ring-2 hover:ring-offset-1 hover:ring-offset-transparent ${
+                      g.win
+                        ? 'bg-emerald-100 text-emerald-700 hover:ring-emerald-400/60 dark:bg-emerald-500/15 dark:text-emerald-300'
+                        : 'bg-rose-100 text-rose-700 hover:ring-rose-400/60 dark:bg-rose-500/15 dark:text-rose-300'
+                    }`}
+                  >
+                    {MODE_LETTER[g.queue_mode] ?? '·'}
+                  </button>
+                ))}
+              </Fragment>
+            ))}
+            {recentGames.length === 0 && (
+              <EmptyState
+                dataInspectId="dash-empty-state-banner"
+                icon="◴"
+                title="No matches logged yet"
+                hint="Log your first result below and your recent form will track here."
+                className="w-full"
+              />
+            )}
+          </div>
+
+          {tilt?.on_tilt && (
+            <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 mt-4" data-inspect-id="dash-tilt-warning-banner">
+              <span className="text-amber-600 text-lg shrink-0">⚠</span>
+              <div>
+                <div className="text-sm font-semibold text-amber-700">You've lost 2 in a row today</div>
+                {tilt.tilt_win_rate !== null && tilt.tilt_games >= 10 && (
+                  <div className="text-xs text-amber-600/80 mt-0.5">
+                    Historically your win rate in this situation is {tilt.tilt_win_rate}% — a short break often helps.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="mt-8 border-t border-ow-border pt-6 reveal" style={{ '--reveal-delay': '120ms' } as React.CSSProperties}>
+      <div id="sec-match" className="mt-8 border-t border-ow-border pt-6 reveal scroll-mt-32" style={{ '--reveal-delay': '120ms' } as React.CSSProperties}>
         <PageHeader dataInspectId="dash-match-section-header" title="Match" sub="Prep with the advisor, then log the result.">
           {/* Links to the (otherwise unlinked) sensitivity-study pages, on the
               right of the section header. Open in a new tab so the dashboard
@@ -295,12 +362,12 @@ export default function Dashboard() {
         <div className="contents" data-inspect-id="dash-logmatch-section"><LogMatch /></div>
       </div>
 
-      <div className="mt-8 border-t border-ow-border pt-6 reveal" style={{ '--reveal-delay': '180ms' } as React.CSSProperties}>
+      <div id="sec-trends" className="mt-8 border-t border-ow-border pt-6 reveal scroll-mt-32" style={{ '--reveal-delay': '180ms' } as React.CSSProperties}>
         <PageHeader dataInspectId="dash-trends-section-header" title="Trends" sub="Recent form and momentum." />
         <TrendsSummary />
       </div>
 
-      <div className="mt-8 border-t border-ow-border pt-6 reveal" style={{ '--reveal-delay': '240ms' } as React.CSSProperties}>
+      <div id="sec-career" className="mt-8 border-t border-ow-border pt-6 reveal scroll-mt-32" style={{ '--reveal-delay': '240ms' } as React.CSSProperties}>
         <PageHeader dataInspectId="dash-career-section-header" title="Career" sub="All-time totals across every mode." />
         {/* One continuous readout strip rather than two stacked 4-tile grids —
             all eight career totals scan as a single row on wide screens. */}

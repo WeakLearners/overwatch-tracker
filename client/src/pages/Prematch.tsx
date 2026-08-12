@@ -225,8 +225,10 @@ export default function Prematch() {
   return (
     <div>
 
-      {/* DPI test HUD (square) + Map Voting + Hero Advisor row */}
-      <div className="flex items-stretch gap-4 mb-4">
+      {/* DPI test HUD (square) + Map Voting + Hero Advisor row — stacks on
+          phone widths; three-across only once there's room for each card's
+          own header (title + badge) to fit without wrapping. */}
+      <div className="flex flex-col sm:flex-row items-stretch gap-4 mb-4">
 
         {/* DPI stage-test HUD — a dropdown picks which "In Testing" hero you're
             about to play (several can be active at once, but the mouse can
@@ -235,7 +237,7 @@ export default function Prematch() {
             in its whole test and games left before its next stage switch.
             Drives off the same state the Sens page loop does. Sits where the
             sens picker used to. */}
-        <div className="card aspect-square shrink-0 flex flex-col self-stretch" data-inspect-id="prematch-dpi-hud-card">
+        <div className="card sm:aspect-square shrink-0 flex flex-col self-stretch" data-inspect-id="prematch-dpi-hud-card">
           <div className="flex items-center justify-between mb-2 gap-2">
             <h2 className="text-sm heading-display text-[var(--ink)] whitespace-nowrap">{bt?.sens != null ? 'Sens Test' : 'DPI Test'}</h2>
             {bt && (
@@ -484,7 +486,7 @@ export default function Prematch() {
           {/* Idle: session & timing snapshot — how you're doing right now */}
           {!map && (
             <div className="flex-1 flex items-stretch content-center mt-1">
-              <div className="flex-1 p-2.5 flex flex-col justify-center items-center text-center" data-inspect-id="prematch-today-stat-tile">
+              <div className="flex-1 min-w-0 p-2.5 flex flex-col justify-center items-center text-center" data-inspect-id="prematch-today-stat-tile">
                 <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] mb-1">Today</div>
                 {todayRows.length > 0 ? (
                   <div className="text-3xl num-display leading-none">
@@ -495,7 +497,7 @@ export default function Prematch() {
                 )}
               </div>
               <div className="w-px shrink-0 bg-gradient-to-b from-transparent via-ow-border to-transparent" />
-              <div className="flex-1 p-2.5 flex flex-col justify-center items-center text-center" data-inspect-id="prematch-streak-stat-tile">
+              <div className="flex-1 min-w-0 p-2.5 flex flex-col justify-center items-center text-center" data-inspect-id="prematch-streak-stat-tile">
                 <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] mb-1">Streak</div>
                 {streaksData && streaksData.currentStreak > 0 ? (
                   <div className={`text-3xl num-display leading-none ${streaksData.currentStreakType === 1 ? 'text-emerald-500' : 'text-red-500'}`}>
@@ -506,7 +508,7 @@ export default function Prematch() {
                 )}
               </div>
               <div className="w-px shrink-0 bg-gradient-to-b from-transparent via-ow-border to-transparent" />
-              <div className="flex-1 p-2.5 flex flex-col justify-center items-center text-center" data-inspect-id="prematch-this-hour-stat-tile">
+              <div className="flex-1 min-w-0 p-2.5 flex flex-col justify-center items-center text-center" data-inspect-id="prematch-this-hour-stat-tile">
                 <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] mb-1">This hour</div>
                 {hourRow ? (
                   // Subtext is absolutely positioned so it doesn't push the number
@@ -515,7 +517,7 @@ export default function Prematch() {
                     <div className={`text-3xl num-display leading-none ${hourRow.win_rate >= 50 ? 'text-emerald-500' : 'text-red-500'}`}>
                       {Math.round(hourRow.win_rate)}%
                     </div>
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 whitespace-nowrap text-[9px] text-[var(--faint-2)] mt-1">{hourLabel} · {hourRow.games}g</div>
+                    <div className="absolute top-full inset-x-0 text-center text-[9px] text-[var(--faint-2)] mt-1">{hourLabel} · {hourRow.games}g</div>
                   </div>
                 ) : (
                   <div className="text-sm text-[var(--faint)]">—</div>
@@ -563,7 +565,7 @@ export default function Prematch() {
             that role rather than the single overall-best-win-rate hero, paired with
             the in-game sens its own best-tested scale points to. */}
         {(trendingDps || trendingSupport) && !map && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3" data-inspect-id="prematch-recommended-pick-card">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 items-start" data-inspect-id="prematch-recommended-pick-card">
             {([['DPS', trendingDps], ['Support', trendingSupport]] as const).map(([role, rec]) => {
               const delta = rec && !rec.is_new && rec.recent_wr != null && rec.prev_wr != null
                 ? Math.round((rec.recent_wr - rec.prev_wr) * 10) / 10 : null;
@@ -619,7 +621,7 @@ export default function Prematch() {
             {recLoading && !rec && <div className="text-xs text-[var(--faint)]">Loading…</div>}
             {recError && <div className="text-xs text-red-600">{recError}</div>}
             {rec && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" data-inspect-id="prematch-coaching-columns">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start" data-inspect-id="prematch-coaching-columns">
                 {(['DPS', 'Support'] as const).map(role => (
                   <div key={role}>
                     <div className="text-[10px] text-emerald-600/70 uppercase tracking-widest font-semibold mb-1.5">{role}</div>

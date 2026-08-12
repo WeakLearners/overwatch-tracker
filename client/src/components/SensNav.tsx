@@ -10,10 +10,10 @@ export default function SensNav({ dataInspectId }: { dataInspectId?: string }) {
       <Link
         to={to}
         data-inspect-id={inspectId}
-        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+        className={`pill heading-display tracking-[0.08em] border transition-all ${
           active
-            ? 'bg-ow-accent/20 text-ow-accent border-ow-accent'
-            : 'text-[var(--faint)] hover:text-[var(--ink)] border-transparent'
+            ? 'bg-ow-accent/15 text-ow-accent border-ow-accent'
+            : 'text-[var(--faint)] border-ow-border hover:text-[var(--ink)] hover:border-gray-500'
         }`}
       >
         {label}
@@ -27,7 +27,7 @@ export default function SensNav({ dataInspectId }: { dataInspectId?: string }) {
       <Link
         to="/"
         data-inspect-id="sensNav-back-link"
-        className="ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold border border-ow-border text-[var(--faint)] hover:text-[var(--ink)] hover:border-gray-500 transition-all"
+        className="pill heading-display tracking-[0.08em] ml-auto border border-ow-border text-[var(--faint)] hover:text-[var(--ink)] hover:border-gray-500 transition-all"
       >
         ← Match Tracker
       </Link>

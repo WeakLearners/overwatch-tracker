@@ -161,17 +161,22 @@
   .win { @apply text-emerald-500; }
   .loss { @apply text-red-500; }
   .pill {
-    @apply inline-flex items-center px-2 py-0.5 text-xs font-medium;
+    @apply inline-flex items-center px-2 py-0.5 text-xs font-medium whitespace-nowrap;
     clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
   }
 
   /* Gradient numerals — the game's orange/cyan split-tone stands in for
-     "brand"; win/loss stay universal emerald/rose for fast scanning. */
-  .grad-brand   { @apply bg-gradient-to-br from-ow-accent to-ow-blue bg-clip-text text-transparent; }
+     "brand"; win/loss stay universal emerald/rose for fast scanning.
+     grad-brand is solid (not gradient-clipped) in light theme: a bg-clip-text
+     gradient has to clear contrast at every point along the ramp, and the
+     cyan end measures under 2:1 against a white card — no single-stop fix
+     can save it. Dark theme's near-black card gives the same ramp 8-10:1,
+     so it keeps the gradient treatment. */
+  .grad-brand   { color: #C2410C; }
   .grad-win     { @apply bg-gradient-to-br from-emerald-500 to-emerald-700 bg-clip-text text-transparent; }
   .grad-loss    { @apply bg-gradient-to-br from-rose-500 to-red-700 bg-clip-text text-transparent; }
   .grad-neutral { @apply bg-gradient-to-br from-stone-500 to-stone-700 bg-clip-text text-transparent; }
-  html.dark .grad-brand   { @apply from-ow-accentLight to-ow-blue; }
+  html.dark .grad-brand   { @apply bg-gradient-to-br from-ow-accentLight to-ow-blue bg-clip-text text-transparent; }
   html.dark .grad-win     { @apply from-emerald-300 to-emerald-500; }
   html.dark .grad-loss    { @apply from-rose-300 to-red-500; }
   html.dark .grad-neutral { @apply from-white to-gray-500; }
