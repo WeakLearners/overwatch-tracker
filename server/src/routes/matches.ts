@@ -63,10 +63,13 @@ router.post('/', (req: Request, res: Response) => {
   let setId: number | null = null;
   let stageIdx: number | null = null;
 
-  // Quick Play games are loggable but never feed the DPI study — only
-  // Competitive matches move a stage-test's counters, so QP play doesn't
-  // dilute the data.
-  const isCompetitive = (queue_mode ?? 'comp_role') !== 'qp_role';
+  // Quick Play games are loggable but normally never feed the DPI study —
+  // only Competitive matches move a stage-test's counters, so QP play
+  // doesn't dilute the data. Exception: Support QP counts toward the study
+  // too, since support data is still being gathered (this will likely
+  // revert to comp-only once support moves to the same comp-only phase DPS
+  // is already in).
+  const isCompetitive = (queue_mode ?? 'comp_role') !== 'qp_role' || role === 'Support';
 
   const activeSet = isCompetitive ? db.prepare(`
     SELECT id, cur_rel, in_game_sens FROM blind_stage_sets

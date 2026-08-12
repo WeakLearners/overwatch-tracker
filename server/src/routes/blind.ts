@@ -152,12 +152,13 @@ router.get('/sets', (_req: Request, res: Response) => {
     FROM blind_stage_sets ORDER BY id ASC
   `).all() as { id: number; hero: string | null; active: number; batch_size: number; created_at: string }[];
   const sets = rows.map(row => {
-    const n_stages = stagesOf(db, row.id).length;
+    const stages = stagesOf(db, row.id);
     const totalGames = totalGamesOf(db, row.id);
     return {
       set_id: row.id, hero: row.hero, active: !!row.active,
-      completed: totalGames >= row.batch_size * n_stages,
-      batch_size: row.batch_size, n_stages, totalGames, created_at: row.created_at,
+      completed: totalGames >= row.batch_size * stages.length,
+      batch_size: row.batch_size, n_stages: stages.length, totalGames, created_at: row.created_at,
+      values: stages.map(s => s.sens ?? s.dpi),
     };
   });
   res.json({ sets });
