@@ -47,7 +47,7 @@ function SpectrumBar({ label, low, high, mean, n }: { label: string; low: string
             />
           </div>
           <span className="text-[10px] text-[var(--muted)] w-14 shrink-0 truncate" title={high}>{high}</span>
-          <span className="text-[10px] text-[var(--faint-2)] w-5 shrink-0 text-right tabular-nums">{n}</span>
+          <span className="text-[10px] text-[var(--faint-2)] w-5 shrink-0 text-right tabular-nums font-bold">{n}</span>
         </>
       )}
     </div>
@@ -99,7 +99,7 @@ export default function AdvisorCard({ map, queueLabel, rec, loading, error, onRe
             </button>
             {rec.primary_stats && (
               <span data-inspect-id="advisorCard-primaryStatsBadge" className="text-[10px] text-[var(--faint)]">
-                {rec.primary_stats.win_rate}% · {rec.primary_stats.games}g
+                <b className="font-bold">{rec.primary_stats.win_rate}</b>% · <b className="font-bold">{rec.primary_stats.games}</b>g
               </span>
             )}
             {rec.stretch && (
@@ -153,7 +153,7 @@ export default function AdvisorCard({ map, queueLabel, rec, loading, error, onRe
                 <div data-inspect-id="advisorCard-strongestLean" className="text-[10px] text-[var(--faint)] mt-1.5">
                   Strongest lean: <span className="text-[var(--ink-2)]">
                     {DEATH_AXES.find(a => a.key === rec.death_axes!.strongest_lean!.axis)?.label} — {rec.death_axes.strongest_lean.label}
-                  </span> ({rec.death_axes.strongest_lean.n} logged)
+                  </span> (<b className="font-bold">{rec.death_axes.strongest_lean.n}</b> logged)
                 </div>
               )}
             </div>

@@ -485,7 +485,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                       {h.senses ? v.toFixed(2) : v}
                     </span>
                   ))}
-                  <span className="text-[10px] text-[var(--faint-2)]">× {h.gamesPerSlot}/slot</span>
+                  <span className="text-[10px] text-[var(--faint-2)]">× <b className="font-bold">{h.gamesPerSlot}</b>/slot</span>
                 </div>
                 <p className="text-[11px] text-[var(--faint)] leading-snug mb-2">{h.note}</p>
                 {s.status === 'none' && (
@@ -615,7 +615,7 @@ function ActiveTestCard({ active }: { active: DpiTestActive }) {
         {active.sens != null ? (
           <>
             <div className="text-xs text-[var(--faint)] mb-1">
-              {active.hero && <><span className="name-caps">{active.hero}</span>{' — '}</>}Stage {active.cur_stage} of {active.n_stages} — set your in-game sens to
+              {active.hero && <><span className="name-caps">{active.hero}</span>{' — '}</>}Stage <b className="font-bold">{active.cur_stage}</b> of <b className="font-bold">{active.n_stages}</b> — set your in-game sens to
             </div>
             <div className="text-5xl heading-display text-[var(--ink)] my-2 num-display">{active.sens.toFixed(2)}</div>
             <div className="text-xs text-[var(--faint)]">sens, mouse DPI locked <b className="num-display">{active.dpi}</b></div>
@@ -623,7 +623,7 @@ function ActiveTestCard({ active }: { active: DpiTestActive }) {
         ) : (
           <>
             <div className="text-xs text-[var(--faint)] mb-1">
-              {active.hero && <><span className="name-caps">{active.hero}</span>{' — '}</>}Stage {active.cur_stage} of {active.n_stages} — set your mouse to
+              {active.hero && <><span className="name-caps">{active.hero}</span>{' — '}</>}Stage <b className="font-bold">{active.cur_stage}</b> of <b className="font-bold">{active.n_stages}</b> — set your mouse to
             </div>
             <div className="text-5xl heading-display text-[var(--ink)] my-2 num-display">{active.dpi ?? '—'}</div>
             <div className="text-xs text-[var(--faint)]">DPI, in-game sens <b className="num-display">{active.in_game_sens.toFixed(2)}</b></div>
@@ -637,7 +637,7 @@ function ActiveTestCard({ active }: { active: DpiTestActive }) {
         ) : (
           <>
             <div className="text-2xl heading-display text-[var(--ink)] mt-4">{gamesLeft}</div>
-            <div className="text-xs text-[var(--faint)]">game{gamesLeft === 1 ? '' : 's'} left in this batch (of {active.batch_size})</div>
+            <div className="text-xs text-[var(--faint)]">game{gamesLeft === 1 ? '' : 's'} left in this batch (of <b className="font-bold">{active.batch_size}</b>)</div>
             <p className="text-[11px] text-[var(--faint-2)] mt-3">Log each game in the <b>Match Tracker</b> — it auto-tags to this stage and lands in the queue above for its combat details.</p>
           </>
         )}
@@ -808,7 +808,7 @@ function BackfillPanel({ pending, loading }: {
         <div className="card">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm heading-display text-[var(--ink)]">Awaiting Stats</h3>
-            <span className="text-xs text-[var(--faint)]">{pending.length} pending</span>
+            <span className="text-xs text-[var(--faint)]"><b className="font-bold">{pending.length}</b> pending</span>
           </div>
           {loading ? <p className="text-xs text-[var(--faint)]">Loading…</p>
             : pending.length === 0 ? <p className="text-xs text-[var(--faint)]">All caught up.</p>
@@ -828,12 +828,12 @@ function BackfillPanel({ pending, loading }: {
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <span className={`text-xs font-bold ${m.win ? 'text-emerald-500' : 'text-red-500'}`}>{m.win ? 'W' : 'L'}</span>
-                          <span className="text-[10px] font-semibold text-[var(--faint-2)]">{MODE_TAG[m.queue_mode]}</span>
+                          <span className="text-[10px] font-bold text-[var(--faint-2)]">{MODE_TAG[m.queue_mode]}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-3 mt-1 text-[11px] text-[var(--faint)]">
                         <span>{m.time ? format(new Date(m.time), 'MMM d, h:mm a') : m.date}</span><span>·</span>
-                        <span>{m.stage_index != null ? `stage ${m.stage_index} · sens ${m.sens}` : m.sens != null ? `sens ${m.sens}` : 'no sens'}</span>
+                        <span>{m.stage_index != null ? <>stage <b className="font-bold">{m.stage_index}</b> · sens <b className="font-bold">{m.sens}</b></> : m.sens != null ? <>sens <b className="font-bold">{m.sens}</b></> : 'no sens'}</span>
                       </div>
                     </button>
                   );
@@ -855,10 +855,10 @@ function BackfillPanel({ pending, loading }: {
                   <span className={`text-xs font-bold ml-auto ${selected.win ? 'text-emerald-500' : 'text-red-500'}`}>{selected.win ? 'WIN' : 'LOSS'}</span>
                 </div>
                 <div className="flex items-center gap-2 mt-2">
-                  {selected.stage_index != null && <span className="text-[11px] text-ow-accent font-semibold">Stage {selected.stage_index}</span>}
+                  {selected.stage_index != null && <span className="text-[11px] text-ow-accent font-bold">Stage {selected.stage_index}</span>}
                   <label className="text-[11px] text-[var(--faint)]">Sens</label>
                   <input type="number" step="0.01" min="0" inputMode="decimal" value={sens} onChange={e => setSens(e.target.value)} data-inspect-id="sl-sens-input" className="w-16 field px-2 py-1 text-sm num-display" placeholder="—" aria-label="Sensitivity" />
-                  {parseFloat(sens) > 0 && <span className="text-[11px] text-[var(--faint)]">{Math.round(eDPI(parseFloat(sens)))} eDPI</span>}
+                  {parseFloat(sens) > 0 && <span className="text-[11px] text-[var(--faint)] font-bold">{Math.round(eDPI(parseFloat(sens)))} eDPI</span>}
                 </div>
               </div>
               <StatFields

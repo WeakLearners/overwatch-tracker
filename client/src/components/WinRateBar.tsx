@@ -12,11 +12,11 @@ export default function WinRateBar({ winRate, games, showLabel = true }: Props) 
         <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(winRate, 100)}%` }} />
       </div>
       {showLabel && (
-        <span data-inspect-id="winRateBar-percent-label" className={`text-sm font-semibold w-12 text-right ${winRate >= 50 ? 'text-emerald-600' : 'text-red-600'}`}>
+        <span data-inspect-id="winRateBar-percent-label" className={`text-sm font-bold w-12 text-right ${winRate >= 50 ? 'text-emerald-600' : 'text-red-600'}`}>
           {winRate}%
         </span>
       )}
-      <span data-inspect-id="winRateBar-games-badge" className="text-xs text-[var(--faint)] w-16">{games}g</span>
+      <span data-inspect-id="winRateBar-games-badge" className="text-xs text-[var(--faint)] w-16 font-bold">{games}g</span>
     </div>
   );
 }

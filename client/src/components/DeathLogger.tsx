@@ -48,7 +48,7 @@ export default function DeathLogger() {
           <div data-inspect-id="deathLogger-loggingPopover" className="w-72 bg-ow-card border border-ow-border rounded-2xl shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between px-4 pt-3 pb-2">
               <span data-inspect-id="deathLogger-popoverTitle" className="text-xs font-semibold text-[var(--faint)] uppercase tracking-widest">
-                Death {count + 1} · {spec.label}
+                Death <b className="font-bold">{count + 1}</b> · {spec.label}
               </span>
               <button
                 data-inspect-id="deathLogger-popoverCancelButton"
@@ -108,7 +108,7 @@ export default function DeathLogger() {
             {deathBuffer.map((d, i) => (
               <div key={i} className="flex items-center justify-between gap-2 py-1 px-2 rounded-lg bg-ow-darker">
                 <span className="text-xs text-[var(--ink)] truncate">
-                  {i + 1}. {AXIS_BY_KEY[d.axis].label} · {leanLabel(d.axis, d.value)}
+                  <b className="font-bold">{i + 1}</b>. {AXIS_BY_KEY[d.axis].label} · {leanLabel(d.axis, d.value)}
                 </span>
                 <button
                   data-inspect-id="deathLogger-removeBufferedDeathButton"
@@ -134,7 +134,7 @@ export default function DeathLogger() {
             data-inspect-id="deathLogger-deathCountPill"
             className="h-9 px-3 rounded-full bg-ow-card border border-ow-border shadow text-xs font-semibold text-[var(--ink-2)] hover:text-[var(--ink)] transition-colors"
           >
-            {count} {count === 1 ? 'death' : 'deaths'}
+            <b className="font-bold">{count}</b> {count === 1 ? 'death' : 'deaths'}
           </button>
         )}
 

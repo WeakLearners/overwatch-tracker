@@ -85,10 +85,10 @@ function QuadrantTooltip({ active, payload }: { active?: boolean; payload?: { pa
   const p = payload[0].payload;
   return (
     <div style={{ background: 'rgb(var(--ow-card))', border: '1px solid rgb(var(--ow-border))', borderRadius: 8, fontSize: 12, padding: '6px 10px' }}>
-      <div style={{ fontWeight: 600 }}>{p.sensAt1600.toFixed(2)} sens @ {MOUSE_DPI} DPI</div>
-      <div>Felt speed: {f1(p.avgFeel)}/100</div>
-      <div>Accuracy Δ: {signed(p.avgDelta)}</div>
-      <div style={{ opacity: 0.7 }}>n={p.n}</div>
+      <div style={{ fontWeight: 700 }}>{p.sensAt1600.toFixed(2)} sens @ {MOUSE_DPI} DPI</div>
+      <div>Felt speed: <b style={{ fontWeight: 700 }}>{f1(p.avgFeel)}</b>/100</div>
+      <div>Accuracy Δ: <b style={{ fontWeight: 700 }}>{signed(p.avgDelta)}</b></div>
+      <div style={{ opacity: 0.7 }}>n=<b style={{ fontWeight: 700 }}>{p.n}</b></div>
     </div>
   );
 }
@@ -101,10 +101,10 @@ function SpreadTooltip({ active, payload }: { active?: boolean; payload?: { payl
   const p = payload[0].payload;
   return (
     <div style={{ background: 'rgb(var(--ow-card))', border: '1px solid rgb(var(--ow-border))', borderRadius: 8, fontSize: 12, padding: '6px 10px' }}>
-      <div style={{ fontWeight: 600 }}>{p.label}{p.archetype ? ` (${p.archetype})` : ''}</div>
-      <div>{p.sens.toFixed(2)} sens @ {MOUSE_DPI} DPI</div>
-      <div>Accuracy: {f1(p.raw)}% ({signed(p.delta)} vs. baseline)</div>
-      <div style={{ opacity: 0.7 }}>n={p.n}</div>
+      <div style={{ fontWeight: 700 }}>{p.label}{p.archetype ? ` (${p.archetype})` : ''}</div>
+      <div><b style={{ fontWeight: 700 }}>{p.sens.toFixed(2)}</b> sens @ {MOUSE_DPI} DPI</div>
+      <div>Accuracy: <b style={{ fontWeight: 700 }}>{f1(p.raw)}</b>% (<b style={{ fontWeight: 700 }}>{signed(p.delta)}</b> vs. baseline)</div>
+      <div style={{ opacity: 0.7 }}>n=<b style={{ fontWeight: 700 }}>{p.n}</b></div>
     </div>
   );
 }
@@ -188,12 +188,12 @@ function HeroBoxTooltip({ active, payload, label }: { active?: boolean; payload?
   if (!entries.length) return null;
   return (
     <div style={{ background: 'rgb(var(--ow-card))', border: '1px solid rgb(var(--ow-border))', borderRadius: 8, fontSize: 12, padding: '6px 10px' }}>
-      <div style={{ fontWeight: 600 }}>{label} sens (@{MOUSE_DPI} DPI)</div>
+      <div style={{ fontWeight: 700 }}>{label} sens (@{MOUSE_DPI} DPI)</div>
       {entries.map(e => (
         <div key={e.hero} style={{ marginTop: 4 }}>
           <div style={{ fontWeight: 600, color: heroColor(e.hero), textTransform: 'uppercase', letterSpacing: '0.02em' }}>{e.hero}</div>
-          <div>Median {f1(e.stats.median)}% (Q1 {f1(e.stats.q1)} · Q3 {f1(e.stats.q3)})</div>
-          <div style={{ opacity: 0.7 }}>Range {f1(e.stats.min)}–{f1(e.stats.max)}% · n={e.stats.n}</div>
+          <div>Median <b style={{ fontWeight: 700 }}>{f1(e.stats.median)}</b>% (Q1 <b style={{ fontWeight: 700 }}>{f1(e.stats.q1)}</b> · Q3 <b style={{ fontWeight: 700 }}>{f1(e.stats.q3)}</b>)</div>
+          <div style={{ opacity: 0.7 }}>Range <b style={{ fontWeight: 700 }}>{f1(e.stats.min)}</b>–<b style={{ fontWeight: 700 }}>{f1(e.stats.max)}</b>% · n=<b style={{ fontWeight: 700 }}>{e.stats.n}</b></div>
         </div>
       ))}
     </div>
@@ -262,8 +262,8 @@ function ScaleBoxTooltip({ active, payload, label }: { active?: boolean; payload
       {entries.map(e => (
         <div key={e.scale} style={{ marginTop: 4 }}>
           <div style={{ fontWeight: 600, color: scaleColor(e.scale) }}>{e.scale}</div>
-          <div>Median {f1(e.stats.median)}% (Q1 {f1(e.stats.q1)} · Q3 {f1(e.stats.q3)})</div>
-          <div style={{ opacity: 0.7 }}>Range {f1(e.stats.min)}–{f1(e.stats.max)}% · n={e.stats.n}</div>
+          <div>Median <b style={{ fontWeight: 700 }}>{f1(e.stats.median)}</b>% (Q1 <b style={{ fontWeight: 700 }}>{f1(e.stats.q1)}</b> · Q3 <b style={{ fontWeight: 700 }}>{f1(e.stats.q3)}</b>)</div>
+          <div style={{ opacity: 0.7 }}>Range <b style={{ fontWeight: 700 }}>{f1(e.stats.min)}</b>–<b style={{ fontWeight: 700 }}>{f1(e.stats.max)}</b>% · n=<b style={{ fontWeight: 700 }}>{e.stats.n}</b></div>
         </div>
       ))}
     </div>
@@ -643,8 +643,8 @@ export default function SensAnalysis() {
   return wrap(
     <div className="space-y-6">
       <p className="text-xs text-[var(--faint)]" data-inspect-id="sensAnalysis-summary-banner">
-        <span className="text-[var(--ink)] font-semibold">{summary.n}</span> logged matches across{' '}
-        <span className="text-[var(--ink)] font-semibold" data-inspect-id="sensAnalysis-summary-line">{summary.distinctScale}</span> distinct sens (@{MOUSE_DPI} DPI) scales.
+        <span className="text-[var(--ink)] font-bold">{summary.n}</span> logged matches across{' '}
+        <span className="text-[var(--ink)] font-bold" data-inspect-id="sensAnalysis-summary-line">{summary.distinctScale}</span> distinct sens (@{MOUSE_DPI} DPI) scales.
         Accuracy is shown as a delta vs. your own average on each hero, so heroes mix fairly.
         <br />
         <span className="text-[var(--faint-2)]">
@@ -792,7 +792,7 @@ export default function SensAnalysis() {
                         return (
                           <g>
                             <text x={x + 8} y={y - 8} textAnchor="start" fontSize={10} fontWeight={600} fill="var(--ink)">{p.label}</text>
-                            <text x={x + 8} y={y + 4} textAnchor="start" fontSize={9} fill="var(--faint)">{p.raw.toFixed(1)}%</text>
+                            <text x={x + 8} y={y + 4} textAnchor="start" fontSize={9} fontWeight={700} fill="var(--faint)">{p.raw.toFixed(1)}%</text>
                           </g>
                         );
                       }}
@@ -815,7 +815,7 @@ export default function SensAnalysis() {
               <div key={b.bucket} className="rounded-lg bg-ow-darker border border-ow-border p-3">
                 <div className="text-[11px] text-[var(--faint)] mb-1">{b.bucket}</div>
                 <div className="text-2xl num-display text-[var(--ink)]">{f1(b.avgOverall)}<span className="text-xs text-[var(--faint)] ml-0.5">%</span></div>
-                <div className="text-[11px] text-[var(--faint-2)] mt-1">Δ {signed(b.avgDelta)} · felt speed {f1(b.avgFeel)}/100 · n={b.n}</div>
+                <div className="text-[11px] text-[var(--faint-2)] mt-1 font-bold">Δ {signed(b.avgDelta)} · felt speed {f1(b.avgFeel)}/100 · n={b.n}</div>
               </div>
             ))}
           </div>
@@ -827,7 +827,7 @@ export default function SensAnalysis() {
               <div key={b.bucket} className="rounded-lg bg-ow-darker border border-ow-border p-3">
                 <div className="text-[11px] text-[var(--faint)] mb-1">{b.bucket}</div>
                 <div className="text-2xl num-display text-[var(--ink)]">{f1(b.avgOverall)}<span className="text-xs text-[var(--faint)] ml-0.5">%</span></div>
-                <div className="text-[11px] text-[var(--faint-2)] mt-1">Δ {signed(b.avgDelta)} · felt speed {f1(b.avgFeel)}/100 · n={b.n}</div>
+                <div className="text-[11px] text-[var(--faint-2)] mt-1 font-bold">Δ {signed(b.avgDelta)} · felt speed {f1(b.avgFeel)}/100 · n={b.n}</div>
               </div>
             ))}
           </div>
@@ -844,14 +844,14 @@ export default function SensAnalysis() {
                 <th className="py-1.5 pr-3">Win %</th><th className="py-1.5 pr-3">Overall</th><th className="py-1.5 pr-3">Crit</th><th className="py-1.5 pr-3">Felt speed</th><th className="py-1.5">Δ</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="font-bold">
               {byScaleSpeed.map(r => (
                 <tr key={r.cm360} className="border-t border-ow-border text-[var(--ink-2)]">
-                  <td className="py-1.5 pr-3 font-semibold text-[var(--ink)]">{r.sensAt1600.toFixed(2)}</td>
+                  <td className="py-1.5 pr-3 text-[var(--ink)]">{r.sensAt1600.toFixed(2)}</td>
                   <td className="py-1.5 pr-3">{r.eDPI}</td>
                   <td className="py-1.5 pr-3">{r.sens}</td>
                   <td className="py-1.5 pr-3">{r.n}</td>
-                  <td className="py-1.5 pr-3 font-semibold text-[var(--ink)]">{f1(r.winRate)}%</td>
+                  <td className="py-1.5 pr-3 text-[var(--ink)]">{f1(r.winRate)}%</td>
                   <td className="py-1.5 pr-3">{f1(r.avgOverall)}%</td>
                   <td className="py-1.5 pr-3">{f1(r.avgCrit)}%</td>
                   <td className="py-1.5 pr-3">{f1(r.avgFeel)}/100</td>
@@ -879,15 +879,15 @@ export default function SensAnalysis() {
                 <tr key={h.hero} className="border-t border-ow-border text-[var(--ink-2)]">
                   <td className="py-1.5 pr-3 text-xs hero-name text-[var(--ink)]">{withHeroCount(h.hero, heroCounts)}</td>
                   <td className="py-1.5 pr-3 capitalize text-[var(--faint)]">{h.archetype}</td>
-                  <td className="py-1.5 pr-3">{h.n}</td>
-                  <td className="py-1.5 pr-3 font-semibold text-[var(--ink)]">{f1(h.winRate)}%</td>
-                  <td className="py-1.5 pr-3">{f1(h.avgOverall)}%</td>
-                  <td className="py-1.5 pr-3">{f1(h.avgCrit)}%</td>
-                  <td className={h.bestScaleN < RELIABLE_N ? 'py-1.5 pr-3 text-[var(--faint)]' : 'py-1.5 pr-3'}>
+                  <td className="py-1.5 pr-3 font-bold">{h.n}</td>
+                  <td className="py-1.5 pr-3 font-bold text-[var(--ink)]">{f1(h.winRate)}%</td>
+                  <td className="py-1.5 pr-3 font-bold">{f1(h.avgOverall)}%</td>
+                  <td className="py-1.5 pr-3 font-bold">{f1(h.avgCrit)}%</td>
+                  <td className={h.bestScaleN < RELIABLE_N ? 'py-1.5 pr-3 text-[var(--faint)] font-bold' : 'py-1.5 pr-3 font-bold'}>
                     {(h.bestScaleEDPI / MOUSE_DPI).toFixed(2)} <span className="text-[10px] text-[var(--faint-2)]">(n={h.bestScaleN})</span>
                   </td>
-                  <td className={`py-1.5 pr-3 ${deltaColor(h.bestScaleOverallDelta)}`}>{signed(h.bestScaleOverallDelta)}</td>
-                  <td className={`py-1.5 ${deltaColor(h.bestScaleCritDelta)}`}>{signed(h.bestScaleCritDelta)}</td>
+                  <td className={`py-1.5 pr-3 font-bold ${deltaColor(h.bestScaleOverallDelta)}`}>{signed(h.bestScaleOverallDelta)}</td>
+                  <td className={`py-1.5 font-bold ${deltaColor(h.bestScaleCritDelta)}`}>{signed(h.bestScaleCritDelta)}</td>
                 </tr>
               ))}
             </tbody>

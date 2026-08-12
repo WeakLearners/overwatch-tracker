@@ -274,7 +274,7 @@ export default function Prematch() {
               <Odometer value={btGamesLeft} dataInspectId="prematch-dpi-games-left-odometer" />
               <div className="leading-tight">
                 <div className="text-sm text-[var(--ink)]">games left</div>
-                <div className="text-[10px] text-[var(--faint-2)]">in stage {bt.cur_stage}</div>
+                <div className="text-[10px] text-[var(--faint-2)]">in stage <b className="font-bold">{bt.cur_stage}</b></div>
               </div>
               {/* Backlog counter shares this grid's column tracks (rather than
                   being its own grid) so its drum is guaranteed to land in the
@@ -386,7 +386,7 @@ export default function Prematch() {
                       className="flex items-center justify-between w-full text-left py-1 px-1 -mx-1 rounded hover:bg-white/5 transition-colors group"
                     >
                       <span className="text-sm map-name text-[var(--ink)] truncate group-hover:text-ow-accent transition-colors">{withMapCount(m.map, mapCounts)}</span>
-                      <span className={`text-xs font-semibold shrink-0 ml-2 ${col.pct}`}>{Math.round(m.historical_rate)}%</span>
+                      <span className={`text-xs font-bold shrink-0 ml-2 ${col.pct}`}>{Math.round(m.historical_rate)}%</span>
                     </button>
                   ))}
                 </div>
@@ -436,14 +436,14 @@ export default function Prematch() {
                     </button>
                     {scoreMap[winner] && (
                       <div className="text-xs text-[var(--faint)] mt-0.5">
-                        {scoreMap[winner].blended_score}% blended · {scoreMap[winner].total_games}g played
+                        <b className="font-bold">{scoreMap[winner].blended_score}</b>% blended · <b className="font-bold">{scoreMap[winner].total_games}</b>g played
                       </div>
                     )}
                   </div>
                   <div className="text-right space-y-1">
                     {ranked.slice(1).map(m => (
                       <div key={m} className="text-sm text-[var(--faint)]">
-                        <span className="map-name">{withMapCount(m, mapCounts)}</span>{scoreMap[m] ? ` · ${scoreMap[m].blended_score}%` : ' · no data'}
+                        <span className="map-name">{withMapCount(m, mapCounts)}</span>{scoreMap[m] ? <> · <b className="font-bold">{scoreMap[m].blended_score}</b>%</> : ' · no data'}
                       </div>
                     ))}
                   </div>
@@ -517,7 +517,7 @@ export default function Prematch() {
                     <div className={`text-3xl num-display leading-none ${hourRow.win_rate >= 50 ? 'text-emerald-500' : 'text-red-500'}`}>
                       {Math.round(hourRow.win_rate)}%
                     </div>
-                    <div className="absolute top-full inset-x-0 text-center text-[9px] text-[var(--faint-2)] mt-1">{hourLabel} · {hourRow.games}g</div>
+                    <div className="absolute top-full inset-x-0 text-center text-[9px] text-[var(--faint-2)] mt-1">{hourLabel} · <b className="font-bold">{hourRow.games}</b>g</div>
                   </div>
                 ) : (
                   <div className="text-sm text-[var(--faint)]">—</div>
@@ -587,11 +587,11 @@ export default function Prematch() {
                           </div>
                           <div className="text-[11px] text-[var(--muted)]">
                             {delta != null ? (
-                              <span className={delta >= 0 ? 'text-emerald-500' : 'text-red-500'}>{delta >= 0 ? '▲' : '▼'} {Math.abs(delta)}pt</span>
+                              <span className={`font-bold ${delta >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>{delta >= 0 ? '▲' : '▼'} {Math.abs(delta)}pt</span>
                             ) : (
                               <span>new form</span>
                             )}
-                            {' · '}{rec.recent_games} games (30d)
+                            {' · '}<b className="font-bold">{rec.recent_games}</b> games (30d)
                           </div>
                         </div>
                       </div>
@@ -651,7 +651,6 @@ export default function Prematch() {
             selection panel — bordered, tinted, chip buttons — rather than a
             trailing stats list, so it doesn't get missed after Coaching above it. */}
         <div className="mt-4 pt-4 border-t border-ow-border/40">
-        <div className="rounded-xl bg-ow-accent/[0.06] px-4 py-3.5">
         <h3 className="text-sm grad-brand font-black uppercase tracking-widest mb-3" data-inspect-id="prematch-select-your-hero-header">Select Your Hero</h3>
         {selectableHeroes.size > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" data-inspect-id="prematch-hero-picker-list">
@@ -677,8 +676,8 @@ export default function Prematch() {
                         <span className={`flex-1 text-xs hero-name transition-colors ${selectedHero === h.hero ? 'text-ow-accent' : 'text-[var(--ink)] group-hover:text-ow-accent'}`}>
                           {withHeroCount(h.hero, heroCounts)}{testValueFor(h.hero) && ` @ ${testValueFor(h.hero)}`}
                         </span>
-                        <span className={`text-sm font-semibold ${h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
-                        <span className="text-xs text-[var(--faint-2)] w-7 text-right">{h.games}g</span>
+                        <span className={`text-sm font-bold ${h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
+                        <span className="text-xs text-[var(--faint-2)] w-7 text-right font-bold">{h.games}g</span>
                       </button>
                     ))}
                     {heroes.length === 0 && (
@@ -699,7 +698,6 @@ export default function Prematch() {
               : 'Select a map above and this fills with your strongest picks for it, broken out by role.'}
           />
         )}
-        </div>
         </div>
       </div>
     </div>

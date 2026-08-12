@@ -78,13 +78,13 @@
     text-transform: uppercase;
     letter-spacing: 0.06em;
   }
-  /* Headline stat numbers: chamfered-letterform readout face (echoes the
-     panels' own chamfered corners) with tabular figures so stacked stat
-     columns actually line up. Falls back to sans-serif, not a system
-     monospace, since Chakra Petch is proportional. */
+  /* Headline stat numbers: Science Gothic, weight 200 — variable-weight
+     grotesk, dialed down from 800 (7/30) to a light weight per request.
+     Falls back to sans-serif, not a system monospace, since it's
+     proportional. */
   .num-display {
-    font-family: "Chakra Petch", system-ui, sans-serif;
-    font-weight: 700;
+    font-family: "Science Gothic", system-ui, sans-serif;
+    font-weight: 200;
     font-variant-numeric: tabular-nums;
     padding-right: 0.04em;
   }

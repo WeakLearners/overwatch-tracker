@@ -119,16 +119,17 @@ export default function LogMatch() {
     });
   };
 
-  // The in-game sens this match will actually be tagged with. QP never lands
-  // on a stage (matches.ts skips the lookup entirely), so it falls straight
-  // to the frozen fallback; Competitive checks for a set tagged to the
-  // selected hero, then the hero-less ad-hoc set — same priority order the
-  // server uses when it stamps the match.
+  // The in-game sens this match will actually be tagged with. QP only lands
+  // on a stage for Support heroes (matches.ts's isCompetitive check — Support
+  // QP counts toward the study same as Competitive); every other QP hero
+  // falls straight to the frozen fallback. Competitive checks for a set
+  // tagged to the selected hero, then the hero-less ad-hoc set — same
+  // priority order the server uses when it stamps the match.
   // Same lookup as activeSetSens below, generalized to any hero — used to
   // label each hero's own Feel slider with the sens it was actually played
   // at, since a mid-match switch can land on a different hero's own test.
   const sensForHero = (h: string): number | null => {
-    if (!h || queueMode === 'qp_role') return null;
+    if (!h || (queueMode === 'qp_role' && HEROES[h] !== 'Support')) return null;
     const actives = dpiState?.actives ?? [];
     const active = actives.find(a => a.hero === h) ?? actives.find(a => a.hero === null);
     return active ? active.sens ?? active.in_game_sens : null;
@@ -358,7 +359,7 @@ export default function LogMatch() {
               return (
                 <div key={i} className="flex items-center justify-between gap-2 py-2 px-3 rounded-lg bg-ow-darker border border-ow-border">
                   <div>
-                    <span className="text-xs text-[var(--faint-2)] mr-2">{i + 1}</span>
+                    <span className="text-xs text-[var(--faint-2)] mr-2 font-bold">{i + 1}</span>
                     <span className="text-sm text-[var(--ink)]">{axis?.label ?? 'Death'}</span>
                     {axis && <span className="text-xs text-[var(--faint)] ml-2">{lean}</span>}
                   </div>
@@ -481,7 +482,7 @@ export default function LogMatch() {
                     {(['DPS', 'Tank', 'Support'] as const).map(role => (
                       <optgroup key={role} label={role}>
                         {HERO_TEST_LIST.filter(([, r]) => r === role).map(([h]) => {
-                          const heroSens = sensForHero(h);
+                          const heroSens = displaySensForHero(h);
                           return (
                             <option key={h} value={h} className="uppercase">
                               {withHeroCount(h, heroCounts)}{heroSens != null && ` @ ${heroSens.toFixed(2)}`}
@@ -507,9 +508,14 @@ export default function LogMatch() {
                         <option value="">— {i === 0 ? '2nd' : '3rd'} hero —</option>
                         {(['DPS', 'Tank', 'Support'] as const).map(role => (
                           <optgroup key={role} label={role}>
-                            {HERO_TEST_LIST.filter(([, rl]) => rl === role).map(([hh]) => (
-                              <option key={hh} value={hh} className="uppercase">{withHeroCount(hh, heroCounts)}</option>
-                            ))}
+                            {HERO_TEST_LIST.filter(([, rl]) => rl === role).map(([hh]) => {
+                              const heroSens = displaySensForHero(hh);
+                              return (
+                                <option key={hh} value={hh} className="uppercase">
+                                  {withHeroCount(hh, heroCounts)}{heroSens != null && ` @ ${heroSens.toFixed(2)}`}
+                                </option>
+                              );
+                            })}
                           </optgroup>
                         ))}
                       </select>
@@ -608,7 +614,7 @@ export default function LogMatch() {
                 return (
                   <div key={h}>
                     <label className="block text-xs text-[var(--muted)] mb-1.5">
-                      Feel <span className="text-[var(--ink)] font-semibold">— {h}{heroSens != null ? ` @ ${heroSens.toFixed(2)}` : ''}</span>
+                      Feel <span className="text-[var(--ink)] font-bold">— {h}{heroSens != null ? ` @ ${heroSens.toFixed(2)}` : ''}</span>
                       <span className="text-[var(--faint-2)]"> — did the sens feel slow or fast?</span>
                     </label>
                     <input

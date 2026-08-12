@@ -92,10 +92,10 @@ function ModeTile({ meta, m, selected, onSelect, openHero, lastLog }: {
             );
           })()}
           <div className="text-xs text-[var(--muted)] dark:text-white/80 mt-0.5">
-            last {m.recent_window}d · <span className="text-emerald-500">{m.recent_wins}W</span> <span className="text-red-400">{m.recent_games - m.recent_wins}L</span>
+            last <b className="font-bold">{m.recent_window}</b>d · <span className="text-emerald-500 font-bold">{m.recent_wins}W</span> <span className="text-red-400 font-bold">{m.recent_games - m.recent_wins}L</span>
           </div>
           <div className="text-[11px] text-[var(--faint)] dark:text-white/65 mt-0.5">
-            {m.win_rate}% all-time · {m.games}g
+            <b className="font-bold">{m.win_rate}</b>% all-time · <b className="font-bold">{m.games}</b>g
           </div>
           <div className="mt-3">
             <div className="text-[10px] text-[var(--muted)] dark:text-white/70 uppercase tracking-wider mb-1">Most played</div>
@@ -108,7 +108,7 @@ function ModeTile({ meta, m, selected, onSelect, openHero, lastLog }: {
                 >
                   {withHeroCount(m.top_hero.hero, heroCounts)}
                 </span>
-                <span className="text-xs text-[var(--muted)] dark:text-white/70 shrink-0 ml-2">
+                <span className="text-xs text-[var(--muted)] dark:text-white/70 shrink-0 ml-2 font-bold">
                   {m.top_hero.win_rate}% · {m.top_hero.games}g
                 </span>
               </div>
@@ -264,10 +264,10 @@ export default function Dashboard() {
             </div>
             {wr25 !== null && (
               <div className="flex items-baseline gap-2 text-xs" data-inspect-id="dash-recent-form-stat">
-                <span className="text-[var(--faint)]">last {last25.length}</span>
+                <span className="text-[var(--faint)]">last <b className="font-bold">{last25.length}</b></span>
                 <span className={`text-4xl font-black tracking-tight num-display ${wr25 >= 50 ? 'grad-win' : 'grad-loss'}`}><AnimatedNumber value={wr25} suffix="%" /></span>
                 {wrDelta !== null && (
-                  <span className={wrDelta > 0 ? 'text-emerald-600' : wrDelta < 0 ? 'text-red-600' : 'text-[var(--faint)]'}>
+                  <span className={`font-bold ${wrDelta > 0 ? 'text-emerald-600' : wrDelta < 0 ? 'text-red-600' : 'text-[var(--faint)]'}`}>
                     {wrDelta > 0 ? '▲' : wrDelta < 0 ? '▼' : '±'} {wrDelta > 0 ? '+' : ''}{wrDelta} vs last {last100.length} ({wr100}%)
                   </span>
                 )}
@@ -325,10 +325,10 @@ export default function Dashboard() {
             <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 mt-4" data-inspect-id="dash-tilt-warning-banner">
               <span className="text-amber-600 text-lg shrink-0">⚠</span>
               <div>
-                <div className="text-sm font-semibold text-amber-700">You've lost 2 in a row today</div>
+                <div className="text-sm font-semibold text-amber-700">You've lost <b className="font-bold">2</b> in a row today</div>
                 {tilt.tilt_win_rate !== null && tilt.tilt_games >= 10 && (
                   <div className="text-xs text-amber-600/80 mt-0.5">
-                    Historically your win rate in this situation is {tilt.tilt_win_rate}% — a short break often helps.
+                    Historically your win rate in this situation is <b className="font-bold">{tilt.tilt_win_rate}</b>% — a short break often helps.
                   </div>
                 )}
               </div>

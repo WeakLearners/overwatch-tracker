@@ -41,9 +41,9 @@ function DrawerContent({ map }: { map: string }) {
           <span className={`text-4xl font-black ${data.overall.win_rate >= 50 ? 'text-emerald-600' : 'text-red-600'}`}>
             {data.overall.win_rate}%
           </span>
-          <span className="text-sm text-[var(--faint)] pb-1">{data.overall.games}g</span>
+          <span className="text-sm text-[var(--faint)] pb-1 font-bold">{data.overall.games}g</span>
         </div>
-        <div className="text-xs text-[var(--faint-2)] mt-0.5">{data.overall.wins}W · {data.overall.losses}L</div>
+        <div className="text-xs text-[var(--faint-2)] mt-0.5"><b className="font-bold">{data.overall.wins}</b>W · <b className="font-bold">{data.overall.losses}</b>L</div>
       </div>
 
       {/* Trend */}
@@ -51,15 +51,15 @@ function DrawerContent({ map }: { map: string }) {
         <div>
           <div data-inspect-id="mapDrawer-trend-stat" className="text-xs text-[var(--faint)] uppercase tracking-wider mb-2">Trend</div>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-[var(--muted)]">{prev_wr}%</span>
+            <span className="text-sm text-[var(--muted)] font-bold">{prev_wr}%</span>
             <span className="text-[var(--faint-2)]">→</span>
             <WR rate={recent_wr!} />
-            {delta > 0 && <span className="text-xs font-semibold text-emerald-600">↑ +{delta}%</span>}
-            {delta < 0 && <span className="text-xs font-semibold text-red-600">↓ {delta}%</span>}
+            {delta > 0 && <span className="text-xs font-bold text-emerald-600">↑ +{delta}%</span>}
+            {delta < 0 && <span className="text-xs font-bold text-red-600">↓ {delta}%</span>}
             {delta === 0 && <span className="text-xs text-[var(--faint)]">→ flat</span>}
           </div>
           <div className="text-xs text-[var(--faint-2)] mt-0.5">
-            {recent_games}g last 30d · {prev_games}g prior 90d
+            <b className="font-bold">{recent_games}</b>g last 30d · <b className="font-bold">{prev_games}</b>g prior 90d
           </div>
         </div>
       )}
@@ -81,7 +81,7 @@ function DrawerContent({ map }: { map: string }) {
                   </span>
                   <span className="flex-1 text-xs hero-name text-[var(--ink)]">{withHeroCount(h.hero, heroCounts)}</span>
                   <WR rate={h.win_rate} />
-                  <span className="text-xs text-[var(--faint-2)] w-7 text-right">{h.games}g</span>
+                  <span className="text-xs text-[var(--faint-2)] w-7 text-right font-bold">{h.games}g</span>
                 </div>
               ))}
             </div>
@@ -95,7 +95,7 @@ function DrawerContent({ map }: { map: string }) {
       {/* Last 5 */}
       {data.recent5.length > 0 && (
         <div>
-          <div data-inspect-id="mapDrawer-last5-list" className="text-xs text-[var(--faint)] uppercase tracking-wider mb-2">Last {data.recent5.length}</div>
+          <div data-inspect-id="mapDrawer-last5-list" className="text-xs text-[var(--faint)] uppercase tracking-wider mb-2">Last <b className="font-bold">{data.recent5.length}</b></div>
           <div className="flex items-center gap-2">
             {data.recent5.map((m, i) => (
               <div
