@@ -23,7 +23,7 @@ export default function DeathInsights({ data, label, hideHeading, dataInspectId 
       <div data-inspect-id={dataInspectId}>
         {heading}
         <p data-inspect-id="deathInsights-emptyStateBanner" className="text-xs text-[var(--faint-2)]">
-          Not enough tagged death data for {label} yet
+          Not enough tagged death data for <span className="name-caps">{label}</span> yet
           {data && data.tagged_games > 0 ? ` (${data.tagged_games} game${data.tagged_games !== 1 ? 's' : ''} so far)` : ''}.
           {' '}Tag deaths as you log matches to unlock this.
         </p>

@@ -93,7 +93,7 @@ export default function AdvisorCard({ map, queueLabel, rec, loading, error, onRe
             <button
               data-inspect-id="advisorCard-primaryHeroButton"
               onClick={() => onOpenHero(rec.primary)}
-              className="font-bold text-[var(--ink)] hover:text-ow-accent transition-colors"
+              className="hero-name text-[var(--ink)] hover:text-ow-accent transition-colors"
             >
               {withHeroCount(rec.primary, heroCounts)}
             </button>
@@ -108,7 +108,7 @@ export default function AdvisorCard({ map, queueLabel, rec, loading, error, onRe
                 <button
                   data-inspect-id="advisorCard-stretchHeroButton"
                   onClick={() => onOpenHero(rec.stretch!)}
-                  className={`font-semibold transition-colors ${
+                  className={`hero-name text-xs transition-colors ${
                     rec.stretch_untested
                       ? 'text-amber-700 hover:text-amber-200'
                       : 'text-emerald-700 hover:text-emerald-200'

@@ -103,8 +103,8 @@ function ModeTile({ meta, m, selected, onSelect, openHero, lastLog }: {
               <div className="flex items-center justify-between">
                 <span
                   onClick={e => { e.stopPropagation(); openHero(m.top_hero!.hero); }}
-                  title={m.top_hero.hero}
-                  className="min-w-0 text-sm font-medium text-[var(--ink)] hover:text-ow-accent transition-colors truncate cursor-pointer"
+                  title={m.top_hero.hero.toUpperCase()}
+                  className="min-w-0 text-xs hero-name text-[var(--ink)] hover:text-ow-accent transition-colors truncate cursor-pointer"
                 >
                   {withHeroCount(m.top_hero.hero, heroCounts)}
                 </span>
@@ -135,11 +135,7 @@ function ModeComparisonCard({ data }: { data: ModeComparison[] }) {
   return (
     <div className="card" data-inspect-id="dash-mode-card">
       <h2 className="text-sm heading-display text-[var(--ink-2)] mb-4">Mode</h2>
-      {/* Stacks single-column once the desktop grid pairs this card with
-          Recent Matches (lg:col-span-5 of 12, ~400px) — 3-across at that
-          width was crushing each tile to ~95px, clipping "Selected" and
-          hero names. A stacked tile always gets the card's full width. */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {QUEUE_MODES.map(meta => (
           <ModeTile
             key={meta.value}
@@ -251,17 +247,14 @@ export default function Dashboard() {
         ))}
       </nav>
 
-      {/* Mode + Recent Matches read as a paired HUD status bank on wide
-          screens — set-up panel and result readout side by side — instead of
-          two full-width cards stacked one after another. */}
-      <div id="sec-mode" className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start scroll-mt-32">
+      <div id="sec-mode" className="scroll-mt-32">
         {modeComparison && (
-          <div className="reveal lg:col-span-5 min-w-0" style={{ '--reveal-delay': '0ms' } as React.CSSProperties}>
+          <div className="reveal mb-6" style={{ '--reveal-delay': '0ms' } as React.CSSProperties}>
             <ModeComparisonCard data={modeComparison} />
           </div>
         )}
 
-        <div className="card reveal lg:col-span-7 min-w-0" style={{ '--reveal-delay': '60ms' } as React.CSSProperties} data-inspect-id="dash-recent-matches-card">
+        <div className="card reveal" style={{ '--reveal-delay': '60ms' } as React.CSSProperties} data-inspect-id="dash-recent-matches-card">
           <div className="flex items-center justify-between flex-wrap gap-y-1 mb-4">
             <div className="flex items-center gap-2">
               <h2 className="text-sm heading-display text-[var(--ink-2)]">Recent Matches</h2>
@@ -305,7 +298,7 @@ export default function Dashboard() {
                     key={g.id}
                     type="button"
                     onClick={() => openEdit(g)}
-                    title={`${g.win ? 'Win' : 'Loss'} · ${withHeroCount(g.hero, heroCounts)} on ${withMapCount(g.map, mapCounts)} (${format(parseISO(g.date), 'MMM d')}) — tap to edit`}
+                    title={`${g.win ? 'Win' : 'Loss'} · ${withHeroCount(g.hero, heroCounts).toUpperCase()} on ${withMapCount(g.map, mapCounts).toUpperCase()} (${format(parseISO(g.date), 'MMM d')}) — tap to edit`}
                     className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-sm italic font-display font-black transition-all duration-150 cursor-pointer hover:-translate-y-0.5 hover:ring-2 hover:ring-offset-1 hover:ring-offset-transparent ${
                       g.win
                         ? 'bg-emerald-100 text-emerald-700 hover:ring-emerald-400/60 dark:bg-emerald-500/15 dark:text-emerald-300'

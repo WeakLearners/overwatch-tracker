@@ -66,25 +66,45 @@
 }
 
 @layer components {
-  /* Header display face — condensed HUD titling. Swap the family here (and
-     the <link> in index.html) to try a different look. */
-  .font-display { font-family: "Big Shoulders Display", system-ui, sans-serif; }
+  /* Header display face — wide geometric HUD titling. Swap the family here
+     (and the <link> in index.html) to try a different look. */
+  .font-display { font-family: "Oxanium", system-ui, sans-serif; }
 
-  /* Body headings: the condensed HUD face, uppercase with wide tracking —
+  /* Body headings: the geometric HUD face, uppercase with wide tracking —
      reads like a tactical readout label. Applied to section/card headers. */
   .heading-display {
-    font-family: "Big Shoulders Display", system-ui, sans-serif;
+    font-family: "Oxanium", system-ui, sans-serif;
     font-weight: 800;
-    font-stretch: condensed;
     text-transform: uppercase;
     letter-spacing: 0.06em;
   }
-  /* Headline stat numbers: monospace, so columns of stats line up like a
-     data readout rather than display type doing double duty as numerals. */
+  /* Headline stat numbers: chamfered-letterform readout face (echoes the
+     panels' own chamfered corners) with tabular figures so stacked stat
+     columns actually line up. Falls back to sans-serif, not a system
+     monospace, since Chakra Petch is proportional. */
   .num-display {
-    font-family: "IBM Plex Mono", ui-monospace, monospace;
-    font-weight: 600;
+    font-family: "Chakra Petch", system-ui, sans-serif;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
     padding-right: 0.04em;
+  }
+  /* Hero and map names: same readout face as stat numbers, uppercase +
+     tracked so a name reads as a HUD callsign tag rather than plain body
+     copy — applied consistently everywhere a hero or map name renders as
+     its own element (drawer titles, list rows, pills, chips, table cells),
+     not just in one spot. */
+  .hero-name, .map-name {
+    font-family: "Chakra Petch", system-ui, sans-serif;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  /* Case-only variant: same all-caps rule, kept in the surrounding body
+     font. For hero/map mentions embedded mid-sentence (captions, tooltips,
+     chart legends) where swapping typeface would break the reading flow. */
+  .name-caps {
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
   }
 
   /* Signature panel shape: corners chamfered top-left/bottom-right, echoing

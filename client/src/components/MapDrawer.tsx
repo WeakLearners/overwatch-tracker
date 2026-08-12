@@ -79,7 +79,7 @@ function DrawerContent({ map }: { map: string }) {
                   <span className={`text-sm ${h.win_rate >= 50 ? 'text-emerald-700' : 'text-red-500'}`}>
                     {h.win_rate >= 50 ? '↑' : '↓'}
                   </span>
-                  <span className="flex-1 text-sm text-[var(--ink)]">{withHeroCount(h.hero, heroCounts)}</span>
+                  <span className="flex-1 text-xs hero-name text-[var(--ink)]">{withHeroCount(h.hero, heroCounts)}</span>
                   <WR rate={h.win_rate} />
                   <span className="text-xs text-[var(--faint-2)] w-7 text-right">{h.games}g</span>
                 </div>
@@ -100,7 +100,7 @@ function DrawerContent({ map }: { map: string }) {
             {data.recent5.map((m, i) => (
               <div
                 key={i}
-                title={`${m.win ? 'W' : 'L'} · ${withHeroCount(m.hero, heroCounts)}`}
+                title={`${m.win ? 'W' : 'L'} · ${withHeroCount(m.hero, heroCounts).toUpperCase()}`}
                 className={`w-7 h-7 rounded flex items-center justify-center text-xs font-bold border ${
                   m.win
                     ? 'bg-emerald-500/20 text-emerald-600 border-emerald-500/30'
@@ -134,7 +134,7 @@ export default function MapDrawer() {
       <div data-inspect-id="mapDrawer-panel" className={`fixed inset-y-0 right-0 w-96 bg-ow-dark border-l border-ow-border z-50 flex flex-col transition-transform duration-300 ${activeMap ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="flex items-start justify-between p-5 border-b border-ow-border shrink-0">
           <div>
-            <h2 data-inspect-id="mapDrawer-title" className="text-lg heading-display text-[var(--ink)] leading-tight">{activeMap ? withMapCount(activeMap, mapCounts) : ''}</h2>
+            <h2 data-inspect-id="mapDrawer-title" className="text-xl map-name text-[var(--ink)] leading-tight">{activeMap ? withMapCount(activeMap, mapCounts) : ''}</h2>
             {mapType && <span data-inspect-id="mapDrawer-type-badge" className={`pill mt-1 ${TYPE_COLORS[mapType] ?? ''}`}>{mapType}</span>}
           </div>
           <button onClick={closeMap} data-inspect-id="mapDrawer-close-button" className="text-[var(--faint)] hover:text-[var(--ink)] transition-colors text-2xl leading-none ml-4">

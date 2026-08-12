@@ -87,7 +87,7 @@ function StatFields({ s, upd, updHeroAcc, showHealing, firstDurationRef }: {
       <div className="space-y-3" data-inspect-id="sl-hero-acc-inputs">
         {s.heroAcc.map((h, i) => (
           <div key={h.hero}>
-            <div className="text-xs font-semibold text-[var(--ink)] mb-1.5">{h.hero}</div>
+            <div className="text-xs hero-name text-[var(--ink)] mb-1.5">{h.hero}</div>
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs text-[var(--muted)] mb-1.5">Duration <span className="text-ow-accent">*</span></label>
@@ -414,10 +414,10 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
     if (games > 0) {
       // Real data at stake — require a deliberate typed confirmation, not a click-through.
       const typed = prompt(
-        `This will permanently DELETE the ${hero} test set AND all ${games} game${games === 1 ? '' : 's'} logged against it. This cannot be undone.\n\nType ${games} to confirm:`,
+        `This will permanently DELETE the ${hero.toUpperCase()} test set AND all ${games} game${games === 1 ? '' : 's'} logged against it. This cannot be undone.\n\nType ${games} to confirm:`,
       );
       if (typed?.trim() !== String(games)) return;
-    } else if (!confirm(`Cancel the ${hero} test set? No games have been logged yet.`)) {
+    } else if (!confirm(`Cancel the ${hero.toUpperCase()} test set? No games have been logged yet.`)) {
       return;
     }
     setCancelling(true);
@@ -476,7 +476,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
               )}
               <div className={s.status === 'completed' ? 'opacity-30 pointer-events-none' : ''}>
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-semibold text-[var(--ink)]">{h.hero}</span>
+                  <span className="text-sm hero-name text-[var(--ink)]">{h.hero}</span>
                   <span className="text-[10px] text-[var(--faint-2)] uppercase">{h.archetype}</span>
                 </div>
                 <div className="flex items-center gap-1.5 mb-1.5">
@@ -615,7 +615,7 @@ function ActiveTestCard({ active }: { active: DpiTestActive }) {
         {active.sens != null ? (
           <>
             <div className="text-xs text-[var(--faint)] mb-1">
-              {active.hero ? `${active.hero} — ` : ''}Stage {active.cur_stage} of {active.n_stages} — set your in-game sens to
+              {active.hero && <><span className="name-caps">{active.hero}</span>{' — '}</>}Stage {active.cur_stage} of {active.n_stages} — set your in-game sens to
             </div>
             <div className="text-5xl heading-display text-[var(--ink)] my-2 num-display">{active.sens.toFixed(2)}</div>
             <div className="text-xs text-[var(--faint)]">sens, mouse DPI locked <b className="num-display">{active.dpi}</b></div>
@@ -623,7 +623,7 @@ function ActiveTestCard({ active }: { active: DpiTestActive }) {
         ) : (
           <>
             <div className="text-xs text-[var(--faint)] mb-1">
-              {active.hero ? `${active.hero} — ` : ''}Stage {active.cur_stage} of {active.n_stages} — set your mouse to
+              {active.hero && <><span className="name-caps">{active.hero}</span>{' — '}</>}Stage {active.cur_stage} of {active.n_stages} — set your mouse to
             </div>
             <div className="text-5xl heading-display text-[var(--ink)] my-2 num-display">{active.dpi ?? '—'}</div>
             <div className="text-xs text-[var(--faint)]">DPI, in-game sens <b className="num-display">{active.in_game_sens.toFixed(2)}</b></div>
@@ -822,9 +822,9 @@ function BackfillPanel({ pending, loading }: {
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0 flex-wrap">
                           {m.heroes.map(h => (
-                            <span key={h.hero} className={`pill ${ROLE_COLORS[h.role] ?? ''}`}>{withHeroCount(h.hero, heroCounts)}</span>
+                            <span key={h.hero} className={`pill hero-name ${ROLE_COLORS[h.role] ?? ''}`}>{withHeroCount(h.hero, heroCounts)}</span>
                           ))}
-                          <span className="text-sm text-[var(--ink)] truncate">{withMapCount(m.map, mapCounts)}</span>
+                          <span className="text-xs map-name text-[var(--ink)] truncate">{withMapCount(m.map, mapCounts)}</span>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <span className={`text-xs font-bold ${m.win ? 'text-emerald-500' : 'text-red-500'}`}>{m.win ? 'W' : 'L'}</span>
@@ -849,9 +849,9 @@ function BackfillPanel({ pending, loading }: {
               <div className="rounded-lg bg-ow-darker border border-ow-border px-3 py-2.5" data-inspect-id="sl-selected-match-summary">
                 <div className="flex items-center gap-2 flex-wrap">
                   {selected.heroes.map(h => (
-                    <span key={h.hero} className={`pill ${ROLE_COLORS[h.role] ?? ''}`}>{withHeroCount(h.hero, heroCounts)}</span>
+                    <span key={h.hero} className={`pill hero-name ${ROLE_COLORS[h.role] ?? ''}`}>{withHeroCount(h.hero, heroCounts)}</span>
                   ))}
-                  <span className="text-sm text-[var(--ink)]">@ {withMapCount(selected.map, mapCounts)}</span>
+                  <span className="text-sm text-[var(--ink)]">@ <span className="map-name">{withMapCount(selected.map, mapCounts)}</span></span>
                   <span className={`text-xs font-bold ml-auto ${selected.win ? 'text-emerald-500' : 'text-red-500'}`}>{selected.win ? 'WIN' : 'LOSS'}</span>
                 </div>
                 <div className="flex items-center gap-2 mt-2">

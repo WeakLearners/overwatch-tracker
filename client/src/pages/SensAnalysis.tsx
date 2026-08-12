@@ -191,7 +191,7 @@ function HeroBoxTooltip({ active, payload, label }: { active?: boolean; payload?
       <div style={{ fontWeight: 600 }}>{label} sens (@{MOUSE_DPI} DPI)</div>
       {entries.map(e => (
         <div key={e.hero} style={{ marginTop: 4 }}>
-          <div style={{ fontWeight: 600, color: heroColor(e.hero) }}>{e.hero}</div>
+          <div style={{ fontWeight: 600, color: heroColor(e.hero), textTransform: 'uppercase', letterSpacing: '0.02em' }}>{e.hero}</div>
           <div>Median {f1(e.stats.median)}% (Q1 {f1(e.stats.q1)} · Q3 {f1(e.stats.q3)})</div>
           <div style={{ opacity: 0.7 }}>Range {f1(e.stats.min)}–{f1(e.stats.max)}% · n={e.stats.n}</div>
         </div>
@@ -549,7 +549,7 @@ function buildInsights(data: Analysis, heroCounts: Record<string, number>): stri
     const projHero = heroes.find(h => h.archetype === 'projectile');
     const projGames = byArchetype.projectile.reduce((s, r) => s + r.n, 0);
     notes.push(
-      `Hitscan vs. projectile isn't a fair comparison yet — projectile is just ${projGames} game${projGames === 1 ? '' : 's'}${projHero ? ` (${withHeroCount(projHero.hero, heroCounts)})` : ''}, spread thin across scales.`,
+      `Hitscan vs. projectile isn't a fair comparison yet — projectile is just ${projGames} game${projGames === 1 ? '' : 's'}${projHero ? ` (${withHeroCount(projHero.hero, heroCounts).toUpperCase()})` : ''}, spread thin across scales.`,
     );
   }
 
@@ -877,7 +877,7 @@ export default function SensAnalysis() {
             <tbody>
               {heroes.map(h => (
                 <tr key={h.hero} className="border-t border-ow-border text-[var(--ink-2)]">
-                  <td className="py-1.5 pr-3 font-semibold text-[var(--ink)]">{withHeroCount(h.hero, heroCounts)}</td>
+                  <td className="py-1.5 pr-3 text-xs hero-name text-[var(--ink)]">{withHeroCount(h.hero, heroCounts)}</td>
                   <td className="py-1.5 pr-3 capitalize text-[var(--faint)]">{h.archetype}</td>
                   <td className="py-1.5 pr-3">{h.n}</td>
                   <td className="py-1.5 pr-3 font-semibold text-[var(--ink)]">{f1(h.winRate)}%</td>
@@ -937,7 +937,7 @@ export default function SensAnalysis() {
                 </ResponsiveContainer>
                 <div className="flex items-center gap-4 text-[10px] text-[var(--faint-2)] mt-2 flex-wrap">
                   {testedHeroes.map(h => (
-                    <span key={h.hero} className="inline-flex items-center gap-1">
+                    <span key={h.hero} className="inline-flex items-center gap-1 name-caps">
                       <span className="inline-block w-2 h-2 rounded-full" style={{ background: heroColor(h.hero) }} />
                       {h.hero}
                     </span>

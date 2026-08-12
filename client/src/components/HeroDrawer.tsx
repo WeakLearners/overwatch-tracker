@@ -77,7 +77,7 @@ function DrawerContent({ hero, role }: { hero: string; role?: string }) {
               <div key={'b' + m.map} className="flex items-center gap-2 py-1.5">
                 <span className="text-sm text-emerald-700">↑</span>
                 <div className="flex-1 min-w-0">
-                  <span className="text-sm text-[var(--ink)] truncate">{withMapCount(m.map, mapCounts)}</span>
+                  <span className="text-xs map-name text-[var(--ink)] truncate">{withMapCount(m.map, mapCounts)}</span>
                   <span data-inspect-id="hero-drawer-type-pill-badge" className={`pill ml-1 ${TYPE_COLORS[m.game_type] ?? ''}`}>{m.game_type}</span>
                 </div>
                 <WR rate={m.win_rate} />
@@ -88,7 +88,7 @@ function DrawerContent({ hero, role }: { hero: string; role?: string }) {
               <div key={'w' + m.map} className="flex items-center gap-2 py-1.5">
                 <span className="text-sm text-red-500">↓</span>
                 <div className="flex-1 min-w-0">
-                  <span className="text-sm text-[var(--ink)] truncate">{withMapCount(m.map, mapCounts)}</span>
+                  <span className="text-xs map-name text-[var(--ink)] truncate">{withMapCount(m.map, mapCounts)}</span>
                   <span className={`pill ml-1 ${TYPE_COLORS[m.game_type] ?? ''}`}>{m.game_type}</span>
                 </div>
                 <WR rate={m.win_rate} />
@@ -139,7 +139,7 @@ function DrawerContent({ hero, role }: { hero: string; role?: string }) {
             {data.recent10.map((m, i) => (
               <div
                 key={i}
-                title={`${m.win ? 'W' : 'L'} · ${withMapCount(m.map, mapCounts)}`}
+                title={`${m.win ? 'W' : 'L'} · ${withMapCount(m.map, mapCounts).toUpperCase()}`}
                 className={`w-7 h-7 rounded flex items-center justify-center text-xs font-bold border ${
                   m.win
                     ? 'bg-emerald-500/20 text-emerald-600 border-emerald-500/30'
@@ -170,7 +170,7 @@ export default function HeroDrawer() {
       <div data-inspect-id="hero-drawer-panel" className={`fixed inset-y-0 right-0 w-96 bg-ow-dark border-l border-ow-border z-50 flex flex-col transition-transform duration-300 ${activeHero ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="flex items-start justify-between p-5 border-b border-ow-border shrink-0">
           <div>
-            <h2 data-inspect-id="hero-drawer-title-header" className="text-lg heading-display text-[var(--ink)] leading-tight">{activeHero ? withHeroCount(activeHero, heroCounts) : ''}</h2>
+            <h2 data-inspect-id="hero-drawer-title-header" className="text-xl hero-name text-[var(--ink)] leading-tight">{activeHero ? withHeroCount(activeHero, heroCounts) : ''}</h2>
           </div>
           <button onClick={closeHero} data-inspect-id="hero-drawer-close-button" className="text-[var(--faint)] hover:text-[var(--ink)] transition-colors text-2xl leading-none ml-4">
             ×

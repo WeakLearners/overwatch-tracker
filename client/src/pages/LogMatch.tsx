@@ -479,7 +479,7 @@ export default function LogMatch() {
                     {(['DPS', 'Tank', 'Support'] as const).map(role => (
                       <optgroup key={role} label={role}>
                         {HERO_TEST_LIST.filter(([, r]) => r === role).map(([h]) => (
-                          <option key={h} value={h}>{withHeroCount(h, heroCounts)}</option>
+                          <option key={h} value={h} className="uppercase">{withHeroCount(h, heroCounts)}</option>
                         ))}
                       </optgroup>
                     ))}
@@ -501,7 +501,7 @@ export default function LogMatch() {
                         {(['DPS', 'Tank', 'Support'] as const).map(role => (
                           <optgroup key={role} label={role}>
                             {HERO_TEST_LIST.filter(([, rl]) => rl === role).map(([hh]) => (
-                              <option key={hh} value={hh}>{withHeroCount(hh, heroCounts)}</option>
+                              <option key={hh} value={hh} className="uppercase">{withHeroCount(hh, heroCounts)}</option>
                             ))}
                           </optgroup>
                         ))}
@@ -517,7 +517,7 @@ export default function LogMatch() {
               <label className="block text-xs text-[var(--muted)] mb-1.5">Map</label>
               {map ? (
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-[var(--ink)] font-medium">{withMapCount(map, mapCounts)}</span>
+                  <span className="text-sm map-name text-[var(--ink)]">{withMapCount(map, mapCounts)}</span>
                   {mapType && <span data-inspect-id="logmatch-map-type-badge" className={`pill ${TYPE_COLORS[mapType] ?? ''}`}>{mapType}</span>}
                 </div>
               ) : (
@@ -658,8 +658,8 @@ export default function LogMatch() {
                       {r.win ? 'W' : 'L'}
                     </div>
                     <div className="relative z-10 flex-1 min-w-0">
-                      <div className="text-sm font-medium text-[var(--ink)]">{withHeroCount(r.hero, heroCounts)}</div>
-                      <div className="text-xs text-[var(--faint)]">{withMapCount(r.map, mapCounts)}</div>
+                      <div className="text-xs hero-name text-[var(--ink)]">{withHeroCount(r.hero, heroCounts)}</div>
+                      <div className="text-xs map-name text-[var(--faint)]">{withMapCount(r.map, mapCounts)}</div>
                     </div>
                     <div className="relative z-10 flex flex-col items-end gap-0.5 shrink-0">
                       <div className="flex items-center gap-1">

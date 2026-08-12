@@ -19,7 +19,8 @@ export default {
         }
       },
       fontFamily: {
-        display: ['"Big Shoulders Display"', 'system-ui', 'sans-serif'],
+        display: ['Oxanium', 'system-ui', 'sans-serif'],
+        readout: ['"Chakra Petch"', 'system-ui', 'sans-serif'],
         body: ['Barlow', 'system-ui', 'sans-serif'],
         mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
       }

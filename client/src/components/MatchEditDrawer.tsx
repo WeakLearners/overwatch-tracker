@@ -150,7 +150,7 @@ function DrawerForm({ match }: { match: TrendPoint }) {
           {(['DPS', 'Tank', 'Support'] as const).map(role => (
             <optgroup key={role} label={role}>
               {HERO_LIST.filter(([, r]) => r === role).map(([h]) => (
-                <option key={h} value={h}>{withHeroCount(h, heroCounts)}</option>
+                <option key={h} value={h} className="uppercase">{withHeroCount(h, heroCounts)}</option>
               ))}
             </optgroup>
           ))}
@@ -173,7 +173,7 @@ function DrawerForm({ match }: { match: TrendPoint }) {
                     {(['DPS', 'Tank', 'Support'] as const).map(role => (
                       <optgroup key={role} label={role}>
                         {HERO_LIST.filter(([, rr]) => rr === role).map(([hh]) => (
-                          <option key={hh} value={hh}>{hh}</option>
+                          <option key={hh} value={hh} className="uppercase">{hh}</option>
                         ))}
                       </optgroup>
                     ))}
@@ -215,7 +215,7 @@ function DrawerForm({ match }: { match: TrendPoint }) {
           className="w-full field px-3 py-2 text-sm"
         >
           {MAP_LIST.map(m => (
-            <option key={m} value={m}>{withMapCount(m, mapCounts)} ({MAPS[m]})</option>
+            <option key={m} value={m}>{withMapCount(m, mapCounts).toUpperCase()} ({MAPS[m]})</option>
           ))}
         </select>
         {mapType && <span data-inspect-id="matchEditDrawer-map-type-badge" className={`pill mt-1.5 ${TYPE_COLORS[mapType] ?? ''}`}>{mapType}</span>}
