@@ -7,12 +7,16 @@ export const QUEUE_MODES: { value: QueueMode; label: string; short: string }[] =
 ];
 
 // Full Tailwind class strings (JIT requires static class names — don't interpolate).
-// qp = blue, comp_role = red, comp_open = pink.
+// qp = blue, comp_role = red — the game's own queue-select convention (blue
+// Quick Play tile, red Competitive tile), kept recognizable rather than
+// reinvented. comp_open is a third, open-queue variant of Competitive, so it
+// gets a related warm tone (orange, close to the brand accent) instead of a
+// fourth unrelated hue.
 //   selected: pill style · card: selected-card border+bg · accent: label text color
 export const QUEUE_MODE_COLORS: Record<QueueMode, { selected: string; card: string; tileDim: string; accent: string; glow: string; bright: string }> = {
-  qp_role:   { selected: 'border-blue-300 bg-blue-100 text-blue-700 dark:border-blue-500 dark:bg-blue-500/20 dark:text-blue-400', card: 'bg-blue-100 dark:bg-blue-500/40', tileDim: 'bg-blue-500/10 dark:bg-blue-500/20', accent: 'text-blue-600 dark:text-blue-400', glow: 'shadow-[0_10px_30px_-12px_rgba(59,130,246,0.45)]',  bright: 'rgba(147,197,253,0.9)' },
-  comp_role: { selected: 'border-red-300 bg-red-100 text-red-700 dark:border-red-500 dark:bg-red-500/20 dark:text-red-400',   card: 'bg-red-100 dark:bg-red-500/40',   tileDim: 'bg-red-500/10 dark:bg-red-500/20',   accent: 'text-red-600 dark:text-red-400',   glow: 'shadow-[0_10px_30px_-12px_rgba(239,68,68,0.45)]',   bright: 'rgba(252,165,165,0.9)' },
-  comp_open: { selected: 'border-pink-300 bg-pink-100 text-pink-700 dark:border-pink-500 dark:bg-pink-500/20 dark:text-pink-400', card: 'bg-pink-100 dark:bg-pink-500/40', tileDim: 'bg-pink-500/10 dark:bg-pink-500/20', accent: 'text-pink-600 dark:text-pink-400', glow: 'shadow-[0_10px_30px_-12px_rgba(236,72,153,0.45)]', bright: 'rgba(249,168,212,0.9)' },
+  qp_role:   { selected: 'border-sky-400 bg-sky-50 text-sky-700 dark:border-sky-400 dark:bg-sky-500/15 dark:text-sky-300', card: 'bg-sky-50 dark:bg-sky-500/25', tileDim: 'bg-sky-500/5 dark:bg-sky-500/10', accent: 'text-sky-600 dark:text-sky-300', glow: 'shadow-[0_10px_30px_-12px_rgba(56,189,248,0.45)]', bright: 'rgba(125,211,252,0.9)' },
+  comp_role: { selected: 'border-red-400 bg-red-50 text-red-700 dark:border-red-400 dark:bg-red-500/15 dark:text-red-300', card: 'bg-red-50 dark:bg-red-500/25', tileDim: 'bg-red-500/5 dark:bg-red-500/10', accent: 'text-red-600 dark:text-red-300', glow: 'shadow-[0_10px_30px_-12px_rgba(239,68,68,0.45)]', bright: 'rgba(252,165,165,0.9)' },
+  comp_open: { selected: 'border-orange-400 bg-orange-50 text-orange-700 dark:border-orange-400 dark:bg-orange-500/15 dark:text-orange-300', card: 'bg-orange-50 dark:bg-orange-500/25', tileDim: 'bg-orange-500/5 dark:bg-orange-500/10', accent: 'text-orange-600 dark:text-orange-300', glow: 'shadow-[0_10px_30px_-12px_rgba(249,115,22,0.45)]', bright: 'rgba(253,186,116,0.9)' },
 };
 
 // Short tag shown as the big italic mode watermark (the "background lettering").

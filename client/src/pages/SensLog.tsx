@@ -5,7 +5,7 @@ import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { eDPI, MOUSE_DPI } from '../lib/aim';
 import {
-  QueueMode, QUEUE_MODE_COLORS, MODE_TAG, ROLE_COLORS,
+  QueueMode, QUEUE_MODE_COLORS, MODE_TAG, ROLE_COLORS, HEROES,
 } from '../types';
 import { format } from 'date-fns';
 import SensNav from '../components/SensNav';
@@ -37,6 +37,7 @@ interface DpiTestState {
 interface DpiTestSetSummary {
   set_id: number; hero: string | null; active: boolean; completed: boolean;
   batch_size: number; n_stages: number; totalGames: number; created_at: string;
+  values: number[];
 }
 interface AnswerStage {
   stage_index: number; dpi: number; sens: number | null; pct_delta: number;
@@ -89,13 +90,13 @@ function StatFields({ s, upd, updHeroAcc, showHealing, firstDurationRef }: {
             <div className="text-xs font-semibold text-[var(--ink)] mb-1.5">{h.hero}</div>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs text-[var(--muted)] mb-1.5">Duration <span className="text-violet-500">*</span></label>
+                <label className="block text-xs text-[var(--muted)] mb-1.5">Duration <span className="text-ow-accent">*</span></label>
                 <input
                   ref={i === 0 ? firstDurationRef : undefined}
                   type="text" inputMode="numeric" value={h.duration_min}
                   onChange={e => updHeroAcc(i, 'duration_min', e.target.value)}
                   data-inspect-id="sl-hero-duration-input"
-                  className={`${field} num-display ${parseDurationMin(h.duration_min) != null ? '' : 'ring-1 ring-violet-500/60'}`}
+                  className={`${field} num-display ${parseDurationMin(h.duration_min) != null ? '' : 'ring-1 ring-ow-accent/60'}`}
                   placeholder="m:ss" aria-label={`${h.hero} duration, minutes:seconds`} required
                 />
               </div>
@@ -265,6 +266,66 @@ const PHASE4_PLAN = [
   },
 ] as const;
 
+// ── Phase 5 test plan (reference card) ───────────────────────────────────────
+// Same 12-hero roster as Phase 4, each narrowed to a fresh 0.1-sens bracket
+// (tightened down from Phase 4's 0.15 gap). Narrowing is driven by win%,
+// accuracy, elims/min, and dmg/min from each hero's completed Phase 4
+// set — NOT by in-session feel rating, which only measures fast-vs-slow
+// preference and was explicitly ruled out as a signal for "which sens
+// performs better." Sojourn and Shion drop their DPI-varying carve-out and
+// move onto the standard locked-1600-DPI/sens convention like everyone else,
+// now that Sojourn's in-flight set (the reason for the carve-out) is done.
+const PHASE5_PLAN = [
+  {
+    hero: 'Sojourn', archetype: 'Hitscan', senses: [2.56, 2.66], gamesPerSlot: 5,
+    note: 'Phase 4 (1700 vs 1800 dpi) tied on win% but 1700 led on accuracy and elims/min — narrowing toward the 1700-equivalent instead of extending upward.',
+  },
+  {
+    hero: 'Shion', archetype: 'Hitscan', senses: [2.71, 2.81], gamesPerSlot: 5,
+    note: '1800-equivalent edged 1700 on accuracy and elims/min in Phase 4. Staying well clear of the ~2.89 (1850 dpi) zone that already lost decisively in Phase 3 and that you flagged as miserable to play on.',
+  },
+  {
+    hero: 'Pharah', archetype: 'Projectile', senses: [2.42, 2.52], gamesPerSlot: 5,
+    note: 'Phase 4 was decisive: 2.42 beat 2.27 on win% (40→60), accuracy, elims/min, and dmg/min. Pushing further in that direction.',
+  },
+  {
+    hero: 'Tracer', archetype: 'Hitscan', senses: [2.48, 2.58], gamesPerSlot: 5,
+    note: 'Phase 4 feel rating favored the faster 2.73, but win%, accuracy, elims/min, and dmg/min all favored 2.58 instead — narrowing toward the slower value.',
+  },
+  {
+    hero: 'Soldier: 76', archetype: 'Hitscan', senses: [2.53, 2.63], gamesPerSlot: 5,
+    note: 'Phase 4 was a genuine split: win% tied, accuracy favored 2.65, dmg/min favored 2.50. Re-testing narrower around the same midpoint rather than guessing a direction.',
+  },
+  {
+    hero: 'Ana', archetype: 'Projectile', senses: [2.23, 2.33], gamesPerSlot: 5,
+    note: 'No Phase 4 data (set never got games logged) — carrying the same bracket forward, narrowed to a 0.1 gap.',
+  },
+  {
+    hero: 'Juno', archetype: 'Hitscan', senses: [2.50, 2.60], gamesPerSlot: 5,
+    note: 'Reclassified hitscan — moved off the old projectile-split bracket into the hitscan cluster (between Cassidy and Soldier/Tracer). No Phase 4 data to narrow from either way.',
+  },
+  {
+    hero: 'Kiriko', archetype: 'Projectile', senses: [2.58, 2.68], gamesPerSlot: 5,
+    note: 'No Phase 4 data (set never got games logged) — carrying the same bracket forward, narrowed to a 0.1 gap.',
+  },
+  {
+    hero: 'Zenyatta', archetype: 'Projectile', senses: [2.08, 2.18], gamesPerSlot: 5,
+    note: 'No Phase 4 data (set never got games logged) — carrying the same bracket forward, narrowed to a 0.1 gap.',
+  },
+  {
+    hero: 'Cassidy', archetype: 'Hitscan', senses: [2.40, 2.55], gamesPerSlot: 5,
+    note: 'Only 2 games logged in Phase 4 — not enough to narrow. Carried over unchanged so the active set (and its 2 logged games) continues rather than resetting.',
+  },
+  {
+    hero: 'Reaper', archetype: 'Hitscan', senses: [2.65, 2.80], gamesPerSlot: 5,
+    note: 'Only 1 game logged in Phase 4 — not enough to narrow. Carried over unchanged so the active set (and its 1 logged game) continues rather than resetting.',
+  },
+  {
+    hero: 'Baptiste', archetype: 'Hitscan', senses: [2.38, 2.48], gamesPerSlot: 5,
+    note: "New for Phase 5 — never got a test set in Phase 4. Bracketed on the hitscan half of his kit only (revolver/burst rounds); the AoE heal projectile doesn't reward precision the way his gunplay does, so it's excluded from this reasoning.",
+  },
+] as const;
+
 interface PlanHero {
   hero: string; archetype: string; gamesPerSlot: number; note: string;
   dpis?: readonly number[]; senses?: readonly number[];
@@ -286,27 +347,38 @@ const PLAN_TABS: readonly PlanTab[] = [
     key: 'phase4', label: 'Phase 4', plan: PHASE4_PLAN,
     description: `Mouse DPI locked at 1600 permanently — Sojourn's in-flight set stays DPI-varying to finish as started; every other hero varies in-game sens instead (no more 50-unit DPI floor). Pharah/Shion/Tracer target the same eDPI their Phase 3 brackets already found; the rest are heroes with ≥5 games logged and no prior phase data, bracketed on a best guess from archetype alone. ${PHASE4_PLAN.length} heroes × 2 levels, ${PHASE4_PLAN.reduce((sum, h) => sum + valuesOf(h).length * h.gamesPerSlot, 0)} games total.`,
   },
+  {
+    key: 'phase5', label: 'Phase 5', plan: PHASE5_PLAN,
+    description: `Same 12-hero roster as Phase 4, each narrowed to a 0.1-sens bracket (down from Phase 4's 0.15) using win%/accuracy/elims/dmg per stage — not feel rating. Sojourn and Shion move off DPI-varying onto the standard locked-1600-DPI/sens convention. Cassidy and Reaper carry their Phase 4 sets over unchanged (too few games logged to narrow); Ana/Juno/Kiriko/Zenyatta carry their Phase 4 brackets forward narrowed (no data was ever logged). Baptiste is new, bracketed hitscan-only. ${PHASE5_PLAN.length} heroes × 2 levels, ${PHASE5_PLAN.reduce((sum, h) => sum + valuesOf(h).length * h.gamesPerSlot, 0)} games total.`,
+  },
 ];
 
 type HeroTestStatus = 'none' | 'testing' | 'completed';
+
+const sameValues = (a: readonly number[], b: readonly number[]) =>
+  a.length === b.length && a.every((v, i) => Math.abs(v - b[i]) < 0.001);
 
 // A hero's status comes from whichever set is authoritative for it: an active
 // set tagged to this hero (live progress — several heroes can each have one
 // active at once, tested in parallel), otherwise its most recent past set (so
 // "Completed" survives after that hero's active set finishes). Matches a set
-// to this plan entry by hero AND shape (batch size × stage count) — not just
-// hero name — so an earlier phase's completed set for the same hero doesn't
-// get mistaken for this phase's progress.
+// to this plan entry by hero AND the exact bracket values (not just batch
+// size × stage count) — two phases can share the same shape (e.g. 5
+// games/slot × 2 stages) with different DPI/sens targets, so shape alone
+// would mistake an earlier phase's completed set for this phase's progress.
 function statusForHero(
-  hero: string, actives: DpiTestActive[], sets: DpiTestSetSummary[], batchSize: number, nStages: number,
+  hero: string, actives: DpiTestActive[], sets: DpiTestSetSummary[], batchSize: number, values: readonly number[],
 ): { status: HeroTestStatus; totalGames: number; target: number; setId: number | null } {
+  const nStages = values.length;
   const target = batchSize * nStages;
-  const active = actives.find(a => a.hero === hero && a.batch_size === batchSize && a.n_stages === nStages);
+  const active = actives.find(a =>
+    a.hero === hero && a.batch_size === batchSize && a.n_stages === nStages
+    && sameValues(a.stages.map(s => s.sens ?? s.dpi), values));
   if (active) {
     return { status: active.completed ? 'completed' : 'testing', totalGames: active.totalGames, target, setId: active.set_id };
   }
   const past = [...sets]
-    .filter(s => s.hero === hero && s.batch_size === batchSize && s.n_stages === nStages)
+    .filter(s => s.hero === hero && s.batch_size === batchSize && s.n_stages === nStages && sameValues(s.values, values))
     .sort((a, b) => b.set_id - a.set_id)[0];
   if (past && past.totalGames >= target) return { status: 'completed', totalGames: past.totalGames, target, setId: null };
   return { status: 'none', totalGames: 0, target, setId: null };
@@ -321,7 +393,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
   const [tabKey, setTabKey] = useState(tabs[tabs.length - 1].key);
   const { plan, description } = tabs.find(t => t.key === tabKey) ?? tabs[tabs.length - 1];
 
-  const statuses = new Map(plan.map(h => [h.hero, statusForHero(h.hero, actives, sets, h.gamesPerSlot, valuesOf(h).length)]));
+  const statuses = new Map(plan.map(h => [h.hero, statusForHero(h.hero, actives, sets, h.gamesPerSlot, valuesOf(h))]));
   const [cancelling, setCancelling] = useState(false);
 
   async function createSetForHero(h: PlanHero) {
@@ -455,10 +527,22 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
 // form for starting an ad-hoc one.
 function TestPanel({ state }: { state: DpiTestState | null }) {
   const actives = state?.actives ?? [];
+  // Ad-hoc (hero-less) sets have no role to sort by — keep them with DPS.
+  const dpsActives = actives.filter(a => (a.hero ? HEROES[a.hero] : 'DPS') !== 'Support');
+  const supportActives = actives.filter(a => a.hero && HEROES[a.hero] === 'Support');
   return (
-    <div className="space-y-6 mb-6">
-      {actives.map(active => <ActiveTestCard key={active.set_id} active={active} />)}
-      <CreateTestCard />
+    <div className="mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-6">
+          {dpsActives.map(active => <ActiveTestCard key={active.set_id} active={active} />)}
+        </div>
+        <div className="space-y-6">
+          {supportActives.map(active => <ActiveTestCard key={active.set_id} active={active} />)}
+        </div>
+      </div>
+      <div className="mt-6">
+        <CreateTestCard />
+      </div>
     </div>
   );
 }
@@ -771,7 +855,7 @@ function BackfillPanel({ pending, loading }: {
                   <span className={`text-xs font-bold ml-auto ${selected.win ? 'text-emerald-500' : 'text-red-500'}`}>{selected.win ? 'WIN' : 'LOSS'}</span>
                 </div>
                 <div className="flex items-center gap-2 mt-2">
-                  {selected.stage_index != null && <span className="text-[11px] text-violet-500 font-semibold">Stage {selected.stage_index}</span>}
+                  {selected.stage_index != null && <span className="text-[11px] text-ow-accent font-semibold">Stage {selected.stage_index}</span>}
                   <label className="text-[11px] text-[var(--faint)]">Sens</label>
                   <input type="number" step="0.01" min="0" inputMode="decimal" value={sens} onChange={e => setSens(e.target.value)} data-inspect-id="sl-sens-input" className="w-16 field px-2 py-1 text-sm num-display" placeholder="—" aria-label="Sensitivity" />
                   {parseFloat(sens) > 0 && <span className="text-[11px] text-[var(--faint)]">{Math.round(eDPI(parseFloat(sens)))} eDPI</span>}

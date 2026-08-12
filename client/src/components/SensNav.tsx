@@ -12,7 +12,7 @@ export default function SensNav({ dataInspectId }: { dataInspectId?: string }) {
         data-inspect-id={inspectId}
         className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
           active
-            ? 'bg-violet-500/20 text-violet-500 border-violet-500'
+            ? 'bg-ow-accent/20 text-ow-accent border-ow-accent'
             : 'text-[var(--faint)] hover:text-[var(--ink)] border-transparent'
         }`}
       >

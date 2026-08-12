@@ -34,7 +34,7 @@ export default function StarRating({ value, onChange, dataInspectId }: Props) {
               onClick={() => onChange(starIndex)}
               className="absolute inset-y-0 right-0 w-1/2 z-10"
             />
-            <svg viewBox="0 0 24 24" className="w-7 h-7 pointer-events-none text-violet-500">
+            <svg viewBox="0 0 24 24" className="w-7 h-7 pointer-events-none text-ow-accent">
               <defs>
                 <linearGradient id={gradientId}>
                   <stop offset={`${fillPct}%`} stopColor="currentColor" />

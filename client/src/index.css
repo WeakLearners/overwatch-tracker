@@ -3,82 +3,61 @@
 @tailwind utilities;
 
 @layer base {
-  /* ── Light theme (default) ── */
+  /* ── Lifted-panel theme (default/"light") — a raised slate surface, not a
+     paper-white flip, so the HUD identity holds before the toggle. ── */
   :root {
-    --ow-card: 252 250 244;    /* #fcfaf4 raised tile */
-    --ow-darker: 232 225 210;  /* #e8e1d2 recessed */
-    --ow-dark: 239 233 221;    /* #efe9dd */
-    --ow-border: 221 213 195;  /* #ddd5c3 */
-    --surface: #f3eee4;        /* page base */
-    --hdr-ink: #f3eee4;        /* embossed header letter colour */
-    --ink: #292524;            /* primary text */
-    --ink-2: #44403c;
-    --muted: #57534e;
-    --faint: #78716c;
-    --faint-2: #a8a29e;
-    --card-border: rgba(0, 0, 0, 0.07);
-    --card-border-hover: rgba(0, 0, 0, 0.12);
-    --card-shadow: 0 1px 2px rgba(70, 55, 30, 0.05), 0 16px 40px -22px rgba(80, 62, 30, 0.22);
-    /* Form fields: a soft, lightly-recessed well rather than a flat tan block. */
-    --field-bg: #f6f1e7;
-    --field-shadow: inset 0 1px 2px rgba(70, 55, 30, 0.06);
-    /* Embossed header: light-edge + dark shadow lit from the top-left. The
-       stroke is kept very faint here so the lettering reads as soft relief
-       rather than an outlined sticker. */
-    --hdr-stroke: rgba(255, 255, 255, 0.18);
-    --hdr-sh1: rgba(44, 35, 56, 0.6);
-    --hdr-sh2: rgba(46, 37, 60, 0.6);
-      --hdr-hi: rgba(255, 255, 255, 0.75);
-    /* Centered crest watermark: the SVG dropped in /public, masked over the
-       emboss tone below. Swap the filename here to change the logo. */
-    --crest-src: url('/overwatch-logo.svg');
-    /* Crest fill sits a hair off the page surface (#f3eee4) so the body of the
-       logo is faintly visible even on the flat areas — without it the emboss
-       vanishes in light. Bevel: light top-left edge + dark bottom-right. */
-    --crest-fill: #e7dfcd;
-    --crest-hi: rgba(255, 255, 255, 0.95);
-    --crest-sh: rgba(86, 64, 36, 0.42);
+    --ow-card: 255 255 255;     /* #ffffff raised tile */
+    --ow-darker: 226 229 235;   /* #e2e5eb recessed */
+    --ow-dark: 237 239 243;     /* #edeff3 */
+    --ow-border: 210 214 222;   /* #d2d6de */
+    --surface: #eef0f4;
+    --ink: #14161c;
+    --ink-2: #2c2f38;
+    --muted: #565c6b;
+    --faint: #7a8091;
+    --faint-2: #aab0bd;
+    --card-border: rgba(20, 22, 28, 0.08);
+    --card-border-hover: rgba(20, 22, 28, 0.16);
+    /* Layered depth: a tight contact shadow that grounds the panel, plus a
+       soft ambient falloff — reads as a raised tile rather than a flat tint. */
+    --card-shadow: 0 1px 1px rgba(20, 22, 28, 0.04), 0 4px 10px -6px rgba(20, 22, 28, 0.12), 0 20px 40px -24px rgba(20, 22, 28, 0.22);
+    --card-edge: rgba(20, 22, 28, 0.06);
+    --field-bg: #ffffff;
+    --field-shadow: inset 0 1px 2px rgba(20, 22, 28, 0.07);
+    --hud-glow-1: rgba(247, 147, 30, 0.14);
+    --hud-glow-2: rgba(41, 211, 242, 0.10);
   }
 
-  /* ── Dark theme ── */
+  /* ── Tactical-HUD dark theme — gunmetal base, orange/cyan underglow. ── */
   html.dark {
-    --ow-card: 30 30 53;       /* #1E1E35 */
-    --ow-darker: 18 18 31;     /* #12121F */
-    --ow-dark: 26 26 46;       /* #1A1A2E */
-    --ow-border: 42 42 69;     /* #2A2A45 */
-    --surface: #14111f;        /* page base (grounded) */
-    --hdr-ink: #1d1830;        /* closer to the lit, violet-tinted top */
-    --ink: #f5f5f4;
-    --ink-2: #e7e5e4;
-    --muted: #a8a29e;
-    --faint: #78716c;
-    --faint-2: #57534e;
-    --card-border: rgba(255, 255, 255, 0.06);
-    --card-border-hover: rgba(255, 255, 255, 0.14);
-    --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 24px 48px -24px rgba(0, 0, 0, 0.7);
-    --field-bg: #12121f;
-    --field-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
-    /* Dark theme bevel: violet-tinted highlight, deep shadow. */
-    --crest-fill: var(--hdr-ink);
-    --crest-hi: rgba(176, 156, 224, 0.5);
-    --crest-sh: rgba(0, 0, 0, 0.55);
-    /* Outline matches the letter ink (no harsh edge); relief comes from a soft,
-       lighter shade of the background's purple in the shadow. */
-    --hdr-stroke: var(--hdr-ink);
-    --hdr-sh1: rgba(152, 132, 202, 0.4);
-    --hdr-sh2: rgba(146, 126, 196, 0.36);
-      --hdr-hi: rgba(80, 60, 120, 0.3);
+    --ow-card: 29 32 39;        /* #1D2027 panel */
+    --ow-darker: 16 18 22;      /* #101216 recessed well */
+    --ow-dark: 22 24 29;        /* #16181D */
+    --ow-border: 51 56 66;      /* #333842 hairline */
+    --surface: #14161c;         /* gunmetal page base */
+    --ink: #edeff3;             /* primary text */
+    --ink-2: #c6cad2;
+    --muted: #8a8f9c;
+    --faint: #636874;
+    --faint-2: #454a56;
+    --card-border: rgba(255, 255, 255, 0.07);
+    --card-border-hover: rgba(255, 255, 255, 0.16);
+    --card-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 6px 14px -8px rgba(0, 0, 0, 0.5), 0 24px 44px -26px rgba(0, 0, 0, 0.65);
+    --card-edge: rgba(255, 255, 255, 0.08);
+    --field-bg: #101216;
+    --field-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+    --hud-glow-1: rgba(247, 147, 30, 0.22);
+    --hud-glow-2: rgba(41, 211, 242, 0.16);
   }
 
   body {
     @apply antialiased;
+    font-family: 'Barlow', system-ui, sans-serif;
     color: var(--ink);
     background-color: var(--surface);
     background-attachment: fixed;
-  }
-  html.dark body {
-    /* a touch of violet lift on dark, like the original */
-    background-image: radial-gradient(125% 85% at 50% -18%, rgba(139, 92, 246, 0.16), transparent 58%);
+    background-image: radial-gradient(120% 70% at 50% -12%, var(--hud-glow-1), transparent 55%),
+      radial-gradient(90% 60% at 100% 0%, var(--hud-glow-2), transparent 50%);
   }
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -87,37 +66,53 @@
 }
 
 @layer components {
-  /* Header display face — swap the family here (and the <link> in index.html)
-     to try a different blocky/rounded look. */
-  .font-display { font-family: 'Oxanium', system-ui, sans-serif; }
+  /* Header display face — condensed HUD titling. Swap the family here (and
+     the <link> in index.html) to try a different look. */
+  .font-display { font-family: "Big Shoulders Display", system-ui, sans-serif; }
 
-  /* Body headings: the title face, uppercased + italic for a bold, gaming feel.
-     Applied to section/card headers and page titles. */
+  /* Body headings: the condensed HUD face, uppercase with wide tracking —
+     reads like a tactical readout label. Applied to section/card headers. */
   .heading-display {
-    font-family: 'Oxanium', system-ui, sans-serif;
-    font-style: italic;
+    font-family: "Big Shoulders Display", system-ui, sans-serif;
     font-weight: 800;
+    font-stretch: condensed;
     text-transform: uppercase;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.06em;
   }
-  /* Headline stat numbers: same face, italic for sporty numerals (no caps).
-     The right padding gives the slanted trailing glyph (e.g. %) room so the
-     tight gradient text-clip box doesn't shave it. */
+  /* Headline stat numbers: monospace, so columns of stats line up like a
+     data readout rather than display type doing double duty as numerals. */
   .num-display {
-    font-family: 'Oxanium', system-ui, sans-serif;
-    font-style: italic;
-    padding-right: 0.12em;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-weight: 600;
+    padding-right: 0.04em;
   }
 
+  /* Signature panel shape: corners chamfered top-left/bottom-right, echoing
+     the cut-corner ability-icon frames in the game's own UI. This is the one
+     motif every surface (cards, tiles, buttons) shares. */
   .card {
-    @apply rounded-2xl p-5 bg-ow-card transition-colors duration-200;
+    @apply relative p-5 bg-ow-card;
+    clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
     box-shadow: var(--card-shadow);
+    border: 1px solid var(--card-border);
+    transition: color 200ms ease, background-color 200ms ease, border-color 200ms ease;
+  }
+  .card:hover { border-color: var(--card-border-hover); }
+  /* A hairline top-edge highlight — the panel catching light along its
+     upper lip, the detail that sells "raised HUD tile" over "flat rectangle". */
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 14px; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, var(--card-edge), transparent 70%);
+    pointer-events: none;
   }
 
-  /* Inputs & selects: consistent recessed well that reads cleanly in both
-     themes (replaces the flat, muddy tan fill in light mode). */
+  /* Inputs & selects: a recessed well, chamfered to match the panel language. */
   .field {
-    @apply rounded-lg text-[var(--ink)] transition-all duration-150;
+    @apply text-[var(--ink)] transition-all duration-150;
+    clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
     background: var(--field-bg);
     border: 1px solid var(--card-border);
     box-shadow: var(--field-shadow);
@@ -125,43 +120,10 @@
   .field::placeholder { color: var(--faint-2); }
   .field:focus {
     outline: none;
-    border-color: rgba(139, 92, 246, 0.7);
-    box-shadow: var(--field-shadow), 0 0 0 3px rgba(139, 92, 246, 0.15);
+    border-color: rgba(247, 147, 30, 0.7);
+    box-shadow: var(--field-shadow), 0 0 0 3px rgba(247, 147, 30, 0.15);
   }
   .field:disabled { @apply opacity-40 cursor-not-allowed; }
-
-  /* Embossed crest watermark — the same "pressed into the surface" relief as
-     the header, centered and fixed behind the page so the background isn't bare.
-     The logo SVG is used only as an alpha mask; the fill + drop-shadows come
-     from the theme, so it reads identically in light and dark. */
-  .crest-bg {
-    position: fixed;
-    /* Start below the header band so the crest centres in the content body
-       rather than colliding with the OVERWATCH wordmark. */
-    top: 230px;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 0;
-    display: grid;
-    place-items: center;
-    pointer-events: none;
-    overflow: hidden;
-  }
-  .crest-bg::before {
-    content: '';
-    width: min(60vmin, 585px);
-    height: min(60vmin, 585px);
-    background: var(--crest-fill);
-    -webkit-mask: var(--crest-src) center / contain no-repeat;
-            mask: var(--crest-src) center / contain no-repeat;
-    /* Light edge lifted toward the top-left, dark shadow dropped to the
-       bottom-right — the same relief direction as the header crest. */
-    filter:
-      drop-shadow(-1.5px -1.5px 1px var(--crest-hi))
-      drop-shadow(2px 2.5px 2px var(--crest-sh))
-      drop-shadow(4px 6px 7px var(--crest-sh));
-  }
 
   /* Mode-tile log flash: a colored overlay sweeps in, an arrow slides through
      in the win/loss direction, then it clears to reveal the (rolling) number. */
@@ -186,35 +148,55 @@
   .mode-tile:hover {
     box-shadow:
       -1px -1px 0 rgba(255,255,255,0.08),
-      6px 5px 5px var(--hdr-sh1),
-      6px 9px 10px var(--hdr-sh2);
+      6px 5px 12px -2px var(--hud-glow-1),
+      6px 9px 18px -4px var(--hud-glow-2);
   }
 
   .mode-flash      { animation: modeFlashFade 1000ms ease-in-out both; }
   .mode-arrow-up   { animation: modeArrowUp 1000ms cubic-bezier(0.22, 1, 0.36, 1) both; }
   .mode-arrow-down { animation: modeArrowDown 1000ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 
-  .stat-value { @apply text-3xl font-black tracking-tight; color: var(--ink); }
+  .stat-value { @apply text-3xl font-semibold tracking-tight font-mono; color: var(--ink); }
   .stat-label { @apply text-xs uppercase tracking-wider mt-1; color: var(--muted); }
   .win { @apply text-emerald-500; }
   .loss { @apply text-red-500; }
-  .pill { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium; }
+  .pill {
+    @apply inline-flex items-center px-2 py-0.5 text-xs font-medium;
+    clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+  }
 
-  /* Gradient numerals — deep on light, bright on dark. */
-  .grad-brand   { @apply bg-gradient-to-br from-violet-600 to-violet-800 bg-clip-text text-transparent; }
+  /* Gradient numerals — the game's orange/cyan split-tone stands in for
+     "brand"; win/loss stay universal emerald/rose for fast scanning. */
+  .grad-brand   { @apply bg-gradient-to-br from-ow-accent to-ow-blue bg-clip-text text-transparent; }
   .grad-win     { @apply bg-gradient-to-br from-emerald-500 to-emerald-700 bg-clip-text text-transparent; }
   .grad-loss    { @apply bg-gradient-to-br from-rose-500 to-red-700 bg-clip-text text-transparent; }
-  .grad-neutral { @apply bg-gradient-to-br from-stone-600 to-stone-900 bg-clip-text text-transparent; }
-  html.dark .grad-brand   { @apply from-violet-300 to-violet-500; }
+  .grad-neutral { @apply bg-gradient-to-br from-stone-500 to-stone-700 bg-clip-text text-transparent; }
+  html.dark .grad-brand   { @apply from-ow-accentLight to-ow-blue; }
   html.dark .grad-win     { @apply from-emerald-300 to-emerald-500; }
   html.dark .grad-loss    { @apply from-rose-300 to-red-500; }
   html.dark .grad-neutral { @apply from-white to-gray-500; }
 
   .btn-primary {
-    @apply bg-gradient-to-r from-ow-accent to-ow-accentLight text-white font-bold rounded-xl
+    @apply bg-gradient-to-r from-ow-accent to-ow-accentLight text-white font-bold
            shadow-lg shadow-ow-accent/30 transition-all duration-200
-           hover:shadow-ow-accent/40 hover:brightness-110 active:brightness-95
+           hover:shadow-ow-accent/40 hover:brightness-110 hover:-translate-y-px active:brightness-95 active:translate-y-0 active:scale-[0.98]
            disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:hover:brightness-100;
+    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* Page-load cascade: sections settle in with a short stagger instead of
+     popping in all at once. Respects reduced motion. */
+  @keyframes revealUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .reveal {
+    animation: revealUp 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: var(--reveal-delay, 0ms);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .reveal { animation: none; }
   }
 }
 

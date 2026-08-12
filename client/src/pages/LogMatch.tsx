@@ -390,6 +390,42 @@ export default function LogMatch() {
             </button>
           </div>
           <form onSubmit={submit} className="space-y-4" data-inspect-id="logmatch-match-details-form">
+            <div>
+              <label className="block text-xs text-[var(--muted)] mb-1.5">
+                Mode <span className="text-[var(--faint-2)]">— recording this match as</span>
+              </label>
+              <div className="grid grid-cols-3 gap-2" data-inspect-id="logmatch-mode-toggle">
+                {QUEUE_MODES.map(m => {
+                  const active = queueMode === m.value;
+                  const c = QUEUE_MODE_COLORS[m.value];
+                  return (
+                    <button
+                      key={m.value}
+                      type="button"
+                      onClick={() => setQueueMode(m.value)}
+                      className={`relative overflow-hidden py-2 rounded-lg text-xs font-semibold leading-tight transition-all ${
+                        active ? `${c.card} ${c.accent} ${c.glow}` : 'text-[var(--faint)] hover:text-[var(--ink)]'
+                      }`}
+                    >
+                      {/* V5/V6 digits carry more side-bearing than QP's letters,
+                          so they read looser at the same tracking — tighten them
+                          to visually match QP. */}
+                      <ModeWatermark
+                        mode={m.value}
+                        variant="selector"
+                        style={m.value === 'qp_role' ? undefined : { letterSpacing: '-0.13em' }}
+                      />
+                      <div className="relative z-10 font-display italic">{MODE_COMPACT[m.value].top}</div>
+                      <div className="relative z-10 text-[10px] font-normal opacity-80">{MODE_COMPACT[m.value].bot}</div>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-[var(--faint)] mt-1.5 leading-snug">
+                Sens test only tracks Competitive games (any role) and Quickplay games played as Support — everything else logs at the frozen fallback sens instead of the active test value.
+              </p>
+            </div>
+
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs text-[var(--muted)] mb-1.5">Date</label>
@@ -490,39 +526,6 @@ export default function LogMatch() {
             </div>
 
             <div>
-              <label className="block text-xs text-[var(--muted)] mb-1.5">
-                Mode <span className="text-[var(--faint-2)]">— recording this match as</span>
-              </label>
-              <div className="grid grid-cols-3 gap-2" data-inspect-id="logmatch-mode-toggle">
-                {QUEUE_MODES.map(m => {
-                  const active = queueMode === m.value;
-                  const c = QUEUE_MODE_COLORS[m.value];
-                  return (
-                    <button
-                      key={m.value}
-                      type="button"
-                      onClick={() => setQueueMode(m.value)}
-                      className={`relative overflow-hidden py-2 rounded-lg text-xs font-semibold leading-tight transition-all ${
-                        active ? `${c.card} ${c.accent} ${c.glow}` : 'text-[var(--faint)] hover:text-[var(--ink)]'
-                      }`}
-                    >
-                      {/* V5/V6 digits carry more side-bearing than QP's letters,
-                          so they read looser at the same tracking — tighten them
-                          to visually match QP. */}
-                      <ModeWatermark
-                        mode={m.value}
-                        variant="selector"
-                        style={m.value === 'qp_role' ? undefined : { letterSpacing: '-0.13em' }}
-                      />
-                      <div className="relative z-10 font-display italic">{MODE_COMPACT[m.value].top}</div>
-                      <div className="relative z-10 text-[10px] font-normal opacity-80">{MODE_COMPACT[m.value].bot}</div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div>
               <label data-inspect-id="logmatch-result-toggle" className="block text-xs text-[var(--muted)] mb-1.5">Result</label>
               <div className="relative flex h-[3.25rem] w-full rounded-lg overflow-hidden">
                 {/* Sliding fill — animates to the selected half and takes its color;
@@ -608,7 +611,7 @@ export default function LogMatch() {
                       step={1}
                       value={feelFor(h)}
                       onChange={e => setFeelFor(h, Number(e.target.value))}
-                      className="w-full accent-violet-500"
+                      className="w-full accent-ow-accent"
                       aria-label={`Feel — slow to fast — ${h}`}
                       data-inspect-id="logmatch-feel-slider"
                     />

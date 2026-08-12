@@ -189,9 +189,13 @@ export default function Dashboard() {
 
   return (
     <div>
-      {modeComparison && <ModeComparisonCard data={modeComparison} />}
+      {modeComparison && (
+        <div className="reveal" style={{ '--reveal-delay': '0ms' } as React.CSSProperties}>
+          <ModeComparisonCard data={modeComparison} />
+        </div>
+      )}
 
-      <div className="card mb-6" data-inspect-id="dash-recent-matches-card">
+      <div className="card reveal mb-6" style={{ '--reveal-delay': '60ms' } as React.CSSProperties} data-inspect-id="dash-recent-matches-card">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <h2 className="text-sm heading-display text-[var(--ink-2)]">Recent Matches</h2>
@@ -273,7 +277,7 @@ export default function Dashboard() {
         )}
       </div>
 
-      <div className="mt-8 border-t border-ow-border pt-6">
+      <div className="mt-8 border-t border-ow-border pt-6 reveal" style={{ '--reveal-delay': '120ms' } as React.CSSProperties}>
         <PageHeader dataInspectId="dash-match-section-header" title="Match" sub="Prep with the advisor, then log the result.">
           {/* Links to the (otherwise unlinked) sensitivity-study pages, on the
               right of the section header. Open in a new tab so the dashboard
@@ -281,7 +285,8 @@ export default function Dashboard() {
           <a
             href="/sens" target="_blank" rel="noreferrer"
             data-inspect-id="dash-log-sens-stats-link"
-            className="shrink-0 bg-ow-card rounded-2xl px-4 py-2 text-sm heading-display text-[var(--ink)] hover:text-ow-accent transition-colors shadow-[var(--card-shadow)]"
+            className="shrink-0 bg-ow-card border border-ow-border px-4 py-2 text-sm heading-display text-[var(--ink)] hover:text-ow-accent transition-colors shadow-[var(--card-shadow)]"
+            style={{ clipPath: 'polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)' }}
           >
             Log sens stats
           </a>
@@ -290,37 +295,38 @@ export default function Dashboard() {
         <div className="contents" data-inspect-id="dash-logmatch-section"><LogMatch /></div>
       </div>
 
-      <div className="mt-8 border-t border-ow-border pt-6">
+      <div className="mt-8 border-t border-ow-border pt-6 reveal" style={{ '--reveal-delay': '180ms' } as React.CSSProperties}>
         <PageHeader dataInspectId="dash-trends-section-header" title="Trends" sub="Recent form and momentum." />
         <TrendsSummary />
       </div>
 
-      <div className="mt-8 border-t border-ow-border pt-6">
+      <div className="mt-8 border-t border-ow-border pt-6 reveal" style={{ '--reveal-delay': '240ms' } as React.CSSProperties}>
         <PageHeader dataInspectId="dash-career-section-header" title="Career" sub="All-time totals across every mode." />
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-        <StatCard dataInspectId="dash-stat-total-games" label="Total Games" value={overview?.total ?? '—'} />
-        <StatCard
-          dataInspectId="dash-stat-win-rate"
-          label="Win Rate"
-          value={overview ? overview.win_rate : '—'}
-          decimals={1}
-          suffix="%"
-          color={overview && overview.win_rate >= 50 ? 'win' : 'loss'}
-        />
-        <StatCard dataInspectId="dash-stat-wins" label="Wins" value={overview?.wins ?? '—'} color="win" />
-        <StatCard dataInspectId="dash-stat-losses" label="Losses" value={overview ? overview.total - overview.wins : '—'} color="loss" />
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard dataInspectId="dash-stat-heroes-played" label="Heroes Played" value={overview?.heroes_played ?? '—'} />
-        <StatCard dataInspectId="dash-stat-maps-played" label="Maps Played" value={overview?.maps_played ?? '—'} />
-        <StatCard
-          dataInspectId="dash-stat-current-streak"
-          label="Current Streak"
-          value={streaks ? `${streaks.currentStreak} ${streaks.currentStreakType === 1 ? 'W' : 'L'}` : '—'}
-          color={streaks?.currentStreakType === 1 ? 'win' : 'loss'}
-        />
-        <StatCard dataInspectId="dash-stat-longest-win-streak" label="Longest Win Streak" value={streaks?.longestWin ?? '—'} color="win" />
+        {/* One continuous readout strip rather than two stacked 4-tile grids —
+            all eight career totals scan as a single row on wide screens. */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+          <StatCard compact dataInspectId="dash-stat-total-games" label="Total Games" value={overview?.total ?? '—'} />
+          <StatCard
+            compact
+            dataInspectId="dash-stat-win-rate"
+            label="Win Rate"
+            value={overview ? overview.win_rate : '—'}
+            decimals={1}
+            suffix="%"
+            color={overview && overview.win_rate >= 50 ? 'win' : 'loss'}
+          />
+          <StatCard compact dataInspectId="dash-stat-wins" label="Wins" value={overview?.wins ?? '—'} color="win" />
+          <StatCard compact dataInspectId="dash-stat-losses" label="Losses" value={overview ? overview.total - overview.wins : '—'} color="loss" />
+          <StatCard compact dataInspectId="dash-stat-heroes-played" label="Heroes Played" value={overview?.heroes_played ?? '—'} />
+          <StatCard compact dataInspectId="dash-stat-maps-played" label="Maps Played" value={overview?.maps_played ?? '—'} />
+          <StatCard
+            compact
+            dataInspectId="dash-stat-current-streak"
+            label="Current Streak"
+            value={streaks ? `${streaks.currentStreak} ${streaks.currentStreakType === 1 ? 'W' : 'L'}` : '—'}
+            color={streaks?.currentStreakType === 1 ? 'win' : 'loss'}
+          />
+          <StatCard compact dataInspectId="dash-stat-longest-win-streak" label="Longest Win Streak" value={streaks?.longestWin ?? '—'} color="win" />
         </div>
       </div>
     </div>

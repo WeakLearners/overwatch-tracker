@@ -34,7 +34,7 @@ interface Analysis {
   heroes: HeroRow[];
 }
 
-const FEEL = '#8b5cf6';
+const FEEL = '#F7931E';
 
 // created_at is stored as a bare UTC datetime('now') string (no 'Z'); append
 // it before parsing so the browser doesn't mistake it for local time.
@@ -585,7 +585,7 @@ export default function SensAnalysis() {
         <p className="text-sm text-[var(--ink)]">No aim data yet.</p>
         <p className="text-xs text-[var(--faint)] mt-1.5">
           Log matches with their sensitivity, then record each one's stats on the{' '}
-          <span className="text-violet-500">Enter Stats</span> tab. Once a few sens values
+          <span className="text-ow-accent">Enter Stats</span> tab. Once a few sens values
           are on the board, this page fills in — the sens→performance curve, the
           feel-vs-data comparison, and the hitscan/projectile split.
         </p>
@@ -667,13 +667,13 @@ export default function SensAnalysis() {
         dataInspectId="sensAnalysis-recommendation-card"
       >
         <div className="flex items-start gap-3 flex-wrap">
-          <span data-inspect-id="sensAnalysis-recommendation-verdict-badge" className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${recommendation.verdict === 'narrow' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-violet-500/15 text-violet-500'}`}>
+          <span data-inspect-id="sensAnalysis-recommendation-verdict-badge" className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${recommendation.verdict === 'narrow' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-ow-accent/15 text-ow-accent'}`}>
             <span data-inspect-id="sensAnalysis-recommendation-badge">{recommendation.verdict === 'narrow' ? 'Narrow focus' : 'Continue testing'}</span>
           </span>
           <p className="text-sm text-[var(--ink)] font-semibold flex-1 min-w-[200px]">{recommendation.headline}</p>
         </div>
         {recommendation.points.length > 0 && (
-          <ul className="space-y-2 text-sm text-[var(--ink-2)] list-disc list-inside marker:text-violet-500 mt-3" data-inspect-id="sensAnalysis-recommendation-points-list">
+          <ul className="space-y-2 text-sm text-[var(--ink-2)] list-disc list-inside marker:text-ow-accent mt-3" data-inspect-id="sensAnalysis-recommendation-points-list">
             {recommendation.points.map((p, i) => <li key={i}>{p}</li>)}
           </ul>
         )}
@@ -686,7 +686,7 @@ export default function SensAnalysis() {
         dataInspectId="sensAnalysis-data-shows-card"
       >
         {insights.length > 0 ? (
-          <ul className="space-y-2.5 text-sm text-[var(--ink-2)] list-disc list-inside marker:text-violet-500" data-inspect-id="sensAnalysis-insights-list">
+          <ul className="space-y-2.5 text-sm text-[var(--ink-2)] list-disc list-inside marker:text-ow-accent" data-inspect-id="sensAnalysis-insights-list">
             {insights.map((note, i) => <li key={i}>{note}</li>)}
           </ul>
         ) : (
@@ -736,7 +736,7 @@ export default function SensAnalysis() {
           dataInspectId="sensAnalysis-peak-sens-by-category-chart sensAnalysis-peak-sens-card"
         >
           <div className="flex items-start gap-3 flex-wrap mb-3">
-            <span data-inspect-id="sensAnalysis-peak-sens-verdict-badge" className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${spread.verdict === 'scattered' ? 'bg-amber-500/15 text-amber-500' : spread.verdict === 'grouped' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-violet-500/15 text-violet-500'}`}>
+            <span data-inspect-id="sensAnalysis-peak-sens-verdict-badge" className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${spread.verdict === 'scattered' ? 'bg-amber-500/15 text-amber-500' : spread.verdict === 'grouped' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-ow-accent/15 text-ow-accent'}`}>
               <span data-inspect-id="sensAnalysis-peak-sens-badge">{spread.verdict === 'scattered' ? 'Split may help' : spread.verdict === 'grouped' ? 'One sens fits all' : 'Not enough data'}</span>
             </span>
             <p className="text-sm text-[var(--ink)] font-semibold flex-1 min-w-[200px]">{spread.headline}</p>

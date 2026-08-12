@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { useApi } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
-import { MAPS, QUEUE_MODES, ROLE_COLORS, TYPE_COLORS, MapVotingRow, Streaks } from '../types';
+import { MAPS, QUEUE_MODES, ROLE_COLORS, TYPE_COLORS, HEROES, MapVotingRow, Streaks } from '../types';
 import AdvisorCard from '../components/AdvisorCard';
 import EmptyState from '../components/EmptyState';
 import { useMapDrawer } from '../contexts/MapDrawerContext';
@@ -21,15 +21,6 @@ interface DpiTestHud {
     set_id: number; hero: string | null; cur_stage: number; n_stages: number; totalGames: number;
     batch_size: number; games_on_stage: number; dpi: number | null; sens: number | null;
   }[];
-}
-
-// Every stage-test set ever created (active or not) — used to find heroes
-// whose most recent set already finished, so "Select Your Hero" can keep
-// showing them (marked Completed) instead of them just vanishing the moment
-// their set auto-retires.
-interface DpiTestSetSummary {
-  set_id: number; hero: string | null; active: boolean; completed: boolean;
-  batch_size: number; n_stages: number; totalGames: number; created_at: string;
 }
 
 const ALL_MAPS = Object.keys(MAPS).sort();
@@ -69,7 +60,6 @@ export default function Prematch() {
   const { queueMode, map, setMap, mapType, rec, recLoading, recError, refreshRec, setPendingHero, matchLoggedSignal } = useMatch();
   const { data: dpiHud } = useApi<DpiTestHud>('/api/blind/state');
   const btActives = dpiHud?.actives ?? [];
-  const { data: dpiSets } = useApi<{ sets: DpiTestSetSummary[] }>('/api/blind/sets');
   // Several heroes can be "In Testing" at once, but the mouse can only be set
   // to one DPI at a time — so the HUD tracks whichever hero you're about to
   // play next, not an aggregate across all of them. Persisted so the choice
@@ -110,7 +100,6 @@ export default function Prematch() {
   const [selected, setSelected] = useState<string[]>([]);
   const [query, setQuery]       = useState('');
   const [open, setOpen]         = useState(false);
-  const [expandedOther, setExpandedOther] = useState<string | null>(null);
   // Which hero card in "Select Your Hero" is currently picked, kept
   // separately from the context's `pendingHero` — that one is a one-shot
   // signal LogMatch consumes and clears the instant it pre-fills the form,
@@ -183,28 +172,14 @@ export default function Prematch() {
   const winner  = ranked[0];
   const topOnMap = data?.byHero ?? [];
   // "Select Your Hero" surfaces heroes with an active (in-testing) DPI test —
-  // picking here is meant to feed a test, not just log any match.
+  // picking here is meant to feed a test, not just log any match. Heroes
+  // whose set has already completed drop out entirely rather than lingering
+  // with a Completed badge.
   const inTestingHeroes = new Set(btActives.map(a => a.hero).filter((h): h is string => !!h));
-  // Heroes whose most recent stage-test set already finished (and so auto-
-  // retired — active=0) stay visible here too, marked Completed, rather than
-  // vanishing from the picker the moment their set wraps up. "Most recent"
-  // mirrors SensLog's statusForHero: an older completed set doesn't override
-  // a hero's current in-progress one.
-  const latestSetByHero = new Map<string, DpiTestSetSummary>();
-  for (const s of dpiSets?.sets ?? []) {
-    if (!s.hero) continue;
-    const cur = latestSetByHero.get(s.hero);
-    if (!cur || s.set_id > cur.set_id) latestSetByHero.set(s.hero, s);
-  }
-  const completedHeroes = new Set(
-    [...latestSetByHero.values()].filter(s => s.completed && !inTestingHeroes.has(s.hero!)).map(s => s.hero!),
-  );
-  const selectableHeroes = new Set([...inTestingHeroes, ...completedHeroes]);
-  // Every hero surfaced below is, by construction, either actively testing
-  // (has a sens/DPI value here) or already completed (no active set to read a
-  // value from — see the Completed badge instead). Sens supersedes DPI
-  // post-lock; DPI is the fallback for any pre-lock stage still running on
-  // the old axis.
+  const selectableHeroes = inTestingHeroes;
+  // Every hero surfaced below is actively testing, so always has a sens/DPI
+  // value here. Sens supersedes DPI post-lock; DPI is the fallback for any
+  // pre-lock stage still running on the old axis.
   const testValueFor = (hero: string): string | null => {
     const a = btActives.find(a => a.hero === hero);
     if (!a) return null;
@@ -212,23 +187,17 @@ export default function Prematch() {
     return v != null ? v.toFixed(2) : null;
   };
 
-  // For each role, show up to 5 qualified heroes (>=2 games), then roll the
-  // remaining heroes on this map into a single combined "Other heroes" slot.
-  const MIN_GAMES = 2;
-  const TOP_N = 5;
+  // For each role, list every hero with an active sens test — no top-N cap,
+  // no collapsed overflow bucket. topOnMap only has rows for heroes with at
+  // least one logged game on this exact map, so an active-test hero with zero
+  // games here needs a synthetic zero-row or it'd silently vanish.
   function buildRole(role: string) {
-    const all = topOnMap.filter(h => h.role === role && selectableHeroes.has(h.hero)); // already win_rate desc
-    const top = all.filter(h => h.games >= MIN_GAMES).slice(0, TOP_N);
-    const topSet = new Set(top.map(h => h.hero));
-    const rest = all.filter(h => !topSet.has(h.hero));
-    let other: { games: number; wins: number; win_rate: number; count: number; tooltip: string } | null = null;
-    if (top.length < TOP_N && rest.length > 0) {
-      const games = rest.reduce((s, h) => s + h.games, 0);
-      const wins  = rest.reduce((s, h) => s + (h.wins ?? 0), 0);
-      const tooltip = rest.map(h => `${withHeroCount(h.hero, heroCounts)} ${h.win_rate}% (${h.games}g)`).join('\n');
-      other = { games, wins, win_rate: games ? Math.round((wins / games) * 1000) / 10 : 0, count: rest.length, tooltip };
-    }
-    return { top, other };
+    const onMap = topOnMap.filter(h => h.role === role && selectableHeroes.has(h.hero)); // already win_rate desc
+    const onMapSet = new Set(onMap.map(h => h.hero));
+    const zeroGame = [...selectableHeroes]
+      .filter(h => HEROES[h] === role && !onMapSet.has(h))
+      .map(hero => ({ hero, role, games: 0, wins: 0, win_rate: 0 }));
+    return [...onMap, ...zeroGame];
   }
   const byRole = {
     DPS:     buildRole('DPS'),
@@ -680,17 +649,17 @@ export default function Prematch() {
             selection panel — bordered, tinted, chip buttons — rather than a
             trailing stats list, so it doesn't get missed after Coaching above it. */}
         <div className="mt-4 pt-4 border-t border-ow-border/40">
-        <div className="rounded-xl bg-violet-500/[0.06] px-4 py-3.5">
+        <div className="rounded-xl bg-ow-accent/[0.06] px-4 py-3.5">
         <h3 className="text-sm grad-brand font-black uppercase tracking-widest mb-3" data-inspect-id="prematch-select-your-hero-header">Select Your Hero</h3>
         {selectableHeroes.size > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" data-inspect-id="prematch-hero-picker-list">
             {(['DPS', 'Support'] as const).map(role => {
-              const { top, other } = byRole[role];
+              const heroes = byRole[role];
               return (
                 <div key={role}>
                   <div className={`text-xs font-bold uppercase tracking-widest mb-2 ${ROLE_COLORS[role].split(' ')[1]}`}>{role}</div>
                   <div className="flex flex-col gap-1.5">
-                    {top.map(h => (
+                    {heroes.map(h => (
                       <button
                         key={h.hero}
                         onClick={() => { setSelectedHero(h.hero); setPendingHero(h.hero); }}
@@ -698,65 +667,19 @@ export default function Prematch() {
                         aria-pressed={selectedHero === h.hero}
                         className={`flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-lg border active:scale-[0.98] transition-all group ${
                           selectedHero === h.hero
-                            ? 'border-violet-500 bg-violet-500/15'
-                            : 'border-ow-border bg-ow-darker hover:border-violet-500/70 hover:bg-violet-500/10'
+                            ? 'border-ow-accent bg-ow-accent/15'
+                            : 'border-ow-border bg-ow-darker hover:border-ow-accent/70 hover:bg-ow-accent/10'
                         }`}
                       >
                         <span className={`text-sm ${h.win_rate >= 50 ? 'text-emerald-700' : 'text-red-500'}`}>{h.win_rate >= 50 ? '↑' : '↓'}</span>
-                        <span className={`flex-1 text-sm font-semibold transition-colors ${selectedHero === h.hero ? 'text-violet-500' : 'text-[var(--ink)] group-hover:text-violet-500'}`}>
+                        <span className={`flex-1 text-sm font-semibold transition-colors ${selectedHero === h.hero ? 'text-ow-accent' : 'text-[var(--ink)] group-hover:text-ow-accent'}`}>
                           {withHeroCount(h.hero, heroCounts)}{testValueFor(h.hero) && ` @ ${testValueFor(h.hero)}`}
                         </span>
-                        {completedHeroes.has(h.hero) && (
-                          <span className="text-[9px] font-bold uppercase tracking-wide text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded-full shrink-0">Completed</span>
-                        )}
                         <span className={`text-sm font-semibold ${h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
                         <span className="text-xs text-[var(--faint-2)] w-7 text-right">{h.games}g</span>
                       </button>
                     ))}
-                    {other && (() => {
-                      const isOpen = expandedOther === role;
-                      const rest = topOnMap.filter(h => h.role === role && selectableHeroes.has(h.hero) && !byRole[role].top.find(t => t.hero === h.hero));
-                      return (
-                        <>
-                          <button
-                            onClick={() => setExpandedOther(isOpen ? null : role)}
-                            className="flex items-center gap-3 w-full text-left px-3 py-2 rounded-lg border border-dashed border-ow-border/70 hover:border-violet-500/50 hover:bg-white/5 transition-colors group"
-                            data-inspect-id="prematch-other-heroes-toggle"
-                          >
-                            <span className={`text-sm transition-transform ${isOpen ? 'rotate-90' : ''} text-[var(--faint-2)]`}>›</span>
-                            <span className="flex-1 text-sm font-medium text-[var(--faint)] italic group-hover:text-[var(--ink)] transition-colors">
-                              Other heroes <span className="not-italic text-[var(--faint-2)]">({other.count})</span>
-                            </span>
-                            <span className={`text-sm font-semibold ${other.win_rate >= 60 ? 'text-emerald-600' : other.win_rate >= 50 ? 'text-ow-blue' : other.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{other.win_rate}%</span>
-                            <span className="text-xs text-[var(--faint-2)] w-7 text-right">{other.games}g</span>
-                          </button>
-                          {isOpen && rest.map(h => (
-                            <button
-                              key={h.hero}
-                              onClick={() => { setSelectedHero(h.hero); setPendingHero(h.hero); }}
-                              data-inspect-id="prematch-hero-picker-button"
-                              aria-pressed={selectedHero === h.hero}
-                              className={`flex items-center gap-3 w-full text-left pl-6 pr-3 py-2 ml-2 rounded-lg border active:scale-[0.98] transition-all group ${
-                                selectedHero === h.hero
-                                  ? 'border-violet-500 bg-violet-500/15'
-                                  : 'border-ow-border/60 bg-ow-darker/60 hover:border-violet-500/70 hover:bg-violet-500/10'
-                              }`}
-                            >
-                              <span className={`text-sm ${h.win_rate >= 50 ? 'text-emerald-700' : 'text-red-500'}`}>{h.win_rate >= 50 ? '↑' : '↓'}</span>
-                              <span className={`flex-1 text-sm transition-colors ${selectedHero === h.hero ? 'text-violet-500' : 'text-[var(--muted)] group-hover:text-violet-500'}`}>
-                                {withHeroCount(h.hero, heroCounts)}{testValueFor(h.hero) && ` @ ${testValueFor(h.hero)}`}
-                              </span>
-                              {completedHeroes.has(h.hero) && (
-                                <span className="text-[9px] font-bold uppercase tracking-wide text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded-full shrink-0">Completed</span>
-                              )}
-                              <span className={`text-sm font-semibold ${h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
-                              <span className="text-xs text-[var(--faint-2)] w-7 text-right">{h.games}g</span>
-                            </button>
-                          ))}
-                        </>
-                      );
-                    })()}
-                    {top.length === 0 && !other && (
+                    {heroes.length === 0 && (
                       <div className="py-2 text-xs text-[var(--faint-2)]">No games yet</div>
                     )}
                   </div>
