@@ -51,17 +51,17 @@ function getDayOfWeek(dateStr: string) {
   return days[new Date(dateStr + 'T12:00:00').getDay()];
 }
 
-// Smooth-scroll so the Coaching → Match Details block sits centred in the
-// viewport (falls back to the Match Details card if Coaching isn't shown).
+// Smooth-scroll so a single element sits centred in the viewport. Map pick
+// and hero pick each centre a different landmark (Coaching, then Match
+// Details) rather than one shared midpoint — falls back to Match Details if
+// the requested id isn't rendered yet.
 // Note: scrollTo is called directly — wrapping it in requestAnimationFrame gets
 // swallowed here, so callers handle any "wait for layout" delay themselves.
-function centerLogArea() {
-  const bottomEl = document.getElementById('match-details');
-  if (!bottomEl) return;
-  const topEl = document.getElementById('coaching') ?? bottomEl;
-  const top = topEl.getBoundingClientRect().top + window.scrollY;
-  const bottom = bottomEl.getBoundingClientRect().bottom + window.scrollY;
-  const target = (top + bottom) / 2 - window.innerHeight / 2;
+function centerOnElement(id: string) {
+  const el = document.getElementById(id) ?? document.getElementById('match-details');
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  const target = rect.top + window.scrollY + rect.height / 2 - window.innerHeight / 2;
   window.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
 }
 
@@ -187,22 +187,24 @@ export default function LogMatch() {
   }, []);
 
   // A hero tapped in the Pre-Match hero list pre-fills the form here, then we
-  // centre the Coaching → Match Details block so the auto-fill is visible.
+  // centre Match Details so the auto-fill is visible.
   useEffect(() => {
     if (pendingHero) {
       setForm(f => ({ ...f, hero: pendingHero }));
       setPendingHero(null);
-      centerLogArea();
+      centerOnElement('match-details');
     }
   }, [pendingHero, setPendingHero]);
 
-  // Picking a map from the Hero Advisor dropdown brings the Coaching → Match
-  // Details block into a centred view, ready to review and log. The short delay
-  // lets the map's hero list finish loading so the block is at full height
-  // before we measure and centre it.
+  // Picking a map from the Hero Advisor dropdown brings the whole
+  // Consolidated Advisor card into a centred view first — not just the
+  // Coaching sub-section — so its header and pick are visible too, ready to
+  // review before a hero is chosen. The short delay lets the map's hero list
+  // finish loading so the page is at full height before we measure and
+  // centre it.
   useEffect(() => {
     if (!map) return;
-    const t = setTimeout(centerLogArea, 350);
+    const t = setTimeout(() => centerOnElement('consolidated-advisor'), 350);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map]);
@@ -478,9 +480,14 @@ export default function LogMatch() {
                     <option value="">— 1st hero —</option>
                     {(['DPS', 'Tank', 'Support'] as const).map(role => (
                       <optgroup key={role} label={role}>
-                        {HERO_TEST_LIST.filter(([, r]) => r === role).map(([h]) => (
-                          <option key={h} value={h} className="uppercase">{withHeroCount(h, heroCounts)}</option>
-                        ))}
+                        {HERO_TEST_LIST.filter(([, r]) => r === role).map(([h]) => {
+                          const heroSens = sensForHero(h);
+                          return (
+                            <option key={h} value={h} className="uppercase">
+                              {withHeroCount(h, heroCounts)}{heroSens != null && ` @ ${heroSens.toFixed(2)}`}
+                            </option>
+                          );
+                        })}
                       </optgroup>
                     ))}
                   </select>

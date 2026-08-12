@@ -533,7 +533,7 @@ export default function Prematch() {
           card below the row. When a map is picked these three used to repeat the
           same "what to play" answer across separate cards; here they read as one
           flow: the pick, the coaching behind it, then the full breakdown. */}
-      <div className="card" data-inspect-id="prematch-consolidated-advisor-card">
+      <div id="consolidated-advisor" className="card" data-inspect-id="prematch-consolidated-advisor-card">
         <div className="flex items-start justify-between gap-3 mb-1">
           <div>
             <h2 className="text-sm heading-display text-[var(--ink-2)]">
