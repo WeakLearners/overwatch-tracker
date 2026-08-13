@@ -156,6 +156,16 @@ function initSchema(db: DatabaseSync) {
     db.exec(`ALTER TABLE aim_stats_heroes ADD COLUMN duration_min INTEGER`);
   }
 
+  // extra_acc: optional 4th accuracy reading for heroes whose kit needs more
+  // than overall/crit to describe (Sojourn's Charged Shot Crit %, Soldier: 76's
+  // Helix Rocket %, ...) — the label is chosen per hero in the form, this
+  // column just holds whatever number that hero's 4th field produced.
+  if (heroCols.find(c => c.name === 'charged_crit_acc') && !heroCols.find(c => c.name === 'extra_acc')) {
+    db.exec(`ALTER TABLE aim_stats_heroes RENAME COLUMN charged_crit_acc TO extra_acc`);
+  } else if (!heroCols.find(c => c.name === 'extra_acc')) {
+    db.exec(`ALTER TABLE aim_stats_heroes ADD COLUMN extra_acc REAL`);
+  }
+
   db.exec(`
     INSERT INTO aim_stats_heroes (match_id, hero, overall_acc, crit_acc, duration_min)
     SELECT a.match_id, m.hero, a.overall_acc, a.crit_acc, a.duration_min

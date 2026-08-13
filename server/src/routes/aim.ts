@@ -315,17 +315,18 @@ router.post('/', (req: Request, res: Response) => {
   });
 
   const insertHeroAcc = db.prepare(`
-    INSERT INTO aim_stats_heroes (match_id, hero, overall_acc, crit_acc, duration_min)
-    VALUES (:match_id, :hero, :overall_acc, :crit_acc, :duration_min)
+    INSERT INTO aim_stats_heroes (match_id, hero, overall_acc, crit_acc, extra_acc, duration_min)
+    VALUES (:match_id, :hero, :overall_acc, :crit_acc, :extra_acc, :duration_min)
     ON CONFLICT(match_id, hero) DO UPDATE SET
       overall_acc  = excluded.overall_acc,
       crit_acc     = excluded.crit_acc,
+      extra_acc    = excluded.extra_acc,
       duration_min = excluded.duration_min
   `);
   for (const h of heroList) {
     insertHeroAcc.run({
       match_id, hero: h.hero, overall_acc: h.overall_acc ?? null, crit_acc: h.crit_acc ?? null,
-      duration_min: h.duration_min ?? null,
+      extra_acc: h.extra_acc ?? null, duration_min: h.duration_min ?? null,
     });
   }
 
