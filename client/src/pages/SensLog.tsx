@@ -101,12 +101,12 @@ function StatFields({ s, upd, updHeroAcc, showHealing, firstDurationRef }: {
                 />
               </div>
               <div>
-                <label className="block text-xs text-[var(--muted)] mb-1.5">Overall %</label>
-                <input type="number" step="0.1" min="0" max="100" inputMode="decimal" value={h.overall_acc} onChange={e => updHeroAcc(i, 'overall_acc', e.target.value)} data-inspect-id="sl-overall-acc-input" className={field} placeholder="e.g. 41.2" aria-label={`${h.hero} overall accuracy %`} />
+                <label className="block text-xs text-[var(--muted)] mb-1.5">{h.hero === 'Ana' ? 'Scoped Accuracy %' : 'Overall %'}</label>
+                <input type="number" step="0.1" min="0" max="100" inputMode="decimal" value={h.overall_acc} onChange={e => updHeroAcc(i, 'overall_acc', e.target.value)} data-inspect-id="sl-overall-acc-input" className={field} placeholder="e.g. 41.2" aria-label={`${h.hero} ${h.hero === 'Ana' ? 'scoped accuracy' : 'overall accuracy'} %`} />
               </div>
               <div>
-                <label className="block text-xs text-[var(--muted)] mb-1.5">Crit %</label>
-                <input type="number" step="0.1" min="0" max="100" inputMode="decimal" value={h.crit_acc} onChange={e => updHeroAcc(i, 'crit_acc', e.target.value)} data-inspect-id="sl-crit-acc-input" className={field} placeholder="e.g. 22.5" aria-label={`${h.hero} crit accuracy %`} />
+                <label className="block text-xs text-[var(--muted)] mb-1.5">{h.hero === 'Ana' ? 'Sleep Dart Accuracy %' : 'Crit %'}</label>
+                <input type="number" step="0.1" min="0" max="100" inputMode="decimal" value={h.crit_acc} onChange={e => updHeroAcc(i, 'crit_acc', e.target.value)} data-inspect-id="sl-crit-acc-input" className={field} placeholder="e.g. 22.5" aria-label={`${h.hero} ${h.hero === 'Ana' ? 'sleep dart accuracy' : 'crit accuracy'} %`} />
               </div>
             </div>
           </div>
@@ -857,7 +857,7 @@ function BackfillPanel({ pending, loading }: {
                 <div className="flex items-center gap-2 mt-2">
                   {selected.stage_index != null && <span className="text-[11px] text-ow-accent font-bold">Stage {selected.stage_index}</span>}
                   <label className="text-[11px] text-[var(--faint)]">Sens</label>
-                  <input type="number" step="0.01" min="0" inputMode="decimal" value={sens} onChange={e => setSens(e.target.value)} data-inspect-id="sl-sens-input" className="w-16 field px-2 py-1 text-sm num-display" placeholder="—" aria-label="Sensitivity" />
+                  <input type="number" step="0.01" min="0" inputMode="decimal" value={sens} onChange={e => setSens(e.target.value)} data-inspect-id="sl-sens-input" className="w-24 field px-2 py-1 text-sm num-display" placeholder="—" aria-label="Sensitivity" />
                   {parseFloat(sens) > 0 && <span className="text-[11px] text-[var(--faint)] font-bold">{Math.round(eDPI(parseFloat(sens)))} eDPI</span>}
                 </div>
               </div>

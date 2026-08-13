@@ -21,7 +21,7 @@
           "kind": "icon-button",
           "description": "Fixed top-right circular button (sun/moon glyph) that flips dark/light mode and persists the choice to localStorage.",
           "locate": {
-            "path": "client/src/App.tsx:36",
+            "path": "client/src/App.tsx:66",
             "grep": "grep -n -F -- 'aria-label=\"Toggle theme\"' client/src/App.tsx"
           }
         }
@@ -52,6 +52,16 @@
       ],
       "uiElements": [
         {
+          "id": "dash-section-nav",
+          "label": "Section jump nav",
+          "kind": "nav",
+          "description": "Sticky wayfinding rail under the header standing in for section tabs on this one-long-scroll page; pill links jump to Mode, Recent Matches, Match, Trends, and Career, highlighting the currently in-view section.",
+          "locate": {
+            "path": "client/src/pages/Dashboard.tsx:229",
+            "grep": "grep -n -F -- 'dash-section-nav' client/src/pages/Dashboard.tsx"
+          }
+        },
+        {
           "id": "dash-mode-tiles",
           "label": "Mode tiles (queue-mode selector)",
           "kind": "radio-group",
@@ -67,7 +77,7 @@
           "kind": "card",
           "description": "Card wrapping the queue-mode selector; titled 'Mode' and holds the three mode tiles.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:133",
+            "path": "client/src/pages/Dashboard.tsx:137",
             "grep": "grep -n -F -- 'mb-4\">Mode</h2>' client/src/pages/Dashboard.tsx"
           }
         },
@@ -77,7 +87,7 @@
           "kind": "card",
           "description": "Card titled 'Recent Matches' containing the win-rate summary, the recent-match history strip, and (when applicable) the tilt warning banner.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:197",
+            "path": "client/src/pages/Dashboard.tsx:260",
             "grep": "grep -n -F -- '>Recent Matches</h2>' client/src/pages/Dashboard.tsx"
           }
         },
@@ -87,7 +97,7 @@
           "kind": "badge",
           "description": "Small pill shown next to the Recent Matches header hinting that the match tiles below can be tapped to open the edit drawer.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:199",
+            "path": "client/src/pages/Dashboard.tsx:262",
             "grep": "grep -n -F -- 'bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap\">tap to edit' client/src/pages/Dashboard.tsx"
           }
         },
@@ -97,7 +107,7 @@
           "kind": "stat-tile",
           "description": "Displays the win rate over the last 25 logged games with an animated percentage and a trend arrow/delta comparing it against the last 100 games.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:208",
+            "path": "client/src/pages/Dashboard.tsx:271",
             "grep": "grep -n -F -- 'vs last {last100.length} ({wr100}%)' client/src/pages/Dashboard.tsx"
           }
         },
@@ -107,7 +117,7 @@
           "kind": "list",
           "description": "Horizontally scrolling, day-grouped row of small win/loss tiles (up to the last 60 games, newest first); clicking a tile opens that match in the match-edit drawer, and hovering shows a tooltip with hero/map/date.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:239",
+            "path": "client/src/pages/Dashboard.tsx:302",
             "grep": "grep -n -F -- 'hover:-translate-y-0.5 hover:ring-2' client/src/pages/Dashboard.tsx"
           }
         },
@@ -117,7 +127,7 @@
           "kind": "banner",
           "description": "Placeholder banner shown in the recent-match strip when no matches have been logged yet, prompting the user to log their first result.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:254",
+            "path": "client/src/pages/Dashboard.tsx:317",
             "grep": "grep -n -F -- 'title=\"No matches logged yet\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -127,8 +137,8 @@
           "kind": "banner",
           "description": "Amber warning banner that appears when the session is on-tilt (two losses in a row today), optionally showing the user's historical win rate in that situation.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:265",
-            "grep": "grep -n -F -- 'You'\"'\"'ve lost 2 in a row today' client/src/pages/Dashboard.tsx"
+            "path": "client/src/pages/Dashboard.tsx:325",
+            "grep": "grep -n -F -- 'dash-tilt-warning-banner' client/src/pages/Dashboard.tsx"
           }
         },
         {
@@ -137,7 +147,7 @@
           "kind": "header",
           "description": "Section header titled 'Match' with subtitle 'Prep with the advisor, then log the result.', introducing the Prematch advisor and LogMatch form below.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:277",
+            "path": "client/src/pages/Dashboard.tsx:341",
             "grep": "grep -n -F -- 'sub=\"Prep with the advisor, then log the result.\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -147,7 +157,7 @@
           "kind": "link",
           "description": "Link in the Match section header that opens the sensitivity-study page (/sens) in a new tab, keeping the dashboard in place.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:286",
+            "path": "client/src/pages/Dashboard.tsx:351",
             "grep": "grep -n -F -- 'Log sens stats' client/src/pages/Dashboard.tsx"
           }
         },
@@ -157,7 +167,7 @@
           "kind": "section",
           "description": "Embeds the Prematch advisor component, which lets the user prep (map/mode selection, LLM pre-match advice) before logging a result.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:289",
+            "path": "client/src/pages/Dashboard.tsx:354",
             "grep": "grep -n -F -- '<Prematch />' client/src/pages/Dashboard.tsx"
           }
         },
@@ -167,7 +177,7 @@
           "kind": "section",
           "description": "Embeds the LogMatch component, the form used to record the result (hero, map, win/loss, etc.) of the just-played match.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:290",
+            "path": "client/src/pages/Dashboard.tsx:355",
             "grep": "grep -n -F -- '<LogMatch />' client/src/pages/Dashboard.tsx"
           }
         },
@@ -177,7 +187,7 @@
           "kind": "header",
           "description": "Section header titled 'Trends' with subtitle 'Recent form and momentum.', introducing the trends summary below.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:294",
+            "path": "client/src/pages/Dashboard.tsx:359",
             "grep": "grep -n -F -- 'title=\"Trends\" sub=\"Recent form and momentum.\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -187,7 +197,7 @@
           "kind": "section",
           "description": "Embeds the TrendsSummary component showing recent-form charts/metrics and momentum indicators.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:295",
+            "path": "client/src/pages/Dashboard.tsx:360",
             "grep": "grep -n -F -- '<TrendsSummary />' client/src/pages/Dashboard.tsx"
           }
         },
@@ -197,7 +207,7 @@
           "kind": "header",
           "description": "Section header titled 'Career' with subtitle 'All-time totals across every mode.', introducing the career stat-tile grid below.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:299",
+            "path": "client/src/pages/Dashboard.tsx:364",
             "grep": "grep -n -F -- 'title=\"Career\" sub=\"All-time totals across every mode.\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -207,7 +217,7 @@
           "kind": "stat-tile",
           "description": "Displays the all-time total number of logged games.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:301",
+            "path": "client/src/pages/Dashboard.tsx:368",
             "grep": "grep -n -F -- 'label=\"Total Games\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -217,7 +227,7 @@
           "kind": "stat-tile",
           "description": "Displays the all-time win-rate percentage, colored green if 50% or higher and red otherwise.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:304",
+            "path": "client/src/pages/Dashboard.tsx:372",
             "grep": "grep -n -F -- 'label=\"Win Rate\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -227,7 +237,7 @@
           "kind": "stat-tile",
           "description": "Displays the all-time count of wins, styled in the 'win' color.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:310",
+            "path": "client/src/pages/Dashboard.tsx:378",
             "grep": "grep -n -F -- 'label=\"Wins\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -237,7 +247,7 @@
           "kind": "stat-tile",
           "description": "Displays the all-time count of losses (total minus wins), styled in the 'loss' color.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:311",
+            "path": "client/src/pages/Dashboard.tsx:379",
             "grep": "grep -n -F -- 'label=\"Losses\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -247,7 +257,7 @@
           "kind": "stat-tile",
           "description": "Displays the count of distinct heroes played across all logged matches.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:315",
+            "path": "client/src/pages/Dashboard.tsx:380",
             "grep": "grep -n -F -- 'label=\"Heroes Played\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -257,7 +267,7 @@
           "kind": "stat-tile",
           "description": "Displays the count of distinct maps played across all logged matches.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:316",
+            "path": "client/src/pages/Dashboard.tsx:381",
             "grep": "grep -n -F -- 'label=\"Maps Played\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -267,7 +277,7 @@
           "kind": "stat-tile",
           "description": "Displays the current win or loss streak length and type (e.g. '3 W'), colored to match win or loss.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:319",
+            "path": "client/src/pages/Dashboard.tsx:385",
             "grep": "grep -n -F -- 'label=\"Current Streak\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -277,7 +287,7 @@
           "kind": "stat-tile",
           "description": "Displays the longest win streak recorded all-time, styled in the 'win' color.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:323",
+            "path": "client/src/pages/Dashboard.tsx:389",
             "grep": "grep -n -F -- 'label=\"Longest Win Streak\"' client/src/pages/Dashboard.tsx"
           }
         }
@@ -305,8 +315,8 @@
           "kind": "card",
           "description": "Square card showing the current DPI-test hero's DPI value plus matches-left, games-left, and backlog odometers; mirrors the active-test state driven from the Sens page.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:238",
-            "grep": "grep -n -F -- 'card aspect-square shrink-0 flex flex-col self-stretch' client/src/pages/Prematch.tsx"
+            "path": "client/src/pages/Prematch.tsx:240",
+            "grep": "grep -n -F -- 'prematch-dpi-hud-card' client/src/pages/Prematch.tsx"
           }
         },
         {
@@ -315,7 +325,7 @@
           "kind": "badge",
           "description": "Small badge in the DPI Test HUD header showing the current stage's DPI number for the picked hero.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:242",
+            "path": "client/src/pages/Prematch.tsx:244",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-dpi-value-badge\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -325,7 +335,7 @@
           "kind": "select",
           "description": "Dropdown shown when multiple DPI tests are active at once, letting the user choose which hero's DPI/progress the HUD card displays.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:252",
+            "path": "client/src/pages/Prematch.tsx:254",
             "grep": "grep -n -F -- 'aria-label=\"Hero to show DPI-test progress for\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -335,7 +345,7 @@
           "kind": "stat-tile",
           "description": "Odometer-style counter showing how many matches remain in the currently selected DPI test overall.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:269",
+            "path": "client/src/pages/Prematch.tsx:271",
             "grep": "grep -n -F -- 'className=\"text-sm text-[var(--ink)]\">matches left</div>' client/src/pages/Prematch.tsx"
           }
         },
@@ -345,7 +355,7 @@
           "kind": "stat-tile",
           "description": "Odometer-style counter showing how many games remain before the DPI test advances to its next stage.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:274",
+            "path": "client/src/pages/Prematch.tsx:276",
             "grep": "grep -n -F -- '<div className=\"text-sm text-[var(--ink)]\">games left</div>' client/src/pages/Prematch.tsx"
           }
         },
@@ -355,7 +365,7 @@
           "kind": "stat-tile",
           "description": "Odometer-style counter showing how many matches are awaiting stats processing; shown in both the active-test and idle layouts of the DPI card. (the same markup is duplicated for the active-test and idle-test layouts, so the locate command below matches both.)",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:284",
+            "path": "client/src/pages/Prematch.tsx:286",
             "grep": "grep -n -F -- 'className=\"text-sm text-[var(--ink)]\">in backlog</span>' client/src/pages/Prematch.tsx"
           }
         },
@@ -365,7 +375,7 @@
           "kind": "link",
           "description": "Link that navigates to the Sens page so the user can work through the backlog of matches awaiting stats. (duplicated for the active-test and idle-test layouts — locate command matches both.)",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:287",
+            "path": "client/src/pages/Prematch.tsx:289",
             "grep": "grep -n -F -- 'rounded-md bg-gradient-to-r from-ow-accent to-ow-accentLight' client/src/pages/Prematch.tsx"
           }
         },
@@ -375,7 +385,7 @@
           "kind": "banner",
           "description": "Placeholder message shown inside the DPI Test HUD card when no DPI stage test is currently active, prompting the user to start one on the Sens page.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:299",
+            "path": "client/src/pages/Prematch.tsx:301",
             "grep": "grep -n -F -- 'No DPI test running' client/src/pages/Prematch.tsx"
           }
         },
@@ -385,7 +395,7 @@
           "kind": "card",
           "description": "Card for picking up to 3 candidate maps and seeing a blended-score recommendation of which one to vote for.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:330",
+            "path": "client/src/pages/Prematch.tsx:332",
             "grep": "grep -n -F -- 'Map Voting</h2>' client/src/pages/Prematch.tsx"
           }
         },
@@ -395,7 +405,7 @@
           "kind": "search-box",
           "description": "Text input for filtering/searching maps by name to add to the up-to-3 voting picks; auto-focused whenever no map is currently selected.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:349",
+            "path": "client/src/pages/Prematch.tsx:351",
             "grep": "grep -n -F -- ''\"'\"'Type a map name…'\"'\"'' client/src/pages/Prematch.tsx"
           }
         },
@@ -405,7 +415,7 @@
           "kind": "dropdown",
           "description": "Dropdown list of maps matching the search query; clicking a result adds it to the current voting picks.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:355",
+            "path": "client/src/pages/Prematch.tsx:357",
             "grep": "grep -n -F -- 'absolute top-full left-0 right-0 mt-1 bg-ow-card' client/src/pages/Prematch.tsx"
           }
         },
@@ -415,7 +425,7 @@
           "kind": "list",
           "description": "Idle-state two-column list of the user's best and worst maps by historical win rate; tapping a map adds it to the voting picks.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:375",
+            "path": "client/src/pages/Prematch.tsx:377",
             "grep": "grep -n -F -- 'label: '\"'\"'Best maps'\"'\"', color: '\"'\"'text-emerald-600'\"'\"'' client/src/pages/Prematch.tsx"
           }
         },
@@ -425,8 +435,8 @@
           "kind": "list",
           "description": "Row of removable chips, one per currently selected voting map; clicking a chip deselects that map, with the recommended winner highlighted green.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:402",
-            "grep": "grep -n -F -- 'gap-1.5 px-3 py-1 rounded-full text-sm font-medium' client/src/pages/Prematch.tsx"
+            "path": "client/src/pages/Prematch.tsx:399",
+            "grep": "grep -n -F -- 'prematch-selected-map-chips' client/src/pages/Prematch.tsx"
           }
         },
         {
@@ -435,7 +445,7 @@
           "kind": "button",
           "description": "Clears all currently selected map-voting picks. Rendered as a muted pill at the tail end of the selected-map chips row (not a map itself) so it's easy to hit when the game rolls a 'Random' map that isn't one of the offered picks.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:414",
+            "path": "client/src/pages/Prematch.tsx:416",
             "grep": "grep -n -F -- 'advisorSelectRef.current?.focus()' client/src/pages/Prematch.tsx"
           }
         },
@@ -445,8 +455,8 @@
           "kind": "button",
           "description": "Shows the recommended map to vote for based on blended win-rate score; clicking it opens the Map drawer for that map.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:432",
-            "grep": "grep -n -F -- 'text-xl font-bold text-emerald-600 hover:text-emerald-700' client/src/pages/Prematch.tsx"
+            "path": "client/src/pages/Prematch.tsx:434",
+            "grep": "grep -n -F -- 'prematch-vote-for-button' client/src/pages/Prematch.tsx"
           }
         },
         {
@@ -455,7 +465,7 @@
           "kind": "card",
           "description": "Card for choosing the current map, which drives the hero recommendations, coaching, and hero-selection panel shown lower on the page.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:458",
+            "path": "client/src/pages/Prematch.tsx:460",
             "grep": "grep -n -F -- 'Hero Advisor</h2>' client/src/pages/Prematch.tsx"
           }
         },
@@ -465,7 +475,7 @@
           "kind": "button",
           "description": "Clears the currently selected map, reverting the Hero Advisor and Your Heroes panels back to their idle state.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:462",
+            "path": "client/src/pages/Prematch.tsx:464",
             "grep": "grep -n -F -- 'onClick={() => setMap('\"'\"''\"'\"')} className=\"text-xs' client/src/pages/Prematch.tsx"
           }
         },
@@ -475,7 +485,7 @@
           "kind": "select",
           "description": "Dropdown to choose the current match's map, which drives hero recommendations, coaching, and the your-heroes breakdown across the page.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:476",
+            "path": "client/src/pages/Prematch.tsx:478",
             "grep": "grep -n -F -- '— Select map —' client/src/pages/Prematch.tsx"
           }
         },
@@ -485,7 +495,7 @@
           "kind": "badge",
           "description": "Pill badge showing the game-mode type (e.g. Escort, Control, Flashpoint) of the currently selected map.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:482",
+            "path": "client/src/pages/Prematch.tsx:484",
             "grep": "grep -n -F -- 'TYPE_COLORS[mapType] ?? '\"'\"''\"'\"'' client/src/pages/Prematch.tsx"
           }
         },
@@ -495,7 +505,7 @@
           "kind": "stat-tile",
           "description": "Shows today's win/loss tally; idle-state filler in the Hero Advisor card shown when no map is selected.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:488",
+            "path": "client/src/pages/Prematch.tsx:490",
             "grep": "grep -n -F -- 'mb-1\">Today</div>' client/src/pages/Prematch.tsx"
           }
         },
@@ -505,7 +515,7 @@
           "kind": "stat-tile",
           "description": "Shows the current win or loss streak length; idle-state filler in the Hero Advisor card shown when no map is selected.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:499",
+            "path": "client/src/pages/Prematch.tsx:501",
             "grep": "grep -n -F -- 'mb-1\">Streak</div>' client/src/pages/Prematch.tsx"
           }
         },
@@ -515,7 +525,7 @@
           "kind": "stat-tile",
           "description": "Shows the historical win rate for the current hour of day; idle-state filler in the Hero Advisor card shown when no map is selected.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:510",
+            "path": "client/src/pages/Prematch.tsx:512",
             "grep": "grep -n -F -- 'mb-1\">This hour</div>' client/src/pages/Prematch.tsx"
           }
         },
@@ -525,7 +535,7 @@
           "kind": "card",
           "description": "Main card below the top row combining the recommended hero pick, LLM coaching, and the full your-heroes-by-role breakdown for the selected map.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:530",
+            "path": "client/src/pages/Prematch.tsx:532",
             "grep": "grep -n -F -- 'Consolidated advisor — recommendation + coaching' client/src/pages/Prematch.tsx"
           }
         },
@@ -535,7 +545,7 @@
           "kind": "link",
           "description": "Clickable map name in the Consolidated Advisor card's header that opens the Map drawer for the currently selected map.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:539",
+            "path": "client/src/pages/Prematch.tsx:541",
             "grep": "grep -n -F -- 'Your Heroes on <button onClick={() => openMap(map)}' client/src/pages/Prematch.tsx"
           }
         },
@@ -545,7 +555,7 @@
           "kind": "icon-button",
           "description": "Icon button (↻) that re-fetches the LLM pre-match advisor recommendation for the current map and queue mode.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:551",
+            "path": "client/src/pages/Prematch.tsx:553",
             "grep": "grep -n -F -- 'title=\"Refresh advisor\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -555,7 +565,7 @@
           "kind": "card",
           "description": "Highlighted panel shown when no map is selected, with one column per role (DPS/Support) showing that role's hottest-trending hero (biggest recent-vs-prior win-rate climb) with recent win rate and games played.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:566",
+            "path": "client/src/pages/Prematch.tsx:568",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-recommended-pick-card\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -565,7 +575,7 @@
           "kind": "button",
           "description": "Clickable hero name inside the Recommended Pick panel; opens the Hero drawer for that hero.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:577",
+            "path": "client/src/pages/Prematch.tsx:579",
             "grep": "grep -n -F -- 'onClick={() => openHero(rec.hero)}' client/src/pages/Prematch.tsx"
           }
         },
@@ -575,7 +585,7 @@
           "kind": "section",
           "description": "Section shown once a map is picked, embedding the LLM tactical-read AdvisorCard (matchup coaching and death patterns) for that map.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:617",
+            "path": "client/src/pages/Prematch.tsx:619",
             "grep": "grep -n -F -- 'id=\"coaching\" className=\"scroll-mt-24' client/src/pages/Prematch.tsx"
           }
         },
@@ -585,7 +595,7 @@
           "kind": "header",
           "description": "Header labeling the hero-selection panel that lists top heroes per role for the currently selected map.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:653",
+            "path": "client/src/pages/Prematch.tsx:654",
             "grep": "grep -n -F -- 'Select Your Hero</h3>' client/src/pages/Prematch.tsx"
           }
         },
@@ -595,7 +605,7 @@
           "kind": "list",
           "description": "Two-column (DPS/Support) list of every hero with an active sens test, ranked by win rate on the selected map — shown even with 0 games logged on that map, no top-N cap or collapsed overflow; clicking a hero pre-fills it into the Log Match form.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:655",
+            "path": "client/src/pages/Prematch.tsx:656",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-hero-picker-list\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -605,8 +615,8 @@
           "kind": "banner",
           "description": "Empty-state message shown when no games have been logged for the current map/filter, prompting the user to pick a map or log a match.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:694",
-            "grep": "grep -n -F -- 'No games logged on ${withMapCount(map, mapCounts)} yet' client/src/pages/Prematch.tsx"
+            "path": "client/src/pages/Prematch.tsx:693",
+            "grep": "grep -n -F -- 'dataInspectId=\"prematch-empty-state-banner\"' client/src/pages/Prematch.tsx"
           }
         },
         {
@@ -615,7 +625,7 @@
           "kind": "stat-tile",
           "description": "In-game sens paired with the trending hero pick, derived from that hero's own best-tested DPI scale.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:596",
+            "path": "client/src/pages/Prematch.tsx:598",
             "grep": "grep -n -F -- 'prematch-recommended-sens' client/src/pages/Prematch.tsx"
           }
         },
@@ -625,7 +635,7 @@
           "kind": "button",
           "description": "Selects a hero from the Select Your Hero list (filtered to heroes with an active DPI test) and pre-fills it into the Match Log.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:666",
+            "path": "client/src/pages/Prematch.tsx:667",
             "grep": "grep -n -F -- 'prematch-hero-picker-button' client/src/pages/Prematch.tsx"
           }
         }
@@ -649,7 +659,7 @@
           "kind": "card",
           "description": "Card that lists deaths buffered via the floating skull button during the current match, with a Clear all action and per-death remove controls.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:331",
+            "path": "client/src/pages/LogMatch.tsx:334",
             "grep": "grep -n -F -- 'id=\"notable-deaths\" className=\"card mb-6 scroll-mt-24\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -659,7 +669,7 @@
           "kind": "button",
           "description": "Button shown only when deaths are buffered; clears the entire in-progress death buffer for the current match.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:338",
+            "path": "client/src/pages/LogMatch.tsx:342",
             "grep": "grep -n -F -- 'hover:text-red-600 transition-colors\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -669,7 +679,7 @@
           "kind": "list",
           "description": "List of deaths logged so far this match, each row showing its axis label, a worded lean (or 'Neutral'), and an x button to remove that entry from the buffer.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:351",
+            "path": "client/src/pages/LogMatch.tsx:354",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-death-buffer-list\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -679,7 +689,7 @@
           "kind": "card",
           "description": "Card containing the match-logging form; its header includes the Reset button that clears hero, notes, map, and feel.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:379",
+            "path": "client/src/pages/LogMatch.tsx:384",
             "grep": "grep -n -F -- '>Match Details<' client/src/pages/LogMatch.tsx"
           }
         },
@@ -689,7 +699,7 @@
           "kind": "button",
           "description": "Clears the currently selected hero, notes, map, and resets the Feel slider back to its midpoint; disabled when nothing is selected.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:386",
+            "path": "client/src/pages/LogMatch.tsx:388",
             "grep": "grep -n -F -- 'disabled={!form.hero && !map}' client/src/pages/LogMatch.tsx"
           }
         },
@@ -699,7 +709,7 @@
           "kind": "form",
           "description": "The full match-logging form (date, time, sensitivity display, hero, map, mode, result, notes, feel) that POSTs a new match to /api/matches on submit.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:392",
+            "path": "client/src/pages/LogMatch.tsx:395",
             "grep": "grep -n -F -- 'onSubmit={submit}' client/src/pages/LogMatch.tsx"
           }
         },
@@ -729,7 +739,7 @@
           "kind": "stat-tile",
           "description": "Read-only display of the in-game sensitivity this match will actually be logged at: the picked hero's active DPI test stage value if one's running (Competitive, or Quickplay-as-Support), otherwise the frozen fallback sens. Not editable from this form.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:456",
+            "path": "client/src/pages/LogMatch.tsx:459",
             "grep": "grep -n -F -- 'num-display text-[var(--ink)] whitespace-nowrap' client/src/pages/LogMatch.tsx"
           }
         },
@@ -739,7 +749,7 @@
           "kind": "select",
           "description": "Dropdown grouped by role (DPS/Tank/Support) for choosing the match's starting hero (pre-filled from the Pre-Match picker); each option shows today's play count for that hero. First of three hero slots — see logmatch-hero-switch-select-2/3 for the optional mid-match switches, all of which share the match's result on submit.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:475",
+            "path": "client/src/pages/LogMatch.tsx:478",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-hero-select\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -749,7 +759,7 @@
           "kind": "select",
           "description": "Optional second hero slot for a mid-match hero switch; grouped by role like the 1st hero select. The logged result and death buffer apply to every filled hero slot, not just the first.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:497",
+            "path": "client/src/pages/LogMatch.tsx:505",
             "grep": "grep -n -F -- 'logmatch-hero-switch-select-${i + 2}' client/src/pages/LogMatch.tsx"
           }
         },
@@ -759,7 +769,7 @@
           "kind": "select",
           "description": "Optional third hero slot for a second mid-match hero switch; grouped by role like the 1st hero select. The logged result and death buffer apply to every filled hero slot, not just the first. (Rendered by the same map as logmatch-hero-switch-select-2 — locate command matches both.)",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:497",
+            "path": "client/src/pages/LogMatch.tsx:505",
             "grep": "grep -n -F -- 'logmatch-hero-switch-select-${i + 2}' client/src/pages/LogMatch.tsx"
           }
         },
@@ -769,7 +779,7 @@
           "kind": "badge",
           "description": "Colored pill (DPS/Tank/Support) that appears under the Hero select once a hero has been chosen, reflecting that hero's role.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:487",
+            "path": "client/src/pages/LogMatch.tsx:495",
             "grep": "grep -n -F -- 'pill mt-1.5 ${ROLE_COLORS[heroRole]}' client/src/pages/LogMatch.tsx"
           }
         },
@@ -779,7 +789,7 @@
           "kind": "stat-tile",
           "description": "Shows the map currently picked in the Pre-Match section along with its type pill, or a prompt to pick one there if none is selected yet.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:524",
+            "path": "client/src/pages/LogMatch.tsx:537",
             "grep": "grep -n -F -- 'Pick a map in the Pre-Match section above to log a result.' client/src/pages/LogMatch.tsx"
           }
         },
@@ -789,7 +799,7 @@
           "kind": "badge",
           "description": "Pill showing the selected map's type (e.g. Control, Escort, Hybrid, Push) next to the map name.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:521",
+            "path": "client/src/pages/LogMatch.tsx:534",
             "grep": "grep -n -F -- 'pill ${TYPE_COLORS[mapType] ?? '\"'\"''\"'\"'}' client/src/pages/LogMatch.tsx"
           }
         },
@@ -799,7 +809,7 @@
           "kind": "radio-group",
           "description": "Three-button toggle for the queue mode this match is being recorded as (Quickplay Role, Competitive Role, Competitive Open); selecting one sets the mode used on log. Moved to the top of the Match Details form (first element, above Date/Time/Sensitivity) since it affects the Sensitivity display's value; a short line below the buttons explains which modes count toward the sens test.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:397",
+            "path": "client/src/pages/LogMatch.tsx:398",
             "grep": "grep -n -F -- 'recording this match as' client/src/pages/LogMatch.tsx"
           }
         },
@@ -809,7 +819,7 @@
           "kind": "radio-group",
           "description": "Win/Loss toggle with an animated sliding fill and chevron rank-insignia buttons; selecting Win or Loss sets the outcome to be logged for this match.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:529",
+            "path": "client/src/pages/LogMatch.tsx:542",
             "grep": "grep -n -F -- 'mb-1.5\">Result</label>' client/src/pages/LogMatch.tsx"
           }
         },
@@ -819,7 +829,7 @@
           "kind": "textarea",
           "description": "Free-text field for notes on perceived factors affecting the match (e.g. fatigue, warmup, stage change), saved with the logged match.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:592",
+            "path": "client/src/pages/LogMatch.tsx:607",
             "grep": "grep -n -F -- 'fatigue, warmup, just switched stage…' client/src/pages/LogMatch.tsx"
           }
         },
@@ -829,7 +839,7 @@
           "kind": "slider",
           "description": "One range slider (0-100) per filled hero slot, capturing whether the sensitivity felt slow or fast on that hero during this specific match, captured live since the sensation fades before the next match. Container is logmatch-feel-sliders; each individual input shares this same data-inspect-id.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:616",
+            "path": "client/src/pages/LogMatch.tsx:629",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-feel-slider\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -839,7 +849,7 @@
           "kind": "button",
           "description": "Primary submit button that saves the match to the database (POST /api/matches); shows Saving…/✓ Saved states and is disabled until hero, map, result, date, and sens are all valid.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:632",
+            "path": "client/src/pages/LogMatch.tsx:648",
             "grep": "grep -n -F -- 'status === '\"'\"'success'\"'\"' ? '\"'\"'✓ Saved'\"'\"' : '\"'\"'Log Match'\"'\"'' client/src/pages/LogMatch.tsx"
           }
         },
@@ -849,7 +859,7 @@
           "kind": "banner",
           "description": "Inline error message shown briefly under the Log Match button if saving the match to the server fails.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:637",
+            "path": "client/src/pages/LogMatch.tsx:650",
             "grep": "grep -n -F -- 'Failed to save — is the server running?' client/src/pages/LogMatch.tsx"
           }
         },
@@ -859,7 +869,7 @@
           "kind": "card",
           "description": "Card showing today's logged matches, read live from the database so it stays accurate and resets automatically when the day rolls over.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:641",
+            "path": "client/src/pages/LogMatch.tsx:655",
             "grep": "grep -n -F -- '>Recently Logged<' client/src/pages/LogMatch.tsx"
           }
         },
@@ -869,7 +879,7 @@
           "kind": "list",
           "description": "List of today's logged matches; each row shows a mode-tinted watermark strip, win/loss badge, hero, map, and a 5-match recent win/loss pip strip for that map.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:644",
+            "path": "client/src/pages/LogMatch.tsx:684",
             "grep": "grep -n -F -- 'pip === undefined ? '\"'\"'No data'\"'\"' : pip ? '\"'\"'Win'\"'\"' : '\"'\"'Loss'\"'\"'' client/src/pages/LogMatch.tsx"
           }
         },
@@ -879,7 +889,7 @@
           "kind": "banner",
           "description": "Empty-state message shown in the Recently Logged card when no matches have been logged yet for the current day.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:691",
+            "path": "client/src/pages/LogMatch.tsx:706",
             "grep": "grep -n -F -- 'title=\"Nothing logged today\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -889,7 +899,7 @@
           "kind": "input",
           "description": "Perceived teammate-quality rating, 0-5 stars in half-star steps, captured live at log time.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:626",
+            "path": "client/src/pages/LogMatch.tsx:639",
             "grep": "grep -n -F -- 'dataInspectId=\"logmatch-team-rating-stars\"' client/src/pages/LogMatch.tsx"
           }
         }
@@ -919,7 +929,7 @@
           "kind": "input",
           "description": "Required percent input for a played hero's overall accuracy stat — one row per hero played (a mid-match switch gets one row per hero, since time-on-hero varies).",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:104",
+            "path": "client/src/pages/SensLog.tsx:105",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-overall-acc-input\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -989,7 +999,7 @@
           "kind": "tab",
           "description": "Tab row switching which phase's per-hero DPI test plan (Phase 2, 3, or 4) is displayed in the plan card.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:442",
+            "path": "client/src/pages/SensLog.tsx:443",
             "grep": "grep -n -F -- '-mb-px border-b-2 transition-colors' client/src/pages/SensLog.tsx"
           }
         },
@@ -1009,7 +1019,7 @@
           "kind": "button",
           "description": "Starts a new blind DPI stage-trial set for that specific hero using the plan's preset DPIs and games-per-slot via POST /api/blind/sets.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:494",
+            "path": "client/src/pages/SensLog.tsx:497",
             "grep": "grep -n -F -- 'creating === h.hero ? '\"'\"'Creating…'\"'\"' : '\"'\"'Create test set'\"'\"'' client/src/pages/SensLog.tsx"
           }
         },
@@ -1019,7 +1029,7 @@
           "kind": "badge",
           "description": "Overlay badge on a hero's plan tile showing whether that hero's test is in progress or completed, plus a games-logged / target-games count.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:460",
+            "path": "client/src/pages/SensLog.tsx:462",
             "grep": "grep -n -F -- 'In Testing · {s.totalGames}/{s.target} games' client/src/pages/SensLog.tsx"
           }
         },
@@ -1029,7 +1039,7 @@
           "kind": "button",
           "description": "Cancels and deletes the active DPI test set for that hero, prompting for typed confirmation of the game count if games have already been logged.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:469",
+            "path": "client/src/pages/SensLog.tsx:472",
             "grep": "grep -n -F -- 'Cancel test' client/src/pages/SensLog.tsx"
           }
         },
@@ -1079,7 +1089,7 @@
           "kind": "card",
           "description": "Form card for manually starting a one-off, hero-less sens stage-trial set outside the phase plan. Mouse DPI is locked at 1600 (sl-locked-dpi-display); each stage's target is an in-game sens value (sl-sens-per-stage-inputs) instead of a DPI value.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:693",
+            "path": "client/src/pages/SensLog.tsx:694",
             "grep": "grep -n -F -- 'Create an ad-hoc sens test set' client/src/pages/SensLog.tsx"
           }
         },
@@ -1089,7 +1099,7 @@
           "kind": "input",
           "description": "Number input controlling how many stages the new ad-hoc sens test set will have; resizes the sens-per-stage input list (sl-sens-per-stage-inputs).",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:703",
+            "path": "client/src/pages/SensLog.tsx:702",
             "grep": "grep -n -F -- '# Stages</span>' client/src/pages/SensLog.tsx"
           }
         },
@@ -1099,7 +1109,7 @@
           "kind": "input",
           "description": "Number input for how many games must be logged per stage before advancing, for the new ad-hoc sens test set.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:707",
+            "path": "client/src/pages/SensLog.tsx:706",
             "grep": "grep -n -F -- 'Games per stage (samples)' client/src/pages/SensLog.tsx"
           }
         },
@@ -1119,7 +1129,7 @@
           "kind": "table",
           "description": "Table of per-stage results (DPI, percent delta, eDPI, equivalent sens at 1600, trial count, feel mean/variance) for a completed DPI test set.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:729",
+            "path": "client/src/pages/SensLog.tsx:733",
             "grep": "grep -n -F -- 'Sens @1600' client/src/pages/SensLog.tsx"
           }
         },
@@ -1139,7 +1149,7 @@
           "kind": "list",
           "description": "Selectable list of matches still missing their aim/combat stats; clicking a match selects it and loads the Aim Stats form on the right.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:816",
+            "path": "client/src/pages/SensLog.tsx:810",
             "grep": "grep -n -F -- 'Awaiting Stats' client/src/pages/SensLog.tsx"
           }
         },
@@ -1149,7 +1159,7 @@
           "kind": "card",
           "description": "Form card for entering the selected match's aim and combat stats (accuracy, hero stat, combat totals, sens, duration) and saving them.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:845",
+            "path": "client/src/pages/SensLog.tsx:846",
             "grep": "grep -n -F -- 'Aim Stats</h3>' client/src/pages/SensLog.tsx"
           }
         },
@@ -1160,7 +1170,7 @@
           "description": "Shows the selected match's hero, map, and win/loss result at the top of the Aim Stats form.",
           "locate": {
             "path": "client/src/pages/SensLog.tsx:849",
-            "grep": "grep -n -F -- '@ {withMapCount(selected.map, mapCounts)}' client/src/pages/SensLog.tsx"
+            "grep": "grep -n -F -- 'sl-selected-match-summary' client/src/pages/SensLog.tsx"
           }
         },
         {
@@ -1179,7 +1189,7 @@
           "kind": "button",
           "description": "Saves the selected match's sensitivity and aim/combat stats via PUT /api/matches/:id and POST /api/aim; disabled until required fields are filled.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:871",
+            "path": "client/src/pages/SensLog.tsx:872",
             "grep": "grep -n -F -- ''\"'\"'✓ Saved'\"'\"' : '\"'\"'Save Stats'\"'\"'' client/src/pages/SensLog.tsx"
           }
         },
@@ -1199,7 +1209,7 @@
           "kind": "modal",
           "description": "Confirmation modal shown after saving the last pending match, offering to navigate back to the Match Tracker.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:883",
+            "path": "client/src/pages/SensLog.tsx:884",
             "grep": "grep -n -F -- 'mb-1.5\">All caught up</h3>' client/src/pages/SensLog.tsx"
           }
         },
@@ -1393,7 +1403,7 @@
           "description": "Bulleted list of supporting reasoning points backing the DPI recommendation's verdict.",
           "locate": {
             "path": "client/src/pages/SensAnalysis.tsx:676",
-            "grep": "grep -n -F -- 'list-disc list-inside marker:text-violet-500 mt-3' client/src/pages/SensAnalysis.tsx"
+            "grep": "grep -n -F -- 'sensAnalysis-recommendation-points-list' client/src/pages/SensAnalysis.tsx"
           }
         },
         {
@@ -1762,8 +1772,8 @@
           "kind": "header",
           "description": "Label at the top of the logging popover showing the ordinal number of the death being logged and the current death axis (e.g. 'Trade').",
           "locate": {
-            "path": "client/src/components/DeathLogger.tsx:51",
-            "grep": "grep -n -F -- 'Death {count + 1} · {spec.label}' client/src/components/DeathLogger.tsx"
+            "path": "client/src/components/DeathLogger.tsx:50",
+            "grep": "grep -n -F -- 'deathLogger-popoverTitle' client/src/components/DeathLogger.tsx"
           }
         },
         {
@@ -1832,8 +1842,8 @@
           "kind": "button",
           "description": "Pill button showing how many deaths have been buffered this match ('3 deaths'); clicking toggles the buffer review list open/closed and closes the logging popover.",
           "locate": {
-            "path": "client/src/components/DeathLogger.tsx:137",
-            "grep": "grep -n -F -- '{count} {count === 1 ? '\"'\"'death'\"'\"' : '\"'\"'deaths'\"'\"'}' client/src/components/DeathLogger.tsx"
+            "path": "client/src/components/DeathLogger.tsx:134",
+            "grep": "grep -n -F -- 'deathLogger-deathCountPill' client/src/components/DeathLogger.tsx"
           }
         },
         {
@@ -1872,8 +1882,8 @@
           "kind": "banner",
           "description": "Empty-state notice shown instead of the breakdown when fewer than MIN_TAGGED (3) games have tagged death data or there are zero deaths, telling the user to tag deaths to unlock the section.",
           "locate": {
-            "path": "client/src/components/DeathInsights.tsx:26",
-            "grep": "grep -n -F -- 'Not enough tagged death data for {label} yet' client/src/components/DeathInsights.tsx"
+            "path": "client/src/components/DeathInsights.tsx:25",
+            "grep": "grep -n -F -- 'deathInsights-emptyStateBanner' client/src/components/DeathInsights.tsx"
           }
         },
         {
@@ -2003,7 +2013,7 @@
           "description": "Row of small W/L squares showing outcomes of the hero's most recent games, each tooltip-labeled on hover with win/loss and the map played.",
           "locate": {
             "path": "client/src/components/HeroDrawer.tsx:137",
-            "grep": "grep -n -F -- 'uppercase tracking-wider mb-2\">Last {data.recent10.length}' client/src/components/HeroDrawer.tsx"
+            "grep": "grep -n -F -- 'hero-drawer-last10-list' client/src/components/HeroDrawer.tsx"
           }
         },
         {
@@ -2033,7 +2043,7 @@
           "description": "Heading text at the top of the drawer showing the selected hero's name with today's match count appended.",
           "locate": {
             "path": "client/src/components/HeroDrawer.tsx:173",
-            "grep": "grep -n -F -- 'text-lg heading-display text-[var(--ink)] leading-tight' client/src/components/HeroDrawer.tsx"
+            "grep": "grep -n -F -- 'hero-drawer-title-header' client/src/components/HeroDrawer.tsx"
           }
         },
         {
@@ -2103,7 +2113,7 @@
           "description": "Row of small W/L badges for the most recent matches on this map; hovering a badge shows a tooltip with the result and hero played.",
           "locate": {
             "path": "client/src/components/MapDrawer.tsx:98",
-            "grep": "grep -n -F -- 'mb-2\">Last {data.recent5.length}</div>' client/src/components/MapDrawer.tsx"
+            "grep": "grep -n -F -- 'mapDrawer-last5-list' client/src/components/MapDrawer.tsx"
           }
         },
         {
@@ -2133,7 +2143,7 @@
           "description": "Displays the active map's name (with today's play count appended) as the drawer's title.",
           "locate": {
             "path": "client/src/components/MapDrawer.tsx:137",
-            "grep": "grep -n -F -- 'text-lg heading-display text-[var(--ink)] leading-tight' client/src/components/MapDrawer.tsx"
+            "grep": "grep -n -F -- 'mapDrawer-title' client/src/components/MapDrawer.tsx"
           }
         },
         {
@@ -2355,7 +2365,7 @@
           "kind": "list",
           "description": "A grid of four square cards, each showing a randomly drawn one-sentence data insight (factoid, e.g. death-axis outcomes, hot hand) pulled from the backend's insights pool and reshuffled on every page load.",
           "locate": {
-            "path": "client/src/components/TrendsSummary.tsx:74",
+            "path": "client/src/components/TrendsSummary.tsx:81",
             "grep": "grep -n -F -- 'grid grid-cols-2 sm:grid-cols-4 gap-4' client/src/components/TrendsSummary.tsx"
           }
         }
@@ -2375,8 +2385,8 @@
           "kind": "stat-tile",
           "description": "Reusable stat tile that shows a large gradient-colored number or string value, a label underneath, and an optional small sub-caption; used across the dashboard for figures like win rate or total games.",
           "locate": {
-            "path": "client/src/components/StatCard.tsx:16",
-            "grep": "grep -n -F -- 'text-4xl font-black tracking-tight num-display' client/src/components/StatCard.tsx"
+            "path": "client/src/components/StatCard.tsx:18",
+            "grep": "grep -n -F -- 'font-black tracking-tight num-display' client/src/components/StatCard.tsx"
           }
         }
       ]
@@ -2546,7 +2556,7 @@
           "description": "Text label to the right of the progress bar showing the exact win rate percentage, colored green when at least 50% and red otherwise; hidden when showLabel is false.",
           "locate": {
             "path": "client/src/components/WinRateBar.tsx:15",
-            "grep": "grep -n -F -- 'text-sm font-semibold w-12 text-right' client/src/components/WinRateBar.tsx"
+            "grep": "grep -n -F -- 'winRateBar-percent-label' client/src/components/WinRateBar.tsx"
           }
         },
         {

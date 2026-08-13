@@ -401,13 +401,16 @@ export default function LogMatch() {
                 {QUEUE_MODES.map(m => {
                   const active = queueMode === m.value;
                   const c = QUEUE_MODE_COLORS[m.value];
+                  const activeBorder = {
+                    qp_role: 'border-sky-400', comp_role: 'border-red-400', comp_open: 'border-orange-400',
+                  }[m.value];
                   return (
                     <button
                       key={m.value}
                       type="button"
                       onClick={() => setQueueMode(m.value)}
-                      className={`relative overflow-hidden py-2 rounded-lg text-xs font-semibold leading-tight transition-all ${
-                        active ? `${c.card} ${c.accent} ${c.glow}` : 'text-[var(--faint)] hover:text-[var(--ink)]'
+                      className={`relative overflow-hidden py-2 rounded-lg border-2 text-xs font-semibold leading-tight transition-all ${
+                        active ? `${c.card} ${c.accent} ${c.glow} ${activeBorder}` : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)]'
                       }`}
                     >
                       {/* V5/V6 digits carry more side-bearing than QP's letters,
@@ -530,7 +533,7 @@ export default function LogMatch() {
               <label className="block text-xs text-[var(--muted)] mb-1.5">Map</label>
               {map ? (
                 <div className="flex items-center gap-2">
-                  <span className="text-sm map-name text-[var(--ink)]">{withMapCount(map, mapCounts)}</span>
+                  <span className="text-2xl font-bold map-name text-[var(--ink)]">{withMapCount(map, mapCounts)}</span>
                   {mapType && <span data-inspect-id="logmatch-map-type-badge" className={`pill ${TYPE_COLORS[mapType] ?? ''}`}>{mapType}</span>}
                 </div>
               ) : (
