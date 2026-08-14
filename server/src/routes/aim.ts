@@ -259,7 +259,7 @@ router.get('/', (_req: Request, res: Response) => {
     SELECT m.id, m.date, m.time, m.hero, m.role, m.map, m.game_type, m.queue_mode, m.win, m.sens,
            m.dpi, m.blind_trial, m.blind_set_id, m.stage_index, m.feel, m.notes,
            a.overall_acc, a.crit_acc, a.hero_stat_label, a.hero_stat_value,
-           a.elims, a.final_blows, a.deaths, a.damage, a.duration_min
+           a.elims, a.final_blows, a.deaths, a.damage, a.assists, a.duration_min
     FROM aim_stats a
     JOIN matches m ON m.id = a.match_id
     ORDER BY m.id DESC
@@ -279,7 +279,7 @@ router.get('/', (_req: Request, res: Response) => {
 // (rather than sending null) keeps any already-saved value on old rows intact.
 router.post('/', (req: Request, res: Response) => {
   const db = getDb();
-  const { match_id, heroes, elims, deaths, damage, healing } = req.body;
+  const { match_id, heroes, elims, deaths, damage, healing, assists } = req.body;
 
   if (match_id === undefined || match_id === null) {
     res.status(400).json({ error: 'match_id required' });
@@ -296,13 +296,14 @@ router.post('/', (req: Request, res: Response) => {
   const totalDuration = durations.length ? durations.reduce((a, b) => a + b, 0) : null;
 
   db.prepare(`
-    INSERT INTO aim_stats (match_id, elims, deaths, damage, healing, duration_min)
-    VALUES (:match_id, :elims, :deaths, :damage, :healing, :duration_min)
+    INSERT INTO aim_stats (match_id, elims, deaths, damage, healing, assists, duration_min)
+    VALUES (:match_id, :elims, :deaths, :damage, :healing, :assists, :duration_min)
     ON CONFLICT(match_id) DO UPDATE SET
       elims           = excluded.elims,
       deaths          = excluded.deaths,
       damage          = excluded.damage,
       healing         = excluded.healing,
+      assists         = excluded.assists,
       duration_min    = excluded.duration_min,
       created_at      = datetime('now')
   `).run({
@@ -311,6 +312,7 @@ router.post('/', (req: Request, res: Response) => {
     deaths: deaths ?? null,
     damage: damage ?? null,
     healing: healing ?? null,
+    assists: assists ?? null,
     duration_min: totalDuration,
   });
 

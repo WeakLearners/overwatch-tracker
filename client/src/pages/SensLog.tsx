@@ -63,12 +63,12 @@ const CRIT_SLOT_LABEL: Record<string, { label: string; aria: string }> = {
 };
 interface StatFieldsT {
   heroAcc: HeroAccStat[];
-  elims: string; deaths: string; damage: string; healing: string;
+  elims: string; deaths: string; damage: string; healing: string; assists: string;
 }
 
 const emptyStats = (heroes: { hero: string }[]): StatFieldsT => ({
   heroAcc: heroes.map(h => ({ hero: h.hero, overall_acc: '', crit_acc: '', extra_acc: '', duration_min: '' })),
-  elims: '', deaths: '', damage: '', healing: '',
+  elims: '', deaths: '', damage: '', healing: '', assists: '',
 });
 
 const num = (s: string) => (s.trim() === '' ? null : parseFloat(s));
@@ -78,7 +78,7 @@ const parseDurationMin = (s: string): number | null => {
   const m = s.trim().match(/^(\d{1,3}):([0-5]\d)$/);
   return m ? parseInt(m[1], 10) + parseInt(m[2], 10) / 60 : null;
 };
-const field = 'w-full field px-3 py-2 text-sm';
+const field = 'w-full field px-3 py-2 text-sm num-display';
 const btnSecondary = 'border border-ow-border rounded-lg text-[var(--ink)] font-semibold hover:border-gray-500 transition-all disabled:opacity-40 disabled:cursor-not-allowed';
 
 // ── Shared aim-stat inputs (used by both the stage-trial loop and the backfill form) ─
@@ -90,7 +90,7 @@ function StatFields({ s, upd, updHeroAcc, showHealing, firstDurationRef }: {
 }) {
   const t = (k: Exclude<keyof StatFieldsT, 'heroAcc'>) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => upd(k, e.target.value as never);
   const combatFields = showHealing
-    ? ([['elims', 'Elims'], ['deaths', 'Deaths'], ['damage', 'Damage'], ['healing', 'Healing']] as const)
+    ? ([['elims', 'Elims'], ['assists', 'Assists'], ['deaths', 'Deaths'], ['damage', 'Damage'], ['healing', 'Healing']] as const)
     : ([['elims', 'Elims'], ['deaths', 'Deaths'], ['damage', 'Damage']] as const);
   return (
     <>
@@ -137,10 +137,10 @@ function StatFields({ s, upd, updHeroAcc, showHealing, firstDurationRef }: {
       </div>
       <div>
         <label className="block text-xs text-[var(--muted)] mb-1.5">Combat <span className="text-[var(--faint-2)]">— endgame scoreboard</span></label>
-        <div className={`grid gap-2 ${showHealing ? 'grid-cols-4' : 'grid-cols-3'}`} data-inspect-id="sl-combat-stats-inputs">
+        <div className={`grid gap-2 ${showHealing ? 'grid-cols-5' : 'grid-cols-3'}`} data-inspect-id="sl-combat-stats-inputs">
           {combatFields.map(([key, lbl]) => (
             <div key={key}>
-              <input type="number" min="0" step="1" inputMode="numeric" value={s[key]} onChange={t(key)} className="w-full field px-2 py-2 text-sm" placeholder="0" aria-label={lbl} />
+              <input type="number" min="0" step="1" inputMode="numeric" value={s[key]} onChange={t(key)} className="w-full field px-2 py-2 text-sm num-display" placeholder="0" aria-label={lbl} />
               <div className="text-[10px] text-[var(--faint-2)] text-center mt-1">{lbl}</div>
             </div>
           ))}
@@ -156,7 +156,7 @@ const statsBody = (match_id: number, s: StatFieldsT) => ({
     hero: h.hero, overall_acc: num(h.overall_acc), crit_acc: num(h.crit_acc),
     extra_acc: num(h.extra_acc), duration_min: parseDurationMin(h.duration_min),
   })),
-  elims: num(s.elims), deaths: num(s.deaths), damage: num(s.damage), healing: num(s.healing),
+  elims: num(s.elims), deaths: num(s.deaths), damage: num(s.damage), healing: num(s.healing), assists: num(s.assists),
 });
 
 export default function SensLog() {

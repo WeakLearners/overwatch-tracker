@@ -71,7 +71,10 @@ export interface DeathSlice {
   pct: number;
 }
 
-export type DeathScope = 'map' | 'map_type' | 'overall';
+// hero_* scopes are narrowed to the coaching column's own recommended hero;
+// the plain map/map_type/overall scopes fall back to all heroes when that
+// hero-specific slice is too thin.
+export type DeathScope = 'hero_map' | 'hero_type' | 'hero' | 'map' | 'map_type' | 'overall';
 
 export interface DeathReasonCorrelation {
   reason: string;

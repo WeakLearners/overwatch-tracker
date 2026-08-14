@@ -126,6 +126,12 @@ function initSchema(db: DatabaseSync) {
     db.exec(`ALTER TABLE aim_stats ADD COLUMN healing INTEGER`);
   }
 
+  // assists: endgame scoreboard total, support heroes only (same rationale as
+  // healing above) — sits alongside it as another match-level combat-output number.
+  if (!aimCols.find(c => c.name === 'assists')) {
+    db.exec(`ALTER TABLE aim_stats ADD COLUMN assists INTEGER`);
+  }
+
   // aim_stats_heroes: one accuracy reading per hero actually played in the
   // match (mirrors match_heroes — see there for why a match can have more
   // than one hero). aim_stats.overall_acc/crit_acc above are kept for

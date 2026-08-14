@@ -16,17 +16,23 @@ interface Props {
 }
 
 // Human caption explaining which slice of the player's data the death
-// axes are drawn from — keeps thin/fallback data honest.
+// axes are drawn from — keeps thin/fallback data honest. Prefers the
+// coaching column's own recommended hero (rec.primary) when there's enough
+// of that hero's own data; falls back to all-heroes slices otherwise.
 function scopeCaption(rec: Recommendation, map: string, a: AxisPayload, mapCounts: Record<string, number>): string {
   const g = `${a.games} game${a.games !== 1 ? 's' : ''}`;
   const d = `${a.deaths} death${a.deaths !== 1 ? 's' : ''}`;
   const mapLabel = withMapCount(map, mapCounts);
-  if (rec.death_scope === 'map') return `Your deaths on ${mapLabel} · ${g}, ${d}`;
-  if (rec.death_scope === 'map_type') {
-    const type = MAPS[map] ?? 'these';
-    return `Too few ${mapLabel} games — your ${type} maps · ${g}, ${d}`;
+  const hero = rec.primary;
+  const type = MAPS[map] ?? 'these';
+  switch (rec.death_scope) {
+    case 'hero_map': return `Your ${hero} deaths on ${mapLabel} · ${g}, ${d}`;
+    case 'hero_type': return `Too few ${hero} games on ${mapLabel} — your ${hero} on ${type} maps · ${g}, ${d}`;
+    case 'hero': return `Too few ${hero} games here — your ${hero} overall · ${g}, ${d}`;
+    case 'map': return `Too few ${hero} games logged — everyone's deaths on ${mapLabel} · ${g}, ${d}`;
+    case 'map_type': return `Too few games here — everyone's deaths on ${type} maps · ${g}, ${d}`;
+    case 'overall': return `Too few games here — your overall pattern (all heroes) · ${g}, ${d}`;
   }
-  return `Too few games here — your overall pattern · ${g}, ${d}`;
 }
 
 // One death axis as a spectrum: a marker sits at the mean position (0–1)
