@@ -251,7 +251,12 @@ export default function LogMatch() {
   };
 
   const heroRole = form.hero ? HEROES[form.hero] : '';
-  const valid = form.hero && map && form.win !== '' && form.date && parseFloat(sens) > 0;
+  // Gate on displaySens (what the Sensitivity box actually shows — the active
+  // DPI stage's value when one's running, else the raw fallback), not the raw
+  // context `sens` string directly: nothing in the app ever calls setSens, so
+  // that value is frozen at whatever localStorage held on load and can go
+  // stale independently of what's displayed, silently failing this check.
+  const valid = form.hero && map && form.win !== '' && form.date && displaySens != null;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -283,7 +288,7 @@ export default function LogMatch() {
           win: form.win === '1',
           deaths: deathBuffer.length > 0 ? { v: 3, deaths: deathBuffer } : null,
           queue_mode: queueMode,
-          sens: parseFloat(sens),
+          sens: displaySens,
           feel: feelFor(form.hero),
           team_rating: teamRating,
           notes: form.notes.trim() || null,
