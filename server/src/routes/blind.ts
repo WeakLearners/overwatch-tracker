@@ -20,8 +20,11 @@ const stagesOf = (db: ReturnType<typeof getDb>, setId: number) =>
 
 // Total games ever logged against a set, across all its stages combined —
 // distinct from games_on_stage, which only counts toward the current stage.
+// Reads blind_credits (one row per hero actually credited, including
+// mid-match switches into this hero), not matches.blind_set_id — that column
+// only ever reflects the match's slot-1/primary hero.
 const totalGamesOf = (db: ReturnType<typeof getDb>, setId: number) =>
-  (db.prepare('SELECT COUNT(*) n FROM matches WHERE blind_set_id = :id').get({ id: setId }) as { n: number }).n;
+  (db.prepare('SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id').get({ id: setId }) as { n: number }).n;
 
 // ── Create a set ─────────────────────────────────────────────────────────────
 // Stages are shown plainly — no shuffle, no scramble step. Three ways to
@@ -112,10 +115,14 @@ router.post('/sets', (req: Request, res: Response) => {
 });
 
 // ── Cancel a set ─────────────────────────────────────────────────────────────
-// Abandons a test: deletes the set (blind_stages cascades) plus any matches
-// logged against it. Completed sets (every stage hit its game target) are
-// refused outright — that's finished, load-bearing history, not an
-// in-progress attempt to discard.
+// Abandons a test: deletes the set (blind_stages, blind_credits cascade) plus
+// any matches that started on this hero while it was active. A match where
+// this hero was only a mid-match switch (its blind_credits row, not its
+// primary blind_set_id) keeps its own match row — only the now-orphaned
+// credit toward this set disappears — since deleting the whole match would
+// destroy that match's actual primary hero's data too. Completed sets (every
+// stage hit its game target) are refused outright — that's finished,
+// load-bearing history, not an in-progress attempt to discard.
 router.delete('/sets/:id', (req: Request, res: Response) => {
   const db = getDb();
   const set = db.prepare('SELECT id, batch_size FROM blind_stage_sets WHERE id = :id')

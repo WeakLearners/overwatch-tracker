@@ -339,6 +339,35 @@ function initSchema(db: DatabaseSync) {
     );
   `);
 
+  // blind_credits: one row per (match, hero) that actually counted toward a
+  // DPI/sens stage-test — the source of truth for games_on_stage/totalGames,
+  // instead of matches.blind_set_id. matches.blind_set_id only ever tracked
+  // slot 1 (the hero the match started on), so a hero played only as a
+  // mid-match switch (match_heroes slot 2/3) never credited its own active
+  // test even though it was genuinely played at that hero's current stage.
+  // matches.blind_set_id/stage_index/sens/dpi/blind_trial stay as-is (still
+  // slot 1's credit, read directly by other code); this table adds the
+  // credits those columns structurally can't hold — one match can now credit
+  // more than one hero's set at once.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS blind_credits (
+      match_id INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+      hero TEXT NOT NULL,
+      blind_set_id INTEGER NOT NULL REFERENCES blind_stage_sets(id) ON DELETE CASCADE,
+      stage_index INTEGER NOT NULL,
+      PRIMARY KEY (match_id, hero)
+    );
+    CREATE INDEX IF NOT EXISTS idx_blind_credits_set ON blind_credits(blind_set_id);
+  `);
+  // Backfill slot-1 credits for every match logged before this table existed,
+  // so existing sets' totalGames/games_on_stage counts don't shift under
+  // them the moment this ships — same 1:1 primary-hero attribution as today.
+  db.exec(`
+    INSERT OR IGNORE INTO blind_credits (match_id, hero, blind_set_id, stage_index)
+    SELECT id, hero, blind_set_id, stage_index FROM matches
+    WHERE blind_set_id IS NOT NULL AND stage_index IS NOT NULL
+  `);
+
   // sens: per-stage varying in-game sensitivity, added when mouse DPI was
   // locked at 1600 permanently (2026-08-08) in favor of testing finer sens
   // increments instead (the mouse config app floored DPI at 50-unit steps).

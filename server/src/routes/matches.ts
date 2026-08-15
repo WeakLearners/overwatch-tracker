@@ -71,29 +71,35 @@ router.post('/', (req: Request, res: Response) => {
   // is already in).
   const isCompetitive = (queue_mode ?? 'comp_role') !== 'qp_role' || role === 'Support';
 
-  const activeSet = isCompetitive ? db.prepare(`
-    SELECT id, cur_rel, in_game_sens FROM blind_stage_sets
-    WHERE active = 1 AND hero = :hero
-    UNION ALL
-    SELECT id, cur_rel, in_game_sens FROM blind_stage_sets
-    WHERE active = 1 AND hero IS NULL AND NOT EXISTS (SELECT 1 FROM blind_stage_sets WHERE active = 1 AND hero = :hero)
-    LIMIT 1
-  `).get({ hero }) as { id: number; cur_rel: number; in_game_sens: number } | undefined : undefined;
-  if (activeSet) {
+  // Looks up the active stage-test set for a given hero (hero-tagged set
+  // takes priority over the shared ad-hoc, hero-less one) and its current
+  // stage. Shared between the primary hero (which also determines the
+  // sens/dpi stamped onto the match row) and any hero-slot 2/3 switched to
+  // mid-match — every hero actually played gets checked, not just slot 1.
+  const findActiveStage = (h: string) => {
+    if (!isCompetitive) return undefined;
+    const activeSet = db.prepare(`
+      SELECT id, cur_rel, in_game_sens FROM blind_stage_sets
+      WHERE active = 1 AND hero = :hero
+      UNION ALL
+      SELECT id, cur_rel, in_game_sens FROM blind_stage_sets
+      WHERE active = 1 AND hero IS NULL AND NOT EXISTS (SELECT 1 FROM blind_stage_sets WHERE active = 1 AND hero = :hero)
+      LIMIT 1
+    `).get({ hero: h }) as { id: number; cur_rel: number; in_game_sens: number } | undefined;
+    if (!activeSet) return undefined;
     const stage = db.prepare('SELECT dpi, sens FROM blind_stages WHERE set_id = :sid AND stage_index = :si')
       .get({ sid: activeSet.id, si: activeSet.cur_rel }) as { dpi: number; sens: number | null } | undefined;
-    if (stage) {
-      if (stage.sens != null) {
-        finalDpi = stage.dpi;
-        finalSens = stage.sens;
-      } else {
-        finalDpi = stage.dpi;
-        finalSens = activeSet.in_game_sens;
-      }
-      isStudy = 1;
-      setId = activeSet.id;
-      stageIdx = activeSet.cur_rel;
-    }
+    if (!stage) return undefined;
+    return { setId: activeSet.id, stageIdx: activeSet.cur_rel, dpi: stage.dpi, sens: stage.sens ?? activeSet.in_game_sens };
+  };
+
+  const primaryStage = findActiveStage(hero);
+  if (primaryStage) {
+    finalDpi = primaryStage.dpi;
+    finalSens = primaryStage.sens;
+    isStudy = 1;
+    setId = primaryStage.setId;
+    stageIdx = primaryStage.stageIdx;
   }
 
   const result = db.prepare(`
@@ -121,19 +127,39 @@ router.post('/', (req: Request, res: Response) => {
   );
   heroSlots.forEach((h, i) => insertHeroSlot.run({ match_id: matchId, slot: i + 1, hero: h.hero, role: h.role, feel: h.feel }));
 
-  if (isStudy && setId != null) {
-    db.prepare('UPDATE blind_stage_sets SET games_on_stage = games_on_stage + 1 WHERE id = :id').run({ id: setId });
+  const insertCredit = db.prepare(
+    'INSERT OR IGNORE INTO blind_credits (match_id, hero, blind_set_id, stage_index) VALUES (:match_id, :hero, :blind_set_id, :stage_index)'
+  );
+  // Credit every hero actually played, not just the primary — a hero played
+  // only as a mid-match switch (slot 2/3) still logged games at its own
+  // active test's current stage, and needs its own set's counters moved.
+  // Primary reuses the lookup already done above rather than re-querying.
+  const creditsToApply = [
+    ...(primaryStage ? [{ hero, ...primaryStage }] : []),
+    ...heroSlots.slice(1).flatMap(h => {
+      const stage = findActiveStage(h.hero);
+      return stage ? [{ hero: h.hero, ...stage }] : [];
+    }),
+  ];
+
+  for (const credit of creditsToApply) {
+    // Guards against double-crediting if the same hero somehow appears twice
+    // in heroSlots (e.g. switched back to the match's starting hero) — the
+    // (match_id, hero) PK means only the first insert actually lands.
+    const { changes } = insertCredit.run({ match_id: matchId, hero: credit.hero, blind_set_id: credit.setId, stage_index: credit.stageIdx });
+    if (changes === 0) continue;
+    db.prepare('UPDATE blind_stage_sets SET games_on_stage = games_on_stage + 1 WHERE id = :id').run({ id: credit.setId });
     // Multiple sets can be active at once now (one per hero), so nothing else
     // retires a finished set the way the old single-active-slot model used to
     // when a new set took over. Retire it here instead, the moment its last
     // stage hits its game target — otherwise it would stay active forever
     // (DELETE refuses completed sets) and permanently block this hero from
     // starting a fresh test.
-    const set = db.prepare('SELECT batch_size FROM blind_stage_sets WHERE id = :id').get({ id: setId }) as { batch_size: number };
-    const nStages = (db.prepare('SELECT COUNT(*) n FROM blind_stages WHERE set_id = :id').get({ id: setId }) as { n: number }).n;
-    const totalGames = (db.prepare('SELECT COUNT(*) n FROM matches WHERE blind_set_id = :id').get({ id: setId }) as { n: number }).n;
+    const set = db.prepare('SELECT batch_size FROM blind_stage_sets WHERE id = :id').get({ id: credit.setId }) as { batch_size: number };
+    const nStages = (db.prepare('SELECT COUNT(*) n FROM blind_stages WHERE set_id = :id').get({ id: credit.setId }) as { n: number }).n;
+    const totalGames = (db.prepare('SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id').get({ id: credit.setId }) as { n: number }).n;
     if (totalGames >= set.batch_size * nStages) {
-      db.prepare('UPDATE blind_stage_sets SET active = 0 WHERE id = :id').run({ id: setId });
+      db.prepare('UPDATE blind_stage_sets SET active = 0 WHERE id = :id').run({ id: credit.setId });
     }
   }
 
