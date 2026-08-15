@@ -710,7 +710,7 @@ export default function Prematch() {
                                 className={`w-1.5 h-3 -skew-x-[20deg] ${
                                   i < testGaugeFor(h.hero)!
                                     ? 'bg-emerald-500'
-                                    : 'bg-transparent border border-[var(--faint-2)]/20'
+                                    : 'bg-transparent border-[0.5px] border-[var(--faint-2)]/20'
                                 }`}
                               />
                             ))}
