@@ -398,19 +398,30 @@ export default function Prematch() {
           {selected.length > 0 && (
             <div className="flex gap-2 flex-wrap" data-inspect-id="prematch-selected-map-chips">
               {selected.map(m => (
-                <button
+                <span
                   key={m}
-                  onClick={() => toggleMap(m)}
-                  className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-sm map-name transition-colors ${
+                  className={`flex items-center gap-1.5 pl-3 pr-1.5 py-1 rounded-full text-sm map-name transition-colors ${
                     m === winner
                       ? 'bg-emerald-500/20 text-emerald-700'
                       : 'bg-ow-accent/15 text-ow-accent'
                   }`}
                 >
-                  {m === winner && <span className="text-xs normal-case">✓</span>}
-                  {withMapCount(m, mapCounts)}
-                  <span className="text-xs opacity-60">×</span>
-                </button>
+                  <button
+                    onClick={() => setMap(m)}
+                    className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+                    title={`Set ${m} as the match map`}
+                  >
+                    {m === winner && <span className="text-xs normal-case">✓</span>}
+                    {withMapCount(m, mapCounts)}
+                  </button>
+                  <button
+                    onClick={() => toggleMap(m)}
+                    className="flex items-center justify-center w-5 h-5 rounded-full text-sm font-bold leading-none hover:bg-black/10 hover:text-red-600 transition-colors"
+                    title={`Remove ${m}`}
+                  >
+                    ×
+                  </button>
+                </span>
               ))}
               <button
                 onClick={() => { setSelected([]); advisorSelectRef.current?.focus(); }}
