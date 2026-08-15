@@ -60,6 +60,7 @@ const CRIT_SLOT_LABEL: Record<string, { label: string; aria: string }> = {
   Ana: { label: 'Sleep Dart Accuracy %', aria: 'sleep dart accuracy' },
   Sojourn: { label: 'Charged Shot %', aria: 'charged shot accuracy' },
   Pharah: { label: 'Direct Hit %', aria: 'direct hit accuracy' },
+  Zenyatta: { label: 'Charged Volley %', aria: 'charged volley accuracy' },
 };
 interface StatFieldsT {
   heroAcc: HeroAccStat[];
