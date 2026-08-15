@@ -187,6 +187,17 @@ export default function Prematch() {
     return v != null ? v.toFixed(2) : null;
   };
 
+  // Quantizes remaining-games-in-stage onto a 5-segment gauge (like a battery
+  // meter) regardless of the set's actual batch_size, so every hero's gauge
+  // reads on the same 5-bar scale.
+  const GAUGE_SEGMENTS = 5;
+  const testGaugeFor = (hero: string): number | null => {
+    const a = btActives.find(a => a.hero === hero);
+    if (!a || a.batch_size <= 0) return null;
+    const remaining = Math.max(0, a.batch_size - a.games_on_stage);
+    return Math.min(GAUGE_SEGMENTS, Math.round((remaining / a.batch_size) * GAUGE_SEGMENTS));
+  };
+
   // For each role, list every hero with an active sens test — no top-N cap,
   // no collapsed overflow bucket. topOnMap only has rows for heroes with at
   // least one logged game on this exact map, so an active-test hero with zero
@@ -677,7 +688,7 @@ export default function Prematch() {
                         onClick={() => { setSelectedHero(h.hero); setPendingHero(h.hero); }}
                         data-inspect-id="prematch-hero-picker-button"
                         aria-pressed={selectedHero === h.hero}
-                        className={`flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-lg border active:scale-[0.98] transition-all group ${
+                        className={`relative flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-lg border active:scale-[0.98] transition-all group ${
                           selectedHero === h.hero
                             ? 'border-ow-accent bg-ow-accent/15'
                             : 'border-ow-border bg-ow-darker hover:border-ow-accent/70 hover:bg-ow-accent/10'
@@ -687,6 +698,24 @@ export default function Prematch() {
                         <span className={`flex-1 text-xs hero-name transition-colors ${selectedHero === h.hero ? 'text-ow-accent' : 'text-[var(--ink)] group-hover:text-ow-accent'}`}>
                           {withHeroCount(h.hero, heroCounts)}{testValueFor(h.hero) && ` @ ${testValueFor(h.hero)}`}
                         </span>
+                        {testGaugeFor(h.hero) != null && (
+                          <span
+                            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-0.5 pointer-events-none"
+                            title={`${testGaugeFor(h.hero)}/${GAUGE_SEGMENTS} games left at current sens`}
+                            data-inspect-id="prematch-hero-picker-gauge"
+                          >
+                            {Array.from({ length: GAUGE_SEGMENTS }).map((_, i) => (
+                              <span
+                                key={i}
+                                className={`w-1.5 h-3 -skew-x-[20deg] ${
+                                  i < testGaugeFor(h.hero)!
+                                    ? 'bg-emerald-500'
+                                    : 'bg-transparent border border-[var(--faint-2)]/50'
+                                }`}
+                              />
+                            ))}
+                          </span>
+                        )}
                         <span className={`text-sm font-bold ${h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
                         <span className="text-xs text-[var(--faint-2)] w-7 text-right font-bold">{h.games}g</span>
                       </button>
