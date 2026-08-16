@@ -102,68 +102,84 @@ router.post('/', (req: Request, res: Response) => {
     stageIdx = primaryStage.stageIdx;
   }
 
-  const result = db.prepare(`
-    INSERT INTO matches (date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, dpi, blind_trial, blind_set_id, stage_index, revealed, feel, team_rating, notes)
-    VALUES (:date, :time, :day_of_week, :hour, :hero, :role, :map, :game_type, :win, :deaths, :queue_mode, :sens, :dpi, :blind_trial, :blind_set_id, :stage_index, 1, :feel, :team_rating, :notes)
-  `).run({ date, time: time ?? null, day_of_week: day_of_week ?? null, hour: hour ?? null, hero, role, map, game_type, win: win ? 1 : 0, deaths: deathsJson, queue_mode: queue_mode ?? 'comp_role', sens: finalSens, dpi: finalDpi, blind_trial: isStudy, blind_set_id: setId, stage_index: stageIdx, feel: feel ?? null, team_rating: team_rating ?? null, notes: notes?.trim() || null });
+  // Match row + heroes + blind_credits + games_on_stage all describe one
+  // logged match together — wrapped in a transaction so a mid-request error
+  // can't leave the match durable with blind_trial/blind_set_id set but no
+  // matching blind_credits row (see blind.ts's set-creation insert for the
+  // same rationale).
+  let matchId: number;
+  db.exec('BEGIN');
+  try {
+    // revealed is a confirmed-dead leftover from an earlier hidden-DPI
+    // design (schema.ts's comment on the column) — left off here rather
+    // than hardcoded to 1 on every insert, since nothing reads it either way.
+    const result = db.prepare(`
+      INSERT INTO matches (date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, dpi, blind_trial, blind_set_id, stage_index, feel, team_rating, notes)
+      VALUES (:date, :time, :day_of_week, :hour, :hero, :role, :map, :game_type, :win, :deaths, :queue_mode, :sens, :dpi, :blind_trial, :blind_set_id, :stage_index, :feel, :team_rating, :notes)
+    `).run({ date, time: time ?? null, day_of_week: day_of_week ?? null, hour: hour ?? null, hero, role, map, game_type, win: win ? 1 : 0, deaths: deathsJson, queue_mode: queue_mode ?? 'comp_role', sens: finalSens, dpi: finalDpi, blind_trial: isStudy, blind_set_id: setId, stage_index: stageIdx, feel: feel ?? null, team_rating: team_rating ?? null, notes: notes?.trim() || null });
 
-  const matchId = result.lastInsertRowid as number;
+    matchId = result.lastInsertRowid as number;
 
-  // Slot 1 is always the hero/role already written to the match row above.
-  // `heroes` carries any additional heroes switched to mid-match (slots 2/3),
-  // sent as {hero, role, feel} tuples the same way the primary one is —
-  // win/loss then attributes to every hero actually played, not just the
-  // first (see matches_by_hero in schema.ts). feel is per hero (LogMatch
-  // shows one slider per hero played) — slot 1's feel also mirrors into
-  // matches.feel above since that's what blind.ts's per-stage analysis reads.
-  const heroSlots: { hero: string; role: string; feel: number | null }[] = [
-    { hero, role, feel: typeof feel === 'number' ? feel : null },
-    ...(Array.isArray(heroes) ? heroes.filter((h: any) => h?.hero && h?.role).slice(0, 2).map((h: any) => ({
-      hero: h.hero, role: h.role, feel: typeof h.feel === 'number' ? h.feel : null,
-    })) : []),
-  ];
-  const insertHeroSlot = db.prepare(
-    'INSERT INTO match_heroes (match_id, slot, hero, role, feel) VALUES (:match_id, :slot, :hero, :role, :feel)'
-  );
-  heroSlots.forEach((h, i) => insertHeroSlot.run({ match_id: matchId, slot: i + 1, hero: h.hero, role: h.role, feel: h.feel }));
+    // Slot 1 is always the hero/role already written to the match row above.
+    // `heroes` carries any additional heroes switched to mid-match (slots 2/3),
+    // sent as {hero, role, feel} tuples the same way the primary one is —
+    // win/loss then attributes to every hero actually played, not just the
+    // first (see matches_by_hero in schema.ts). feel is per hero (LogMatch
+    // shows one slider per hero played) — slot 1's feel also mirrors into
+    // matches.feel above since that's what blind.ts's per-stage analysis reads.
+    const heroSlots: { hero: string; role: string; feel: number | null }[] = [
+      { hero, role, feel: typeof feel === 'number' ? feel : null },
+      ...(Array.isArray(heroes) ? heroes.filter((h: any) => h?.hero && h?.role).slice(0, 2).map((h: any) => ({
+        hero: h.hero, role: h.role, feel: typeof h.feel === 'number' ? h.feel : null,
+      })) : []),
+    ];
+    const insertHeroSlot = db.prepare(
+      'INSERT INTO match_heroes (match_id, slot, hero, role, feel) VALUES (:match_id, :slot, :hero, :role, :feel)'
+    );
+    heroSlots.forEach((h, i) => insertHeroSlot.run({ match_id: matchId, slot: i + 1, hero: h.hero, role: h.role, feel: h.feel }));
 
-  const insertCredit = db.prepare(
-    'INSERT OR IGNORE INTO blind_credits (match_id, hero, blind_set_id, stage_index) VALUES (:match_id, :hero, :blind_set_id, :stage_index)'
-  );
-  // Credit every hero actually played, not just the primary — a hero played
-  // only as a mid-match switch (slot 2/3) still logged games at its own
-  // active test's current stage, and needs its own set's counters moved.
-  // Primary reuses the lookup already done above rather than re-querying.
-  const creditsToApply = [
-    ...(primaryStage ? [{ hero, ...primaryStage }] : []),
-    ...heroSlots.slice(1).flatMap(h => {
-      const stage = findActiveStage(h.hero);
-      return stage ? [{ hero: h.hero, ...stage }] : [];
-    }),
-  ];
+    const insertCredit = db.prepare(
+      'INSERT OR IGNORE INTO blind_credits (match_id, hero, blind_set_id, stage_index) VALUES (:match_id, :hero, :blind_set_id, :stage_index)'
+    );
+    // Credit every hero actually played, not just the primary — a hero played
+    // only as a mid-match switch (slot 2/3) still logged games at its own
+    // active test's current stage, and needs its own set's counters moved.
+    // Primary reuses the lookup already done above rather than re-querying.
+    const creditsToApply = [
+      ...(primaryStage ? [{ hero, ...primaryStage }] : []),
+      ...heroSlots.slice(1).flatMap(h => {
+        const stage = findActiveStage(h.hero);
+        return stage ? [{ hero: h.hero, ...stage }] : [];
+      }),
+    ];
 
-  for (const credit of creditsToApply) {
-    // Guards against double-crediting if the same hero somehow appears twice
-    // in heroSlots (e.g. switched back to the match's starting hero) — the
-    // (match_id, hero) PK means only the first insert actually lands.
-    const { changes } = insertCredit.run({ match_id: matchId, hero: credit.hero, blind_set_id: credit.setId, stage_index: credit.stageIdx });
-    if (changes === 0) continue;
-    db.prepare('UPDATE blind_stage_sets SET games_on_stage = games_on_stage + 1 WHERE id = :id').run({ id: credit.setId });
-    // Multiple sets can be active at once now (one per hero), so nothing else
-    // retires a finished set the way the old single-active-slot model used to
-    // when a new set took over. Retire it here instead, the moment its last
-    // stage hits its game target — otherwise it would stay active forever
-    // (DELETE refuses completed sets) and permanently block this hero from
-    // starting a fresh test.
-    const set = db.prepare('SELECT batch_size FROM blind_stage_sets WHERE id = :id').get({ id: credit.setId }) as { batch_size: number };
-    const nStages = (db.prepare('SELECT COUNT(*) n FROM blind_stages WHERE set_id = :id').get({ id: credit.setId }) as { n: number }).n;
-    const totalGames = (db.prepare('SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id').get({ id: credit.setId }) as { n: number }).n;
-    if (totalGames >= set.batch_size * nStages) {
-      db.prepare('UPDATE blind_stage_sets SET active = 0 WHERE id = :id').run({ id: credit.setId });
+    for (const credit of creditsToApply) {
+      // Guards against double-crediting if the same hero somehow appears twice
+      // in heroSlots (e.g. switched back to the match's starting hero) — the
+      // (match_id, hero) PK means only the first insert actually lands.
+      const { changes } = insertCredit.run({ match_id: matchId, hero: credit.hero, blind_set_id: credit.setId, stage_index: credit.stageIdx });
+      if (changes === 0) continue;
+      db.prepare('UPDATE blind_stage_sets SET games_on_stage = games_on_stage + 1 WHERE id = :id').run({ id: credit.setId });
+      // Multiple sets can be active at once now (one per hero), so nothing else
+      // retires a finished set the way the old single-active-slot model used to
+      // when a new set took over. Retire it here instead, the moment its last
+      // stage hits its game target — otherwise it would stay active forever
+      // (DELETE refuses completed sets) and permanently block this hero from
+      // starting a fresh test.
+      const set = db.prepare('SELECT batch_size FROM blind_stage_sets WHERE id = :id').get({ id: credit.setId }) as { batch_size: number };
+      const nStages = (db.prepare('SELECT COUNT(*) n FROM blind_stages WHERE set_id = :id').get({ id: credit.setId }) as { n: number }).n;
+      const totalGames = (db.prepare('SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id').get({ id: credit.setId }) as { n: number }).n;
+      if (totalGames >= set.batch_size * nStages) {
+        db.prepare('UPDATE blind_stage_sets SET active = 0 WHERE id = :id').run({ id: credit.setId });
+      }
     }
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
   }
 
-  res.json({ id: result.lastInsertRowid });
+  res.json({ id: matchId });
 });
 
 // Partial update of a logged match. Only the columns present in the body are
@@ -230,7 +246,33 @@ router.put('/:id', (req: Request, res: Response) => {
 
 router.delete('/:id', (req: Request, res: Response) => {
   const db = getDb();
-  db.prepare('DELETE FROM matches WHERE id = :id').run({ id: req.params.id });
+  const matchId = req.params.id;
+
+  // blind_credits rows for this match cascade-delete with it (schema.ts's
+  // ON DELETE CASCADE), which keeps totalGamesOf (COUNT(*) on blind_credits)
+  // self-healing. games_on_stage on blind_stage_sets does not self-heal —
+  // it's a hand-incremented counter (matches.ts's POST handler above) with
+  // no other decrement path — so read the credits before the cascade wipes
+  // them and decrement games_on_stage for any that belonged to their set's
+  // *current* stage (a credit for an already-advanced-past stage doesn't
+  // affect the current stage's count).
+  db.exec('BEGIN');
+  try {
+    const credits = db.prepare('SELECT blind_set_id, stage_index FROM blind_credits WHERE match_id = :id')
+      .all({ id: matchId }) as { blind_set_id: number; stage_index: number }[];
+    db.prepare('DELETE FROM matches WHERE id = :id').run({ id: matchId });
+    for (const credit of credits) {
+      db.prepare(`
+        UPDATE blind_stage_sets SET games_on_stage = MAX(games_on_stage - 1, 0)
+        WHERE id = :id AND cur_rel = :stage_index
+      `).run({ id: credit.blind_set_id, stage_index: credit.stage_index });
+    }
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+
   res.json({ ok: true });
 });
 

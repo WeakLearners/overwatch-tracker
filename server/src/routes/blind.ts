@@ -98,9 +98,12 @@ router.post('/sets', (req: Request, res: Response) => {
   let set_id: number;
   db.exec('BEGIN');
   try {
+    // scramble_done/resolved are confirmed-dead leftovers from an earlier
+    // hidden-DPI design (schema.ts's comment on these columns) — left off
+    // here rather than hardcoded on every set, since nothing reads them.
     const r = db.prepare(`
-      INSERT INTO blind_stage_sets (in_game_sens, base_dpi, active, note, batch_size, cur_rel, games_on_stage, scramble_done, resolved, hero)
-      VALUES (:s, :d, 1, :note, :b, 1, 0, 1, 0, :hero)
+      INSERT INTO blind_stage_sets (in_game_sens, base_dpi, active, note, batch_size, cur_rel, games_on_stage, hero)
+      VALUES (:s, :d, 1, :note, :b, 1, 0, :hero)
     `).run({ s: in_game_sens, d: base_dpi, note: req.body.note ?? null, b: batch_size, hero });
     set_id = Number(r.lastInsertRowid);
     const ins = db.prepare('INSERT INTO blind_stages (set_id, stage_index, dpi, sens, pct_delta) VALUES (:set_id, :stage_index, :dpi, :sens, :pct_delta)');
@@ -227,8 +230,18 @@ router.get('/sets/:id', (req: Request, res: Response) => {
   const stages = stagesOf(db, set.id);
 
   const rows = stages.map(st => {
+    // Reads blind_credits (one row per hero actually credited to this
+    // stage, including mid-match switches), not matches.blind_set_id/
+    // stage_index directly — those columns only ever reflect the match's
+    // slot-1/primary hero (see totalGamesOf above) and would undercount
+    // this stage's trial rows exactly like they undercounted games_on_stage
+    // before blind_credits existed. feel is read per credited hero via
+    // match_heroes rather than matches.feel, since match_heroes has its own
+    // per-hero feel value for every slot (matches.feel only mirrors slot 1's).
     const trials = db.prepare(`
-      SELECT feel FROM matches WHERE blind_set_id = :sid AND stage_index = :si
+      SELECT mh.feel FROM blind_credits bc
+      JOIN match_heroes mh ON mh.match_id = bc.match_id AND mh.hero = bc.hero
+      WHERE bc.blind_set_id = :sid AND bc.stage_index = :si
     `).all({ sid: set.id, si: st.stage_index }) as { feel: number | null }[];
     const feels = trials.map(t => t.feel).filter((f): f is number => f != null);
     const feelMean = feels.length ? feels.reduce((a, b) => a + b, 0) / feels.length : null;

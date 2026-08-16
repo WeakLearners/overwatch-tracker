@@ -36,11 +36,19 @@ function groupBy<T>(items: T[], key: (t: T) => string | number): Map<string | nu
 // The "pending" queue the /sens app fills at match end: matches that have a
 // row logged by the match app but no aim_stats yet. Most recent first, capped.
 //
-// Only study matches qualify (blind_trial = 1, i.e. this match landed on an
-// active DPI stage-test). sens IS NOT NULL is not a safe proxy for that: the
-// Match Tracker sends a sens value on every match regardless of queue mode,
-// so QP games — which never feed the DPI study — would otherwise pad this
-// backlog too.
+// Only study matches qualify — a match where ANY hero played (not just the
+// one on m.hero/m.role, i.e. slot 1) was credited toward an active DPI
+// stage-test. Gating on m.blind_trial alone used to miss matches where the
+// starting hero had no active test but a hero switched to mid-match did —
+// that hero's game would silently never surface here for stats entry, even
+// though blind_credits/games_on_stage already counted it toward its stage.
+// matches.ts's POST handler inserts a blind_credits row for the primary hero
+// too whenever blind_trial is set, so this EXISTS check is a strict
+// superset of the old m.blind_trial = 1 filter, not just an alternative to
+// it. sens IS NOT NULL is not a safe proxy for "in the study" either way:
+// the Match Tracker sends a sens value on every match regardless of queue
+// mode, so QP games — which never feed the DPI study — would otherwise pad
+// this backlog too.
 router.get('/pending', (req: Request, res: Response) => {
   const db = getDb();
   const limit = parseInt((req.query.limit as string) ?? '20') || 20;
@@ -49,7 +57,7 @@ router.get('/pending', (req: Request, res: Response) => {
            m.dpi, m.blind_trial, m.blind_set_id, m.stage_index
     FROM matches m
     LEFT JOIN aim_stats a ON a.match_id = m.id
-    WHERE a.match_id IS NULL AND m.blind_trial = 1
+    WHERE a.match_id IS NULL AND EXISTS (SELECT 1 FROM blind_credits bc WHERE bc.match_id = m.id)
     ORDER BY m.id DESC
     LIMIT :limit
   `).all({ limit }) as Record<string, unknown>[];
@@ -64,7 +72,7 @@ router.get('/pending', (req: Request, res: Response) => {
     SELECT COUNT(*) AS total
     FROM matches m
     LEFT JOIN aim_stats a ON a.match_id = m.id
-    WHERE a.match_id IS NULL AND m.blind_trial = 1
+    WHERE a.match_id IS NULL AND EXISTS (SELECT 1 FROM blind_credits bc WHERE bc.match_id = m.id)
   `).get() as { total: number };
   res.json({ rows, total });
 });

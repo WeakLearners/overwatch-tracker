@@ -19,7 +19,21 @@ function initSchema(db: DatabaseSync) {
   db.exec(`
     PRAGMA journal_mode = WAL;
     PRAGMA foreign_keys = ON;
+  `);
 
+  // Everything below is schema setup + one-time data migrations, run on every
+  // startup. Wrapped in a single transaction so a crash/restart partway
+  // through can't leave things partially applied — e.g. a column ALTERed in
+  // but its one-time backfill UPDATE never run (the guard below only checks
+  // column presence, so a skipped backfill would otherwise be silently
+  // abandoned forever), or the feel ×10 rescale (guarded by PRAGMA
+  // user_version) committing its UPDATEs without the version bump and
+  // re-applying a second time on the next start. SQLite's DDL (CREATE TABLE,
+  // ALTER TABLE, CREATE INDEX) and PRAGMA user_version are both transactional,
+  // so this is safe to wrap as a whole.
+  db.exec('BEGIN');
+  try {
+  db.exec(`
     CREATE TABLE IF NOT EXISTS matches (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       date TEXT NOT NULL,
@@ -85,7 +99,10 @@ function initSchema(db: DatabaseSync) {
   ] as const) {
     if (!cols.find(c => c.name === col)) db.exec(ddl);
   }
-  db.exec(`UPDATE matches SET revealed = 1 WHERE revealed IS NULL OR blind_trial = 0 OR blind_trial IS NULL`);
+  // No startup backfill for revealed — it's a confirmed-dead leftover from
+  // an earlier hidden-DPI design (nothing reads it), so there's no reason to
+  // scan and rewrite the whole matches table on every app start to keep it
+  // "correct."
 
   // Per-match aim stats for the sensitivity study. One-to-one with a match,
   // entered separately at match end via the /sens app.
@@ -410,4 +427,9 @@ function initSchema(db: DatabaseSync) {
       PRIMARY KEY (map, queue_mode)
     )
   `);
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
 }
