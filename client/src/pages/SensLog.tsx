@@ -51,6 +51,7 @@ interface DpiTestSetSummary {
 interface AnswerStage {
   stage_index: number; dpi: number; sens: number | null; pct_delta: number;
   eDPI: number; cm360: number; n: number; feelMean: number | null; feelVar: number | null;
+  games: number; winRate: number | null; accMean: number | null; elimsPer10: number | null; dmgPer10: number | null;
 }
 // One overall/crit accuracy + duration reading per hero actually played — a
 // match with a mid-match switch gets one row per hero here instead of a
@@ -443,15 +444,44 @@ function spreadSens(low: number, high: number, stages: number): number[] {
     Math.round((low + (high - low) * (i / (stages - 1))) * 100) / 100);
 }
 
-// Auto-narrows a hero's range for the next phase around the same midpoint —
-// every hand-authored phase tightens the bracket rather than shifting it
-// (e.g. Phase 4's 0.15 gap became Phase 5's 0.1 gap, a 2/3 shrink), so new
-// phases apply that same ratio instead of asking for a new range by hand.
+// The next phase's bracket is always tighter than the last (e.g. Phase 4's
+// 0.15 gap became Phase 5's 0.1 gap — a 2/3 shrink), so every new phase
+// applies that same shrink ratio to the old range's width.
 const NARROW_RATIO = 2 / 3;
-function narrowRange(low: number, high: number): { low: number; high: number } {
-  const mid = (low + high) / 2;
-  const halfGap = ((high - low) / 2) * NARROW_RATIO;
-  return { low: Math.round((mid - halfGap) * 100) / 100, high: Math.round((mid + halfGap) * 100) / 100 };
+
+// Which of a hero's tested stage values actually performed better — the same
+// signals the hand-written phase notes cite ("led on accuracy and
+// elims/min"), read straight from match results instead of guessed. Each
+// metric casts one vote for whichever stage scored highest on it, but only if
+// every stage has enough games logged for that metric to mean anything;
+// metrics with too little data just don't vote. A stage needs strictly more
+// votes than any other to count as a real winner — a tie (including "nobody
+// voted") falls back to narrowing around the old midpoint instead of
+// pretending there's a data-backed direction.
+const MIN_GAMES_FOR_METRIC = 3;
+const NARROW_METRICS = [
+  { key: 'winRate', label: 'win%' },
+  { key: 'accMean', label: 'acc' },
+  { key: 'elimsPer10', label: 'elims/10' },
+  { key: 'dmgPer10', label: 'dmg/10' },
+] as const;
+
+function pickWinnerStage(stages: AnswerStage[]): { index: number | null; reliable: boolean; basis: string } {
+  const votes = stages.map(() => 0);
+  const votedOn: string[] = [];
+  for (const m of NARROW_METRICS) {
+    if (stages.some(s => s[m.key] == null || s.games < MIN_GAMES_FOR_METRIC)) continue;
+    const bestIdx = stages.reduce((best, s, i) => (s[m.key]! > stages[best][m.key]! ? i : best), 0);
+    votes[bestIdx]++;
+    votedOn.push(m.label);
+  }
+  const gamesStr = stages.map(s => s.games).join('/');
+  const totalVotes = votes.reduce((a, b) => a + b, 0);
+  if (totalVotes === 0) return { index: null, reliable: false, basis: `not enough games logged yet (n=${gamesStr}) — generic narrow` };
+  const maxVotes = Math.max(...votes);
+  const winners = votes.flatMap((v, i) => (v === maxVotes ? [i] : []));
+  if (winners.length !== 1) return { index: null, reliable: false, basis: `tied ${maxVotes}/${votedOn.length} on ${votedOn.join('/')} (n=${gamesStr}) — generic narrow` };
+  return { index: winners[0], reliable: true, basis: `won ${maxVotes}/${votedOn.length} tracked stats (${votedOn.join('/')}), n=${gamesStr}` };
 }
 
 type HeroTestStatus = 'none' | 'testing' | 'completed';
@@ -481,18 +511,25 @@ function statusForHero(
   const past = [...sets]
     .filter(s => s.hero === hero && s.batch_size === batchSize && s.n_stages === nStages && sameValues(s.values, values))
     .sort((a, b) => b.set_id - a.set_id)[0];
-  if (past && past.totalGames >= target) return { status: 'completed', totalGames: past.totalGames, target, setId: null };
+  if (past && past.totalGames >= target) return { status: 'completed', totalGames: past.totalGames, target, setId: past.set_id };
   return { status: 'none', totalGames: 0, target, setId: null };
 }
 
 // One row of the "+ Add new phase" form — string-valued so number inputs can
 // sit blank/mid-edit without fighting controlled-input parsing.
 // `locked` rows are carried over from the latest phase — their sens range is
-// computed automatically (narrowRange) and shown read-only, since re-testing
-// is always a narrower bracket, never a hand-picked new one. Manually added
-// heroes have no prior-phase range to narrow from, so theirs stays editable.
-interface NewPhaseRow { hero: string; archetype: string; gamesPerSlot: string; low: string; high: string; note: string; locked: boolean }
-const blankRow = (): NewPhaseRow => ({ hero: '', archetype: '', gamesPerSlot: '5', low: '', high: '', note: '', locked: false });
+// computed automatically (pickWinnerStage + NARROW_RATIO, see openAddPhase)
+// and shown read-only, since re-testing is always a narrower bracket driven
+// by results, never a hand-picked one. Manually added heroes have no
+// prior-phase range to narrow from, so theirs stays editable.
+interface NewPhaseRow {
+  hero: string; archetype: string; gamesPerSlot: string; low: string; high: string; note: string;
+  locked: boolean; reliable: boolean; basis: string;
+}
+const blankRow = (): NewPhaseRow => ({
+  hero: '', archetype: '', gamesPerSlot: '5', low: '', high: '', note: '',
+  locked: false, reliable: true, basis: 'manually added — no prior-phase data to narrow from',
+});
 
 function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestState | null }) {
   const { data } = useApi<{ sets: DpiTestSetSummary[] }>('/api/blind/sets');
@@ -512,25 +549,67 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
   const [cancelling, setCancelling] = useState(false);
 
   const [showAddPhase, setShowAddPhase] = useState(false);
+  const [loadingAddPhase, setLoadingAddPhase] = useState(false);
   const [stages, setStages] = useState('2');
   const [rows, setRows] = useState<NewPhaseRow[]>([blankRow()]);
 
+  // Same set-matching statusForHero uses (hero + exact batch size/stage
+  // count/values), just returning the set id instead of a status label — so
+  // the add-phase form can pull that hero's actual per-stage results.
+  function findSetIdForHero(h: PlanHero): number | null {
+    return statusForHero(h.hero, actives, sets, h.gamesPerSlot, valuesOf(h)).setId;
+  }
+
   // Every phase after the first is a narrower re-test of the same roster, so
-  // the form opens pre-loaded with the latest phase's heroes (old sens range
-  // as a starting point to narrow down) rather than blank — excluding a hero
-  // is just clicking its × instead of building the list from scratch.
-  function openAddPhase() {
+  // the form opens pre-loaded with the latest phase's heroes — excluding a
+  // hero is just clicking its × instead of building the list from scratch.
+  // Each hero's new range is centered on whichever of its last-phase stage
+  // values actually won on match results (pickWinnerStage), not just
+  // shrunk around the old midpoint — see pickWinnerStage for how "won" is
+  // decided and when it instead falls back to a plain symmetric narrow.
+  async function openAddPhase() {
     const latest = allTabs[allTabs.length - 1];
-    setStages('2');
-    setRows(latest.plan.map(h => {
-      const values = valuesOf(h);
-      const { low, high } = narrowRange(Math.min(...values), Math.max(...values));
-      return {
-        hero: h.hero, archetype: h.archetype, gamesPerSlot: String(h.gamesPerSlot),
-        low: String(low), high: String(high), note: '', locked: true,
-      };
-    }));
-    setShowAddPhase(true);
+    setLoadingAddPhase(true);
+    try {
+      const built = await Promise.all(latest.plan.map(async (h): Promise<NewPhaseRow> => {
+        const values = valuesOf(h);
+        const oldLow = Math.min(...values);
+        const oldHigh = Math.max(...values);
+        let center = (oldLow + oldHigh) / 2;
+        let reliable = false;
+        let basis = 'no test set logged for this hero yet — generic narrow';
+
+        const setId = findSetIdForHero(h);
+        if (setId != null) {
+          try {
+            const res = await fetch(`/api/blind/sets/${setId}`);
+            if (res.ok) {
+              const data = await res.json() as { stages: AnswerStage[] };
+              const picked = pickWinnerStage(data.stages);
+              reliable = picked.reliable;
+              basis = picked.basis;
+              if (picked.reliable && picked.index != null) {
+                const winStage = data.stages[picked.index];
+                center = winStage.sens ?? winStage.dpi;
+              }
+            }
+          } catch { /* network hiccup — falls back to the generic narrow below */ }
+        }
+
+        const width = (oldHigh - oldLow) * NARROW_RATIO;
+        const low = Math.round((center - width / 2) * 100) / 100;
+        const high = Math.round((center + width / 2) * 100) / 100;
+        return {
+          hero: h.hero, archetype: h.archetype, gamesPerSlot: String(h.gamesPerSlot),
+          low: String(low), high: String(high), note: '', locked: true, reliable, basis,
+        };
+      }));
+      setStages('2');
+      setRows(built);
+      setShowAddPhase(true);
+    } finally {
+      setLoadingAddPhase(false);
+    }
   }
 
   function updateRow(i: number, patch: Partial<NewPhaseRow>) {
@@ -560,6 +639,22 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
     saveCustomPhases(next);
     setTabKey(newTab.key);
     setShowAddPhase(false);
+  }
+
+  // Only custom (session-built) phases are deletable — the hardcoded
+  // PLAN_TABS entries are historical record. Cancel any test sets for its
+  // heroes first (via the plan tile's own "Cancel test" button); this only
+  // removes the tab/plan definition, not any sets already created from it.
+  function deleteCustomPhase(key: string) {
+    const target = customPhases.find(t => t.key === key);
+    if (!target || !confirm(`Delete "${target.label}"? This only removes the plan tab — cancel any test sets for its heroes separately first.`)) return;
+    const next = customPhases.filter(t => t.key !== key);
+    setCustomPhases(next);
+    saveCustomPhases(next);
+    if (tabKey === key) {
+      const fallback = [...tabs, ...next].reverse().find(t => t.plan.length > 0) ?? tabs[tabs.length - 1];
+      setTabKey(fallback.key);
+    }
   }
 
   async function createSetForHero(h: PlanHero) {
@@ -602,25 +697,40 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
   return (
     <div className="card mb-6" data-inspect-id="sl-plan-card">
       <div className="flex items-center gap-1 mb-3 border-b border-ow-border">
-        {allTabs.map(t => (
-          <button
-            key={t.key} type="button" onClick={() => setTabKey(t.key)}
-            data-inspect-id="sl-plan-tabs"
-            className={`text-sm heading-display px-3 py-1.5 -mb-px border-b-2 transition-colors ${
-              t.key === tabKey
-                ? 'text-[var(--ink)] border-[var(--ink)]'
-                : 'text-[var(--faint)] border-transparent hover:text-[var(--ink-2)]'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+        {allTabs.map(t => {
+          const isCustom = customPhases.some(c => c.key === t.key);
+          return (
+            <div key={t.key} className="relative flex items-center -mb-px">
+              <button
+                type="button" onClick={() => setTabKey(t.key)}
+                data-inspect-id="sl-plan-tabs"
+                className={`text-sm heading-display px-3 py-1.5 border-b-2 transition-colors ${isCustom ? 'pr-5' : ''} ${
+                  t.key === tabKey
+                    ? 'text-[var(--ink)] border-[var(--ink)]'
+                    : 'text-[var(--faint)] border-transparent hover:text-[var(--ink-2)]'
+                }`}
+              >
+                {t.label}
+              </button>
+              {isCustom && (
+                <button
+                  type="button" onClick={() => deleteCustomPhase(t.key)}
+                  data-inspect-id="sl-plan-delete-phase-btn"
+                  className="absolute right-0.5 top-1/2 -translate-y-1/2 text-[var(--faint)] hover:text-red-400 text-base font-bold leading-none"
+                  title={`Delete ${t.label}`}
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          );
+        })}
         <button
-          type="button" onClick={openAddPhase}
+          type="button" onClick={openAddPhase} disabled={loadingAddPhase}
           data-inspect-id="sl-plan-add-phase-tab"
-          className="text-sm heading-display px-3 py-1.5 -mb-px border-b-2 border-transparent text-[var(--faint)] hover:text-[var(--ink-2)] transition-colors"
+          className="text-sm heading-display px-3 py-1.5 -mb-px border-b-2 border-transparent text-[var(--faint)] hover:text-[var(--ink-2)] transition-colors disabled:opacity-40"
         >
-          + Add new phase
+          {loadingAddPhase ? 'Analyzing last phase…' : '+ Add new phase'}
         </button>
       </div>
       <p className="text-xs text-[var(--faint)] mb-3">{description}</p>
@@ -694,7 +804,9 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
           <div className="relative card max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto" data-inspect-id="sl-add-phase-modal">
             <h3 className="text-sm heading-display text-[var(--ink)] mb-1">Add new phase</h3>
             <p className="text-xs text-[var(--faint)] mb-4">
-              Build the next phase's plan. Sens values are evenly spread across the stage count from each hero's low/high range.
+              Build the next phase's plan. Carried-over heroes' ranges are centered on whichever last-phase stage actually won on
+              match results (win% / accuracy / elims / dmg) — hover a hero's row for the basis, or the ⚠ badge for heroes with too
+              little data to call a winner. Sens values are evenly spread across the stage count from each hero's low/high range.
             </p>
 
             <label className="inline-block mb-3">
@@ -714,23 +826,28 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
             </div>
             <div className="space-y-1 mb-2" data-inspect-id="sl-add-phase-rows">
               {rows.map((r, i) => (
-                <div key={i} className="grid grid-cols-12 gap-1.5 items-center">
-                  <input
-                    placeholder="Hero" value={r.hero} onChange={e => updateRow(i, { hero: e.target.value })}
-                    className={`${compactField} col-span-3`} aria-label={`Row ${i + 1} hero`}
-                  />
+                <div key={i} className="grid grid-cols-12 gap-1.5 items-center" title={r.locked ? r.basis : undefined}>
+                  <div className="col-span-3 relative">
+                    <input
+                      placeholder="Hero" value={r.hero} onChange={e => updateRow(i, { hero: e.target.value })}
+                      className={compactField} aria-label={`Row ${i + 1} hero`}
+                    />
+                    {r.locked && !r.reliable && (
+                      <span className="absolute -right-0.5 -top-1 text-amber-500 text-[10px]" title={r.basis}>⚠</span>
+                    )}
+                  </div>
                   <input
                     placeholder="Archetype" value={r.archetype} onChange={e => updateRow(i, { archetype: e.target.value })}
                     className={`${compactField} col-span-3`} aria-label={`Row ${i + 1} archetype`}
                   />
                   <input
                     type="number" step="0.01" placeholder="Low" value={r.low} onChange={e => updateRow(i, { low: e.target.value })}
-                    disabled={r.locked} title={r.locked ? 'Auto-narrowed from the last phase' : undefined}
+                    disabled={r.locked}
                     className={`${compactField} col-span-2 ${r.locked ? 'opacity-60 cursor-not-allowed' : ''}`} aria-label={`Row ${i + 1} low sens`}
                   />
                   <input
                     type="number" step="0.01" placeholder="High" value={r.high} onChange={e => updateRow(i, { high: e.target.value })}
-                    disabled={r.locked} title={r.locked ? 'Auto-narrowed from the last phase' : undefined}
+                    disabled={r.locked}
                     className={`${compactField} col-span-2 ${r.locked ? 'opacity-60 cursor-not-allowed' : ''}`} aria-label={`Row ${i + 1} high sens`}
                   />
                   <input

@@ -246,6 +246,34 @@ router.get('/sets/:id', (req: Request, res: Response) => {
     const feels = trials.map(t => t.feel).filter((f): f is number => f != null);
     const feelMean = feels.length ? feels.reduce((a, b) => a + b, 0) / feels.length : null;
     const feelVar = feels.length > 1 ? feels.reduce((a, b) => a + (b - (feelMean as number)) ** 2, 0) / feels.length : null;
+
+    // Win rate, accuracy, and output-per-10min for this stage — the same
+    // signals the hand-written phase notes cite ("led on accuracy and
+    // elims/min") — so the "+ Add new phase" form can narrow toward whichever
+    // stage actually performed better instead of just shrinking blindly
+    // around the old midpoint. overall_acc is per-hero (aim_stats_heroes);
+    // elims/damage/duration are match-level (aim_stats) like the rest of the
+    // codebase's per-10min rate stats (see stats.ts computePerformanceOutcome).
+    const perf = db.prepare(`
+      SELECT m.win, ah.overall_acc, a.elims, a.damage, a.duration_min
+      FROM blind_credits bc
+      JOIN matches m ON m.id = bc.match_id
+      LEFT JOIN aim_stats_heroes ah ON ah.match_id = bc.match_id AND ah.hero = bc.hero
+      LEFT JOIN aim_stats a ON a.match_id = bc.match_id
+      WHERE bc.blind_set_id = :sid AND bc.stage_index = :si
+    `).all({ sid: set.id, si: st.stage_index }) as {
+      win: number; overall_acc: number | null; elims: number | null; damage: number | null; duration_min: number | null;
+    }[];
+    const winRate = perf.length ? Math.round((perf.filter(p => p.win).length / perf.length) * 1000) / 10 : null;
+    const accVals = perf.map(p => p.overall_acc).filter((v): v is number => v != null);
+    const accMean = accVals.length ? Math.round((accVals.reduce((a, b) => a + b, 0) / accVals.length) * 10) / 10 : null;
+    const rateRows = perf.filter((p): p is typeof p & { elims: number; damage: number; duration_min: number } =>
+      p.elims != null && p.damage != null && p.duration_min != null && p.duration_min > 0);
+    const elimsPer10 = rateRows.length
+      ? Math.round((rateRows.reduce((s, p) => s + p.elims / p.duration_min * 10, 0) / rateRows.length) * 10) / 10 : null;
+    const dmgPer10 = rateRows.length
+      ? Math.round((rateRows.reduce((s, p) => s + p.damage / p.duration_min * 10, 0) / rateRows.length) * 10) / 10 : null;
+
     // Legacy stages (sens null) vary dpi with sens frozen on the set; current
     // stages (sens populated) vary sens with dpi frozen at LOCKED_DPI.
     const stageSens = st.sens ?? set.in_game_sens;
@@ -253,6 +281,7 @@ router.get('/sets/:id', (req: Request, res: Response) => {
       stage_index: st.stage_index, dpi: st.dpi, sens: st.sens, pct_delta: st.pct_delta,
       eDPI: eDPI(stageSens, st.dpi), cm360: Math.round(cm360(stageSens, st.dpi) * 100) / 100,
       n: trials.length, feelMean, feelVar,
+      games: perf.length, winRate, accMean, elimsPer10, dmgPer10,
     };
   });
 
