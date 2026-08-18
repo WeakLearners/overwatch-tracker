@@ -260,6 +260,31 @@ router.get('/analysis', (_req: Request, res: Response) => {
   });
 });
 
+// Matches already logged with combat stats on a given day — the /sens app's
+// record of what's been entered today, so the backfill form isn't a
+// write-only funnel. Mirrors /pending's per-hero heroes[] shape, plus each
+// hero's saved accuracy (aim_stats_heroes) so an edit form can prefill.
+router.get('/today', (req: Request, res: Response) => {
+  const db = getDb();
+  const date = (req.query.date as string) ?? '';
+  const rows = db.prepare(`
+    SELECT m.id, m.date, m.time, m.hero, m.role, m.map, m.game_type, m.queue_mode, m.win, m.sens,
+           m.dpi, m.blind_trial, m.blind_set_id, m.stage_index,
+           a.elims, a.deaths, a.damage, a.healing, a.assists, a.duration_min
+    FROM aim_stats a
+    JOIN matches m ON m.id = a.match_id
+    WHERE m.date = :date
+    ORDER BY m.id DESC
+  `).all({ date }) as Record<string, unknown>[];
+  const heroesStmt = db.prepare('SELECT hero, role FROM match_heroes WHERE match_id = :id ORDER BY slot');
+  const heroAccStmt = db.prepare('SELECT hero, overall_acc, crit_acc, extra_acc, duration_min FROM aim_stats_heroes WHERE match_id = :id');
+  for (const row of rows) {
+    row.heroes = heroesStmt.all({ id: row.id as number });
+    row.heroAcc = heroAccStmt.all({ id: row.id as number });
+  }
+  res.json({ rows });
+});
+
 // Aim stats joined with their match, for the analysis view. Newest first.
 router.get('/', (_req: Request, res: Response) => {
   const db = getDb();

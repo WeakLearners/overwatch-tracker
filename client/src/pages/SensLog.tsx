@@ -20,6 +20,14 @@ interface PendingMatch {
   // above) — a match with a mid-match switch has more than one.
   heroes: { hero: string; role: string }[];
 }
+// A match that already has aim stats saved today — /api/aim/today's shape.
+// Mirrors PendingMatch (same heroes[] ordering) plus the saved combat totals
+// and per-hero accuracy needed to prefill an edit.
+interface LoggedHeroAcc { hero: string; overall_acc: number | null; crit_acc: number | null; extra_acc: number | null; duration_min: number | null }
+interface LoggedMatch extends PendingMatch {
+  elims: number | null; deaths: number | null; damage: number | null; healing: number | null; assists: number | null;
+  heroAcc: LoggedHeroAcc[];
+}
 // A stage-trial set as returned by /api/blind/state. Several can be active at
 // once — one per hero, plus at most one ad-hoc (hero-less) set — so the UI
 // renders a card per entry rather than assuming a single global test.
@@ -81,6 +89,34 @@ const parseDurationMin = (s: string): number | null => {
   const m = s.trim().match(/^(\d{1,3}):([0-5]\d)$/);
   return m ? parseInt(m[1], 10) + parseInt(m[2], 10) / 60 : null;
 };
+// Inverse of parseDurationMin, for prefilling an edit form from the decimal
+// minutes stored server-side.
+const formatDurationMin = (mins: number | null): string => {
+  if (mins == null) return '';
+  let m = Math.floor(mins);
+  let sec = Math.round((mins - m) * 60);
+  if (sec === 60) { sec = 0; m += 1; }
+  return `${m}:${String(sec).padStart(2, '0')}`;
+};
+// Rehydrates a logged match's saved stats into the editable string shape
+// StatFields expects.
+const statsFromLogged = (m: LoggedMatch): StatFieldsT => ({
+  heroAcc: m.heroes.map(h => {
+    const a = m.heroAcc.find(ha => ha.hero === h.hero);
+    return {
+      hero: h.hero,
+      overall_acc: a?.overall_acc != null ? String(a.overall_acc) : '',
+      crit_acc: a?.crit_acc != null ? String(a.crit_acc) : '',
+      extra_acc: a?.extra_acc != null ? String(a.extra_acc) : '',
+      duration_min: formatDurationMin(a?.duration_min ?? null),
+    };
+  }),
+  elims: m.elims != null ? String(m.elims) : '',
+  deaths: m.deaths != null ? String(m.deaths) : '',
+  damage: m.damage != null ? String(m.damage) : '',
+  healing: m.healing != null ? String(m.healing) : '',
+  assists: m.assists != null ? String(m.assists) : '',
+});
 const field = 'w-full field px-3 py-2 text-sm num-display';
 const btnSecondary = 'border border-ow-border rounded-lg text-[var(--ink)] font-semibold hover:border-gray-500 transition-all disabled:opacity-40 disabled:cursor-not-allowed';
 const HERO_LIST = Object.entries(HEROES).sort((a, b) => a[0].localeCompare(b[0]));
@@ -894,6 +930,44 @@ function BackfillPanel({ pending, loading }: {
   const heroCounts = useTodayHeroCounts();
   const navigate = useNavigate();
 
+  // Matches already logged today — a record of what's been entered, with the
+  // same select-to-expand editing as the pending list above.
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const { data: loggedData, loading: loggedLoading } = useApi<{ rows: LoggedMatch[] }>(`/api/aim/today?date=${today}`);
+  const logged = loggedData?.rows ?? [];
+  const [loggedSelectedId, setLoggedSelectedId] = useState<number | null>(null);
+  const [loggedSens, setLoggedSens] = useState('');
+  const [loggedStats, setLoggedStats] = useState<StatFieldsT>(emptyStats([]));
+  const [loggedStatus, setLoggedStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [loggedEditingId, setLoggedEditingId] = useState<number | null>(null);
+  const loggedSelected = logged.find(m => m.id === loggedSelectedId) ?? null;
+  const loggedShowHealing = loggedSelected ? loggedSelected.heroes.some(h => h.role === 'Support') : false;
+
+  function toggleLogged(m: LoggedMatch) {
+    if (m.id === loggedSelectedId) { setLoggedSelectedId(null); return; }
+    setLoggedSelectedId(m.id);
+    setLoggedSens(m.sens != null ? String(m.sens) : '');
+    setLoggedStats(statsFromLogged(m));
+    setLoggedStatus('idle');
+  }
+
+  const loggedPrimaryAccValid = parseFloat(loggedStats.heroAcc[0]?.overall_acc ?? '') >= 0;
+  const loggedDurationsValid = loggedStats.heroAcc.length > 0 && loggedStats.heroAcc.every(h => parseDurationMin(h.duration_min) != null);
+
+  async function saveLogged() {
+    if (!loggedSelected || !(loggedPrimaryAccValid && loggedDurationsValid)) return;
+    setLoggedStatus('saving');
+    try {
+      const putRes = await fetch(`/api/matches/${loggedSelected.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sens: num(loggedSens) }) });
+      if (!putRes.ok) throw new Error('sens save failed');
+      const res = await fetch('/api/aim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(statsBody(loggedSelected.id, loggedStats)) });
+      if (!res.ok) throw new Error('save failed');
+      setLoggedStatus('success'); setLoggedSelectedId(null);
+      revalidateAll();
+      setTimeout(() => setLoggedStatus('idle'), 1800);
+    } catch { setLoggedStatus('error'); setTimeout(() => setLoggedStatus('idle'), 3000); }
+  }
+
   // Selecting a card should land the cursor on Duration — the required field and
   // the whole point of the backfill — so it's type-ready without a second click.
   useEffect(() => {
@@ -905,6 +979,11 @@ function BackfillPanel({ pending, loading }: {
     setSens(m.sens != null ? String(m.sens) : '');
     setStats(emptyStats(m.heroes));
     setStatus('idle');
+  }
+
+  function toggleMatch(m: PendingMatch) {
+    if (m.id === selectedId) { setSelectedId(null); return; }
+    selectMatch(m);
   }
 
   const primaryAccValid = parseFloat(stats.heroAcc[0]?.overall_acc ?? '') >= 0;
@@ -931,86 +1010,140 @@ function BackfillPanel({ pending, loading }: {
       <h2 data-inspect-id="sl-record-combat-header" className="text-sm heading-display text-[var(--ink)] mb-1">Record combat details</h2>
       <p className="text-xs text-[var(--faint)] mb-4">Every match awaiting its aim stats. Matches are logged in the Match Tracker; while a stage test is running they arrive here already tagged with that stage's DPI.</p>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm heading-display text-[var(--ink)]">Awaiting Stats</h3>
-            <span className="text-xs text-[var(--faint)]"><b className="font-bold">{pending.length}</b> pending</span>
-          </div>
-          {loading ? <p className="text-xs text-[var(--faint)]">Loading…</p>
-            : pending.length === 0 ? <p className="text-xs text-[var(--faint)]">All caught up.</p>
-            : (
-              <div className="space-y-2" data-inspect-id="sl-awaiting-stats-list">
-                {pending.map(m => {
-                  const c = QUEUE_MODE_COLORS[m.queue_mode]; const active = m.id === selectedId;
-                  const editing = m.id === editingId;
-                  return (
-                    <div key={m.id} className={`rounded-lg border transition-all ${active ? `${c.card} ${c.accent} ${c.glow}` : 'border-ow-border bg-ow-darker hover:border-gray-500'}`}>
-                      <div className="flex items-stretch">
-                        <button type="button" onClick={() => selectMatch(m)} className="flex-1 min-w-0 text-left py-2.5 pl-3 pr-1.5">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                              {m.heroes.map(h => (
-                                <span key={h.hero} className={`pill hero-name ${ROLE_COLORS[h.role] ?? ''}`}>{withHeroCount(h.hero, heroCounts)}</span>
-                              ))}
-                              <span className="text-xs map-name text-[var(--ink)] truncate">{withMapCount(m.map, mapCounts)}</span>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <span className={`text-xs font-bold ${m.win ? 'text-emerald-500' : 'text-red-500'}`}>{m.win ? 'W' : 'L'}</span>
-                              <span className="text-[10px] font-bold text-[var(--faint-2)]">{MODE_TAG[m.queue_mode]}</span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3 mt-1 text-[11px] text-[var(--faint)]">
-                            <span>{m.time ? format(new Date(m.time), 'MMM d, h:mm a') : m.date}</span><span>·</span>
-                            <span>{m.stage_index != null ? <>stage <b className="font-bold">{m.stage_index}</b> · sens <b className="font-bold">{m.sens}</b></> : m.sens != null ? <>sens <b className="font-bold">{m.sens}</b></> : 'no sens'}</span>
-                          </div>
-                        </button>
-                        <button type="button" onClick={() => setEditingId(editing ? null : m.id)} aria-label="Edit match"
-                          data-inspect-id="sl-awaiting-stats-edit-btn"
-                          className="shrink-0 px-2.5 text-[var(--faint)] hover:text-[var(--ink)] transition-colors">
-                          ✎
-                        </button>
-                      </div>
-                      {editing && <EditMatchForm match={m} onClose={() => setEditingId(null)} />}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+      <div className="card" data-inspect-id="sl-aim-stats-card">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm heading-display text-[var(--ink)]">Awaiting Stats</h3>
+          <span className="text-xs text-[var(--faint)]"><b className="font-bold">{pending.length}</b> pending</span>
         </div>
-
-        <div className="card" data-inspect-id="sl-aim-stats-card">
-          <h3 className="text-sm heading-display text-[var(--ink)] mb-4">Aim Stats</h3>
-          {!selected ? <p className="text-xs text-[var(--faint)]">Select a match to enter its stats.</p> : (
-            <div className="space-y-4">
-              <div className="rounded-lg bg-ow-darker border border-ow-border px-3 py-2.5" data-inspect-id="sl-selected-match-summary">
-                <div className="flex items-center gap-2 flex-wrap">
-                  {selected.heroes.map(h => (
-                    <span key={h.hero} className={`pill hero-name ${ROLE_COLORS[h.role] ?? ''}`}>{withHeroCount(h.hero, heroCounts)}</span>
-                  ))}
-                  <span className="text-sm text-[var(--ink)]">@ <span className="map-name">{withMapCount(selected.map, mapCounts)}</span></span>
-                  <span className={`text-xs font-bold ml-auto ${selected.win ? 'text-emerald-500' : 'text-red-500'}`}>{selected.win ? 'WIN' : 'LOSS'}</span>
-                </div>
-                <div className="flex items-center gap-2 mt-2">
-                  {selected.stage_index != null && <span className="text-[11px] text-ow-accent font-bold">Stage {selected.stage_index}</span>}
-                  <label className="text-[11px] text-[var(--faint)]">Sens</label>
-                  <input type="number" step="0.01" min="0" inputMode="decimal" value={sens} onChange={e => setSens(e.target.value)} data-inspect-id="sl-sens-input" className="w-24 field px-2 py-1 text-sm num-display" placeholder="—" aria-label="Sensitivity" />
-                  {parseFloat(sens) > 0 && <span className="text-[11px] text-[var(--faint)] font-bold">{Math.round(eDPI(parseFloat(sens)))} eDPI</span>}
-                </div>
-              </div>
-              <StatFields
-                s={stats}
-                upd={(k, v) => setStats(s => ({ ...s, [k]: v }))}
-                updHeroAcc={(i, k, v) => setStats(s => ({ ...s, heroAcc: s.heroAcc.map((h, hi) => hi === i ? { ...h, [k]: v } : h) }))}
-                showHealing={showHealing}
-                firstDurationRef={durationRef}
-              />
-              <button type="button" onClick={save} disabled={!(primaryAccValid && durationsValid) || status === 'saving'} data-inspect-id="sl-save-stats-btn" className="btn-primary w-full py-2.5 text-sm">
-                {status === 'saving' ? 'Saving…' : status === 'success' ? '✓ Saved' : 'Save Stats'}
-              </button>
-              {status === 'error' && <p data-inspect-id="sl-save-error-banner" className="text-red-600 text-xs text-center">Failed to save — is the server running?</p>}
+        {loading ? <p className="text-xs text-[var(--faint)]">Loading…</p>
+          : pending.length === 0 ? <p className="text-xs text-[var(--faint)]">All caught up.</p>
+          : (
+            <div className="space-y-2" data-inspect-id="sl-awaiting-stats-list">
+              {pending.map(m => {
+                const c = QUEUE_MODE_COLORS[m.queue_mode]; const active = m.id === selectedId;
+                const editing = m.id === editingId;
+                return (
+                  <div key={m.id} className={`rounded-lg border transition-all ${active ? `${c.card} ${c.accent} ${c.glow}` : 'border-ow-border bg-ow-darker hover:border-gray-500'}`}>
+                    <div className="flex items-stretch">
+                      <button type="button" onClick={() => toggleMatch(m)} className="flex-1 min-w-0 text-left py-2.5 pl-3 pr-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                            {m.heroes.map(h => (
+                              <span key={h.hero} className={`pill hero-name ${ROLE_COLORS[h.role] ?? ''}`}>{withHeroCount(h.hero, heroCounts)}</span>
+                            ))}
+                            <span className="text-xs map-name text-[var(--ink)] truncate">{withMapCount(m.map, mapCounts)}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className={`text-xs font-bold ${m.win ? 'text-emerald-500' : 'text-red-500'}`}>{m.win ? 'W' : 'L'}</span>
+                            <span className="text-[10px] font-bold text-[var(--faint-2)]">{MODE_TAG[m.queue_mode]}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 mt-1 text-[11px] text-[var(--faint)]">
+                          <span>{m.time ? format(new Date(m.time), 'MMM d, h:mm a') : m.date}</span><span>·</span>
+                          <span>{m.stage_index != null ? <>stage <b className="font-bold">{m.stage_index}</b> · sens <b className="font-bold">{m.sens}</b></> : m.sens != null ? <>sens <b className="font-bold">{m.sens}</b></> : 'no sens'}</span>
+                        </div>
+                      </button>
+                      <button type="button" onClick={() => setEditingId(editing ? null : m.id)} aria-label="Edit match"
+                        data-inspect-id="sl-awaiting-stats-edit-btn"
+                        className="shrink-0 px-2.5 text-[var(--faint)] hover:text-[var(--ink)] transition-colors">
+                        ✎
+                      </button>
+                    </div>
+                    {editing && <EditMatchForm match={m} onClose={() => setEditingId(null)} />}
+                    {active && (
+                      <div className="border-t border-ow-border px-3 py-3 space-y-4" data-inspect-id="sl-inline-stats-form">
+                        <div className="flex items-center gap-2">
+                          {m.stage_index != null && <span className="text-[11px] text-ow-accent font-bold">Stage {m.stage_index}</span>}
+                          <label className="text-[11px] text-[var(--faint)]">Sens</label>
+                          <input type="number" step="0.01" min="0" inputMode="decimal" value={sens} onChange={e => setSens(e.target.value)} data-inspect-id="sl-sens-input" className="w-24 field px-2 py-1 text-sm num-display" placeholder="—" aria-label="Sensitivity" />
+                          {parseFloat(sens) > 0 && <span className="text-[11px] text-[var(--faint)] font-bold">{Math.round(eDPI(parseFloat(sens)))} eDPI</span>}
+                        </div>
+                        <StatFields
+                          s={stats}
+                          upd={(k, v) => setStats(s => ({ ...s, [k]: v }))}
+                          updHeroAcc={(i, k, v) => setStats(s => ({ ...s, heroAcc: s.heroAcc.map((h, hi) => hi === i ? { ...h, [k]: v } : h) }))}
+                          showHealing={showHealing}
+                          firstDurationRef={durationRef}
+                        />
+                        <button type="button" onClick={save} disabled={!(primaryAccValid && durationsValid) || status === 'saving'} data-inspect-id="sl-save-stats-btn" className="btn-primary w-full py-2.5 text-sm">
+                          {status === 'saving' ? 'Saving…' : status === 'success' ? '✓ Saved' : 'Save Stats'}
+                        </button>
+                        {status === 'error' && <p data-inspect-id="sl-save-error-banner" className="text-red-600 text-xs text-center">Failed to save — is the server running?</p>}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
+      </div>
+
+      <div className="card" data-inspect-id="sl-logged-today-card">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm heading-display text-[var(--ink)]">Logged Today</h3>
+          <span className="text-xs text-[var(--faint)]"><b className="font-bold">{logged.length}</b> logged</span>
         </div>
+        {loggedLoading ? <p className="text-xs text-[var(--faint)]">Loading…</p>
+          : logged.length === 0 ? <p className="text-xs text-[var(--faint)]">Nothing logged yet today.</p>
+          : (
+            <div className="space-y-2" data-inspect-id="sl-logged-today-list">
+              {logged.map(m => {
+                const c = QUEUE_MODE_COLORS[m.queue_mode]; const active = m.id === loggedSelectedId;
+                const editing = m.id === loggedEditingId;
+                return (
+                  <div key={m.id} className={`rounded-lg border transition-all ${active ? `${c.card} ${c.accent} ${c.glow}` : 'border-ow-border bg-ow-darker hover:border-gray-500'}`}>
+                    <div className="flex items-stretch">
+                      <button type="button" onClick={() => toggleLogged(m)} className="flex-1 min-w-0 text-left py-2.5 pl-3 pr-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                            {m.heroes.map(h => (
+                              <span key={h.hero} className={`pill hero-name ${ROLE_COLORS[h.role] ?? ''}`}>{withHeroCount(h.hero, heroCounts)}</span>
+                            ))}
+                            <span className="text-xs map-name text-[var(--ink)] truncate">{withMapCount(m.map, mapCounts)}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className={`text-xs font-bold ${m.win ? 'text-emerald-500' : 'text-red-500'}`}>{m.win ? 'W' : 'L'}</span>
+                            <span className="text-[10px] font-bold text-[var(--faint-2)]">{MODE_TAG[m.queue_mode]}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 mt-1 text-[11px] text-[var(--faint)]">
+                          <span>{m.time ? format(new Date(m.time), 'MMM d, h:mm a') : m.date}</span><span>·</span>
+                          <span>{m.stage_index != null ? <>stage <b className="font-bold">{m.stage_index}</b> · sens <b className="font-bold">{m.sens}</b></> : m.sens != null ? <>sens <b className="font-bold">{m.sens}</b></> : 'no sens'}</span>
+                        </div>
+                      </button>
+                      <button type="button" onClick={() => setLoggedEditingId(editing ? null : m.id)} aria-label="Edit match"
+                        data-inspect-id="sl-logged-today-edit-btn"
+                        className="shrink-0 px-2.5 text-[var(--faint)] hover:text-[var(--ink)] transition-colors">
+                        ✎
+                      </button>
+                    </div>
+                    {editing && <EditMatchForm match={m} onClose={() => setLoggedEditingId(null)} />}
+                    {active && (
+                      <div className="border-t border-ow-border px-3 py-3 space-y-4" data-inspect-id="sl-logged-today-stats-form">
+                        <div className="flex items-center gap-2">
+                          {m.stage_index != null && <span className="text-[11px] text-ow-accent font-bold">Stage {m.stage_index}</span>}
+                          <label className="text-[11px] text-[var(--faint)]">Sens</label>
+                          <input type="number" step="0.01" min="0" inputMode="decimal" value={loggedSens} onChange={e => setLoggedSens(e.target.value)} className="w-24 field px-2 py-1 text-sm num-display" placeholder="—" aria-label="Sensitivity" />
+                          {parseFloat(loggedSens) > 0 && <span className="text-[11px] text-[var(--faint)] font-bold">{Math.round(eDPI(parseFloat(loggedSens)))} eDPI</span>}
+                        </div>
+                        <StatFields
+                          s={loggedStats}
+                          upd={(k, v) => setLoggedStats(s => ({ ...s, [k]: v }))}
+                          updHeroAcc={(i, k, v) => setLoggedStats(s => ({ ...s, heroAcc: s.heroAcc.map((h, hi) => hi === i ? { ...h, [k]: v } : h) }))}
+                          showHealing={loggedShowHealing}
+                        />
+                        <button type="button" onClick={saveLogged} disabled={!(loggedPrimaryAccValid && loggedDurationsValid) || loggedStatus === 'saving'} data-inspect-id="sl-logged-today-save-btn" className="btn-primary w-full py-2.5 text-sm">
+                          {loggedStatus === 'saving' ? 'Saving…' : loggedStatus === 'success' ? '✓ Saved' : 'Save Changes'}
+                        </button>
+                        {loggedStatus === 'error' && <p className="text-red-600 text-xs text-center">Failed to save — is the server running?</p>}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+      </div>
       </div>
 
       {showCaughtUp && (
