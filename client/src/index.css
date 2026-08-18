@@ -88,6 +88,13 @@
     font-variant-numeric: tabular-nums;
     padding-right: 0.04em;
   }
+  /* Heavier num-display weight, scoped to the Awaiting Stats inline
+     combat-stats entry form — the base 200 weight reads too thin once you're
+     actively typing values in, but the rest of the app keeps the lighter
+     readout weight. */
+  .stats-entry-heavy .num-display {
+    font-weight: 400;
+  }
   /* Hero and map names: same readout face as stat numbers, uppercase +
      tracked so a name reads as a HUD callsign tag rather than plain body
      copy — applied consistently everywhere a hero or map name renders as

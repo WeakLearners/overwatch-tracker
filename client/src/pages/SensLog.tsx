@@ -1421,7 +1421,7 @@ function BackfillPanel({ pending, loading }: {
                     </div>
                     {editing && <EditMatchForm match={m} onClose={() => setEditingId(null)} />}
                     {active && (
-                      <div className="border-t border-ow-border px-3 py-3 space-y-4" data-inspect-id="sl-inline-stats-form">
+                      <div className="border-t border-ow-border px-3 py-3 space-y-4 stats-entry-heavy" data-inspect-id="sl-inline-stats-form">
                         <div className="flex items-center gap-2">
                           {m.stage_index != null && <span className="text-[11px] text-ow-accent font-bold">Stage {m.stage_index}</span>}
                           <label className="text-[11px] text-[var(--faint)]">Sens</label>
