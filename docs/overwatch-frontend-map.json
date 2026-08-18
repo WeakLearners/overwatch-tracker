@@ -996,21 +996,21 @@
         },
         {
           "id": "sl-plan-card",
-          "label": "Phase plan card (Phase 2/3/4 reference)",
+          "label": "Phase plan card (Phase 2+ reference)",
           "kind": "card",
-          "description": "Card showing the current phase's per-hero DPI test plan, with phase tabs, a description line, and one status tile per hero.",
+          "description": "Card showing the selected phase's per-hero DPI/sens test plan, with phase tabs (including a trailing \"+ Add new phase\" tab), a description line, and one status tile per hero.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:501",
+            "path": "client/src/pages/SensLog.tsx:603",
             "grep": "grep -n -F -- 'className=\"card mb-6\"' client/src/pages/SensLog.tsx"
           }
         },
         {
           "id": "sl-plan-tabs",
-          "label": "Phase tabs (Phase 2 / Phase 3 / Phase 4)",
+          "label": "Phase tabs (Phase 2, 3, 4, ... + Add new phase)",
           "kind": "tab",
-          "description": "Tab row switching which phase's per-hero DPI test plan (Phase 2, 3, or 4) is displayed in the plan card.",
+          "description": "Tab row switching which phase's per-hero test plan is displayed in the plan card. Hardcoded phases (Phase 2-5) come from PLAN_TABS in source; phases created via the \"+ Add new phase\" form are appended after them and persisted to localStorage. The trailing \"+ Add new phase\" button opens sl-add-phase-modal instead of switching tabs.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:506",
+            "path": "client/src/pages/SensLog.tsx:609",
             "grep": "grep -n -F -- '-mb-px border-b-2 transition-colors' client/src/pages/SensLog.tsx"
           }
         },
@@ -1020,7 +1020,7 @@
           "kind": "list",
           "description": "Grid of per-hero status tiles for the selected phase's plan, each showing target DPI stages, games/slot, and status (not started, testing, or completed).",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:518",
+            "path": "client/src/pages/SensLog.tsx:627",
             "grep": "grep -n -F -- 'grid grid-cols-1 sm:grid-cols-2 gap-2' client/src/pages/SensLog.tsx"
           }
         },
@@ -1030,7 +1030,7 @@
           "kind": "button",
           "description": "Starts a new blind DPI stage-trial set for that specific hero using the plan's preset DPIs and games-per-slot via POST /api/blind/sets.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:558",
+            "path": "client/src/pages/SensLog.tsx:670",
             "grep": "grep -n -F -- 'creating === h.hero ? '\"'\"'Creating…'\"'\"' : '\"'\"'Create test set'\"'\"'' client/src/pages/SensLog.tsx"
           }
         },
@@ -1040,7 +1040,7 @@
           "kind": "badge",
           "description": "Overlay badge on a hero's plan tile showing whether that hero's test is in progress or completed, plus a games-logged / target-games count.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:524",
+            "path": "client/src/pages/SensLog.tsx:635",
             "grep": "grep -n -F -- 'In Testing · {s.totalGames}/{s.target} games' client/src/pages/SensLog.tsx"
           }
         },
@@ -1050,8 +1050,88 @@
           "kind": "button",
           "description": "Cancels and deletes the active DPI test set for that hero, prompting for typed confirmation of the game count if games have already been logged.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:533",
+            "path": "client/src/pages/SensLog.tsx:645",
             "grep": "grep -n -F -- 'Cancel test' client/src/pages/SensLog.tsx"
+          }
+        },
+        {
+          "id": "sl-plan-add-phase-tab",
+          "label": "\"+ Add new phase\" tab button",
+          "kind": "button",
+          "description": "Trailing tab after the phase tabs. Opens the sl-add-phase-modal popup pre-filled with the latest phase's heroes instead of switching the displayed plan.",
+          "locate": {
+            "path": "client/src/pages/SensLog.tsx:620",
+            "grep": "grep -n -F -- 'data-inspect-id=\"sl-plan-add-phase-tab\"' client/src/pages/SensLog.tsx"
+          }
+        },
+        {
+          "id": "sl-add-phase-modal",
+          "label": "Add new phase popup form",
+          "kind": "modal",
+          "description": "Popup (rendered via a React portal into document.body, since the plan card's clip-path would otherwise clip a nested fixed-position modal) for building the next phase's plan. Opens pre-loaded with every hero from the latest phase, each with its sens range auto-narrowed (2/3 of the old gap around the same midpoint) and shown read-only — clicking a row's × excludes that hero. \"+ Add hero\" appends a blank, fully-editable row for heroes with no prior-phase range to narrow from. Saving appends a new custom phase tab, persisted to localStorage (sl-custom-phases-v1).",
+          "locate": {
+            "path": "client/src/pages/SensLog.tsx:694",
+            "grep": "grep -n -F -- 'data-inspect-id=\"sl-add-phase-modal\"' client/src/pages/SensLog.tsx"
+          }
+        },
+        {
+          "id": "sl-add-phase-stages-input",
+          "label": "# Stages input (add-phase form)",
+          "kind": "input",
+          "description": "Global stage count for the new phase — each hero's auto-narrowed (or manually entered) low/high sens range is evenly spread across this many stage values.",
+          "locate": {
+            "path": "client/src/pages/SensLog.tsx:704",
+            "grep": "grep -n -F -- 'data-inspect-id=\"sl-add-phase-stages-input\"' client/src/pages/SensLog.tsx"
+          }
+        },
+        {
+          "id": "sl-add-phase-rows",
+          "label": "Hero rows list (add-phase form)",
+          "kind": "list",
+          "description": "One compact row per hero in the new phase: hero name, archetype, low/high sens (read-only + auto-narrowed for heroes carried over from the latest phase, editable for manually added heroes), games/slot, and an exclude (×) button. The \"+ Add hero\" row sits at the bottom of this list.",
+          "locate": {
+            "path": "client/src/pages/SensLog.tsx:715",
+            "grep": "grep -n -F -- 'data-inspect-id=\"sl-add-phase-rows\"' client/src/pages/SensLog.tsx"
+          }
+        },
+        {
+          "id": "sl-add-phase-add-hero-btn",
+          "label": "\"+ Add hero\" row (add-phase form)",
+          "kind": "button",
+          "description": "Dashed-border row at the bottom of the hero list; appends a new blank, fully-editable row (no prior-phase data to auto-narrow from).",
+          "locate": {
+            "path": "client/src/pages/SensLog.tsx:752",
+            "grep": "grep -n -F -- 'data-inspect-id=\"sl-add-phase-add-hero-btn\"' client/src/pages/SensLog.tsx"
+          }
+        },
+        {
+          "id": "sl-add-phase-remove-row-btn",
+          "label": "\"×\" exclude button (add-phase row)",
+          "kind": "button",
+          "description": "Removes that hero's row from the new phase being built — the mechanism for excluding a latest-phase hero from the next phase.",
+          "locate": {
+            "path": "client/src/pages/SensLog.tsx:742",
+            "grep": "grep -n -F -- 'data-inspect-id=\"sl-add-phase-remove-row-btn\"' client/src/pages/SensLog.tsx"
+          }
+        },
+        {
+          "id": "sl-add-phase-cancel-btn",
+          "label": "Cancel button (add-phase form)",
+          "kind": "button",
+          "description": "Closes the add-phase popup without saving.",
+          "locate": {
+            "path": "client/src/pages/SensLog.tsx:760",
+            "grep": "grep -n -F -- 'data-inspect-id=\"sl-add-phase-cancel-btn\"' client/src/pages/SensLog.tsx"
+          }
+        },
+        {
+          "id": "sl-add-phase-save-btn",
+          "label": "\"Create phase\" button (add-phase form)",
+          "kind": "button",
+          "description": "Builds the new phase tab from the form's rows (spreading each hero's low/high sens across the stage count) and saves it to localStorage, then switches the plan card to the new phase.",
+          "locate": {
+            "path": "client/src/pages/SensLog.tsx:761",
+            "grep": "grep -n -F -- 'data-inspect-id=\"sl-add-phase-save-btn\"' client/src/pages/SensLog.tsx"
           }
         },
         {

@@ -497,7 +497,7 @@ export default function Prematch() {
               data-inspect-id="prematch-map-select-dropdown"
             >
               <option value="">— Select map —</option>
-              {(selected.length > 0 ? selected : Object.keys(MAPS)).sort().map(m => (
+              {(selected.length > 0 ? [...selected] : Object.keys(MAPS)).sort().map(m => (
                 <option key={m} value={m} className="uppercase">{withMapCount(m, mapCounts)}</option>
               ))}
             </select>

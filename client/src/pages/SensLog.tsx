@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useApi, revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
@@ -118,6 +119,7 @@ const statsFromLogged = (m: LoggedMatch): StatFieldsT => ({
   assists: m.assists != null ? String(m.assists) : '',
 });
 const field = 'w-full field px-3 py-2 text-sm num-display';
+const compactField = 'w-full field px-2 py-1 text-xs num-display';
 const btnSecondary = 'border border-ow-border rounded-lg text-[var(--ink)] font-semibold hover:border-gray-500 transition-all disabled:opacity-40 disabled:cursor-not-allowed';
 const HERO_LIST = Object.entries(HEROES).sort((a, b) => a[0].localeCompare(b[0]));
 
@@ -417,6 +419,41 @@ const PLAN_TABS: readonly PlanTab[] = [
   },
 ];
 
+// Custom phases built through the "+ Add new phase" form are session-authored
+// (no hand-written analysis notes), so they're kept separate from the
+// hardcoded PLAN_TABS above and persisted to localStorage instead of source.
+const CUSTOM_PHASES_KEY = 'sl-custom-phases-v1';
+
+function loadCustomPhases(): PlanTab[] {
+  try {
+    const raw = localStorage.getItem(CUSTOM_PHASES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveCustomPhases(phases: readonly PlanTab[]) {
+  localStorage.setItem(CUSTOM_PHASES_KEY, JSON.stringify(phases));
+}
+
+// Evenly spaces `stages` sens values between low and high inclusive (2
+// decimal places), matching the bracket shape every hand-authored phase uses.
+function spreadSens(low: number, high: number, stages: number): number[] {
+  if (stages <= 1) return [Math.round(low * 100) / 100];
+  return Array.from({ length: stages }, (_, i) =>
+    Math.round((low + (high - low) * (i / (stages - 1))) * 100) / 100);
+}
+
+// Auto-narrows a hero's range for the next phase around the same midpoint —
+// every hand-authored phase tightens the bracket rather than shifting it
+// (e.g. Phase 4's 0.15 gap became Phase 5's 0.1 gap, a 2/3 shrink), so new
+// phases apply that same ratio instead of asking for a new range by hand.
+const NARROW_RATIO = 2 / 3;
+function narrowRange(low: number, high: number): { low: number; high: number } {
+  const mid = (low + high) / 2;
+  const halfGap = ((high - low) / 2) * NARROW_RATIO;
+  return { low: Math.round((mid - halfGap) * 100) / 100, high: Math.round((mid + halfGap) * 100) / 100 };
+}
+
 type HeroTestStatus = 'none' | 'testing' | 'completed';
 
 const sameValues = (a: readonly number[], b: readonly number[]) =>
@@ -448,17 +485,82 @@ function statusForHero(
   return { status: 'none', totalGames: 0, target, setId: null };
 }
 
+// One row of the "+ Add new phase" form — string-valued so number inputs can
+// sit blank/mid-edit without fighting controlled-input parsing.
+// `locked` rows are carried over from the latest phase — their sens range is
+// computed automatically (narrowRange) and shown read-only, since re-testing
+// is always a narrower bracket, never a hand-picked new one. Manually added
+// heroes have no prior-phase range to narrow from, so theirs stays editable.
+interface NewPhaseRow { hero: string; archetype: string; gamesPerSlot: string; low: string; high: string; note: string; locked: boolean }
+const blankRow = (): NewPhaseRow => ({ hero: '', archetype: '', gamesPerSlot: '5', low: '', high: '', note: '', locked: false });
+
 function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestState | null }) {
   const { data } = useApi<{ sets: DpiTestSetSummary[] }>('/api/blind/sets');
   const sets = data?.sets ?? [];
   const actives = state?.actives ?? [];
   const [creating, setCreating] = useState<string | null>(null);
-  // Default to the most recent phase — the one that's actually active.
-  const [tabKey, setTabKey] = useState(tabs[tabs.length - 1].key);
-  const { plan, description } = tabs.find(t => t.key === tabKey) ?? tabs[tabs.length - 1];
+  const [customPhases, setCustomPhases] = useState<PlanTab[]>(() => loadCustomPhases());
+  const allTabs = [...tabs, ...customPhases];
+  // Default to the most recent phase with a built-out plan — the one that's
+  // actually active. A newly added phase tab starts empty until its plan is
+  // filled in, so skip past it rather than opening on a blank grid.
+  const lastBuilt = [...allTabs].reverse().find(t => t.plan.length > 0) ?? allTabs[allTabs.length - 1];
+  const [tabKey, setTabKey] = useState(lastBuilt.key);
+  const { plan, description } = allTabs.find(t => t.key === tabKey) ?? lastBuilt;
 
   const statuses = new Map(plan.map(h => [h.hero, statusForHero(h.hero, actives, sets, h.gamesPerSlot, valuesOf(h))]));
   const [cancelling, setCancelling] = useState(false);
+
+  const [showAddPhase, setShowAddPhase] = useState(false);
+  const [stages, setStages] = useState('2');
+  const [rows, setRows] = useState<NewPhaseRow[]>([blankRow()]);
+
+  // Every phase after the first is a narrower re-test of the same roster, so
+  // the form opens pre-loaded with the latest phase's heroes (old sens range
+  // as a starting point to narrow down) rather than blank — excluding a hero
+  // is just clicking its × instead of building the list from scratch.
+  function openAddPhase() {
+    const latest = allTabs[allTabs.length - 1];
+    setStages('2');
+    setRows(latest.plan.map(h => {
+      const values = valuesOf(h);
+      const { low, high } = narrowRange(Math.min(...values), Math.max(...values));
+      return {
+        hero: h.hero, archetype: h.archetype, gamesPerSlot: String(h.gamesPerSlot),
+        low: String(low), high: String(high), note: '', locked: true,
+      };
+    }));
+    setShowAddPhase(true);
+  }
+
+  function updateRow(i: number, patch: Partial<NewPhaseRow>) {
+    setRows(prev => prev.map((r, ri) => (ri === i ? { ...r, ...patch } : r)));
+  }
+
+  function saveNewPhase() {
+    const nStages = Math.max(2, parseInt(stages) || 2);
+    const validRows = rows.filter(r => r.hero.trim() && r.low.trim() && r.high.trim());
+    if (validRows.length === 0) { alert('Add at least one hero with a sens range.'); return; }
+    const plan: PlanHero[] = validRows.map(r => ({
+      hero: r.hero.trim(), archetype: r.archetype.trim() || 'Unknown',
+      gamesPerSlot: Math.max(1, parseInt(r.gamesPerSlot) || 5),
+      note: r.note.trim(),
+      senses: spreadSens(parseFloat(r.low), parseFloat(r.high), nStages),
+    }));
+    const nextNumber = allTabs.length + 2; // PLAN_TABS starts at "Phase 2"
+    const totalGames = plan.reduce((sum, h) => sum + valuesOf(h).length * h.gamesPerSlot, 0);
+    const newTab: PlanTab = {
+      key: `custom-${Date.now()}`,
+      label: `Phase ${nextNumber}`,
+      description: `${plan.length} heroes × ${nStages} stages, ${totalGames} games total.`,
+      plan,
+    };
+    const next = [...customPhases, newTab];
+    setCustomPhases(next);
+    saveCustomPhases(next);
+    setTabKey(newTab.key);
+    setShowAddPhase(false);
+  }
 
   async function createSetForHero(h: PlanHero) {
     setCreating(h.hero);
@@ -500,7 +602,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
   return (
     <div className="card mb-6" data-inspect-id="sl-plan-card">
       <div className="flex items-center gap-1 mb-3 border-b border-ow-border">
-        {tabs.map(t => (
+        {allTabs.map(t => (
           <button
             key={t.key} type="button" onClick={() => setTabKey(t.key)}
             data-inspect-id="sl-plan-tabs"
@@ -513,6 +615,13 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
             {t.label}
           </button>
         ))}
+        <button
+          type="button" onClick={openAddPhase}
+          data-inspect-id="sl-plan-add-phase-tab"
+          className="text-sm heading-display px-3 py-1.5 -mb-px border-b-2 border-transparent text-[var(--faint)] hover:text-[var(--ink-2)] transition-colors"
+        >
+          + Add new phase
+        </button>
       </div>
       <p className="text-xs text-[var(--faint)] mb-3">{description}</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" data-inspect-id="sl-plan-hero-grid">
@@ -578,6 +687,83 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
           );
         })}
       </div>
+
+      {showAddPhase && createPortal(
+        <div className="fixed inset-0 z-50 grid place-items-center">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setShowAddPhase(false)} />
+          <div className="relative card max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto" data-inspect-id="sl-add-phase-modal">
+            <h3 className="text-sm heading-display text-[var(--ink)] mb-1">Add new phase</h3>
+            <p className="text-xs text-[var(--faint)] mb-4">
+              Build the next phase's plan. Sens values are evenly spread across the stage count from each hero's low/high range.
+            </p>
+
+            <label className="inline-block mb-3">
+              <span className="block text-xs text-[var(--muted)] mb-1"># Stages</span>
+              <input
+                type="number" step="1" min="2" value={stages} onChange={e => setStages(e.target.value)}
+                data-inspect-id="sl-add-phase-stages-input" className={`${compactField} w-20`}
+              />
+            </label>
+
+            <div className="grid grid-cols-12 gap-1.5 mb-1 px-1 text-[10px] uppercase tracking-wide text-[var(--faint-2)]">
+              <span className="col-span-3">Hero</span>
+              <span className="col-span-3">Archetype</span>
+              <span className="col-span-2">Low sens</span>
+              <span className="col-span-2">High sens</span>
+              <span className="col-span-1">Games</span>
+            </div>
+            <div className="space-y-1 mb-2" data-inspect-id="sl-add-phase-rows">
+              {rows.map((r, i) => (
+                <div key={i} className="grid grid-cols-12 gap-1.5 items-center">
+                  <input
+                    placeholder="Hero" value={r.hero} onChange={e => updateRow(i, { hero: e.target.value })}
+                    className={`${compactField} col-span-3`} aria-label={`Row ${i + 1} hero`}
+                  />
+                  <input
+                    placeholder="Archetype" value={r.archetype} onChange={e => updateRow(i, { archetype: e.target.value })}
+                    className={`${compactField} col-span-3`} aria-label={`Row ${i + 1} archetype`}
+                  />
+                  <input
+                    type="number" step="0.01" placeholder="Low" value={r.low} onChange={e => updateRow(i, { low: e.target.value })}
+                    disabled={r.locked} title={r.locked ? 'Auto-narrowed from the last phase' : undefined}
+                    className={`${compactField} col-span-2 ${r.locked ? 'opacity-60 cursor-not-allowed' : ''}`} aria-label={`Row ${i + 1} low sens`}
+                  />
+                  <input
+                    type="number" step="0.01" placeholder="High" value={r.high} onChange={e => updateRow(i, { high: e.target.value })}
+                    disabled={r.locked} title={r.locked ? 'Auto-narrowed from the last phase' : undefined}
+                    className={`${compactField} col-span-2 ${r.locked ? 'opacity-60 cursor-not-allowed' : ''}`} aria-label={`Row ${i + 1} high sens`}
+                  />
+                  <input
+                    type="number" step="1" min="1" value={r.gamesPerSlot} onChange={e => updateRow(i, { gamesPerSlot: e.target.value })}
+                    className={`${compactField} col-span-1`} aria-label={`Row ${i + 1} games per slot`}
+                  />
+                  <button
+                    type="button" onClick={() => setRows(prev => prev.filter((_, ri) => ri !== i))}
+                    data-inspect-id="sl-add-phase-remove-row-btn"
+                    className="col-span-1 text-[var(--faint)] hover:text-red-400 text-sm font-bold leading-none"
+                    title={`Exclude ${r.hero || 'hero'}`}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button" onClick={() => setRows(prev => [...prev, blankRow()])}
+                data-inspect-id="sl-add-phase-add-hero-btn"
+                className={`${btnSecondary} w-full py-1 text-xs border-dashed`}
+              >
+                + Add hero
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setShowAddPhase(false)} data-inspect-id="sl-add-phase-cancel-btn" className={`${btnSecondary} flex-1 py-2 text-sm`}>Cancel</button>
+              <button type="button" onClick={saveNewPhase} data-inspect-id="sl-add-phase-save-btn" className="btn-primary flex-1 py-2 text-sm">Create phase</button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
