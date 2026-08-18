@@ -29,6 +29,28 @@ router.get('/', (req: Request, res: Response) => {
   res.json({ rows, total });
 });
 
+// Looks up the active stage-test set for a given hero (hero-tagged set takes
+// priority over the shared ad-hoc, hero-less one) and its current stage.
+// Shared by the POST insert path and the PUT roster-recompute path below —
+// both need to know "if this hero logged a game right now, which stage would
+// it credit."
+function findActiveStage(db: ReturnType<typeof getDb>, hero: string, isCompetitive: boolean) {
+  if (!isCompetitive) return undefined;
+  const activeSet = db.prepare(`
+    SELECT id, cur_rel, in_game_sens FROM blind_stage_sets
+    WHERE active = 1 AND hero = :hero
+    UNION ALL
+    SELECT id, cur_rel, in_game_sens FROM blind_stage_sets
+    WHERE active = 1 AND hero IS NULL AND NOT EXISTS (SELECT 1 FROM blind_stage_sets WHERE active = 1 AND hero = :hero)
+    LIMIT 1
+  `).get({ hero }) as { id: number; cur_rel: number; in_game_sens: number } | undefined;
+  if (!activeSet) return undefined;
+  const stage = db.prepare('SELECT dpi, sens FROM blind_stages WHERE set_id = :sid AND stage_index = :si')
+    .get({ sid: activeSet.id, si: activeSet.cur_rel }) as { dpi: number; sens: number | null } | undefined;
+  if (!stage) return undefined;
+  return { setId: activeSet.id, stageIdx: activeSet.cur_rel, dpi: stage.dpi, sens: stage.sens ?? activeSet.in_game_sens };
+}
+
 router.post('/', (req: Request, res: Response) => {
   const db = getDb();
   const { date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, feel, team_rating, notes, heroes } = req.body;
@@ -71,29 +93,10 @@ router.post('/', (req: Request, res: Response) => {
   // is already in).
   const isCompetitive = (queue_mode ?? 'comp_role') !== 'qp_role' || role === 'Support';
 
-  // Looks up the active stage-test set for a given hero (hero-tagged set
-  // takes priority over the shared ad-hoc, hero-less one) and its current
-  // stage. Shared between the primary hero (which also determines the
-  // sens/dpi stamped onto the match row) and any hero-slot 2/3 switched to
-  // mid-match — every hero actually played gets checked, not just slot 1.
-  const findActiveStage = (h: string) => {
-    if (!isCompetitive) return undefined;
-    const activeSet = db.prepare(`
-      SELECT id, cur_rel, in_game_sens FROM blind_stage_sets
-      WHERE active = 1 AND hero = :hero
-      UNION ALL
-      SELECT id, cur_rel, in_game_sens FROM blind_stage_sets
-      WHERE active = 1 AND hero IS NULL AND NOT EXISTS (SELECT 1 FROM blind_stage_sets WHERE active = 1 AND hero = :hero)
-      LIMIT 1
-    `).get({ hero: h }) as { id: number; cur_rel: number; in_game_sens: number } | undefined;
-    if (!activeSet) return undefined;
-    const stage = db.prepare('SELECT dpi, sens FROM blind_stages WHERE set_id = :sid AND stage_index = :si')
-      .get({ sid: activeSet.id, si: activeSet.cur_rel }) as { dpi: number; sens: number | null } | undefined;
-    if (!stage) return undefined;
-    return { setId: activeSet.id, stageIdx: activeSet.cur_rel, dpi: stage.dpi, sens: stage.sens ?? activeSet.in_game_sens };
-  };
-
-  const primaryStage = findActiveStage(hero);
+  // Every hero actually played gets checked against its own active set, not
+  // just slot 1 — the primary hero's lookup also determines the sens/dpi
+  // stamped onto the match row itself.
+  const primaryStage = findActiveStage(db, hero, isCompetitive);
   if (primaryStage) {
     finalDpi = primaryStage.dpi;
     finalSens = primaryStage.sens;
@@ -148,7 +151,7 @@ router.post('/', (req: Request, res: Response) => {
     const creditsToApply = [
       ...(primaryStage ? [{ hero, ...primaryStage }] : []),
       ...heroSlots.slice(1).flatMap(h => {
-        const stage = findActiveStage(h.hero);
+        const stage = findActiveStage(db, h.hero, isCompetitive);
         return stage ? [{ hero: h.hero, ...stage }] : [];
       }),
     ];
@@ -186,6 +189,67 @@ router.post('/', (req: Request, res: Response) => {
 // touched, so callers can fix a single field (e.g. the queue mode) without
 // resending the whole record.
 const EDITABLE = ['date', 'time', 'day_of_week', 'hour', 'hero', 'role', 'map', 'game_type', 'win', 'queue_mode', 'sens', 'feel', 'team_rating', 'notes'] as const;
+
+// Re-derives which stage-test set(s) (if any) a match's current hero roster
+// credits, after an edit changes hero/role/queue_mode/heroes. A match logged
+// mid-test can move onto a different active set, off a test entirely, or
+// (rarely) onto one for the first time — in every case the old blind_credits
+// rows and the games_on_stage counters they fed are stale and would silently
+// overcount/undercount a stage's trial batch. Drops the old credits (undoing
+// their games_on_stage increment, same MAX(...,0)-guarded decrement the
+// delete route uses so an already-advanced stage isn't touched), then
+// re-runs the same lookup+credit+retire logic the POST insert path uses.
+// `sensProvided` is true when this same request also set matches.sens
+// directly — in that case the caller's explicit value wins over whatever the
+// recomputed stage would have stamped.
+function syncStageCredits(db: ReturnType<typeof getDb>, matchId: string, sensProvided: boolean) {
+  const match = db.prepare('SELECT hero, role, queue_mode FROM matches WHERE id = :id')
+    .get({ id: matchId }) as { hero: string; role: string; queue_mode: string } | undefined;
+  if (!match) return;
+  const heroSlots = db.prepare('SELECT hero, role FROM match_heroes WHERE match_id = :id ORDER BY slot')
+    .all({ id: matchId }) as { hero: string; role: string }[];
+
+  const oldCredits = db.prepare('SELECT blind_set_id, stage_index FROM blind_credits WHERE match_id = :id')
+    .all({ id: matchId }) as { blind_set_id: number; stage_index: number }[];
+  db.prepare('DELETE FROM blind_credits WHERE match_id = :id').run({ id: matchId });
+  for (const c of oldCredits) {
+    db.prepare(`
+      UPDATE blind_stage_sets SET games_on_stage = MAX(games_on_stage - 1, 0)
+      WHERE id = :id AND cur_rel = :stage_index
+    `).run({ id: c.blind_set_id, stage_index: c.stage_index });
+  }
+
+  const isCompetitive = (match.queue_mode ?? 'comp_role') !== 'qp_role' || match.role === 'Support';
+  const insertCredit = db.prepare(
+    'INSERT OR IGNORE INTO blind_credits (match_id, hero, blind_set_id, stage_index) VALUES (:match_id, :hero, :blind_set_id, :stage_index)'
+  );
+
+  let primaryStage: ReturnType<typeof findActiveStage> | undefined;
+  heroSlots.forEach((slot, i) => {
+    const stage = findActiveStage(db, slot.hero, isCompetitive);
+    if (i === 0) primaryStage = stage;
+    if (!stage) return;
+    const { changes } = insertCredit.run({ match_id: matchId, hero: slot.hero, blind_set_id: stage.setId, stage_index: stage.stageIdx });
+    if (changes === 0) return;
+    db.prepare('UPDATE blind_stage_sets SET games_on_stage = games_on_stage + 1 WHERE id = :id').run({ id: stage.setId });
+    const set = db.prepare('SELECT batch_size FROM blind_stage_sets WHERE id = :id').get({ id: stage.setId }) as { batch_size: number };
+    const nStages = (db.prepare('SELECT COUNT(*) n FROM blind_stages WHERE set_id = :id').get({ id: stage.setId }) as { n: number }).n;
+    const totalGames = (db.prepare('SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id').get({ id: stage.setId }) as { n: number }).n;
+    if (totalGames >= set.batch_size * nStages) {
+      db.prepare('UPDATE blind_stage_sets SET active = 0 WHERE id = :id').run({ id: stage.setId });
+    }
+  });
+
+  // Keep the match row's own stage bookkeeping (the "stage N" badge, and the
+  // blind_set_id/stage_index the by-stage rows key off of) in sync with the
+  // primary hero's recomputed credit.
+  db.prepare('UPDATE matches SET blind_trial = :bt, blind_set_id = :sid, stage_index = :si WHERE id = :id')
+    .run({ id: matchId, bt: primaryStage ? 1 : 0, sid: primaryStage?.setId ?? null, si: primaryStage?.stageIdx ?? null });
+  if (primaryStage && !sensProvided) {
+    db.prepare('UPDATE matches SET dpi = :dpi, sens = :sens WHERE id = :id')
+      .run({ id: matchId, dpi: primaryStage.dpi, sens: primaryStage.sens });
+  }
+}
 
 router.get('/:id/heroes', (req: Request, res: Response) => {
   const db = getDb();
@@ -239,6 +303,21 @@ router.put('/:id', (req: Request, res: Response) => {
       match_id: req.params.id, slot: i + 2, hero: h.hero, role: h.role,
       feel: typeof h.feel === 'number' ? h.feel : null,
     }));
+  }
+
+  // Hero/role/queue_mode/roster edits can move this match onto a different
+  // active stage-test set (or off one entirely) — recompute its credits so
+  // games_on_stage stays accurate rather than reflecting the pre-edit hero.
+  const rosterChanged = fields.includes('hero') || fields.includes('role') || fields.includes('queue_mode') || heroesProvided;
+  if (rosterChanged) {
+    db.exec('BEGIN');
+    try {
+      syncStageCredits(db, req.params.id, fields.includes('sens'));
+      db.exec('COMMIT');
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
   }
 
   res.json({ ok: true });
