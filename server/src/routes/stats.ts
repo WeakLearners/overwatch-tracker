@@ -108,7 +108,11 @@ router.get('/by-hour', (req: Request, res: Response) => {
       hour,
       COUNT(*) as games,
       SUM(win) as wins,
-      ROUND(AVG(win) * 100, 1) as win_rate
+      ROUND(AVG(win) * 100, 1) as win_rate,
+      COUNT(CASE WHEN queue_mode = 'qp_role' THEN 1 END) as qp_games,
+      ROUND(AVG(CASE WHEN queue_mode = 'qp_role' THEN win END) * 100, 1) as qp_win_rate,
+      COUNT(CASE WHEN queue_mode IN ('comp_role', 'comp_open') THEN 1 END) as comp_games,
+      ROUND(AVG(CASE WHEN queue_mode IN ('comp_role', 'comp_open') THEN win END) * 100, 1) as comp_win_rate
     FROM matches ${whereWithHour}
     GROUP BY hour
     ORDER BY hour

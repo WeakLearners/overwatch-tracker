@@ -96,7 +96,7 @@ export default function Prematch() {
   const today = format(new Date(), 'yyyy-MM-dd');
   const { data: todayMatches } = useApi<{ rows: { win: 0 | 1 }[] }>(`/api/matches?from=${today}&to=${today}&limit=100`);
   const { data: streaksData } = useApi<Streaks>('/api/stats/streaks');
-  const { data: byHour } = useApi<{ hour: number; games: number; wins: number; win_rate: number }[]>('/api/stats/by-hour');
+  const { data: byHour } = useApi<{ hour: number; games: number; wins: number; win_rate: number; qp_games: number; qp_win_rate: number | null; comp_games: number; comp_win_rate: number | null }[]>('/api/stats/by-hour');
   const [selected, setSelected] = useState<string[]>([]);
   const [query, setQuery]       = useState('');
   const [open, setOpen]         = useState(false);
@@ -146,7 +146,6 @@ export default function Prematch() {
   const todayL = todayRows.length - todayW;
   const curHour = new Date().getHours();
   const hourRow = (byHour ?? []).find(h => h.hour === curHour);
-  const hourLabel = format(new Date(), 'h a');
 
   const results = query.length > 0
     ? ALL_MAPS.filter(m => m.toLowerCase().includes(query.toLowerCase()) && !selected.includes(m))
@@ -505,45 +504,62 @@ export default function Prematch() {
           </div>
           {mapType && <span className={`pill ${TYPE_COLORS[mapType] ?? ''}`} data-inspect-id="prematch-map-type-badge">{mapType}</span>}
 
-          {/* Idle: session & timing snapshot — how you're doing right now */}
+          {/* Idle: session & timing snapshot — how you're doing right now.
+              The panel is deliberately roomier than its content strictly
+              needs: with no map picked yet this card would otherwise be
+              mostly dead space next to Sens Test / Map Voting's packed
+              lists, so the stat tiles get real card treatment (bordered
+              panel, generous padding, bigger numerals) instead of just
+              floating in the middle of the card. */}
           {!map && (
-            <div className="flex-1 flex items-stretch content-center mt-1">
-              <div className="flex-1 min-w-0 p-2.5 flex flex-col justify-center items-center text-center" data-inspect-id="prematch-today-stat-tile">
-                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] mb-1">Today</div>
-                {todayRows.length > 0 ? (
-                  <div className="text-3xl num-display leading-none">
-                    <span className="text-emerald-500">{todayW}W</span> <span className="text-red-500">{todayL}L</span>
-                  </div>
-                ) : (
-                  <div className="text-sm text-[var(--faint)]">No games</div>
-                )}
-              </div>
-              <div className="w-px shrink-0 bg-gradient-to-b from-transparent via-ow-border to-transparent" />
-              <div className="flex-1 min-w-0 p-2.5 flex flex-col justify-center items-center text-center" data-inspect-id="prematch-streak-stat-tile">
-                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] mb-1">Streak</div>
-                {streaksData && streaksData.currentStreak > 0 ? (
-                  <div className={`text-3xl num-display leading-none ${streaksData.currentStreakType === 1 ? 'text-emerald-500' : 'text-red-500'}`}>
-                    {streaksData.currentStreak}{streaksData.currentStreakType === 1 ? 'W' : 'L'}
-                  </div>
-                ) : (
-                  <div className="text-sm text-[var(--faint)]">—</div>
-                )}
-              </div>
-              <div className="w-px shrink-0 bg-gradient-to-b from-transparent via-ow-border to-transparent" />
-              <div className="flex-1 min-w-0 p-2.5 flex flex-col justify-center items-center text-center" data-inspect-id="prematch-this-hour-stat-tile">
-                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] mb-1">This hour</div>
-                {hourRow ? (
-                  // Subtext is absolutely positioned so it doesn't push the number
-                  // off-center — keeps this stat aligned with Today/Streak.
-                  <div className="relative">
-                    <div className={`text-3xl num-display leading-none ${hourRow.win_rate >= 50 ? 'text-emerald-500' : 'text-red-500'}`}>
-                      {Math.round(hourRow.win_rate)}%
+            <div className="flex-1 flex flex-col justify-center mt-1 gap-4">
+              <div className="rounded-xl border border-ow-border/40 bg-gradient-to-br from-ow-accent/[0.06] via-ow-accent/[0.02] to-transparent flex items-stretch divide-x divide-ow-border/40">
+                <div className="flex-[0.85] min-w-0 p-4 flex flex-col justify-center items-center text-center gap-1.5" data-inspect-id="prematch-today-stat-tile">
+                  <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">Today</div>
+                  {todayRows.length > 0 ? (
+                    <div className="text-4xl num-display leading-none">
+                      <span className="text-emerald-500">{todayW}W</span> <span className="text-red-500">{todayL}L</span>
                     </div>
-                    <div className="absolute top-full inset-x-0 text-center text-[9px] text-[var(--faint-2)] mt-1">{hourLabel} · <b className="font-bold">{hourRow.games}</b>g</div>
-                  </div>
-                ) : (
-                  <div className="text-sm text-[var(--faint)]">—</div>
-                )}
+                  ) : (
+                    <div className="text-sm text-[var(--faint)]">No games</div>
+                  )}
+                </div>
+                <div className="flex-[0.85] min-w-0 p-4 flex flex-col justify-center items-center text-center gap-1.5" data-inspect-id="prematch-streak-stat-tile">
+                  <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">Streak</div>
+                  {streaksData && streaksData.currentStreak > 0 ? (
+                    <div className={`text-4xl num-display leading-none ${streaksData.currentStreakType === 1 ? 'text-emerald-500' : 'text-red-500'}`}>
+                      {streaksData.currentStreak}{streaksData.currentStreakType === 1 ? 'W' : 'L'}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-[var(--faint)]">—</div>
+                  )}
+                </div>
+                <div className="flex-[1.3] min-w-0 p-4 flex flex-col justify-center items-center text-center gap-2" data-inspect-id="prematch-this-hour-stat-tile">
+                  <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">This hour</div>
+                  {hourRow ? (
+                    <div className="flex flex-col gap-2 w-full">
+                      <div className="grid grid-cols-[2.6em_3em_auto] items-baseline justify-center gap-x-2.5 mx-auto">
+                        <span className="text-[10px] uppercase text-[var(--faint-2)] text-right">QP</span>
+                        <span className={`text-xl num-display leading-none text-right ${hourRow.qp_games > 0 ? (hourRow.qp_win_rate! >= 50 ? 'text-emerald-500' : 'text-red-500') : 'text-[var(--faint)]'}`}>
+                          {hourRow.qp_games > 0 ? `${Math.round(hourRow.qp_win_rate!)}%` : '—'}
+                        </span>
+                        <span className="text-[10px] text-[var(--faint-2)] text-left"><b className="font-bold">{hourRow.qp_games}</b>g</span>
+                      </div>
+                      <div className="grid grid-cols-[2.6em_3em_auto] items-baseline justify-center gap-x-2.5 mx-auto">
+                        <span className="text-[10px] uppercase text-[var(--faint-2)] text-right">Comp</span>
+                        <span className={`text-xl num-display leading-none text-right ${hourRow.comp_games > 0 ? (hourRow.comp_win_rate! >= 50 ? 'text-emerald-500' : 'text-red-500') : 'text-[var(--faint)]'}`}>
+                          {hourRow.comp_games > 0 ? `${Math.round(hourRow.comp_win_rate!)}%` : '—'}
+                        </span>
+                        <span className="text-[10px] text-[var(--faint-2)] text-left"><b className="font-bold">{hourRow.comp_games}</b>g</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-[var(--faint)]">—</div>
+                  )}
+                </div>
+              </div>
+              <div className="text-xs text-[var(--faint-2)] text-center">
+                Select a map above for hero recommendations and coaching tailored to it.
               </div>
             </div>
           )}
