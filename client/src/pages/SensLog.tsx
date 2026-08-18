@@ -1061,6 +1061,7 @@ function BackfillPanel({ pending, loading }: {
                         taller than the row so top and bottom clip on overflow-hidden too. */}
                     <span
                       aria-hidden="true"
+                      data-inspect-id="sl-awaiting-stats-watermark"
                       className={`pointer-events-none select-none absolute inset-y-0 right-0 flex items-center text-[7rem] font-display font-black italic leading-none tracking-[-0.07em] whitespace-nowrap opacity-15 ${m.win ? 'translate-x-[20%] text-emerald-500' : 'translate-x-[-15%] text-red-500'}`}
                     >
                       {m.win ? 'W' : 'L'}
@@ -1078,6 +1079,7 @@ function BackfillPanel({ pending, loading }: {
                         onClick={() => toggleQueueMode(m)}
                         disabled={togglingId === m.id}
                         aria-label={`Match type: ${m.queue_mode === 'qp_role' ? 'Quick Play' : 'Competitive'} — tap to switch`}
+                        data-inspect-id="sl-awaiting-stats-mode-toggle"
                         className={`relative shrink-0 w-9 h-5 rounded-full transition-colors disabled:opacity-50 ${m.queue_mode === 'qp_role' ? 'bg-blue-500' : 'bg-red-500'}`}
                       >
                         <span
@@ -1161,6 +1163,7 @@ function BackfillPanel({ pending, loading }: {
                         taller than the row so top and bottom clip on overflow-hidden too. */}
                     <span
                       aria-hidden="true"
+                      data-inspect-id="sl-logged-today-watermark"
                       className={`pointer-events-none select-none absolute inset-y-0 right-0 flex items-center text-[7rem] font-display font-black italic leading-none tracking-[-0.07em] whitespace-nowrap opacity-15 ${m.win ? 'translate-x-[20%] text-emerald-500' : 'translate-x-[-15%] text-red-500'}`}
                     >
                       {m.win ? 'W' : 'L'}
@@ -1178,6 +1181,7 @@ function BackfillPanel({ pending, loading }: {
                         onClick={() => toggleLoggedQueueMode(m)}
                         disabled={togglingLoggedId === m.id}
                         aria-label={`Match type: ${m.queue_mode === 'qp_role' ? 'Quick Play' : 'Competitive'} — tap to switch`}
+                        data-inspect-id="sl-logged-today-mode-toggle"
                         className={`relative shrink-0 w-9 h-5 rounded-full transition-colors disabled:opacity-50 ${m.queue_mode === 'qp_role' ? 'bg-blue-500' : 'bg-red-500'}`}
                       >
                         <span
