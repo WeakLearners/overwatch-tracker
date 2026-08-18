@@ -1005,12 +1005,30 @@ function BackfillPanel({ pending, loading }: {
     } catch { setStatus('error'); setTimeout(() => setStatus('idle'), 3000); }
   }
 
+  // Quick qp/comp flip from the collapsed card — a simplified binary view of
+  // the 3-way queue_mode; flipping into comp always lands on comp_role
+  // (the more common of the two comp variants), same as a fresh match log.
+  const [togglingId, setTogglingId] = useState<number | null>(null);
+  async function toggleQueueMode(m: PendingMatch) {
+    const newMode: QueueMode = m.queue_mode === 'qp_role' ? 'comp_role' : 'qp_role';
+    setTogglingId(m.id);
+    try {
+      const res = await fetch(`/api/matches/${m.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ queue_mode: newMode }) });
+      if (!res.ok) throw new Error('mode toggle failed');
+      revalidateAll();
+    } catch {
+      // Toggle stays put on failure — the pencil edit form is the fallback.
+    } finally {
+      setTogglingId(null);
+    }
+  }
+
   return (
     <div>
       <h2 data-inspect-id="sl-record-combat-header" className="text-sm heading-display text-[var(--ink)] mb-1">Record combat details</h2>
       <p className="text-xs text-[var(--faint)] mb-4">Every match awaiting its aim stats. Matches are logged in the Match Tracker; while a stage test is running they arrive here already tagged with that stage's DPI.</p>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div className="card" data-inspect-id="sl-aim-stats-card">
+      <div className="card" data-inspect-id="sl-awaiting-stats-card">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm heading-display text-[var(--ink)]">Awaiting Stats</h3>
           <span className="text-xs text-[var(--faint)]"><b className="font-bold">{pending.length}</b> pending</span>
@@ -1023,31 +1041,61 @@ function BackfillPanel({ pending, loading }: {
                 const c = QUEUE_MODE_COLORS[m.queue_mode]; const active = m.id === selectedId;
                 const editing = m.id === editingId;
                 return (
-                  <div key={m.id} className={`rounded-lg border transition-all ${active ? `${c.card} ${c.accent} ${c.glow}` : 'border-ow-border bg-ow-darker hover:border-gray-500'}`}>
-                    <div className="flex items-stretch">
-                      <button type="button" onClick={() => toggleMatch(m)} className="flex-1 min-w-0 text-left py-2.5 pl-3 pr-1.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                            {m.heroes.map(h => (
-                              <span key={h.hero} className={`pill hero-name ${ROLE_COLORS[h.role] ?? ''}`}>{withHeroCount(h.hero, heroCounts)}</span>
-                            ))}
-                            <span className="text-xs map-name text-[var(--ink)] truncate">{withMapCount(m.map, mapCounts)}</span>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className={`text-xs font-bold ${m.win ? 'text-emerald-500' : 'text-red-500'}`}>{m.win ? 'W' : 'L'}</span>
-                            <span className="text-[10px] font-bold text-[var(--faint-2)]">{MODE_TAG[m.queue_mode]}</span>
-                          </div>
+                  <div key={m.id} className={`relative overflow-hidden rounded-lg border transition-all ${active ? `${c.card} ${c.accent} ${c.glow}` : 'border-ow-border bg-ow-darker hover:border-gray-500'}`}>
+                    {/* Oversized W/L watermark, same treatment as ModeWatermark. Sized
+                        taller than the row so top and bottom clip on overflow-hidden too. */}
+                    <span
+                      aria-hidden="true"
+                      className={`pointer-events-none select-none absolute inset-y-0 right-0 flex items-center text-[7rem] font-display font-black italic leading-none tracking-[-0.07em] whitespace-nowrap opacity-15 ${m.win ? 'translate-x-[20%] text-emerald-500' : 'translate-x-[-15%] text-red-500'}`}
+                    >
+                      {m.win ? 'W' : 'L'}
+                    </span>
+                    {/* iOS-style qp/comp toggle, centered horizontally (and vertically)
+                        in the card, above the watermark. Left+blue = qp, right+red =
+                        comp, flanked by a blue Q / red C label. It's a sibling of the
+                        selectable row below, not nested inside it, so its own click
+                        never also selects the card. */}
+                    <div className="absolute left-[70%] top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex items-center gap-1.5">
+                      <span className="text-sm font-black text-blue-400">Q</span>
+                      <button
+                        type="button"
+                        onClick={() => toggleQueueMode(m)}
+                        disabled={togglingId === m.id}
+                        aria-label={`Match type: ${m.queue_mode === 'qp_role' ? 'Quick Play' : 'Competitive'} — tap to switch`}
+                        className={`relative shrink-0 w-9 h-5 rounded-full transition-colors disabled:opacity-50 ${m.queue_mode === 'qp_role' ? 'bg-blue-500' : 'bg-red-500'}`}
+                      >
+                        <span
+                          className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${m.queue_mode === 'qp_role' ? 'translate-x-0' : 'translate-x-4'}`}
+                        />
+                      </button>
+                      <span className="text-sm font-black text-red-400">C</span>
+                    </div>
+                    <div className="relative z-10 flex items-stretch">
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => toggleMatch(m)}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleMatch(m); } }}
+                        className="flex-1 min-w-0 text-left py-2.5 pl-3 pr-1.5 cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                          {m.heroes.map(h => (
+                            <span key={h.hero} className={`pill hero-name ${ROLE_COLORS[h.role] ?? ''}`}>{withHeroCount(h.hero, heroCounts)}</span>
+                          ))}
+                          <span className="text-xs map-name text-[var(--ink)] truncate">{withMapCount(m.map, mapCounts)}</span>
                         </div>
                         <div className="flex items-center gap-3 mt-1 text-[11px] text-[var(--faint)]">
                           <span>{m.time ? format(new Date(m.time), 'MMM d, h:mm a') : m.date}</span><span>·</span>
                           <span>{m.stage_index != null ? <>stage <b className="font-bold">{m.stage_index}</b> · sens <b className="font-bold">{m.sens}</b></> : m.sens != null ? <>sens <b className="font-bold">{m.sens}</b></> : 'no sens'}</span>
                         </div>
-                      </button>
-                      <button type="button" onClick={() => setEditingId(editing ? null : m.id)} aria-label="Edit match"
-                        data-inspect-id="sl-awaiting-stats-edit-btn"
-                        className="shrink-0 px-2.5 text-[var(--faint)] hover:text-[var(--ink)] transition-colors">
-                        ✎
-                      </button>
+                      </div>
+                      {active && (
+                        <button type="button" onClick={() => setEditingId(editing ? null : m.id)} aria-label="Edit match"
+                          data-inspect-id="sl-awaiting-stats-edit-btn"
+                          className="shrink-0 px-2.5 text-[var(--faint)] hover:text-[var(--ink)] transition-colors">
+                          ✎
+                        </button>
+                      )}
                     </div>
                     {editing && <EditMatchForm match={m} onClose={() => setEditingId(null)} />}
                     {active && (
@@ -1123,7 +1171,7 @@ function BackfillPanel({ pending, loading }: {
                         <div className="flex items-center gap-2">
                           {m.stage_index != null && <span className="text-[11px] text-ow-accent font-bold">Stage {m.stage_index}</span>}
                           <label className="text-[11px] text-[var(--faint)]">Sens</label>
-                          <input type="number" step="0.01" min="0" inputMode="decimal" value={loggedSens} onChange={e => setLoggedSens(e.target.value)} className="w-24 field px-2 py-1 text-sm num-display" placeholder="—" aria-label="Sensitivity" />
+                          <input type="number" step="0.01" min="0" inputMode="decimal" value={loggedSens} onChange={e => setLoggedSens(e.target.value)} data-inspect-id="sl-logged-today-sens-input" className="w-24 field px-2 py-1 text-sm num-display" placeholder="—" aria-label="Sensitivity" />
                           {parseFloat(loggedSens) > 0 && <span className="text-[11px] text-[var(--faint)] font-bold">{Math.round(eDPI(parseFloat(loggedSens)))} eDPI</span>}
                         </div>
                         <StatFields
