@@ -513,9 +513,17 @@ export default function Prematch() {
               floating in the middle of the card. */}
           {!map && (
             <div className="flex-1 flex flex-col justify-center mt-1 gap-4">
-              <div className="rounded-xl border border-ow-border/40 bg-gradient-to-br from-ow-accent/[0.06] via-ow-accent/[0.02] to-transparent flex items-stretch divide-x divide-ow-border/40">
-                <div className="flex-[0.7] min-w-0 p-4 flex flex-col justify-center items-center text-center gap-1.5" data-inspect-id="prematch-today-stat-tile">
-                  <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">Today</div>
+              {/* True 2-row grid (labels row, values row) instead of three
+                  independently-centered flex columns — that's what keeps all
+                  three labels on one line and all three value blocks on the
+                  next, regardless of the This Hour pills' extra padding
+                  making that value taller than a plain number. Columns stay
+                  content-sized (not stretched to equal width) with
+                  justify-evenly, so spacing is even without forcing the three
+                  categories to occupy equal space. */}
+              <div className="rounded-xl border border-ow-border/40 bg-gradient-to-br from-ow-accent/[0.06] via-ow-accent/[0.02] to-transparent grid grid-cols-[repeat(3,max-content)] justify-evenly items-center gap-x-2 py-4">
+                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] col-start-1 row-start-1 justify-self-center" data-inspect-id="prematch-today-stat-tile">Today</div>
+                <div className="col-start-1 row-start-2 justify-self-center">
                   {todayRows.length > 0 ? (
                     <div className="text-[27px] num-display leading-none">
                       <span className="text-emerald-500">{todayW}</span><span className="text-[var(--muted)]">-</span><span className="text-red-500">{todayL}</span>
@@ -524,8 +532,9 @@ export default function Prematch() {
                     <div className="text-sm text-[var(--faint)]">No games</div>
                   )}
                 </div>
-                <div className="flex-[0.7] min-w-0 p-4 flex flex-col justify-center items-center text-center gap-1.5" data-inspect-id="prematch-streak-stat-tile">
-                  <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">Streak</div>
+
+                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] col-start-2 row-start-1 justify-self-center" data-inspect-id="prematch-streak-stat-tile">Streak</div>
+                <div className="col-start-2 row-start-2 justify-self-center">
                   {streaksData && streaksData.currentStreak > 0 ? (
                     <div className={`text-[27px] num-display leading-none ${streaksData.currentStreakType === 1 ? 'text-emerald-500' : 'text-red-500'}`}>
                       {streaksData.currentStreak}{streaksData.currentStreakType === 1 ? 'W' : 'L'}
@@ -534,19 +543,20 @@ export default function Prematch() {
                     <div className="text-sm text-[var(--faint)]">—</div>
                   )}
                 </div>
-                <div className="flex-[1.6] min-w-0 p-4 flex flex-col justify-center items-center text-center gap-2" data-inspect-id="prematch-this-hour-stat-tile">
-                  <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">This hour</div>
+
+                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] col-start-3 row-start-1 justify-self-center" data-inspect-id="prematch-this-hour-stat-tile">This hour</div>
+                <div className="col-start-3 row-start-2 justify-self-center">
                   {hourRow ? (
                     <div className="flex items-center justify-center w-full">
                       <span
-                        className={`text-[22.5px] num-display leading-none rounded-md px-1 py-2 ${hourRow.qp_games > 0 ? (hourRow.qp_win_rate! >= 50 ? 'text-emerald-500' : 'text-red-500') : 'text-[var(--faint)]'}`}
+                        className={`text-[27px] num-display leading-none rounded-md px-1 py-2 ${hourRow.qp_games > 0 ? (hourRow.qp_win_rate! >= 50 ? 'text-emerald-500' : 'text-red-500') : 'text-[var(--faint)]'}`}
                         style={{ background: 'radial-gradient(ellipse closest-side, rgb(59 130 246 / 0.22) 0%, rgb(59 130 246 / 0.1) 55%, rgb(59 130 246 / 0) 100%)' }}
                       >
                         {hourRow.qp_games > 0 ? `${Math.round(hourRow.qp_win_rate!)}%` : '—'}
                       </span>
                       <span className="text-[27px] num-display leading-none text-[var(--faint-2)] -mx-0.5">/</span>
                       <span
-                        className={`text-[22.5px] num-display leading-none rounded-md px-1 py-2 ${hourRow.comp_games > 0 ? (hourRow.comp_win_rate! >= 50 ? 'text-emerald-500' : 'text-red-500') : 'text-[var(--faint)]'}`}
+                        className={`text-[27px] num-display leading-none rounded-md px-1 py-2 ${hourRow.comp_games > 0 ? (hourRow.comp_win_rate! >= 50 ? 'text-emerald-500' : 'text-red-500') : 'text-[var(--faint)]'}`}
                         style={{ background: 'radial-gradient(ellipse closest-side, rgb(239 68 68 / 0.22) 0%, rgb(239 68 68 / 0.1) 55%, rgb(239 68 68 / 0) 100%)' }}
                       >
                         {hourRow.comp_games > 0 ? `${Math.round(hourRow.comp_win_rate!)}%` : '—'}
