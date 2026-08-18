@@ -514,44 +514,43 @@ export default function Prematch() {
           {!map && (
             <div className="flex-1 flex flex-col justify-center mt-1 gap-4">
               <div className="rounded-xl border border-ow-border/40 bg-gradient-to-br from-ow-accent/[0.06] via-ow-accent/[0.02] to-transparent flex items-stretch divide-x divide-ow-border/40">
-                <div className="flex-[0.85] min-w-0 p-4 flex flex-col justify-center items-center text-center gap-1.5" data-inspect-id="prematch-today-stat-tile">
+                <div className="flex-[0.7] min-w-0 p-4 flex flex-col justify-center items-center text-center gap-1.5" data-inspect-id="prematch-today-stat-tile">
                   <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">Today</div>
                   {todayRows.length > 0 ? (
-                    <div className="text-4xl num-display leading-none">
-                      <span className="text-emerald-500">{todayW}W</span> <span className="text-red-500">{todayL}L</span>
+                    <div className="text-[27px] num-display leading-none">
+                      <span className="text-emerald-500">{todayW}</span><span className="text-[var(--muted)]">-</span><span className="text-red-500">{todayL}</span>
                     </div>
                   ) : (
                     <div className="text-sm text-[var(--faint)]">No games</div>
                   )}
                 </div>
-                <div className="flex-[0.85] min-w-0 p-4 flex flex-col justify-center items-center text-center gap-1.5" data-inspect-id="prematch-streak-stat-tile">
+                <div className="flex-[0.7] min-w-0 p-4 flex flex-col justify-center items-center text-center gap-1.5" data-inspect-id="prematch-streak-stat-tile">
                   <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">Streak</div>
                   {streaksData && streaksData.currentStreak > 0 ? (
-                    <div className={`text-4xl num-display leading-none ${streaksData.currentStreakType === 1 ? 'text-emerald-500' : 'text-red-500'}`}>
+                    <div className={`text-[27px] num-display leading-none ${streaksData.currentStreakType === 1 ? 'text-emerald-500' : 'text-red-500'}`}>
                       {streaksData.currentStreak}{streaksData.currentStreakType === 1 ? 'W' : 'L'}
                     </div>
                   ) : (
                     <div className="text-sm text-[var(--faint)]">—</div>
                   )}
                 </div>
-                <div className="flex-[1.3] min-w-0 p-4 flex flex-col justify-center items-center text-center gap-2" data-inspect-id="prematch-this-hour-stat-tile">
+                <div className="flex-[1.6] min-w-0 p-4 flex flex-col justify-center items-center text-center gap-2" data-inspect-id="prematch-this-hour-stat-tile">
                   <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">This hour</div>
                   {hourRow ? (
-                    <div className="flex flex-col gap-2 w-full">
-                      <div className="grid grid-cols-[2.6em_3em_auto] items-baseline justify-center gap-x-2.5 mx-auto">
-                        <span className="text-[10px] uppercase text-[var(--faint-2)] text-right">QP</span>
-                        <span className={`text-xl num-display leading-none text-right ${hourRow.qp_games > 0 ? (hourRow.qp_win_rate! >= 50 ? 'text-emerald-500' : 'text-red-500') : 'text-[var(--faint)]'}`}>
-                          {hourRow.qp_games > 0 ? `${Math.round(hourRow.qp_win_rate!)}%` : '—'}
-                        </span>
-                        <span className="text-[10px] text-[var(--faint-2)] text-left"><b className="font-bold">{hourRow.qp_games}</b>g</span>
-                      </div>
-                      <div className="grid grid-cols-[2.6em_3em_auto] items-baseline justify-center gap-x-2.5 mx-auto">
-                        <span className="text-[10px] uppercase text-[var(--faint-2)] text-right">Comp</span>
-                        <span className={`text-xl num-display leading-none text-right ${hourRow.comp_games > 0 ? (hourRow.comp_win_rate! >= 50 ? 'text-emerald-500' : 'text-red-500') : 'text-[var(--faint)]'}`}>
-                          {hourRow.comp_games > 0 ? `${Math.round(hourRow.comp_win_rate!)}%` : '—'}
-                        </span>
-                        <span className="text-[10px] text-[var(--faint-2)] text-left"><b className="font-bold">{hourRow.comp_games}</b>g</span>
-                      </div>
+                    <div className="flex items-center justify-center w-full">
+                      <span
+                        className={`text-[22.5px] num-display leading-none rounded-md px-1 py-2 ${hourRow.qp_games > 0 ? (hourRow.qp_win_rate! >= 50 ? 'text-emerald-500' : 'text-red-500') : 'text-[var(--faint)]'}`}
+                        style={{ background: 'radial-gradient(ellipse closest-side, rgb(59 130 246 / 0.22) 0%, rgb(59 130 246 / 0.1) 55%, rgb(59 130 246 / 0) 100%)' }}
+                      >
+                        {hourRow.qp_games > 0 ? `${Math.round(hourRow.qp_win_rate!)}%` : '—'}
+                      </span>
+                      <span className="text-[27px] num-display leading-none text-[var(--faint-2)] -mx-0.5">/</span>
+                      <span
+                        className={`text-[22.5px] num-display leading-none rounded-md px-1 py-2 ${hourRow.comp_games > 0 ? (hourRow.comp_win_rate! >= 50 ? 'text-emerald-500' : 'text-red-500') : 'text-[var(--faint)]'}`}
+                        style={{ background: 'radial-gradient(ellipse closest-side, rgb(239 68 68 / 0.22) 0%, rgb(239 68 68 / 0.1) 55%, rgb(239 68 68 / 0) 100%)' }}
+                      >
+                        {hourRow.comp_games > 0 ? `${Math.round(hourRow.comp_win_rate!)}%` : '—'}
+                      </span>
                     </div>
                   ) : (
                     <div className="text-sm text-[var(--faint)]">—</div>
