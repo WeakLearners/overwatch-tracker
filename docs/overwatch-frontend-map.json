@@ -1065,6 +1065,16 @@
           }
         },
         {
+          "id": "sl-plan-delete-phase-btn",
+          "label": "\"×\" delete button (custom phase tab)",
+          "kind": "button",
+          "description": "Shown only on phase tabs built via \"+ Add new phase\" (not the hardcoded PLAN_TABS entries) — deletes that phase's plan/tab after a confirm(), so a phase built before a logic fix (or otherwise wrong) can be tossed and regenerated. Only removes the tab/plan definition; any test sets already created from it must be cancelled separately via sl-plan-cancel-btn.",
+          "locate": {
+            "path": "client/src/pages/SensLog.tsx:718",
+            "grep": "grep -n -F -- 'data-inspect-id=\"sl-plan-delete-phase-btn\"' client/src/pages/SensLog.tsx"
+          }
+        },
+        {
           "id": "sl-add-phase-modal",
           "label": "Add new phase popup form",
           "kind": "modal",
