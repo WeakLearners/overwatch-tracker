@@ -511,7 +511,16 @@ function statusForHero(
   const past = [...sets]
     .filter(s => s.hero === hero && s.batch_size === batchSize && s.n_stages === nStages && sameValues(s.values, values))
     .sort((a, b) => b.set_id - a.set_id)[0];
-  if (past && past.totalGames >= target) return { status: 'completed', totalGames: past.totalGames, target, setId: past.set_id };
+  if (past) {
+    // A retired (active=0) set normally only got that way by hitting its
+    // target — but games_on_stage/blind_credits can still drop below target
+    // afterward if a credited match is later deleted or edited off this set
+    // (matches.ts's delete/sync routes decrement the count but never
+    // reactivate the set). Report that honestly as still-in-progress rather
+    // than silently reporting "no test" — the set is real, it's just short.
+    if (past.totalGames >= target) return { status: 'completed', totalGames: past.totalGames, target, setId: past.set_id };
+    return { status: 'testing', totalGames: past.totalGames, target, setId: past.set_id };
+  }
   return { status: 'none', totalGames: 0, target, setId: null };
 }
 
@@ -739,24 +748,26 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
           const s = statuses.get(h.hero)!;
           return (
             <div key={h.hero} className="relative rounded-lg bg-ow-darker border border-ow-border p-2.5 overflow-hidden">
-              {s.status === 'testing' && (
-                <div className="flex flex-col items-center gap-0.5 mb-1.5" data-inspect-id="sl-plan-status-badge">
-                  <span className="text-xs font-bold uppercase tracking-wide text-amber-500">
-                    In Testing · {s.totalGames}/{s.target} games
-                  </span>
-                  {s.setId != null && (
-                    <button
-                      type="button"
-                      onClick={() => cancelActiveSet(s.setId!, h.hero, s.totalGames)}
-                      disabled={cancelling}
-                      data-inspect-id="sl-plan-cancel-btn"
-                      className="text-[10px] text-red-400 hover:text-red-300 underline underline-offset-2 disabled:opacity-40"
-                    >
-                      Cancel test
-                    </button>
-                  )}
-                </div>
-              )}
+              {/* Always rendered, just hidden (visibility, not display) when not testing — keeps every
+                  card's top slot the same height so completed/none cards don't shrink relative to it. */}
+              <div
+                className={`flex flex-col items-center gap-0.5 mb-1.5 ${s.status === 'testing' ? '' : 'invisible'}`}
+                data-inspect-id="sl-plan-status-badge"
+              >
+                <span className="text-xs font-bold uppercase tracking-wide text-amber-500">
+                  In Testing · {s.totalGames}/{s.target} games
+                </span>
+                <button
+                  type="button"
+                  onClick={() => s.setId != null && cancelActiveSet(s.setId, h.hero, s.totalGames)}
+                  disabled={cancelling || s.setId == null}
+                  tabIndex={s.status === 'testing' ? 0 : -1}
+                  data-inspect-id="sl-plan-cancel-btn"
+                  className="text-[10px] text-red-400 hover:text-red-300 underline underline-offset-2 disabled:opacity-40"
+                >
+                  Cancel test
+                </button>
+              </div>
               <div className={s.status === 'completed' ? 'opacity-30 pointer-events-none' : ''}>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-sm hero-name text-[var(--ink)]">{h.hero}</span>
@@ -771,15 +782,16 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                   <span className="text-[10px] text-[var(--faint-2)]">× <b className="font-bold">{h.gamesPerSlot}</b>/slot</span>
                 </div>
                 <p className="text-[11px] text-[var(--faint)] leading-snug mb-2">{h.note}</p>
-                {s.status === 'none' && (
-                  <button
-                    type="button" onClick={() => createSetForHero(h)} disabled={creating === h.hero}
-                    data-inspect-id="sl-plan-create-btn"
-                    className={`${btnSecondary} w-full py-1.5 text-xs`}
-                  >
-                    {creating === h.hero ? 'Creating…' : 'Create test set'}
-                  </button>
-                )}
+                {/* Same invisible-placeholder treatment as the badge above, so the bottom slot's
+                    height doesn't vanish for testing/completed cards either. */}
+                <button
+                  type="button" onClick={() => createSetForHero(h)} disabled={creating === h.hero}
+                  tabIndex={s.status === 'none' ? 0 : -1}
+                  data-inspect-id="sl-plan-create-btn"
+                  className={`${btnSecondary} w-full py-1.5 text-xs ${s.status === 'none' ? '' : 'invisible'}`}
+                >
+                  {creating === h.hero ? 'Creating…' : 'Create test set'}
+                </button>
               </div>
 
               {s.status === 'completed' && (
