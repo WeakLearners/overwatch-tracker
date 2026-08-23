@@ -87,11 +87,10 @@ router.post('/', (req: Request, res: Response) => {
 
   // Quick Play games are loggable but normally never feed the DPI study —
   // only Competitive matches move a stage-test's counters, so QP play
-  // doesn't dilute the data. Exception: Support QP counts toward the study
-  // too, since support data is still being gathered (this will likely
-  // revert to comp-only once support moves to the same comp-only phase DPS
-  // is already in).
-  const isCompetitive = (queue_mode ?? 'comp_role') !== 'qp_role' || role === 'Support';
+  // doesn't dilute the data. Support used to get a QP exception while its
+  // data was still being gathered; retired 2026-08-23 now that support is on
+  // the same comp-only phase DPS was already in.
+  const isCompetitive = (queue_mode ?? 'comp_role') !== 'qp_role';
 
   // Every hero actually played gets checked against its own active set, not
   // just slot 1 — the primary hero's lookup also determines the sens/dpi
@@ -219,7 +218,7 @@ function syncStageCredits(db: ReturnType<typeof getDb>, matchId: string, sensPro
     `).run({ id: c.blind_set_id, stage_index: c.stage_index });
   }
 
-  const isCompetitive = (match.queue_mode ?? 'comp_role') !== 'qp_role' || match.role === 'Support';
+  const isCompetitive = (match.queue_mode ?? 'comp_role') !== 'qp_role';
   const insertCredit = db.prepare(
     'INSERT OR IGNORE INTO blind_credits (match_id, hero, blind_set_id, stage_index) VALUES (:match_id, :hero, :blind_set_id, :stage_index)'
   );
