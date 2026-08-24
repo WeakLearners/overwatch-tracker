@@ -549,15 +549,13 @@ export default function Prematch() {
                   {hourRow ? (
                     <div className="flex items-center justify-center w-full">
                       <span
-                        className={`text-[27px] num-display leading-none rounded-md px-1 py-2 ${hourRow.qp_games > 0 ? (hourRow.qp_win_rate! >= 50 ? 'text-emerald-500' : 'text-red-500') : 'text-[var(--faint)]'}`}
-                        style={{ background: 'radial-gradient(ellipse closest-side, rgb(59 130 246 / 0.22) 0%, rgb(59 130 246 / 0.1) 55%, rgb(59 130 246 / 0) 100%)' }}
+                        className={`text-[27px] num-display leading-none rounded-md px-1 py-2 ${hourRow.qp_games > 0 ? 'text-blue-500' : 'text-[var(--faint)]'}`}
                       >
                         {hourRow.qp_games > 0 ? `${Math.round(hourRow.qp_win_rate!)}%` : '—'}
                       </span>
                       <span className="text-[27px] num-display leading-none text-[var(--faint-2)] -mx-0.5">/</span>
                       <span
-                        className={`text-[27px] num-display leading-none rounded-md px-1 py-2 ${hourRow.comp_games > 0 ? (hourRow.comp_win_rate! >= 50 ? 'text-emerald-500' : 'text-red-500') : 'text-[var(--faint)]'}`}
-                        style={{ background: 'radial-gradient(ellipse closest-side, rgb(239 68 68 / 0.22) 0%, rgb(239 68 68 / 0.1) 55%, rgb(239 68 68 / 0) 100%)' }}
+                        className={`text-[27px] num-display leading-none rounded-md px-1 py-2 ${hourRow.comp_games > 0 ? 'text-red-500' : 'text-[var(--faint)]'}`}
                       >
                         {hourRow.comp_games > 0 ? `${Math.round(hourRow.comp_win_rate!)}%` : '—'}
                       </span>
