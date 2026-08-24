@@ -22,6 +22,19 @@ export const eDPI = (sens: number, dpi: number = MOUSE_DPI): number => dpi * sen
 export const cm360 = (sens: number, dpi: number = MOUSE_DPI): number =>
   (360 * 2.54) / (OW_YAW * sens * dpi);
 
+// Rawaccel Motivity (sigmoid) curve params for the mouse-acceleration testing
+// phase (2026-08-24 —), replacing per-hero flat-sens switching. In-game sens
+// is now fixed at 2.13 for every hero (the precision floor, tested as
+// Zenyatta's Phase 4/5 value); Rawaccel modulates the effective multiplier
+// from 1.0x up to CURVE_MOTIVITY as raw mouse speed rises. GROWTH_RATE and
+// MIDPOINT are unvalidated starting points, not data-derived — the next
+// testing phase's job is to find the right values empirically, same as DPI/
+// sens before it. Fixed constants for now, same as MOUSE_DPI above, until
+// something requires them to vary per match.
+export const CURVE_MOTIVITY = 1.30; // cap multiplier: Shion/Reaper's 2.76 ÷ Zenyatta's 2.13
+export const CURVE_GROWTH_RATE = 1.0; // unvalidated placeholder
+export const CURVE_MIDPOINT = 12; // unvalidated placeholder, counts/ms
+
 // Aim archetype per hero. Governs how strongly crit/overall accuracy reflects
 // raw sensitivity fit. Only DPS heroes whose accuracy is clearly sens-dominated
 // are tagged hitscan or projectile; everything else (tanks, supports, spread/

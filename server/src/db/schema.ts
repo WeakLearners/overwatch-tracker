@@ -83,6 +83,18 @@ function initSchema(db: DatabaseSync) {
     db.exec(`UPDATE matches SET dpi = 1600 WHERE dpi IS NULL`);
   }
 
+  // curve_growth_rate / curve_midpoint: Rawaccel Motivity-curve params active
+  // when the match was played (see lib/aim.ts's CURVE_* constants). Null on
+  // every row logged before the mouse-acceleration testing phase started —
+  // no backfill, since flat per-hero sens (no curve at all) isn't a curve
+  // value of "0", it's the absence of one.
+  if (!cols.find(c => c.name === 'curve_growth_rate')) {
+    db.exec(`ALTER TABLE matches ADD COLUMN curve_growth_rate REAL`);
+  }
+  if (!cols.find(c => c.name === 'curve_midpoint')) {
+    db.exec(`ALTER TABLE matches ADD COLUMN curve_midpoint REAL`);
+  }
+
   // DPI stage-trial bookkeeping. blind_trial flags a match logged while a
   // stage-trial set was active for its hero; blind_set_id + stage_index say
   // which set/stage. The stage's DPI is shown on screen the whole time — there

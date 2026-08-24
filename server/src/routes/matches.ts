@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
+import { CURVE_GROWTH_RATE, CURVE_MIDPOINT } from '../lib/aim';
 
 const router = Router();
 
@@ -115,10 +116,14 @@ router.post('/', (req: Request, res: Response) => {
     // revealed is a confirmed-dead leftover from an earlier hidden-DPI
     // design (schema.ts's comment on the column) — left off here rather
     // than hardcoded to 1 on every insert, since nothing reads it either way.
+    // curve_growth_rate/curve_midpoint stamp the Rawaccel Motivity params
+    // active when this match was played (lib/aim.ts's CURVE_* constants) —
+    // same rationale as dpi defaulting to the fixed MOUSE_DPI constant below,
+    // until/unless a future phase needs them to vary per match.
     const result = db.prepare(`
-      INSERT INTO matches (date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, dpi, blind_trial, blind_set_id, stage_index, feel, team_rating, notes)
-      VALUES (:date, :time, :day_of_week, :hour, :hero, :role, :map, :game_type, :win, :deaths, :queue_mode, :sens, :dpi, :blind_trial, :blind_set_id, :stage_index, :feel, :team_rating, :notes)
-    `).run({ date, time: time ?? null, day_of_week: day_of_week ?? null, hour: hour ?? null, hero, role, map, game_type, win: win ? 1 : 0, deaths: deathsJson, queue_mode: queue_mode ?? 'comp_role', sens: finalSens, dpi: finalDpi, blind_trial: isStudy, blind_set_id: setId, stage_index: stageIdx, feel: feel ?? null, team_rating: team_rating ?? null, notes: notes?.trim() || null });
+      INSERT INTO matches (date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, dpi, blind_trial, blind_set_id, stage_index, feel, team_rating, notes, curve_growth_rate, curve_midpoint)
+      VALUES (:date, :time, :day_of_week, :hour, :hero, :role, :map, :game_type, :win, :deaths, :queue_mode, :sens, :dpi, :blind_trial, :blind_set_id, :stage_index, :feel, :team_rating, :notes, :curve_growth_rate, :curve_midpoint)
+    `).run({ date, time: time ?? null, day_of_week: day_of_week ?? null, hour: hour ?? null, hero, role, map, game_type, win: win ? 1 : 0, deaths: deathsJson, queue_mode: queue_mode ?? 'comp_role', sens: finalSens, dpi: finalDpi, blind_trial: isStudy, blind_set_id: setId, stage_index: stageIdx, feel: feel ?? null, team_rating: team_rating ?? null, notes: notes?.trim() || null, curve_growth_rate: CURVE_GROWTH_RATE, curve_midpoint: CURVE_MIDPOINT });
 
     matchId = result.lastInsertRowid as number;
 
@@ -187,7 +192,7 @@ router.post('/', (req: Request, res: Response) => {
 // Partial update of a logged match. Only the columns present in the body are
 // touched, so callers can fix a single field (e.g. the queue mode) without
 // resending the whole record.
-const EDITABLE = ['date', 'time', 'day_of_week', 'hour', 'hero', 'role', 'map', 'game_type', 'win', 'queue_mode', 'sens', 'feel', 'team_rating', 'notes'] as const;
+const EDITABLE = ['date', 'time', 'day_of_week', 'hour', 'hero', 'role', 'map', 'game_type', 'win', 'queue_mode', 'sens', 'feel', 'team_rating', 'notes', 'curve_growth_rate', 'curve_midpoint'] as const;
 
 // Re-derives which stage-test set(s) (if any) a match's current hero roster
 // credits, after an edit changes hero/role/queue_mode/heroes. A match logged
