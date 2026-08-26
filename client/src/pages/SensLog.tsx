@@ -36,7 +36,7 @@ interface DpiTestActive {
   set_id: number; in_game_sens: number; base_dpi: number; created_at: string;
   batch_size: number; cur_stage: number; games_on_stage: number;
   dpi: number | null; sens: number | null; n_stages: number;
-  hero: string | null; totalGames: number; completed: boolean;
+  hero: string | null; phase: string | null; totalGames: number; completed: boolean;
   needSwitch: boolean;
   stages: { stage_index: number; dpi: number; sens: number | null }[];
 }
@@ -44,7 +44,7 @@ interface DpiTestState {
   actives: DpiTestActive[];
 }
 interface DpiTestSetSummary {
-  set_id: number; hero: string | null; active: boolean; completed: boolean;
+  set_id: number; hero: string | null; phase: string | null; active: boolean; completed: boolean;
   batch_size: number; n_stages: number; totalGames: number; created_at: string;
   values: number[];
 }
@@ -500,19 +500,34 @@ const sameValues = (a: readonly number[], b: readonly number[]) =>
 // size × stage count) — two phases can share the same shape (e.g. 5
 // games/slot × 2 stages) with different DPI/sens targets, so shape alone
 // would mistake an earlier phase's completed set for this phase's progress.
+// The four original plan tabs predate the `phase` tag on blind_stage_sets —
+// their own historical sets are all untagged (phase: null), so they keep
+// matching by shape/values alone, same as always. Every other phase key
+// (every custom phase built via "+ Add new phase", including future ones)
+// additionally requires an exact phase match — otherwise a brand-new phase
+// that happens to recompute the same bracket as some earlier, unrelated,
+// already-completed phase (see suggestCenter's "holding" case) would read
+// that old set as its own progress and show "Completed" before anything
+// was ever created for it (caught 2026-08-26).
+const LEGACY_PHASE_KEYS = new Set(['phase2', 'phase3', 'phase4', 'phase5']);
+
 function statusForHero(
   hero: string, actives: DpiTestActive[], sets: DpiTestSetSummary[], batchSize: number, values: readonly number[],
+  phaseKey: string,
 ): { status: HeroTestStatus; totalGames: number; target: number; setId: number | null } {
   const nStages = values.length;
   const target = batchSize * nStages;
+  const scoped = !LEGACY_PHASE_KEYS.has(phaseKey);
   const active = actives.find(a =>
     a.hero === hero && a.batch_size === batchSize && a.n_stages === nStages
-    && sameValues(a.stages.map(s => s.sens ?? s.dpi), values));
+    && sameValues(a.stages.map(s => s.sens ?? s.dpi), values)
+    && (!scoped || a.phase === phaseKey));
   if (active) {
     return { status: active.completed ? 'completed' : 'testing', totalGames: active.totalGames, target, setId: active.set_id };
   }
   const past = [...sets]
-    .filter(s => s.hero === hero && s.batch_size === batchSize && s.n_stages === nStages && sameValues(s.values, values))
+    .filter(s => s.hero === hero && s.batch_size === batchSize && s.n_stages === nStages && sameValues(s.values, values)
+      && (!scoped || s.phase === phaseKey))
     .sort((a, b) => b.set_id - a.set_id)[0];
   if (past) {
     // A retired (active=0) set normally only got that way by hitting its
@@ -607,7 +622,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
   const [tabKey, setTabKey] = useState(lastBuilt.key);
   const { plan, description } = allTabs.find(t => t.key === tabKey) ?? lastBuilt;
 
-  const statuses = new Map(plan.map(h => [h.hero, statusForHero(h.hero, actives, sets, h.gamesPerSlot, valuesOf(h))]));
+  const statuses = new Map(plan.map(h => [h.hero, statusForHero(h.hero, actives, sets, h.gamesPerSlot, valuesOf(h), tabKey)]));
   const [cancelling, setCancelling] = useState(false);
 
   const [showAddPhase, setShowAddPhase] = useState(false);
@@ -696,18 +711,41 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
     }
   }
 
+  function setBodyFor(h: PlanHero) {
+    return h.senses
+      ? { senses: h.senses, batch_size: h.gamesPerSlot, hero: h.hero, phase: tabKey }
+      : { in_game_sens: 2.5, batch_size: h.gamesPerSlot, dpis: h.dpis, hero: h.hero, phase: tabKey };
+  }
+
   async function createSetForHero(h: PlanHero) {
     setCreating(h.hero);
     try {
-      const body = h.senses
-        ? { senses: h.senses, batch_size: h.gamesPerSlot, hero: h.hero }
-        : { in_game_sens: 2.5, batch_size: h.gamesPerSlot, dpis: h.dpis, hero: h.hero };
       await fetch('/api/blind/sets', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify(setBodyFor(h)),
       });
       revalidateAll();
     } finally { setCreating(null); }
+  }
+
+  const [creatingAll, setCreatingAll] = useState(false);
+
+  // Only targets heroes with no set at all yet (status 'none') — heroes
+  // already testing or completed for this phase are left alone, same as
+  // clicking each "Create test set" button individually would do.
+  async function createAllSets() {
+    const targets = plan.filter(h => statuses.get(h.hero)?.status === 'none');
+    if (targets.length === 0) return;
+    setCreatingAll(true);
+    try {
+      await Promise.all(targets.map(h => fetch('/api/blind/sets', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(setBodyFor(h)),
+      })));
+      revalidateAll();
+    } finally {
+      setCreatingAll(false);
+    }
   }
 
   async function cancelActiveSet(setId: number, hero: string, games: number) {
@@ -773,66 +811,83 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
         </button>
       </div>
       <p className="text-xs text-[var(--faint)] mb-3">{description}</p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" data-inspect-id="sl-plan-hero-grid">
+      {(() => {
+        const pendingCount = plan.filter(h => statuses.get(h.hero)?.status === 'none').length;
+        if (pendingCount === 0) return null;
+        return (
+          <button
+            type="button" onClick={createAllSets} disabled={creatingAll}
+            data-inspect-id="sl-plan-create-all-btn"
+            className={`${btnSecondary} mb-3 py-1.5 px-3 text-xs disabled:opacity-40`}
+          >
+            {creatingAll ? 'Creating…' : `Create all ${pendingCount} test set${pendingCount === 1 ? '' : 's'}`}
+          </button>
+        );
+      })()}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2" data-inspect-id="sl-plan-hero-grid">
         {plan.map(h => {
           const s = statuses.get(h.hero)!;
           return (
-            <div key={h.hero} className="relative rounded-lg bg-ow-darker border border-ow-border p-2.5 overflow-hidden">
-              {/* Always rendered, just hidden (visibility, not display) when not testing — keeps every
-                  card's top slot the same height so completed/none cards don't shrink relative to it. */}
-              <div
-                className={`flex flex-col items-center gap-0.5 mb-1.5 ${s.status === 'testing' ? '' : 'invisible'}`}
-                data-inspect-id="sl-plan-status-badge"
-              >
-                <span className="text-xs font-bold uppercase tracking-wide text-amber-500">
-                  In Testing · {s.totalGames}/{s.target} games
-                </span>
-                <button
-                  type="button"
-                  onClick={() => s.setId != null && cancelActiveSet(s.setId, h.hero, s.totalGames)}
-                  disabled={cancelling || s.setId == null}
-                  tabIndex={s.status === 'testing' ? 0 : -1}
-                  data-inspect-id="sl-plan-cancel-btn"
-                  className="text-[10px] text-red-400 hover:text-red-300 underline underline-offset-2 disabled:opacity-40"
-                >
-                  Cancel test
-                </button>
-              </div>
+            <div key={h.hero} className="relative rounded-lg bg-ow-darker border border-ow-border p-2 overflow-hidden">
               <div className={s.status === 'completed' ? 'opacity-30 pointer-events-none' : ''}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm hero-name text-[var(--ink)]">{h.hero}</span>
-                  <span className="text-[10px] text-[var(--faint-2)] uppercase">{h.archetype}</span>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span className="text-xs hero-name text-[var(--ink)] truncate">{h.hero}</span>
+                  <span className="text-[9px] text-[var(--faint-2)] uppercase shrink-0">{h.archetype}</span>
                 </div>
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  {valuesOf(h).map(v => (
-                    <span key={v} className="text-xs num-display text-[var(--ink)] bg-ow-border/40 rounded px-1.5 py-0.5">
-                      {h.senses ? v.toFixed(2) : v}
+                {/* The sens values being tested are the whole point of the card —
+                    lead with them, large and centered, rather than burying them
+                    under the hero name as just another detail line. */}
+                <div className="flex items-center justify-center gap-1 mb-0.5">
+                  {valuesOf(h).map((v, i) => (
+                    <span key={v} className="flex items-center gap-1">
+                      {i > 0 && <span className="text-[var(--faint-2)] text-xs">/</span>}
+                      <span className="text-lg num-display font-bold text-[var(--ink)]">{h.senses ? v.toFixed(2) : v}</span>
                     </span>
                   ))}
-                  <span className="text-[10px] text-[var(--faint-2)]">× <b className="font-bold">{h.gamesPerSlot}</b>/slot</span>
                 </div>
-                <p className="text-[11px] text-[var(--faint)] leading-snug mb-2">{h.note}</p>
-                {/* Same invisible-placeholder treatment as the badge above, so the bottom slot's
-                    height doesn't vanish for testing/completed cards either. */}
-                <button
-                  type="button" onClick={() => createSetForHero(h)} disabled={creating === h.hero}
-                  tabIndex={s.status === 'none' ? 0 : -1}
-                  data-inspect-id="sl-plan-create-btn"
-                  className={`${btnSecondary} w-full py-1.5 text-xs ${s.status === 'none' ? '' : 'invisible'}`}
-                >
-                  {creating === h.hero ? 'Creating…' : 'Create test set'}
-                </button>
+                <p className="text-[10px] text-[var(--faint-2)] text-center mb-1">× <b className="font-bold">{h.gamesPerSlot}</b>/slot</p>
+                {h.note && (
+                  <p className="text-[11px] text-[var(--faint)] truncate mb-1" title={h.note}>{h.note}</p>
+                )}
+                {/* Single fixed-height footer, its content switching by status — replaces the old
+                    top-badge + bottom-button pair (each separately reserved via `invisible`), which
+                    doubled the empty space every card carried regardless of which state it was in. */}
+                <div className="h-5 flex items-center" data-inspect-id="sl-plan-status-footer">
+                  {s.status === 'testing' && (
+                    <div className="flex items-center gap-2 w-full justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-amber-500">{s.totalGames}/{s.target} games</span>
+                      <button
+                        type="button"
+                        onClick={() => s.setId != null && cancelActiveSet(s.setId, h.hero, s.totalGames)}
+                        disabled={cancelling || s.setId == null}
+                        data-inspect-id="sl-plan-cancel-btn"
+                        className="text-[10px] text-red-400 hover:text-red-300 underline underline-offset-2 disabled:opacity-40 shrink-0"
+                      >
+                        Cancel test
+                      </button>
+                    </div>
+                  )}
+                  {s.status === 'none' && (
+                    <button
+                      type="button" onClick={() => createSetForHero(h)} disabled={creating === h.hero}
+                      data-inspect-id="sl-plan-create-btn"
+                      className={`${btnSecondary} w-full py-1 text-xs`}
+                    >
+                      {creating === h.hero ? 'Creating…' : 'Create test set'}
+                    </button>
+                  )}
+                </div>
               </div>
 
               {s.status === 'completed' && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-ow-card/40 backdrop-blur-[1px]">
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 bg-ow-card/40 backdrop-blur-[1px]">
                   <span
                     data-inspect-id="sl-plan-status-badge"
-                    className="heading-display text-[45px] leading-none text-center drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)] text-emerald-500"
+                    className="heading-display text-2xl leading-none text-center drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)] text-emerald-500"
                   >
                     Completed
                   </span>
-                  <span className="text-xs font-semibold num-display text-[var(--ink)] drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">{s.totalGames} / {s.target} games</span>
+                  <span className="text-[10px] font-semibold num-display text-[var(--ink)] drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">{s.totalGames} / {s.target} games</span>
                 </div>
               )}
             </div>

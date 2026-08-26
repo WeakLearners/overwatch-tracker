@@ -423,6 +423,17 @@ function initSchema(db: DatabaseSync) {
     // Optional hero tag: which hero's dedicated block this set represents
     // (e.g. a Phase 2 per-hero card). Null for sets created ad hoc.
     ['hero', `ALTER TABLE blind_stage_sets ADD COLUMN hero TEXT`],
+    // Optional phase tag: which SensLog.tsx plan tab (PlanTab.key) this set
+    // was created from — e.g. 'phase2' or a generated 'custom-<timestamp>'.
+    // Null for ad-hoc sets (CreateTestCard) and for every set created before
+    // this column existed. Lets statusForHero scope a set to its own phase
+    // instead of matching any historical set with the same hero/values,
+    // which let an unrelated completed round from an earlier phase read as
+    // "already completed" for a brand-new phase that reused the same
+    // bracket (see 2026-08-26 log). Sets from before this column existed
+    // are intentionally left untagged rather than backfilled — the four
+    // legacy PLAN_TABS reference phases keep matching by shape alone.
+    ['phase', `ALTER TABLE blind_stage_sets ADD COLUMN phase TEXT`],
   ] as const) {
     if (!setCols.find(c => c.name === col)) db.exec(ddl);
   }
