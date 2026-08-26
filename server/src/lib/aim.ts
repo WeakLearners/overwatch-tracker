@@ -22,15 +22,95 @@ export const eDPI = (sens: number, dpi: number = MOUSE_DPI): number => dpi * sen
 export const cm360 = (sens: number, dpi: number = MOUSE_DPI): number =>
   (360 * 2.54) / (OW_YAW * sens * dpi);
 
-// Rawaccel Motivity (sigmoid) curve params for the mouse-acceleration testing
-// phase (2026-08-24 —), replacing per-hero flat-sens switching. In-game sens
-// is now fixed at 2.13 for every hero (the precision floor, tested as
-// Zenyatta's Phase 4/5 value); Rawaccel modulates the effective multiplier
-// from 1.0x up to CURVE_MOTIVITY as raw mouse speed rises. GROWTH_RATE and
-// MIDPOINT are unvalidated starting points, not data-derived — the next
-// testing phase's job is to find the right values empirically, same as DPI/
-// sens before it. Fixed constants for now, same as MOUSE_DPI above, until
-// something requires them to vary per match.
+// --- Curve fitting ---------------------------------------------------------
+// Weighted least-squares quadratic fit (y = a*x^2 + b*x + c) over a hero's
+// tested sens scales, so the analysis page can name a continuous "best" sens
+// instead of just the best-performing point actually tested. Weighted by n
+// (games logged at that scale) so a thin outlier scale doesn't out-vote a
+// well-tested one.
+export interface CurvePoint { x: number; y: number; w: number; }
+export interface QuadraticFit { a: number; b: number; c: number; r2: number; }
+
+// Solves the 3x3 weighted-normal-equations system via Cramer's rule. Returns
+// null if the system is singular (e.g. every point at the same x).
+function solveWeightedQuadratic(pts: CurvePoint[]): QuadraticFit | null {
+  let Sw = 0, Swx = 0, Swx2 = 0, Swx3 = 0, Swx4 = 0, Swy = 0, Swxy = 0, Swx2y = 0;
+  for (const { x, y, w } of pts) {
+    const x2 = x * x, x3 = x2 * x, x4 = x2 * x2;
+    Sw += w; Swx += w * x; Swx2 += w * x2; Swx3 += w * x3; Swx4 += w * x4;
+    Swy += w * y; Swxy += w * x * y; Swx2y += w * x2 * y;
+  }
+  // [Swx4 Swx3 Swx2] [a]   [Swx2y]
+  // [Swx3 Swx2 Swx ] [b] = [Swxy ]
+  // [Swx2 Swx  Sw  ] [c]   [Swy  ]
+  const det3 = (m: number[][]) =>
+    m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+    - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+    + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+  const M = [[Swx4, Swx3, Swx2], [Swx3, Swx2, Swx], [Swx2, Swx, Sw]];
+  const D = det3(M);
+  if (!Number.isFinite(D) || Math.abs(D) < 1e-9) return null;
+  const B = [Swx2y, Swxy, Swy];
+  const withCol = (col: number) => M.map((row, i) => row.map((v, j) => (j === col ? B[i] : v)));
+  const [a, b, c] = [0, 1, 2].map(col => det3(withCol(col)) / D);
+
+  const yMean = Sw ? Swy / Sw : 0;
+  let ssRes = 0, ssTot = 0;
+  for (const { x, y, w } of pts) {
+    const yhat = a * x * x + b * x + c;
+    ssRes += w * (y - yhat) ** 2;
+    ssTot += w * (y - yMean) ** 2;
+  }
+  const r2 = ssTot > 0 ? 1 - ssRes / ssTot : 0;
+  return { a, b, c, r2 };
+}
+
+export interface CurveFitResult {
+  points: number; totalN: number;
+  a: number; b: number; c: number; r2: number;
+  optimalX: number | null; predictedY: number | null;
+  hasInteriorPeak: boolean; inRange: boolean;
+  xMin: number; xMax: number;
+}
+
+// Fits a quadratic to (x, y, weight) points and locates its vertex, framed
+// against the actually-tested x-range. Needs 3+ distinct x values — a
+// quadratic through 2 points is underdetermined (infinite solutions).
+// `hasInteriorPeak` is false when the parabola opens upward (a >= 0, i.e. a
+// trough rather than a peak) — there the vertex is a worst point, not a best
+// one, so callers should treat optimalX as meaningless in that case.
+export function fitQuadraticPeak(pts: CurvePoint[]): CurveFitResult | null {
+  const distinctX = new Set(pts.map(p => p.x)).size;
+  if (distinctX < 3) return null;
+  const fit = solveWeightedQuadratic(pts);
+  if (!fit) return null;
+  const { a, b, c, r2 } = fit;
+  const xMin = Math.min(...pts.map(p => p.x));
+  const xMax = Math.max(...pts.map(p => p.x));
+  const hasInteriorPeak = a < 0;
+  const optimalX = hasInteriorPeak ? -b / (2 * a) : null;
+  const predictedY = optimalX != null ? a * optimalX * optimalX + b * optimalX + c : null;
+  const inRange = optimalX != null && optimalX >= xMin && optimalX <= xMax;
+  return {
+    points: distinctX, totalN: pts.reduce((s, p) => s + p.w, 0),
+    a, b, c, r2, optimalX, predictedY, hasInteriorPeak, inRange, xMin, xMax,
+  };
+}
+
+// Rawaccel Motivity (sigmoid) curve params for a future mouse-acceleration
+// phase — NOT YET ENABLED (design revised 2026-08-25). Curve and per-hero
+// in-game sens are separate, multiplicative layers (curve output × hero
+// sens = final speed), so the curve does not replace per-hero sens
+// switching — each hero keeps its own tested converged value (Zenyatta
+// 2.13, Ana 2.28, ... Reaper 2.725, Shion 2.76) via the existing stage-test
+// mechanism (findActiveStage in routes/matches.ts). The curve is layered on
+// top of all of them for within-hero dynamic scaling by raw mouse speed.
+// GROWTH_RATE and MIDPOINT are unvalidated starting points, not
+// data-derived — finding them empirically is the next phase's job, same as
+// DPI/sens before it. Fixed constants for now, same as MOUSE_DPI above,
+// until something requires them to vary per match. Stamped on every match
+// row already (routes/matches.ts) so the column carries real values once
+// Rawaccel is actually configured, but Sean has not enabled Rawaccel yet.
 export const CURVE_MOTIVITY = 1.30; // cap multiplier: Shion/Reaper's 2.76 ÷ Zenyatta's 2.13
 export const CURVE_GROWTH_RATE = 1.0; // unvalidated placeholder
 export const CURVE_MIDPOINT = 12; // unvalidated placeholder, counts/ms

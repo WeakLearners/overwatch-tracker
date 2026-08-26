@@ -18,16 +18,24 @@ interface Bucket {
   bucket: string; n: number;
   avgOverall: number | null; avgDelta: number | null; avgFeel: number | null; winRate: number | null;
 }
+interface CurveFit {
+  points: number; totalN: number; r2: number;
+  optimalSens: number | null; predictedDelta: number | null;
+  hasInteriorPeak: boolean; inRange: boolean;
+  testedSensMin: number; testedSensMax: number;
+}
 interface HeroRow {
   hero: string; archetype: string; n: number;
   avgOverall: number | null; avgCrit: number | null; winRate: number | null;
   bestScaleEDPI: number; bestScaleN: number;
   bestScaleOverallDelta: number | null; bestScaleCritDelta: number | null; bestScaleWinRate: number | null;
   scales: ScaleRow[];
+  curveFit: CurveFit | null;
 }
 interface Analysis {
   summary: { n: number; distinctScale: number; lastUpdated: string | null };
   byScale: ScaleRow[];
+  overallCurveFit: CurveFit | null;
   byArchetype: { hitscan: ScaleRow[]; projectile: ScaleRow[] };
   coldWarm: Bucket[];
   adaptation: Bucket[];
@@ -894,6 +902,79 @@ export default function SensAnalysis() {
           </table>
         </div>
       </Section>
+
+      {/* Curve fit — a quadratic (a*x^2 + b*x + c) fit across each hero's
+          tested scales (avgDelta vs. sens, weighted by n), naming a
+          continuous best-guess optimal sens rather than just whichever
+          tested point happened to score best. */}
+      {(() => {
+        const rows: { label: string; fit: CurveFit | null }[] = [
+          { label: 'Overall', fit: data.overallCurveFit },
+          ...heroes.map(h => ({ label: h.hero, fit: h.curveFit })),
+        ];
+        const withFit = rows.filter(r => r.fit != null);
+        const fitNote = (fit: CurveFit): { text: string; tone: 'good' | 'warn' | 'neutral' } => {
+          if (!fit.hasInteriorPeak) {
+            return { text: 'No interior peak — accuracy keeps rising toward one edge of what you tested, not a hump in the middle. Test further past that edge.', tone: 'warn' };
+          }
+          if (!fit.inRange) {
+            return { text: `Fitted peak falls outside the tested range (${fit.testedSensMin.toFixed(2)}–${fit.testedSensMax.toFixed(2)}) — extrapolated, not observed. Treat as a direction to test toward, not a final answer.`, tone: 'warn' };
+          }
+          if (fit.r2 >= 0.5 && fit.totalN >= CONFIDENT_N) {
+            return { text: `Fits the tested points well (R²=${fit.r2.toFixed(2)}) with enough games behind it — a reasonably solid read.`, tone: 'good' };
+          }
+          return { text: `R²=${fit.r2.toFixed(2)} on ${fit.totalN} games across ${fit.points} scales — a rough curve, still thin. Keep logging.`, tone: 'neutral' };
+        };
+        return (
+          <Section
+            title="Curve Fit — Best-Guess Optimal Sens"
+            hint="A quadratic curve fit through each category's tested scales (accuracy delta vs. sens, weighted by games logged), solved for its vertex — a continuous best-guess optimum rather than just whichever tested point scored best. Needs 3+ distinct tested scales to fit at all."
+            dataInspectId="sensAnalysis-curve-fit-card"
+          >
+            {withFit.length ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
+                      <th className="py-1.5 pr-3">Category</th><th className="py-1.5 pr-3">Scales</th><th className="py-1.5 pr-3">Total n</th>
+                      <th className="py-1.5 pr-3">Fitted Optimal Sens</th><th className="py-1.5 pr-3">Predicted Δ</th><th className="py-1.5 pr-3">R²</th><th className="py-1.5">Read</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map(r => {
+                      if (!r.fit) {
+                        return (
+                          <tr key={r.label} className="border-t border-ow-border text-[var(--faint)]">
+                            <td className="py-1.5 pr-3 hero-name text-[var(--ink)]">{r.label === 'Overall' ? r.label : withHeroCount(r.label, heroCounts)}</td>
+                            <td className="py-1.5 pr-3" colSpan={5}>Needs 3+ distinct tested scales to fit a curve.</td>
+                          </tr>
+                        );
+                      }
+                      const note = fitNote(r.fit);
+                      const toneClass = note.tone === 'good' ? 'text-emerald-700 dark:text-emerald-500' : note.tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--faint)]';
+                      return (
+                        <tr key={r.label} className="border-t border-ow-border text-[var(--ink-2)] align-top">
+                          <td className="py-1.5 pr-3 hero-name text-[var(--ink)] font-bold whitespace-nowrap">{r.label === 'Overall' ? r.label : withHeroCount(r.label, heroCounts)}</td>
+                          <td className="py-1.5 pr-3 font-bold">{r.fit.points}</td>
+                          <td className="py-1.5 pr-3 font-bold">{r.fit.totalN}</td>
+                          <td className="py-1.5 pr-3 font-bold text-[var(--ink)] whitespace-nowrap">
+                            {r.fit.hasInteriorPeak ? r.fit.optimalSens?.toFixed(2) : '—'}
+                          </td>
+                          <td className={`py-1.5 pr-3 font-bold ${deltaColor(r.fit.predictedDelta)}`}>{r.fit.hasInteriorPeak ? signed(r.fit.predictedDelta) : '—'}</td>
+                          <td className="py-1.5 pr-3 font-bold">{r.fit.r2.toFixed(2)}</td>
+                          <td className={`py-1.5 text-xs ${toneClass}`}>{note.text}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-xs text-[var(--faint)]">No category has 3+ distinct tested scales yet — keep spreading reps across scales.</p>
+            )}
+          </Section>
+        );
+      })()}
 
       {/* Accuracy by Sens, per hero — one unified box plot: sens on x, accuracy
           on y, one color-coded box (min/Q1/median/Q3/max) per hero per scale. */}

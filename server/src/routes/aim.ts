@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
 import {
   cm360, eDPI, archetypeOf, deriveSessionPosition, deriveSensAdaptation, TimelineMatch, MOUSE_DPI,
+  fitQuadraticPeak, CurvePoint,
 } from '../lib/aim';
 
 const router = Router();
@@ -204,6 +205,26 @@ router.get('/analysis', (_req: Request, res: Response) => {
       })
       .sort((a, b) => a.cm360 - b.cm360);
 
+  // Fits a quadratic across a set of already-bucketed scales (avgDelta vs.
+  // sens @MOUSE_DPI, weighted by n) and locates its vertex — the best-guess
+  // "true" optimal sens, as opposed to just whichever tested scale happened
+  // to score best. avgDelta (not avgOverall) so heroes still mix fairly, same
+  // reasoning as the rest of this page's normalization.
+  const curveFitOf = (scales: ReturnType<typeof byScale>) => {
+    const cpts: CurvePoint[] = scales
+      .filter(s => s.avgDelta != null)
+      .map(s => ({ x: s.eDPI / MOUSE_DPI, y: s.avgDelta as number, w: s.n }));
+    const fit = fitQuadraticPeak(cpts);
+    if (!fit) return null;
+    return {
+      points: fit.points, totalN: fit.totalN, r2: Math.round(fit.r2 * 1000) / 1000,
+      optimalSens: fit.optimalX != null ? Math.round(fit.optimalX * 100) / 100 : null,
+      predictedDelta: fit.predictedY != null ? Math.round(fit.predictedY * 10) / 10 : null,
+      hasInteriorPeak: fit.hasInteriorPeak, inRange: fit.inRange,
+      testedSensMin: Math.round(fit.xMin * 100) / 100, testedSensMax: Math.round(fit.xMax * 100) / 100,
+    };
+  };
+
   const bucket = (items: typeof pts, label: string) => ({
     bucket: label,
     n: items.length,
@@ -220,6 +241,7 @@ router.get('/analysis', (_req: Request, res: Response) => {
       lastUpdated,
     },
     byScale: byScale(pts),
+    overallCurveFit: curveFitOf(byScale(pts)),
     byArchetype: {
       hitscan: byScale(pts.filter(p => p.archetype === 'hitscan')),
       projectile: byScale(pts.filter(p => p.archetype === 'projectile')),
@@ -254,6 +276,9 @@ router.get('/analysis', (_req: Request, res: Response) => {
           // can trace this hero's accuracy across every sens it's actually
           // been tested at, ascending by cm/360.
           scales,
+          // Quadratic best-fit across those scales — null until a hero has
+          // 3+ distinct tested scales (see fitQuadraticPeak).
+          curveFit: curveFitOf(scales),
         };
       })
       .sort((a, b) => b.n - a.n),
