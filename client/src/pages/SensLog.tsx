@@ -540,6 +540,65 @@ const blankRow = (): NewPhaseRow => ({
   locked: false, reliable: true, basis: 'manually added — no prior-phase data to narrow from',
 });
 
+// Shape of the fields used from GET /api/aim/analysis's per-hero curve fit —
+// see server/src/routes/aim.ts / client/src/pages/SensAnalysis.tsx for the
+// full response; only what's needed to recenter a row is declared here.
+interface CurveFit {
+  points: number; totalN: number; r2: number;
+  optimalSens: number | null; predictedDelta: number | null;
+  hasInteriorPeak: boolean; inRange: boolean;
+  testedSensMin: number; testedSensMax: number;
+}
+interface CumulativeHero {
+  hero: string; n: number;
+  bestScaleEDPI: number; bestScaleN: number;
+  curveFit: CurveFit | null;
+}
+
+const FIT_R2_THRESHOLD = 0.1; // below this, the fit is too noisy to trust over the last round
+const BEST_SCALE_MIN_N = 3; // minimum games at a single tested point before nudging toward it
+const CONFIRM_THRESHOLD = 0.05; // how close the fit's optimum must be to the old center to count as "confirms it"
+
+// Recenters a row using the hero's *entire* logged history instead of just
+// the last narrow round, and decides separately whether narrowing the
+// bracket is actually justified. Center and width are independent: the
+// center always moves to wherever the best available evidence points, but
+// the width only shrinks when the data both gives a confident answer AND
+// that answer confirms the current bracket — i.e. narrowing means "we're
+// already close, tighten around it," never "we tested twice, so shrink
+// regardless of what the data says."
+function suggestCenter(oldLow: number, oldHigh: number, ch: CumulativeHero | undefined): { center: number; basis: string; narrow: boolean } {
+  const oldCenter = (oldLow + oldHigh) / 2;
+  const cf = ch?.curveFit;
+  if (cf && cf.hasInteriorPeak && cf.inRange && cf.r2 >= FIT_R2_THRESHOLD && cf.optimalSens != null) {
+    const agrees = Math.abs(cf.optimalSens - oldCenter) < CONFIRM_THRESHOLD;
+    const basis = agrees
+      ? `cumulative fit r²=${cf.r2.toFixed(2)} (n=${cf.totalN}) confirms this range — narrowing`
+      : `cumulative fit r²=${cf.r2.toFixed(2)} (n=${cf.totalN}) points elsewhere — recentering, not narrowing`;
+    return { center: cf.optimalSens, basis, narrow: agrees };
+  }
+  if (ch && ch.bestScaleN >= BEST_SCALE_MIN_N) {
+    const bestSens = ch.bestScaleEDPI / MOUSE_DPI;
+    const center = (oldCenter + bestSens) / 2;
+    return { center, basis: `nudged toward best-tested point (n=${ch.bestScaleN}) — not narrowing`, narrow: false };
+  }
+  return { center: oldCenter, basis: 'holding — no reliable alternate signal', narrow: false };
+}
+
+function recalcRow(r: NewPhaseRow, analysis: CumulativeHero[]): NewPhaseRow {
+  const oldLow = parseFloat(r.low), oldHigh = parseFloat(r.high);
+  if (Number.isNaN(oldLow) || Number.isNaN(oldHigh)) return r;
+  const ch = analysis.find(a => a.hero === r.hero);
+  const { center, basis, narrow } = suggestCenter(oldLow, oldHigh, ch);
+  // Only shrink the bracket in the "confirms it" case above. Every other
+  // case still moves the center to wherever the evidence points, just
+  // without also compounding a width shrink on top of it.
+  const width = narrow ? (oldHigh - oldLow) * NARROW_RATIO : oldHigh - oldLow;
+  const low = Math.round((center - width / 2) * 100) / 100;
+  const high = Math.round((center + width / 2) * 100) / 100;
+  return { ...r, low: String(low), high: String(high), reliable: true, basis };
+}
+
 function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestState | null }) {
   const { data } = useApi<{ sets: DpiTestSetSummary[] }>('/api/blind/sets');
   const sets = data?.sets ?? [];
@@ -561,6 +620,23 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
   const [loadingAddPhase, setLoadingAddPhase] = useState(false);
   const [stages, setStages] = useState('2');
   const [rows, setRows] = useState<NewPhaseRow[]>([blankRow()]);
+  const [recalculating, setRecalculating] = useState(false);
+
+  // Re-centers every row with a hero name on that hero's full logged
+  // history (see suggestCenter) instead of just the last narrow round —
+  // catches cases where the most recent round's winner was noise on a small
+  // batch and the fuller history actually points somewhere else.
+  async function recalculateFromCumulative() {
+    setRecalculating(true);
+    try {
+      const res = await fetch('/api/aim/analysis');
+      if (!res.ok) { alert('Could not load analysis data.'); return; }
+      const data = await res.json() as { heroes: CumulativeHero[] };
+      setRows(prev => prev.map(r => (r.hero.trim() ? recalcRow(r, data.heroes) : r)));
+    } finally {
+      setRecalculating(false);
+    }
+  }
 
   // Same set-matching statusForHero uses (hero + exact batch size/stage
   // count/values), just returning the set id instead of a status label — so
@@ -819,15 +895,26 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
               Build the next phase's plan. Carried-over heroes' ranges are centered on whichever last-phase stage actually won on
               match results (win% / accuracy / elims / dmg) — hover a hero's row for the basis, or the ⚠ badge for heroes with too
               little data to call a winner. Sens values are evenly spread across the stage count from each hero's low/high range.
+              Click <b>Recalculate from cumulative data</b> to re-center every row on each hero's full logged history instead of
+              just the last round — useful when a hero's most recent narrow round may have been noisy.
             </p>
 
-            <label className="inline-block mb-3">
-              <span className="block text-xs text-[var(--muted)] mb-1"># Stages</span>
-              <input
-                type="number" step="1" min="2" value={stages} onChange={e => setStages(e.target.value)}
-                data-inspect-id="sl-add-phase-stages-input" className={`${compactField} w-20`}
-              />
-            </label>
+            <div className="flex items-end gap-3 mb-3">
+              <label className="inline-block">
+                <span className="block text-xs text-[var(--muted)] mb-1"># Stages</span>
+                <input
+                  type="number" step="1" min="2" value={stages} onChange={e => setStages(e.target.value)}
+                  data-inspect-id="sl-add-phase-stages-input" className={`${compactField} w-20`}
+                />
+              </label>
+              <button
+                type="button" onClick={recalculateFromCumulative} disabled={recalculating}
+                data-inspect-id="sl-add-phase-recalc-btn"
+                className={`${btnSecondary} py-1.5 px-3 text-xs disabled:opacity-40`}
+              >
+                {recalculating ? 'Recalculating…' : 'Recalculate from cumulative data'}
+              </button>
+            </div>
 
             <div className="grid grid-cols-12 gap-1.5 mb-1 px-1 text-[10px] uppercase tracking-wide text-[var(--faint-2)]">
               <span className="col-span-3">Hero</span>
