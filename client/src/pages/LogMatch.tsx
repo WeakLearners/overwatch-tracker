@@ -387,15 +387,36 @@ export default function LogMatch() {
         <div className="card" data-inspect-id="logmatch-match-details-card">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm heading-display text-[var(--ink)]">Match Details</h2>
-            <button
-              type="button"
-              onClick={() => { setForm(f => ({ ...f, hero: '', notes: '' })); setSwitchHeroes(['', '']); setMap(''); setFeelByHero({}); setTeamRating(0); }}
-              disabled={!form.hero && !map}
-              data-inspect-id="logmatch-reset-button"
-              className="text-xs text-[var(--faint)] hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--faint)]"
-            >
-              Reset
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  if (deathBuffer.length > 0 && !window.confirm('Cancel this match? Hero, notes, map, feel, and the deaths tracked so far will all be cleared.')) return;
+                  setForm(f => ({ ...f, hero: '', win: '', notes: '' }));
+                  setSwitchHeroes(['', '']);
+                  setMap('');
+                  setFeelByHero({});
+                  setTeamRating(0);
+                  clearDeathBuffer();
+                  const mapInput = document.getElementById('map-search') as HTMLInputElement | null;
+                  mapInput?.focus({ preventScroll: true });
+                }}
+                disabled={!form.hero && !map && deathBuffer.length === 0}
+                data-inspect-id="logmatch-cancel-match-button"
+                className="text-xs text-[var(--faint)] hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--faint)]"
+              >
+                Match Cancelled
+              </button>
+              <button
+                type="button"
+                onClick={() => { setForm(f => ({ ...f, hero: '', notes: '' })); setSwitchHeroes(['', '']); setMap(''); setFeelByHero({}); setTeamRating(0); }}
+                disabled={!form.hero && !map}
+                data-inspect-id="logmatch-reset-button"
+                className="text-xs text-[var(--faint)] hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--faint)]"
+              >
+                Reset
+              </button>
+            </div>
           </div>
           <form onSubmit={submit} className="space-y-4" data-inspect-id="logmatch-match-details-form">
             <div>
