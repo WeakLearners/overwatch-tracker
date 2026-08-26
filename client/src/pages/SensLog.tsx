@@ -444,45 +444,12 @@ function spreadSens(low: number, high: number, stages: number): number[] {
     Math.round((low + (high - low) * (i / (stages - 1))) * 100) / 100);
 }
 
-// The next phase's bracket is always tighter than the last (e.g. Phase 4's
-// 0.15 gap became Phase 5's 0.1 gap — a 2/3 shrink), so every new phase
-// applies that same shrink ratio to the old range's width.
+// Shrink ratio applied to a hero's bracket width, but only when there's an
+// actual reliable signal that justifies narrowing (see suggestCenter's
+// `narrow` decision) — narrowing is a claim that the data already confirms
+// we're close, not something every phase does automatically regardless of
+// what was actually found.
 const NARROW_RATIO = 2 / 3;
-
-// Which of a hero's tested stage values actually performed better — the same
-// signals the hand-written phase notes cite ("led on accuracy and
-// elims/min"), read straight from match results instead of guessed. Each
-// metric casts one vote for whichever stage scored highest on it, but only if
-// every stage has enough games logged for that metric to mean anything;
-// metrics with too little data just don't vote. A stage needs strictly more
-// votes than any other to count as a real winner — a tie (including "nobody
-// voted") falls back to narrowing around the old midpoint instead of
-// pretending there's a data-backed direction.
-const MIN_GAMES_FOR_METRIC = 3;
-const NARROW_METRICS = [
-  { key: 'winRate', label: 'win%' },
-  { key: 'accMean', label: 'acc' },
-  { key: 'elimsPer10', label: 'elims/10' },
-  { key: 'dmgPer10', label: 'dmg/10' },
-] as const;
-
-function pickWinnerStage(stages: AnswerStage[]): { index: number | null; reliable: boolean; basis: string } {
-  const votes = stages.map(() => 0);
-  const votedOn: string[] = [];
-  for (const m of NARROW_METRICS) {
-    if (stages.some(s => s[m.key] == null || s.games < MIN_GAMES_FOR_METRIC)) continue;
-    const bestIdx = stages.reduce((best, s, i) => (s[m.key]! > stages[best][m.key]! ? i : best), 0);
-    votes[bestIdx]++;
-    votedOn.push(m.label);
-  }
-  const gamesStr = stages.map(s => s.games).join('/');
-  const totalVotes = votes.reduce((a, b) => a + b, 0);
-  if (totalVotes === 0) return { index: null, reliable: false, basis: `not enough games logged yet (n=${gamesStr}) — generic narrow` };
-  const maxVotes = Math.max(...votes);
-  const winners = votes.flatMap((v, i) => (v === maxVotes ? [i] : []));
-  if (winners.length !== 1) return { index: null, reliable: false, basis: `tied ${maxVotes}/${votedOn.length} on ${votedOn.join('/')} (n=${gamesStr}) — generic narrow` };
-  return { index: winners[0], reliable: true, basis: `won ${maxVotes}/${votedOn.length} tracked stats (${votedOn.join('/')}), n=${gamesStr}` };
-}
 
 type HeroTestStatus = 'none' | 'testing' | 'completed';
 
@@ -527,10 +494,12 @@ function statusForHero(
 // One row of the "+ Add new phase" form — string-valued so number inputs can
 // sit blank/mid-edit without fighting controlled-input parsing.
 // `locked` rows are carried over from the latest phase — their sens range is
-// computed automatically (pickWinnerStage + NARROW_RATIO, see openAddPhase)
-// and shown read-only, since re-testing is always a narrower bracket driven
-// by results, never a hand-picked one. Manually added heroes have no
-// prior-phase range to narrow from, so theirs stays editable.
+// computed automatically (suggestCenter + NARROW_RATIO, see openAddPhase)
+// and shown read-only, since re-testing is always a results-driven bracket,
+// never a hand-picked one — though a "result" isn't always a narrower
+// bracket; it only narrows when the cumulative data reliably confirms the
+// current range (see suggestCenter's `narrow` decision). Manually added
+// heroes have no prior-phase range to narrow from, so theirs stays editable.
 interface NewPhaseRow {
   hero: string; archetype: string; gamesPerSlot: string; low: string; high: string; note: string;
   locked: boolean; reliable: boolean; basis: string;
@@ -559,15 +528,18 @@ const FIT_R2_THRESHOLD = 0.1; // below this, the fit is too noisy to trust over 
 const BEST_SCALE_MIN_N = 3; // minimum games at a single tested point before nudging toward it
 const CONFIRM_THRESHOLD = 0.05; // how close the fit's optimum must be to the old center to count as "confirms it"
 
-// Recenters a row using the hero's *entire* logged history instead of just
-// the last narrow round, and decides separately whether narrowing the
-// bracket is actually justified. Center and width are independent: the
-// center always moves to wherever the best available evidence points, but
-// the width only shrinks when the data both gives a confident answer AND
-// that answer confirms the current bracket — i.e. narrowing means "we're
-// already close, tighten around it," never "we tested twice, so shrink
-// regardless of what the data says."
-function suggestCenter(oldLow: number, oldHigh: number, ch: CumulativeHero | undefined): { center: number; basis: string; narrow: boolean } {
+// Recenters a hero's next-phase bracket using their *entire* logged
+// history (GET /api/aim/analysis's weighted-quadratic curve fit), and
+// decides separately whether narrowing the bracket is actually justified.
+// Center and width are independent: the center always moves to wherever the
+// best available evidence points, but the width only shrinks when the data
+// both gives a confident answer AND that answer confirms the current
+// bracket — i.e. narrowing means "we're already close, tighten around it,"
+// never "it's the next phase, so shrink regardless of what the data says."
+// `reliable` (drives the row's ⚠ badge) is true whenever there's real
+// evidence behind the suggestion at all, independent of whether that
+// evidence happens to justify narrowing.
+function suggestCenter(oldLow: number, oldHigh: number, ch: CumulativeHero | undefined): { center: number; basis: string; narrow: boolean; reliable: boolean } {
   const oldCenter = (oldLow + oldHigh) / 2;
   const cf = ch?.curveFit;
   if (cf && cf.hasInteriorPeak && cf.inRange && cf.r2 >= FIT_R2_THRESHOLD && cf.optimalSens != null) {
@@ -575,28 +547,14 @@ function suggestCenter(oldLow: number, oldHigh: number, ch: CumulativeHero | und
     const basis = agrees
       ? `cumulative fit r²=${cf.r2.toFixed(2)} (n=${cf.totalN}) confirms this range — narrowing`
       : `cumulative fit r²=${cf.r2.toFixed(2)} (n=${cf.totalN}) points elsewhere — recentering, not narrowing`;
-    return { center: cf.optimalSens, basis, narrow: agrees };
+    return { center: cf.optimalSens, basis, narrow: agrees, reliable: true };
   }
   if (ch && ch.bestScaleN >= BEST_SCALE_MIN_N) {
     const bestSens = ch.bestScaleEDPI / MOUSE_DPI;
     const center = (oldCenter + bestSens) / 2;
-    return { center, basis: `nudged toward best-tested point (n=${ch.bestScaleN}) — not narrowing`, narrow: false };
+    return { center, basis: `nudged toward best-tested point (n=${ch.bestScaleN}) — not narrowing`, narrow: false, reliable: true };
   }
-  return { center: oldCenter, basis: 'holding — no reliable alternate signal', narrow: false };
-}
-
-function recalcRow(r: NewPhaseRow, analysis: CumulativeHero[]): NewPhaseRow {
-  const oldLow = parseFloat(r.low), oldHigh = parseFloat(r.high);
-  if (Number.isNaN(oldLow) || Number.isNaN(oldHigh)) return r;
-  const ch = analysis.find(a => a.hero === r.hero);
-  const { center, basis, narrow } = suggestCenter(oldLow, oldHigh, ch);
-  // Only shrink the bracket in the "confirms it" case above. Every other
-  // case still moves the center to wherever the evidence points, just
-  // without also compounding a width shrink on top of it.
-  const width = narrow ? (oldHigh - oldLow) * NARROW_RATIO : oldHigh - oldLow;
-  const low = Math.round((center - width / 2) * 100) / 100;
-  const high = Math.round((center + width / 2) * 100) / 100;
-  return { ...r, low: String(low), high: String(high), reliable: true, basis };
+  return { center: oldCenter, basis: 'no reliable data yet for this hero — holding, not narrowing', narrow: false, reliable: false };
 }
 
 function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestState | null }) {
@@ -620,75 +578,35 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
   const [loadingAddPhase, setLoadingAddPhase] = useState(false);
   const [stages, setStages] = useState('2');
   const [rows, setRows] = useState<NewPhaseRow[]>([blankRow()]);
-  const [recalculating, setRecalculating] = useState(false);
 
-  // Re-centers every row with a hero name on that hero's full logged
-  // history (see suggestCenter) instead of just the last narrow round —
-  // catches cases where the most recent round's winner was noise on a small
-  // batch and the fuller history actually points somewhere else.
-  async function recalculateFromCumulative() {
-    setRecalculating(true);
-    try {
-      const res = await fetch('/api/aim/analysis');
-      if (!res.ok) { alert('Could not load analysis data.'); return; }
-      const data = await res.json() as { heroes: CumulativeHero[] };
-      setRows(prev => prev.map(r => (r.hero.trim() ? recalcRow(r, data.heroes) : r)));
-    } finally {
-      setRecalculating(false);
-    }
-  }
-
-  // Same set-matching statusForHero uses (hero + exact batch size/stage
-  // count/values), just returning the set id instead of a status label — so
-  // the add-phase form can pull that hero's actual per-stage results.
-  function findSetIdForHero(h: PlanHero): number | null {
-    return statusForHero(h.hero, actives, sets, h.gamesPerSlot, valuesOf(h)).setId;
-  }
-
-  // Every phase after the first is a narrower re-test of the same roster, so
-  // the form opens pre-loaded with the latest phase's heroes — excluding a
-  // hero is just clicking its × instead of building the list from scratch.
-  // Each hero's new range is centered on whichever of its last-phase stage
-  // values actually won on match results (pickWinnerStage), not just
-  // shrunk around the old midpoint — see pickWinnerStage for how "won" is
-  // decided and when it instead falls back to a plain symmetric narrow.
+  // Every phase after the first is a re-test of the same roster, so the form
+  // opens pre-loaded with the latest phase's heroes — excluding a hero is
+  // just clicking its × instead of building the list from scratch. Each
+  // hero's new range is centered using their *entire* logged history (see
+  // suggestCenter), not just whichever two stages happened to run last
+  // round — a hero's most recent narrow round can be noise on a small
+  // batch, and the fuller history is what should actually drive the next
+  // bracket.
   async function openAddPhase() {
     const latest = allTabs[allTabs.length - 1];
     setLoadingAddPhase(true);
     try {
-      const built = await Promise.all(latest.plan.map(async (h): Promise<NewPhaseRow> => {
+      const res = await fetch('/api/aim/analysis');
+      const analysis: CumulativeHero[] = res.ok ? ((await res.json()) as { heroes: CumulativeHero[] }).heroes : [];
+      const built: NewPhaseRow[] = latest.plan.map((h): NewPhaseRow => {
         const values = valuesOf(h);
         const oldLow = Math.min(...values);
         const oldHigh = Math.max(...values);
-        let center = (oldLow + oldHigh) / 2;
-        let reliable = false;
-        let basis = 'no test set logged for this hero yet — generic narrow';
-
-        const setId = findSetIdForHero(h);
-        if (setId != null) {
-          try {
-            const res = await fetch(`/api/blind/sets/${setId}`);
-            if (res.ok) {
-              const data = await res.json() as { stages: AnswerStage[] };
-              const picked = pickWinnerStage(data.stages);
-              reliable = picked.reliable;
-              basis = picked.basis;
-              if (picked.reliable && picked.index != null) {
-                const winStage = data.stages[picked.index];
-                center = winStage.sens ?? winStage.dpi;
-              }
-            }
-          } catch { /* network hiccup — falls back to the generic narrow below */ }
-        }
-
-        const width = (oldHigh - oldLow) * NARROW_RATIO;
+        const ch = analysis.find(a => a.hero === h.hero);
+        const { center, basis, narrow, reliable } = suggestCenter(oldLow, oldHigh, ch);
+        const width = narrow ? (oldHigh - oldLow) * NARROW_RATIO : oldHigh - oldLow;
         const low = Math.round((center - width / 2) * 100) / 100;
         const high = Math.round((center + width / 2) * 100) / 100;
         return {
           hero: h.hero, archetype: h.archetype, gamesPerSlot: String(h.gamesPerSlot),
           low: String(low), high: String(high), note: '', locked: true, reliable, basis,
         };
-      }));
+      });
       setStages('2');
       setRows(built);
       setShowAddPhase(true);
@@ -892,29 +810,20 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
           <div className="relative card max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto" data-inspect-id="sl-add-phase-modal">
             <h3 className="text-sm heading-display text-[var(--ink)] mb-1">Add new phase</h3>
             <p className="text-xs text-[var(--faint)] mb-4">
-              Build the next phase's plan. Carried-over heroes' ranges are centered on whichever last-phase stage actually won on
-              match results (win% / accuracy / elims / dmg) — hover a hero's row for the basis, or the ⚠ badge for heroes with too
-              little data to call a winner. Sens values are evenly spread across the stage count from each hero's low/high range.
-              Click <b>Recalculate from cumulative data</b> to re-center every row on each hero's full logged history instead of
-              just the last round — useful when a hero's most recent narrow round may have been noisy.
+              Build the next phase's plan. Carried-over heroes' ranges are centered using each hero's full logged history (the
+              curve fit on the Analysis page) — hover a hero's row for the basis, or the ⚠ badge for heroes with no reliable data
+              yet. The bracket only narrows when that history both gives a confident answer and confirms the current range;
+              otherwise the row recenters at the same width. Sens values are evenly spread across the stage count from each
+              hero's low/high range.
             </p>
 
-            <div className="flex items-end gap-3 mb-3">
-              <label className="inline-block">
-                <span className="block text-xs text-[var(--muted)] mb-1"># Stages</span>
-                <input
-                  type="number" step="1" min="2" value={stages} onChange={e => setStages(e.target.value)}
-                  data-inspect-id="sl-add-phase-stages-input" className={`${compactField} w-20`}
-                />
-              </label>
-              <button
-                type="button" onClick={recalculateFromCumulative} disabled={recalculating}
-                data-inspect-id="sl-add-phase-recalc-btn"
-                className={`${btnSecondary} py-1.5 px-3 text-xs disabled:opacity-40`}
-              >
-                {recalculating ? 'Recalculating…' : 'Recalculate from cumulative data'}
-              </button>
-            </div>
+            <label className="inline-block mb-3">
+              <span className="block text-xs text-[var(--muted)] mb-1"># Stages</span>
+              <input
+                type="number" step="1" min="2" value={stages} onChange={e => setStages(e.target.value)}
+                data-inspect-id="sl-add-phase-stages-input" className={`${compactField} w-20`}
+              />
+            </label>
 
             <div className="grid grid-cols-12 gap-1.5 mb-1 px-1 text-[10px] uppercase tracking-wide text-[var(--faint-2)]">
               <span className="col-span-3">Hero</span>
