@@ -52,6 +52,33 @@ function findActiveStage(db: ReturnType<typeof getDb>, hero: string, isCompetiti
   return { setId: activeSet.id, stageIdx: activeSet.cur_rel, dpi: stage.dpi, sens: stage.sens ?? activeSet.in_game_sens };
 }
 
+// Re-derives a stage credit for a hero that's still on a match's roster after
+// an edit, preferring whatever set is currently active but falling back to a
+// set this exact hero was already credited on for this exact match — even if
+// that set has since retired. Without the fallback, editing the one match
+// that pushes a set to its target (e.g. fixing a mid-match hero switch after
+// the fact) permanently orphans that credit: syncStageCredits below always
+// deletes-then-recomputes, and findActiveStage only sees active=1 sets, so a
+// set that retired *because of this match* can never earn it back — the set
+// gets stuck one game short forever even though it was genuinely completed.
+// Safe to reuse here because we only reinstate a credit the hero is still
+// actually rostered for, never resurrect an unrelated closed set.
+function findStageForRecredit(
+  db: ReturnType<typeof getDb>, hero: string, isCompetitive: boolean,
+  priorCredit: { blind_set_id: number; stage_index: number } | undefined,
+) {
+  const active = findActiveStage(db, hero, isCompetitive);
+  if (active) return active;
+  if (!priorCredit) return undefined;
+  const set = db.prepare('SELECT id, in_game_sens FROM blind_stage_sets WHERE id = :id')
+    .get({ id: priorCredit.blind_set_id }) as { id: number; in_game_sens: number } | undefined;
+  if (!set) return undefined;
+  const stage = db.prepare('SELECT dpi, sens FROM blind_stages WHERE set_id = :sid AND stage_index = :si')
+    .get({ sid: set.id, si: priorCredit.stage_index }) as { dpi: number; sens: number | null } | undefined;
+  if (!stage) return undefined;
+  return { setId: set.id, stageIdx: priorCredit.stage_index, dpi: stage.dpi, sens: stage.sens ?? set.in_game_sens };
+}
+
 router.post('/', (req: Request, res: Response) => {
   const db = getDb();
   const { date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, feel, team_rating, notes, heroes } = req.body;
@@ -213,8 +240,9 @@ function syncStageCredits(db: ReturnType<typeof getDb>, matchId: string, sensPro
   const heroSlots = db.prepare('SELECT hero, role FROM match_heroes WHERE match_id = :id ORDER BY slot')
     .all({ id: matchId }) as { hero: string; role: string }[];
 
-  const oldCredits = db.prepare('SELECT blind_set_id, stage_index FROM blind_credits WHERE match_id = :id')
-    .all({ id: matchId }) as { blind_set_id: number; stage_index: number }[];
+  const oldCredits = db.prepare('SELECT hero, blind_set_id, stage_index FROM blind_credits WHERE match_id = :id')
+    .all({ id: matchId }) as { hero: string; blind_set_id: number; stage_index: number }[];
+  const oldCreditByHero = new Map(oldCredits.map(c => [c.hero, c]));
   db.prepare('DELETE FROM blind_credits WHERE match_id = :id').run({ id: matchId });
   for (const c of oldCredits) {
     db.prepare(`
@@ -230,7 +258,7 @@ function syncStageCredits(db: ReturnType<typeof getDb>, matchId: string, sensPro
 
   let primaryStage: ReturnType<typeof findActiveStage> | undefined;
   heroSlots.forEach((slot, i) => {
-    const stage = findActiveStage(db, slot.hero, isCompetitive);
+    const stage = findStageForRecredit(db, slot.hero, isCompetitive, oldCreditByHero.get(slot.hero));
     if (i === 0) primaryStage = stage;
     if (!stage) return;
     const { changes } = insertCredit.run({ match_id: matchId, hero: slot.hero, blind_set_id: stage.setId, stage_index: stage.stageIdx });
