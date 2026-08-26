@@ -2,10 +2,18 @@ import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
 import {
   cm360, eDPI, archetypeOf, deriveSessionPosition, deriveSensAdaptation, TimelineMatch, MOUSE_DPI,
-  fitQuadraticPeak, CurvePoint,
+  fitQuadraticPeak, CurvePoint, CURVE_GROWTH_RATE, CURVE_MIDPOINT, CURVE_MOTIVITY,
 } from '../lib/aim';
 
 const router = Router();
+
+// The Rawaccel Motivity-curve params currently stamped on every match (see
+// matches.ts) — fixed constants for now, not phase-staged, so this is just a
+// read of what's already being written rather than a live/active-set query
+// like /api/blind/state.
+router.get('/curve', (_req: Request, res: Response) => {
+  res.json({ growthRate: CURVE_GROWTH_RATE, midpoint: CURVE_MIDPOINT, motivity: CURVE_MOTIVITY });
+});
 
 const mean = (xs: number[]): number | null =>
   xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;

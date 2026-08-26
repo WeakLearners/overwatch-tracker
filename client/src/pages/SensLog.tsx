@@ -215,6 +215,8 @@ export default function SensLog() {
         <p className="text-sm text-[var(--faint)] mt-1">Enter each match's combat details here after the game. DPI stage trials are driven from the panel below and land in the same queue.</p>
       </div>
 
+      <CurveParamsCard />
+
       <BackfillPanel pending={pending} loading={loading} />
 
       <div className="mt-10 pt-8 border-t border-ow-border">
@@ -222,6 +224,40 @@ export default function SensLog() {
         <p className="text-xs text-[var(--faint)] mb-4">Mouse DPI is locked at 1600 permanently — set your in-game sens to the value shown, play a batch, switch to the next stage. Log each game in the Match Tracker — it auto-tags to your current stage and queues up above for its combat details. Heroes can be tested in parallel — start as many as you like at once.</p>
         <PlanCard tabs={PLAN_TABS} state={dpiState} />
         <TestPanel state={dpiState} />
+      </div>
+    </div>
+  );
+}
+
+// Rawaccel Motivity-curve params GET /api/aim/curve reports — a fixed
+// constant for the whole current phase (not staged, not per-hero), applied
+// on top of whatever per-hero sens is active. Every match already gets
+// these values stamped server-side (see routes/matches.ts); this card just
+// surfaces what those values actually are, since nothing else in the app
+// shows them.
+function CurveParamsCard() {
+  const { data } = useApi<{ growthRate: number; midpoint: number; motivity: number }>('/api/aim/curve');
+  if (!data) return null;
+  return (
+    <div className="card mb-6" data-inspect-id="sl-curve-params-card">
+      <h2 className="text-sm heading-display text-[var(--ink)] mb-1">Mouse acceleration curve — this phase</h2>
+      <p className="text-xs text-[var(--faint)] mb-3">
+        Set Rawaccel's Motivity curve to these values before playing. This stays constant for the whole phase — it doesn't vary
+        per hero or per stage the way sens does; only the per-hero sens trials below change.
+      </p>
+      <div className="grid grid-cols-3 gap-3">
+        <div className="rounded-lg bg-ow-darker border border-ow-border p-2.5 text-center">
+          <span className="block text-[10px] uppercase tracking-wide text-[var(--faint-2)] mb-0.5">Growth Rate</span>
+          <span data-inspect-id="sl-curve-growth-rate" className="text-lg num-display text-[var(--ink)] font-bold">{data.growthRate}</span>
+        </div>
+        <div className="rounded-lg bg-ow-darker border border-ow-border p-2.5 text-center">
+          <span className="block text-[10px] uppercase tracking-wide text-[var(--faint-2)] mb-0.5">Midpoint</span>
+          <span data-inspect-id="sl-curve-midpoint" className="text-lg num-display text-[var(--ink)] font-bold">{data.midpoint}</span>
+        </div>
+        <div className="rounded-lg bg-ow-darker border border-ow-border p-2.5 text-center">
+          <span className="block text-[10px] uppercase tracking-wide text-[var(--faint-2)] mb-0.5">Motivity (cap)</span>
+          <span data-inspect-id="sl-curve-motivity" className="text-lg num-display text-[var(--ink)] font-bold">{data.motivity.toFixed(2)}×</span>
+        </div>
       </div>
     </div>
   );
