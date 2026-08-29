@@ -1428,6 +1428,13 @@ function BackfillPanel({ pending, loading }: {
   const [togglingId, setTogglingId] = useState<number | null>(null);
   async function toggleQueueMode(m: PendingMatch) {
     const newMode: QueueMode = m.queue_mode === 'qp_role' ? 'comp_role' : 'qp_role';
+    // Comp -> QP is a correction, not a flip: it rolls back this match's
+    // stage-test credit (games_on_stage -1) and drops the card from Awaiting
+    // Stats entirely, since QP games never need aim stats. That's a bigger
+    // consequence than the reverse direction, so confirm before doing it.
+    if (newMode === 'qp_role' && !window.confirm('Switch this match to Quick Play? It will roll back its stage-test count by 1 and be removed from Awaiting Stats.')) {
+      return;
+    }
     setTogglingId(m.id);
     try {
       const res = await fetch(`/api/matches/${m.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ queue_mode: newMode }) });

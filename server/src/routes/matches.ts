@@ -69,7 +69,10 @@ function findStageForRecredit(
 ) {
   const active = findActiveStage(db, hero, isCompetitive);
   if (active) return active;
-  if (!priorCredit) return undefined;
+  // A queue_mode edit off comp (isCompetitive false) must drop the credit
+  // outright — reusing priorCredit here would resurrect it every time,
+  // silently undoing the very correction the edit was making.
+  if (!isCompetitive || !priorCredit) return undefined;
   const set = db.prepare('SELECT id, in_game_sens FROM blind_stage_sets WHERE id = :id')
     .get({ id: priorCredit.blind_set_id }) as { id: number; in_game_sens: number } | undefined;
   if (!set) return undefined;
