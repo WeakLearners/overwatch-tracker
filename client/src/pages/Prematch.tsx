@@ -521,7 +521,7 @@ export default function Prematch() {
                   content-sized (not stretched to equal width) with
                   justify-evenly, so spacing is even without forcing the three
                   categories to occupy equal space. */}
-              <div className="rounded-xl border border-ow-border/40 bg-gradient-to-br from-ow-accent/[0.06] via-ow-accent/[0.02] to-transparent grid grid-cols-[repeat(3,max-content)] justify-evenly items-center gap-x-2 py-4">
+              <div className="rounded-xl border border-ow-border/40 bg-gradient-to-br from-ow-accent/[0.06] via-ow-accent/[0.02] to-transparent grid grid-cols-[repeat(3,max-content)] justify-evenly items-center gap-x-2 pt-4 pb-6">
                 <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] col-start-1 row-start-1 justify-self-center" data-inspect-id="prematch-today-stat-tile">Today</div>
                 <div className="col-start-1 row-start-2 justify-self-center">
                   {todayRows.length > 0 ? (
@@ -548,17 +548,23 @@ export default function Prematch() {
                 <div className="col-start-3 row-start-2 justify-self-center">
                   {hourRow ? (
                     <div className="flex items-center justify-center w-full">
-                      <span
-                        className={`text-[27px] num-display leading-none rounded-md px-1 py-2 ${hourRow.qp_games > 0 ? 'text-blue-500' : 'text-[var(--faint)]'}`}
-                      >
-                        {hourRow.qp_games > 0 ? `${Math.round(hourRow.qp_win_rate!)}%` : '—'}
-                      </span>
+                      <div className="relative">
+                        <span
+                          className={`text-[27px] num-display leading-none rounded-md px-1 py-2 ${hourRow.qp_games > 0 ? 'text-blue-500' : 'text-[var(--faint)]'}`}
+                        >
+                          {hourRow.qp_games > 0 ? `${Math.round(hourRow.qp_win_rate!)}%` : '—'}
+                        </span>
+                        <span className="absolute top-full inset-x-0 -mt-0.5 text-center text-[7px] uppercase tracking-wider text-[var(--faint)] whitespace-nowrap">Quickplay</span>
+                      </div>
                       <span className="text-[27px] num-display leading-none text-[var(--faint-2)] -mx-0.5">/</span>
-                      <span
-                        className={`text-[27px] num-display leading-none rounded-md px-1 py-2 ${hourRow.comp_games > 0 ? 'text-red-500' : 'text-[var(--faint)]'}`}
-                      >
-                        {hourRow.comp_games > 0 ? `${Math.round(hourRow.comp_win_rate!)}%` : '—'}
-                      </span>
+                      <div className="relative">
+                        <span
+                          className={`text-[27px] num-display leading-none rounded-md px-1 py-2 ${hourRow.comp_games > 0 ? 'text-red-500' : 'text-[var(--faint)]'}`}
+                        >
+                          {hourRow.comp_games > 0 ? `${Math.round(hourRow.comp_win_rate!)}%` : '—'}
+                        </span>
+                        <span className="absolute top-full inset-x-0 -mt-0.5 text-center text-[7px] uppercase tracking-wider text-[var(--faint)] whitespace-nowrap">Competitive</span>
+                      </div>
                     </div>
                   ) : (
                     <div className="text-sm text-[var(--faint)]">—</div>
