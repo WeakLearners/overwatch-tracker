@@ -458,19 +458,10 @@ const PLAN_TABS: readonly PlanTab[] = [
 
 // Custom phases built through the "+ Add new phase" form are session-authored
 // (no hand-written analysis notes), so they're kept separate from the
-// hardcoded PLAN_TABS above and persisted to localStorage instead of source.
-const CUSTOM_PHASES_KEY = 'sl-custom-phases-v1';
-
-function loadCustomPhases(): PlanTab[] {
-  try {
-    const raw = localStorage.getItem(CUSTOM_PHASES_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
-}
-
-function saveCustomPhases(phases: readonly PlanTab[]) {
-  localStorage.setItem(CUSTOM_PHASES_KEY, JSON.stringify(phases));
-}
+// hardcoded PLAN_TABS above — persisted server-side via /api/custom-phases so
+// a phase built on one device shows up on every device (moved off
+// localStorage 2026-08-30, which silently stranded phases on whichever
+// browser created them).
 
 // Evenly spaces `stages` sens values between low and high inclusive (2
 // decimal places), matching the bracket shape every hand-authored phase uses.
@@ -613,7 +604,8 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
   const sets = data?.sets ?? [];
   const actives = state?.actives ?? [];
   const [creating, setCreating] = useState<string | null>(null);
-  const [customPhases, setCustomPhases] = useState<PlanTab[]>(() => loadCustomPhases());
+  const { data: customPhasesData } = useApi<{ phases: PlanTab[] }>('/api/custom-phases');
+  const customPhases = customPhasesData?.phases ?? [];
   const allTabs = [...tabs, ...customPhases];
   // Default to the most recent phase with a built-out plan — the one that's
   // actually active. A newly added phase tab starts empty until its plan is
@@ -670,7 +662,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
     setRows(prev => prev.map((r, ri) => (ri === i ? { ...r, ...patch } : r)));
   }
 
-  function saveNewPhase() {
+  async function saveNewPhase() {
     const nStages = Math.max(2, parseInt(stages) || 2);
     const validRows = rows.filter(r => r.hero.trim() && r.low.trim() && r.high.trim());
     if (validRows.length === 0) { alert('Add at least one hero with a sens range.'); return; }
@@ -688,9 +680,11 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
       description: `${plan.length} heroes × ${nStages} stages, ${totalGames} games total.`,
       plan,
     };
-    const next = [...customPhases, newTab];
-    setCustomPhases(next);
-    saveCustomPhases(next);
+    await fetch('/api/custom-phases', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newTab),
+    });
+    revalidateAll();
     setTabKey(newTab.key);
     setShowAddPhase(false);
   }
@@ -699,13 +693,13 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
   // PLAN_TABS entries are historical record. Cancel any test sets for its
   // heroes first (via the plan tile's own "Cancel test" button); this only
   // removes the tab/plan definition, not any sets already created from it.
-  function deleteCustomPhase(key: string) {
+  async function deleteCustomPhase(key: string) {
     const target = customPhases.find(t => t.key === key);
     if (!target || !confirm(`Delete "${target.label}"? This only removes the plan tab — cancel any test sets for its heroes separately first.`)) return;
-    const next = customPhases.filter(t => t.key !== key);
-    setCustomPhases(next);
-    saveCustomPhases(next);
+    await fetch(`/api/custom-phases/${key}`, { method: 'DELETE' });
+    revalidateAll();
     if (tabKey === key) {
+      const next = customPhases.filter(t => t.key !== key);
       const fallback = [...tabs, ...next].reverse().find(t => t.plan.length > 0) ?? tabs[tabs.length - 1];
       setTabKey(fallback.key);
     }

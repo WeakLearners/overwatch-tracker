@@ -438,6 +438,22 @@ function initSchema(db: DatabaseSync) {
     if (!setCols.find(c => c.name === col)) db.exec(ddl);
   }
 
+  // Custom DPI/sens test-plan phases, built through SensLog.tsx's "+ Add new
+  // phase" form. Previously persisted to browser localStorage (session-only,
+  // never synced across devices) — moved server-side 2026-08-30 so a phase
+  // built on one device shows up everywhere, same as the hardcoded PLAN_TABS
+  // phases already do. `key` matches the `phase` tag on blind_stage_sets
+  // (e.g. 'custom-1787763963436'); `plan` is the PlanHero[] array as JSON.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS custom_phases (
+      key TEXT PRIMARY KEY,
+      label TEXT NOT NULL,
+      description TEXT NOT NULL,
+      plan TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
   // Cache for LLM-generated tactical recommendations, keyed by map+queue_mode.
   db.exec(`
     CREATE TABLE IF NOT EXISTS advisor_cache (
