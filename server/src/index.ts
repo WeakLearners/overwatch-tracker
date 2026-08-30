@@ -14,7 +14,9 @@ import blindRouter from './routes/blind';
 const app = express();
 const PORT = 3001;
 
-app.use(cors({ origin: 'http://localhost:5173' }));
+// Also allow the Mac mini's Tailscale IP so the app is reachable from other
+// devices on the tailnet (e.g. the iMac), not just localhost.
+app.use(cors({ origin: ['http://localhost:5173', 'http://100.122.38.86:5173'] }));
 app.use(express.json());
 
 app.use('/api/matches', matchesRouter);

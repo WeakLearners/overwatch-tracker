@@ -398,8 +398,17 @@ export default function LogMatch() {
                   setFeelByHero({});
                   setTeamRating(0);
                   clearDeathBuffer();
-                  const mapInput = document.getElementById('map-search') as HTMLInputElement | null;
-                  mapInput?.focus({ preventScroll: true });
+                  notifyMatchLogged();
+                  // Wait a paint cycle so the layout has settled from the resets above
+                  // (the Map Voting card collapses once its pills clear) before scrolling —
+                  // scrolling against the pre-reset layout lands short of the map card.
+                  requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                      const mapInput = document.getElementById('map-search') as HTMLInputElement | null;
+                      mapInput?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      mapInput?.focus({ preventScroll: true });
+                    });
+                  });
                 }}
                 disabled={!form.hero && !map && deathBuffer.length === 0}
                 data-inspect-id="logmatch-cancel-match-button"

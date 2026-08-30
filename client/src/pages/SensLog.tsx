@@ -6,7 +6,7 @@ import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { eDPI, MOUSE_DPI } from '../lib/aim';
 import {
-  QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, MODE_TAG, ROLE_COLORS, HEROES,
+  QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, MODE_TAG, HEROES,
 } from '../types';
 import { format } from 'date-fns';
 import SensNav from '../components/SensNav';
@@ -1224,37 +1224,68 @@ function AnswerTable({ stages }: { stages: AnswerStage[] }) {
 // edit can move it onto a different active DPI test, or off one entirely),
 // so games_on_stage counters stay accurate rather than reflecting the
 // pre-edit hero.
-function EditMatchForm({ match, onClose }: { match: PendingMatch; onClose: () => void }) {
+function EditMatchForm({ match, onClose, onSaved }: {
+  match: PendingMatch; onClose: () => void;
+  // Fires with the just-saved hero roster + sens right after the PUT succeeds,
+  // so the combat-stats entry form below (built from the pre-edit roster when
+  // the card was first expanded) can resync to the corrected hero(es) instead
+  // of silently staying stuck on stale rows.
+  onSaved?: (updated: { hero: string; heroes: string[]; sens: string }) => void;
+}) {
   const [hero, setHero] = useState(match.hero);
-  const [extra, setExtra] = useState<string[]>(match.heroes.slice(1).map(h => h.hero));
+  // Fixed 2 switch slots (2nd/3rd hero played). '' means that slot has no
+  // recorded switch — defaults to '' when the match has no 2nd/3rd hero.
+  const [extra, setExtra] = useState<string[]>(() => {
+    const rest = match.heroes.slice(1).map(h => h.hero);
+    return [rest[0] ?? '', rest[1] ?? ''];
+  });
   const [queueMode, setQueueMode] = useState<QueueMode>(match.queue_mode);
   const [sens, setSens] = useState(match.sens != null ? String(match.sens) : '');
   const [status, setStatus] = useState<'idle' | 'saving' | 'error'>('idle');
 
-  function addHero() { setExtra(e => (e.length >= 2 ? e : [...e, HERO_LIST[0][0]])); }
+  // Role Queue (both Quickplay Role and Competitive Role) locks a player to
+  // the role they queued as for the whole match — a mid-match switch can only
+  // be to another hero of that same role. Open Queue has no such lock.
+  const roleLocked = queueMode !== 'comp_open';
+  const lockedRole = HEROES[hero];
+
+  // If the primary hero (and so the locked role) or the queue mode changes
+  // such that an already-picked switch hero no longer fits, snap it to the
+  // first hero of the now-locked role rather than leaving an invalid pick.
+  // An empty (None) slot is left alone either way.
+  useEffect(() => {
+    if (!roleLocked) return;
+    setExtra(e => e.map(h => (!h || HEROES[h] === lockedRole ? h : HERO_LIST.find(([, r]) => r === lockedRole)![0])));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roleLocked, lockedRole]);
+
+  // Setting a slot back to '' (None) is how a mistakenly-added switch hero
+  // gets removed from the form.
   function updateHero(i: number, h: string) { setExtra(e => e.map((x, idx) => (idx === i ? h : x))); }
-  function removeHero(i: number) { setExtra(e => e.filter((_, idx) => idx !== i)); }
 
   async function save() {
     setStatus('saving');
     try {
+      const filledExtra = extra.filter(Boolean);
       const res = await fetch(`/api/matches/${match.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           hero, role: HEROES[hero], queue_mode: queueMode, sens: num(sens),
-          heroes: extra.map(h => ({ hero: h, role: HEROES[h] })),
+          heroes: filledExtra.map(h => ({ hero: h, role: HEROES[h] })),
         }),
       });
       if (!res.ok) throw new Error('save failed');
       revalidateAll();
+      onSaved?.({ hero, heroes: [hero, ...filledExtra], sens });
       onClose();
     } catch { setStatus('error'); }
   }
 
-  const heroSelect = (value: string, onChange: (h: string) => void, key: string) => (
-    <select key={key} value={value} onChange={e => onChange(e.target.value)} className="flex-1 field px-2 py-1.5 text-xs">
-      {(['DPS', 'Tank', 'Support'] as const).map(role => (
+  const heroSelect = (value: string, onChange: (h: string) => void, key: string, opts?: { restrictToRole?: string; allowNone?: boolean }) => (
+    <select key={key} value={value} onChange={e => onChange(e.target.value)} className="w-full field px-2 py-1.5 text-xs">
+      {opts?.allowNone && <option value="">None</option>}
+      {(['DPS', 'Tank', 'Support'] as const).filter(role => !opts?.restrictToRole || role === opts.restrictToRole).map(role => (
         <optgroup key={role} label={role}>
           {HERO_LIST.filter(([, r]) => r === role).map(([h]) => <option key={h} value={h}>{h}</option>)}
         </optgroup>
@@ -1266,22 +1297,14 @@ function EditMatchForm({ match, onClose }: { match: PendingMatch; onClose: () =>
     <div className="border-t border-ow-border px-3 py-3 space-y-3" data-inspect-id="sl-edit-match-form">
       <div>
         <label className="block text-[10px] text-[var(--faint)] mb-1">Hero</label>
-        {heroSelect(hero, setHero, 'primary')}
-        {extra.length > 0 && (
-          <div className="mt-1.5 space-y-1.5">
-            {extra.map((h, i) => (
-              <div key={i} className="flex items-center gap-1.5">
-                {heroSelect(h, v => updateHero(i, v), `extra-${i}`)}
-                <button type="button" onClick={() => removeHero(i)} aria-label="Remove hero" className="text-[var(--faint)] hover:text-red-600 text-sm px-1">×</button>
-              </div>
-            ))}
-          </div>
-        )}
-        {extra.length < 2 && (
-          <button type="button" onClick={addHero} className="mt-1.5 w-full py-1 rounded border border-dashed border-ow-border text-[10px] text-[var(--faint)] hover:text-[var(--ink)] hover:border-gray-500 transition-colors">
-            + Add hero switch
-          </button>
-        )}
+        <div className="flex flex-wrap gap-1.5">
+          <div className="flex-1 min-w-[100px]">{heroSelect(hero, setHero, 'primary')}</div>
+          {extra.map((h, i) => (
+            <div key={i} className="flex-1 min-w-[100px]">
+              {heroSelect(h, v => updateHero(i, v), `extra-${i}`, { restrictToRole: roleLocked ? lockedRole : undefined, allowNone: true })}
+            </div>
+          ))}
+        </div>
       </div>
       <div>
         <label className="block text-[10px] text-[var(--faint)] mb-1">Match Type</label>
@@ -1465,38 +1488,49 @@ function BackfillPanel({ pending, loading }: {
                 const c = QUEUE_MODE_COLORS[m.queue_mode]; const active = m.id === selectedId;
                 const editing = m.id === editingId;
                 return (
-                  <div key={m.id} className={`relative overflow-hidden rounded-lg border transition-all ${active ? `${c.card} ${c.accent} ${c.glow}` : 'border-ow-border bg-ow-darker hover:border-gray-500'}`}>
-                    {/* Oversized W/L watermark, same treatment as ModeWatermark. Sized
-                        taller than the row so top and bottom clip on overflow-hidden too. */}
-                    <span
-                      aria-hidden="true"
-                      data-inspect-id="sl-awaiting-stats-watermark"
-                      className={`pointer-events-none select-none absolute inset-y-0 right-0 flex items-center text-[7rem] font-display font-black italic leading-none tracking-[-0.07em] whitespace-nowrap opacity-15 ${m.win ? 'translate-x-[20%] text-emerald-500' : 'translate-x-[-15%] text-red-500'}`}
-                    >
-                      {m.win ? 'W' : 'L'}
-                    </span>
-                    {/* iOS-style qp/comp toggle, above the watermark. Pinned to a fixed
-                        top offset (not top-1/2) so it stays put next to the collapsed
-                        header row instead of drifting down when the card expands and
-                        grows taller. Left+blue = qp, right+red = comp, flanked by a blue
-                        Q / red C label. It's a sibling of the selectable row below, not
-                        nested inside it, so its own click never also selects the card. */}
-                    <div className="absolute left-[70%] top-7 -translate-x-1/2 -translate-y-1/2 z-20 flex items-center gap-1.5">
-                      <span className="text-sm font-black text-blue-400">Q</span>
-                      <button
-                        type="button"
-                        onClick={() => toggleQueueMode(m)}
-                        disabled={togglingId === m.id}
-                        aria-label={`Match type: ${m.queue_mode === 'qp_role' ? 'Quick Play' : 'Competitive'} — tap to switch`}
-                        data-inspect-id="sl-awaiting-stats-mode-toggle"
-                        className={`relative shrink-0 w-9 h-5 rounded-full transition-colors disabled:opacity-50 ${m.queue_mode === 'qp_role' ? 'bg-blue-500' : 'bg-red-500'}`}
+                  <div key={m.id} className={`relative overflow-hidden rounded-lg border bg-ow-darker transition-all ${active ? `${c.accent} ${c.glow}` : 'border-ow-border hover:border-gray-500'}`}>
+                    {/* Header block (watermark + toggle + collapsed row) gets its own
+                        relative/overflow-hidden box so the oversized watermark glyph is
+                        clipped to just this block — otherwise, being absolutely positioned
+                        against the *outer* card, it'd paint over the expanded form section
+                        below (the form isn't positioned, so it can't out-stack an absolute
+                        sibling) instead of disappearing behind its background like intended. */}
+                    <div className="relative overflow-hidden">
+                      {/* Oversized W/L watermark, same treatment as ModeWatermark. Sized
+                          taller than the row so top and bottom clip on overflow-hidden too.
+                          Pinned to a fixed top offset (not inset-y-0 + items-center) so it
+                          stays put next to the collapsed header row instead of re-centering
+                          on the whole (now taller) card once it expands — same fix as the
+                          qp/comp toggle below. */}
+                      <span
+                        aria-hidden="true"
+                        data-inspect-id="sl-awaiting-stats-watermark"
+                        className={`pointer-events-none select-none absolute top-7 -translate-y-1/2 right-0 text-[7rem] font-display font-black italic leading-none tracking-[-0.07em] whitespace-nowrap opacity-15 ${m.win ? 'translate-x-[20%] text-emerald-500' : 'translate-x-[-15%] text-red-500'}`}
                       >
-                        <span
-                          className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${m.queue_mode === 'qp_role' ? 'translate-x-0' : 'translate-x-4'}`}
-                        />
-                      </button>
-                      <span className="text-sm font-black text-red-400">C</span>
-                    </div>
+                        {m.win ? 'W' : 'L'}
+                      </span>
+                      {/* iOS-style qp/comp toggle, above the watermark. Pinned to a fixed
+                          top offset (not top-1/2) so it stays put next to the collapsed
+                          header row instead of drifting down when the card expands and
+                          grows taller. Left+blue = qp, right+red = comp, flanked by a blue
+                          Q / red C label. It's a sibling of the selectable row below, not
+                          nested inside it, so its own click never also selects the card. */}
+                      <div className="absolute left-[65%] top-7 -translate-x-1/2 -translate-y-1/2 z-20 flex items-center gap-1.5">
+                        <span className="text-sm font-black text-blue-400">Q</span>
+                        <button
+                          type="button"
+                          onClick={() => toggleQueueMode(m)}
+                          disabled={togglingId === m.id}
+                          aria-label={`Match type: ${m.queue_mode === 'qp_role' ? 'Quick Play' : 'Competitive'} — tap to switch`}
+                          data-inspect-id="sl-awaiting-stats-mode-toggle"
+                          className={`relative shrink-0 w-9 h-5 rounded-full transition-colors disabled:opacity-50 ${m.queue_mode === 'qp_role' ? 'bg-blue-500' : 'bg-red-500'}`}
+                        >
+                          <span
+                            className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${m.queue_mode === 'qp_role' ? 'translate-x-0' : 'translate-x-4'}`}
+                          />
+                        </button>
+                        <span className="text-sm font-black text-red-400">C</span>
+                      </div>
                     <div className="relative z-10 flex items-stretch">
                       <div
                         role="button"
@@ -1505,29 +1539,58 @@ function BackfillPanel({ pending, loading }: {
                         onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleMatch(m); } }}
                         className="flex-1 min-w-0 text-left py-2.5 pl-3 pr-1.5 cursor-pointer"
                       >
-                        <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                          {m.heroes.map(h => (
-                            <span key={h.hero} className={`pill hero-name ${ROLE_COLORS[h.role] ?? ''}`}>{withHeroCount(h.hero, heroCounts)}</span>
+                        <div className="flex items-stretch h-6 min-w-0" title={m.heroes.length > 1 ? m.heroes.slice(1).map(h => h.hero).join(', ') : undefined}>
+                          {m.heroes[0] && (
+                            <span
+                              className={`pill hero-name border-2 border-ow-border text-white relative z-10 h-full box-border shadow-[3px_3px_0_rgba(0,0,0,0.7)] ${
+                                m.heroes[0].role === 'DPS' ? 'bg-red-600' : m.heroes[0].role === 'Tank' ? 'bg-blue-600' : 'bg-green-600'
+                              }`}
+                            >
+                              {withHeroCount(m.heroes[0].hero, heroCounts)}
+                            </span>
+                          )}
+                          {/* Hidden mid-match switch heroes rendered as the actual right-edge
+                              slice of a pill (real chamfered corner, not an invented rectangle)
+                              peeking out from behind the primary tag — a narrow overflow-hidden
+                              window crops a full-width pill anchored to its right edge. */}
+                          {m.heroes.slice(1).map((h, i) => (
+                            <span key={h.hero} aria-hidden="true" className="relative w-3 h-full overflow-hidden ml-px" style={{ zIndex: 5 - i }}>
+                              <span
+                                className={`pill hero-name absolute inset-y-0 right-0 border-2 border-ow-border shadow-[3px_3px_0_rgba(0,0,0,0.7)] ${
+                                  h.role === 'DPS' ? 'bg-red-600' : h.role === 'Tank' ? 'bg-blue-600' : 'bg-green-600'
+                                }`}
+                                style={{ width: '3.5rem' }}
+                              />
+                            </span>
                           ))}
-                          <span className="text-xs map-name text-[var(--ink)] truncate">{withMapCount(m.map, mapCounts)}</span>
+                          {active && (
+                            <button type="button"
+                              onClick={e => { e.stopPropagation(); setEditingId(editing ? null : m.id); }}
+                              aria-label="Edit match"
+                              data-inspect-id="sl-awaiting-stats-edit-btn"
+                              className={`shrink-0 self-center ml-2 flex items-center gap-1 px-1.5 py-0.5 rounded-md border font-bold text-[10px] transition-colors ${editing ? 'border-ow-accent text-ow-accent bg-ow-accent/10' : 'border-ow-border bg-ow-darker text-[var(--ink)] hover:border-ow-accent hover:text-ow-accent'}`}>
+                              <span className="text-xs leading-none">✎</span>
+                              Edit
+                            </button>
+                          )}
                         </div>
                         <div className="flex items-center gap-3 mt-1 text-[11px] text-[var(--faint)]">
                           <span>{m.time ? format(new Date(m.time), 'MMM d, h:mm a') : m.date}</span><span>·</span>
                           <span>{m.stage_index != null ? <>stage <b className="font-bold">{m.stage_index}</b> · sens <b className="font-bold">{m.sens}</b></> : m.sens != null ? <>sens <b className="font-bold">{m.sens}</b></> : 'no sens'}</span>
                         </div>
                       </div>
-                      {active && (
-                        <button type="button" onClick={() => setEditingId(editing ? null : m.id)} aria-label="Edit match"
-                          data-inspect-id="sl-awaiting-stats-edit-btn"
-                          className={`shrink-0 self-center mr-1.5 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-bold text-xs transition-colors ${editing ? 'border-ow-accent text-ow-accent bg-ow-accent/10' : 'border-ow-border bg-ow-darker text-[var(--ink)] hover:border-ow-accent hover:text-ow-accent'}`}>
-                          <span className="text-sm leading-none">✎</span>
-                          Edit
-                        </button>
-                      )}
+                      <span className="block shrink-0 self-center mr-1.5 w-[7.5rem] text-xs map-name text-[var(--ink)] text-right leading-tight whitespace-normal break-words">{m.map}</span>
                     </div>
-                    {editing && <EditMatchForm match={m} onClose={() => setEditingId(null)} />}
+                    </div>
+                    {editing && (
+                      <EditMatchForm
+                        match={m}
+                        onClose={() => setEditingId(null)}
+                        onSaved={u => { setStats(emptyStats(u.heroes.map(h => ({ hero: h })))); setSens(u.sens); }}
+                      />
+                    )}
                     {active && (
-                      <div className="border-t border-ow-border px-3 py-3 space-y-4 stats-entry-heavy" data-inspect-id="sl-inline-stats-form">
+                      <div className={`border-t border-ow-border px-3 py-3 space-y-4 stats-entry-heavy ${c.card}`} data-inspect-id="sl-inline-stats-form">
                         <div className="flex items-center gap-2">
                           {m.stage_index != null && <span className="text-[11px] text-ow-accent font-bold">Stage {m.stage_index}</span>}
                           <label className="text-[11px] text-[var(--faint)]">Sens</label>
@@ -1567,69 +1630,109 @@ function BackfillPanel({ pending, loading }: {
                 const c = QUEUE_MODE_COLORS[m.queue_mode]; const active = m.id === loggedSelectedId;
                 const editing = m.id === loggedEditingId;
                 return (
-                  <div key={m.id} className={`relative overflow-hidden rounded-lg border transition-all ${active ? `${c.card} ${c.accent} ${c.glow}` : 'border-ow-border bg-ow-darker hover:border-gray-500'}`}>
-                    {/* Oversized W/L watermark, same treatment as ModeWatermark. Sized
-                        taller than the row so top and bottom clip on overflow-hidden too. */}
-                    <span
-                      aria-hidden="true"
-                      data-inspect-id="sl-logged-today-watermark"
-                      className={`pointer-events-none select-none absolute inset-y-0 right-0 flex items-center text-[7rem] font-display font-black italic leading-none tracking-[-0.07em] whitespace-nowrap opacity-15 ${m.win ? 'translate-x-[20%] text-emerald-500' : 'translate-x-[-15%] text-red-500'}`}
-                    >
-                      {m.win ? 'W' : 'L'}
-                    </span>
-                    {/* iOS-style qp/comp toggle, above the watermark. Pinned to a fixed
-                        top offset (not top-1/2) so it stays put next to the collapsed
-                        header row instead of drifting down when the card expands and
-                        grows taller. Left+blue = qp, right+red = comp, flanked by a blue
-                        Q / red C label. It's a sibling of the selectable row below, not
-                        nested inside it, so its own click never also selects the card. */}
-                    <div className="absolute left-[70%] top-7 -translate-x-1/2 -translate-y-1/2 z-20 flex items-center gap-1.5">
-                      <span className="text-sm font-black text-blue-400">Q</span>
-                      <button
-                        type="button"
-                        onClick={() => toggleLoggedQueueMode(m)}
-                        disabled={togglingLoggedId === m.id}
-                        aria-label={`Match type: ${m.queue_mode === 'qp_role' ? 'Quick Play' : 'Competitive'} — tap to switch`}
-                        data-inspect-id="sl-logged-today-mode-toggle"
-                        className={`relative shrink-0 w-9 h-5 rounded-full transition-colors disabled:opacity-50 ${m.queue_mode === 'qp_role' ? 'bg-blue-500' : 'bg-red-500'}`}
+                  <div key={m.id} className={`relative overflow-hidden rounded-lg border bg-ow-darker transition-all ${active ? `${c.accent} ${c.glow}` : 'border-ow-border hover:border-gray-500'}`}>
+                    {/* Header block (watermark + toggle + collapsed row) gets its own
+                        relative/overflow-hidden box so the oversized watermark glyph is
+                        clipped to just this block — otherwise, being absolutely positioned
+                        against the *outer* card, it'd paint over the expanded form section
+                        below (the form isn't positioned, so it can't out-stack an absolute
+                        sibling) instead of disappearing behind its background like intended. */}
+                    <div className="relative overflow-hidden">
+                      {/* Oversized W/L watermark, same treatment as ModeWatermark. Sized
+                          taller than the row so top and bottom clip on overflow-hidden too.
+                          Pinned to a fixed top offset (not inset-y-0 + items-center) so it
+                          stays put next to the collapsed header row instead of re-centering
+                          on the whole (now taller) card once it expands — same fix as the
+                          qp/comp toggle below. */}
+                      <span
+                        aria-hidden="true"
+                        data-inspect-id="sl-logged-today-watermark"
+                        className={`pointer-events-none select-none absolute top-7 -translate-y-1/2 right-0 text-[7rem] font-display font-black italic leading-none tracking-[-0.07em] whitespace-nowrap opacity-15 ${m.win ? 'translate-x-[20%] text-emerald-500' : 'translate-x-[-15%] text-red-500'}`}
                       >
-                        <span
-                          className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${m.queue_mode === 'qp_role' ? 'translate-x-0' : 'translate-x-4'}`}
-                        />
-                      </button>
-                      <span className="text-sm font-black text-red-400">C</span>
-                    </div>
-                    <div className="relative z-10 flex items-stretch">
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => toggleLogged(m)}
-                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleLogged(m); } }}
-                        className="flex-1 min-w-0 text-left py-2.5 pl-3 pr-1.5 cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                          {m.heroes.map(h => (
-                            <span key={h.hero} className={`pill hero-name ${ROLE_COLORS[h.role] ?? ''}`}>{withHeroCount(h.hero, heroCounts)}</span>
-                          ))}
-                          <span className="text-xs map-name text-[var(--ink)] truncate">{withMapCount(m.map, mapCounts)}</span>
-                        </div>
-                        <div className="flex items-center gap-3 mt-1 text-[11px] text-[var(--faint)]">
-                          <span>{m.time ? format(new Date(m.time), 'MMM d, h:mm a') : m.date}</span><span>·</span>
-                          <span>{m.stage_index != null ? <>stage <b className="font-bold">{m.stage_index}</b> · sens <b className="font-bold">{m.sens}</b></> : m.sens != null ? <>sens <b className="font-bold">{m.sens}</b></> : 'no sens'}</span>
-                        </div>
-                      </div>
-                      {active && (
-                        <button type="button" onClick={() => setLoggedEditingId(editing ? null : m.id)} aria-label="Edit match"
-                          data-inspect-id="sl-logged-today-edit-btn"
-                          className={`shrink-0 self-center mr-1.5 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-bold text-xs transition-colors ${editing ? 'border-ow-accent text-ow-accent bg-ow-accent/10' : 'border-ow-border bg-ow-darker text-[var(--ink)] hover:border-ow-accent hover:text-ow-accent'}`}>
-                          <span className="text-sm leading-none">✎</span>
-                          Edit
+                        {m.win ? 'W' : 'L'}
+                      </span>
+                      {/* iOS-style qp/comp toggle, above the watermark. Pinned to a fixed
+                          top offset (not top-1/2) so it stays put next to the collapsed
+                          header row instead of drifting down when the card expands and
+                          grows taller. Left+blue = qp, right+red = comp, flanked by a blue
+                          Q / red C label. It's a sibling of the selectable row below, not
+                          nested inside it, so its own click never also selects the card. */}
+                      <div className="absolute left-[65%] top-7 -translate-x-1/2 -translate-y-1/2 z-20 flex items-center gap-1.5">
+                        <span className="text-sm font-black text-blue-400">Q</span>
+                        <button
+                          type="button"
+                          onClick={() => toggleLoggedQueueMode(m)}
+                          disabled={togglingLoggedId === m.id}
+                          aria-label={`Match type: ${m.queue_mode === 'qp_role' ? 'Quick Play' : 'Competitive'} — tap to switch`}
+                          data-inspect-id="sl-logged-today-mode-toggle"
+                          className={`relative shrink-0 w-9 h-5 rounded-full transition-colors disabled:opacity-50 ${m.queue_mode === 'qp_role' ? 'bg-blue-500' : 'bg-red-500'}`}
+                        >
+                          <span
+                            className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${m.queue_mode === 'qp_role' ? 'translate-x-0' : 'translate-x-4'}`}
+                          />
                         </button>
-                      )}
+                        <span className="text-sm font-black text-red-400">C</span>
+                      </div>
+                      <div className="relative z-10 flex items-stretch">
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => toggleLogged(m)}
+                          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleLogged(m); } }}
+                          className="flex-1 min-w-0 text-left py-2.5 pl-3 pr-1.5 cursor-pointer"
+                        >
+                          <div className="flex items-stretch h-6 min-w-0" title={m.heroes.length > 1 ? m.heroes.slice(1).map(h => h.hero).join(', ') : undefined}>
+                            {m.heroes[0] && (
+                              <span
+                                className={`pill hero-name border-2 border-ow-border text-white relative z-10 h-full box-border shadow-[3px_3px_0_rgba(0,0,0,0.7)] ${
+                                  m.heroes[0].role === 'DPS' ? 'bg-red-600' : m.heroes[0].role === 'Tank' ? 'bg-blue-600' : 'bg-green-600'
+                                }`}
+                              >
+                                {withHeroCount(m.heroes[0].hero, heroCounts)}
+                              </span>
+                            )}
+                            {/* Hidden mid-match switch heroes rendered as the actual right-edge
+                                slice of a pill (real chamfered corner, not an invented rectangle)
+                                peeking out from behind the primary tag — a narrow overflow-hidden
+                                window crops a full-width pill anchored to its right edge. */}
+                            {m.heroes.slice(1).map((h, i) => (
+                              <span key={h.hero} aria-hidden="true" className="relative w-3 h-full overflow-hidden ml-px" style={{ zIndex: 5 - i }}>
+                                <span
+                                  className={`pill hero-name absolute inset-y-0 right-0 border-2 border-ow-border shadow-[3px_3px_0_rgba(0,0,0,0.7)] ${
+                                    h.role === 'DPS' ? 'bg-red-600' : h.role === 'Tank' ? 'bg-blue-600' : 'bg-green-600'
+                                  }`}
+                                  style={{ width: '3.5rem' }}
+                                />
+                              </span>
+                            ))}
+                            {active && (
+                              <button type="button"
+                                onClick={e => { e.stopPropagation(); setLoggedEditingId(editing ? null : m.id); }}
+                                aria-label="Edit match"
+                                data-inspect-id="sl-logged-today-edit-btn"
+                                className={`shrink-0 self-center ml-2 flex items-center gap-1 px-1.5 py-0.5 rounded-md border font-bold text-[10px] transition-colors ${editing ? 'border-ow-accent text-ow-accent bg-ow-accent/10' : 'border-ow-border bg-ow-darker text-[var(--ink)] hover:border-ow-accent hover:text-ow-accent'}`}>
+                                <span className="text-xs leading-none">✎</span>
+                                Edit
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 mt-1 text-[11px] text-[var(--faint)]">
+                            <span>{m.time ? format(new Date(m.time), 'MMM d, h:mm a') : m.date}</span><span>·</span>
+                            <span>{m.stage_index != null ? <>stage <b className="font-bold">{m.stage_index}</b> · sens <b className="font-bold">{m.sens}</b></> : m.sens != null ? <>sens <b className="font-bold">{m.sens}</b></> : 'no sens'}</span>
+                          </div>
+                        </div>
+                        <span className="block shrink-0 self-center mr-1.5 w-[7.5rem] text-xs map-name text-[var(--ink)] text-right leading-tight whitespace-normal break-words">{m.map}</span>
+                      </div>
                     </div>
-                    {editing && <EditMatchForm match={m} onClose={() => setLoggedEditingId(null)} />}
+                    {editing && (
+                      <EditMatchForm
+                        match={m}
+                        onClose={() => setLoggedEditingId(null)}
+                        onSaved={u => { setLoggedStats(emptyStats(u.heroes.map(h => ({ hero: h })))); setLoggedSens(u.sens); }}
+                      />
+                    )}
                     {active && (
-                      <div className="border-t border-ow-border px-3 py-3 space-y-4" data-inspect-id="sl-logged-today-stats-form">
+                      <div className={`border-t border-ow-border px-3 py-3 space-y-4 ${c.card}`} data-inspect-id="sl-logged-today-stats-form">
                         <div className="flex items-center gap-2">
                           {m.stage_index != null && <span className="text-[11px] text-ow-accent font-bold">Stage {m.stage_index}</span>}
                           <label className="text-[11px] text-[var(--faint)]">Sens</label>
