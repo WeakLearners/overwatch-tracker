@@ -37,14 +37,6 @@ const MODE_COMPACT: Record<string, { top: string; bot: string }> = {
   comp_open: { top: 'Competitive', bot: 'Open' },
 };
 
-// Faint per-mode row tint for the logged-match strips. The big italic tag
-// watermark itself lives in the shared ModeWatermark component.
-const MODE_ROW_BG: Record<string, string> = {
-  qp_role:   'bg-blue-500/10',
-  comp_role: 'bg-red-500/10',
-  comp_open: 'bg-pink-500/10',
-};
-
 
 function getDayOfWeek(dateStr: string) {
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -701,7 +693,7 @@ export default function LogMatch() {
                   hist ? (j < hist.length ? hist[j] : undefined) : undefined
                 );
                 return (
-                  <div key={r.id} className={`relative overflow-hidden flex items-center gap-3 py-2.5 px-3 rounded-lg ${MODE_ROW_BG[r.queue_mode]}`}>
+                  <div key={r.id} className={`relative overflow-hidden flex items-center gap-3 py-2.5 px-3 rounded-lg ${QUEUE_MODE_COLORS[r.queue_mode].card}`}>
                     {/* Mode-tinted strip with a big centred italic tag watermark —
                         same lettering as the mode selectors. */}
                     <ModeWatermark mode={r.queue_mode} variant="strip" />

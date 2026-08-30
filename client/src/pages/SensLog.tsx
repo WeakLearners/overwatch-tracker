@@ -64,6 +64,7 @@ const EXTRA_ACC_LABEL: Record<string, string> = {
   Sojourn: 'Charged Shot Crit %',
   'Soldier: 76': 'Helix Rocket %',
   Baptiste: 'Crit %',
+  Tracer: 'Pulse Bomb %',
 };
 // Per-hero override for the crit_acc slot's label/aria text — heroes whose
 // kit doesn't map cleanly onto "Crit %" repurpose the same underlying field.
@@ -611,7 +612,17 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
   // actually active. A newly added phase tab starts empty until its plan is
   // filled in, so skip past it rather than opening on a blank grid.
   const lastBuilt = [...allTabs].reverse().find(t => t.plan.length > 0) ?? allTabs[allTabs.length - 1];
-  const [tabKey, setTabKey] = useState(lastBuilt.key);
+  const [tabKey, setTabKeyRaw] = useState(lastBuilt.key);
+  // Custom phases load asynchronously (/api/custom-phases), so the useState
+  // initializer above only ever sees the hardcoded PLAN_TABS on first render
+  // and locks onto Phase 5 forever. Once real data arrives and lastBuilt
+  // moves past that, follow it here — but only until the user actually picks
+  // a tab themselves, so this doesn't fight a manual selection.
+  const userPickedTab = useRef(false);
+  const setTabKey = (key: string) => { userPickedTab.current = true; setTabKeyRaw(key); };
+  useEffect(() => {
+    if (!userPickedTab.current) setTabKeyRaw(lastBuilt.key);
+  }, [lastBuilt.key]);
   const { plan, description } = allTabs.find(t => t.key === tabKey) ?? lastBuilt;
 
   const statuses = new Map(plan.map(h => [h.hero, statusForHero(h.hero, actives, sets, h.gamesPerSlot, valuesOf(h), tabKey)]));
