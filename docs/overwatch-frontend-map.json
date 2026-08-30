@@ -262,16 +262,6 @@
           }
         },
         {
-          "id": "dash-stat-maps-played",
-          "label": "Maps Played stat tile",
-          "kind": "stat-tile",
-          "description": "Displays the count of distinct maps played across all logged matches.",
-          "locate": {
-            "path": "client/src/pages/Dashboard.tsx:381",
-            "grep": "grep -n -F -- 'label=\"Maps Played\"' client/src/pages/Dashboard.tsx"
-          }
-        },
-        {
           "id": "dash-stat-current-streak",
           "label": "Current Streak stat tile",
           "kind": "stat-tile",
