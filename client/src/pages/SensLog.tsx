@@ -1536,8 +1536,8 @@ function BackfillPanel({ pending, loading }: {
                         <div className="flex items-stretch h-6 min-w-0" title={m.heroes.length > 1 ? m.heroes.slice(1).map(h => h.hero).join(', ') : undefined}>
                           {m.heroes[0] && (
                             <span
-                              className={`pill hero-name border-2 border-ow-border text-white relative z-10 h-full box-border shadow-[3px_3px_0_rgba(0,0,0,0.7)] ${
-                                m.heroes[0].role === 'DPS' ? 'bg-red-600' : m.heroes[0].role === 'Tank' ? 'bg-blue-600' : 'bg-green-600'
+                              className={`pill hero-name border-2 text-white relative z-10 h-full box-border shadow-[3px_3px_0_rgba(0,0,0,0.7)] ${
+                                m.heroes[0].role === 'DPS' ? 'bg-red-600 border-red-600' : m.heroes[0].role === 'Tank' ? 'bg-blue-600 border-blue-600' : 'bg-green-600 border-green-600'
                               }`}
                             >
                               {withHeroCount(m.heroes[0].hero, heroCounts)}
@@ -1550,8 +1550,8 @@ function BackfillPanel({ pending, loading }: {
                           {m.heroes.slice(1).map((h, i) => (
                             <span key={h.hero} aria-hidden="true" className="relative w-3 h-full overflow-hidden ml-px" style={{ zIndex: 5 - i }}>
                               <span
-                                className={`pill hero-name absolute inset-y-0 right-0 border-2 border-ow-border shadow-[3px_3px_0_rgba(0,0,0,0.7)] ${
-                                  h.role === 'DPS' ? 'bg-red-600' : h.role === 'Tank' ? 'bg-blue-600' : 'bg-green-600'
+                                className={`pill hero-name absolute inset-y-0 right-0 border-2 shadow-[3px_3px_0_rgba(0,0,0,0.7)] ${
+                                  h.role === 'DPS' ? 'bg-red-600 border-red-600' : h.role === 'Tank' ? 'bg-blue-600 border-blue-600' : 'bg-green-600 border-green-600'
                                 }`}
                                 style={{ width: '3.5rem' }}
                               />
@@ -1678,8 +1678,8 @@ function BackfillPanel({ pending, loading }: {
                           <div className="flex items-stretch h-6 min-w-0" title={m.heroes.length > 1 ? m.heroes.slice(1).map(h => h.hero).join(', ') : undefined}>
                             {m.heroes[0] && (
                               <span
-                                className={`pill hero-name border-2 border-ow-border text-white relative z-10 h-full box-border shadow-[3px_3px_0_rgba(0,0,0,0.7)] ${
-                                  m.heroes[0].role === 'DPS' ? 'bg-red-600' : m.heroes[0].role === 'Tank' ? 'bg-blue-600' : 'bg-green-600'
+                                className={`pill hero-name border-2 text-white relative z-10 h-full box-border shadow-[3px_3px_0_rgba(0,0,0,0.7)] ${
+                                  m.heroes[0].role === 'DPS' ? 'bg-red-600 border-red-600' : m.heroes[0].role === 'Tank' ? 'bg-blue-600 border-blue-600' : 'bg-green-600 border-green-600'
                                 }`}
                               >
                                 {withHeroCount(m.heroes[0].hero, heroCounts)}
@@ -1692,8 +1692,8 @@ function BackfillPanel({ pending, loading }: {
                             {m.heroes.slice(1).map((h, i) => (
                               <span key={h.hero} aria-hidden="true" className="relative w-3 h-full overflow-hidden ml-px" style={{ zIndex: 5 - i }}>
                                 <span
-                                  className={`pill hero-name absolute inset-y-0 right-0 border-2 border-ow-border shadow-[3px_3px_0_rgba(0,0,0,0.7)] ${
-                                    h.role === 'DPS' ? 'bg-red-600' : h.role === 'Tank' ? 'bg-blue-600' : 'bg-green-600'
+                                  className={`pill hero-name absolute inset-y-0 right-0 border-2 shadow-[3px_3px_0_rgba(0,0,0,0.7)] ${
+                                    h.role === 'DPS' ? 'bg-red-600 border-red-600' : h.role === 'Tank' ? 'bg-blue-600 border-blue-600' : 'bg-green-600 border-green-600'
                                   }`}
                                   style={{ width: '3.5rem' }}
                                 />
