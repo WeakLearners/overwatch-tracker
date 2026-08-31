@@ -479,6 +479,17 @@ function spreadSens(low: number, high: number, stages: number): number[] {
 // what was actually found.
 const NARROW_RATIO = 2 / 3;
 
+// Hard usability floor, not a data-derived value — below 2.50 in-game sens
+// feels sluggish/unplayable regardless of what the curve fit says, so no
+// auto-suggested or manually-entered bracket is allowed to dip under it.
+const MIN_SENS = 2.5;
+
+// Heroes Sean has stopped playing (2026-08-31) — dropped from the "+ Add new
+// phase" roster carry-over so new phases stop re-testing sens on heroes that
+// will never accumulate more games. Historical PHASE2-5/custom-phase records
+// that already include them are left untouched.
+const RETIRED_HEROES = new Set(['Cassidy', 'Emre', 'Reaper']);
+
 type HeroTestStatus = 'none' | 'testing' | 'completed';
 
 const sameValues = (a: readonly number[], b: readonly number[]) =>
@@ -647,18 +658,24 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
     try {
       const res = await fetch('/api/aim/analysis');
       const analysis: CumulativeHero[] = res.ok ? ((await res.json()) as { heroes: CumulativeHero[] }).heroes : [];
-      const built: NewPhaseRow[] = latest.plan.map((h): NewPhaseRow => {
+      const built: NewPhaseRow[] = latest.plan.filter(h => !RETIRED_HEROES.has(h.hero)).map((h): NewPhaseRow => {
         const values = valuesOf(h);
         const oldLow = Math.min(...values);
         const oldHigh = Math.max(...values);
         const ch = analysis.find(a => a.hero === h.hero);
         const { center, basis, narrow, reliable } = suggestCenter(oldLow, oldHigh, ch);
         const width = narrow ? (oldHigh - oldLow) * NARROW_RATIO : oldHigh - oldLow;
-        const low = Math.round((center - width / 2) * 100) / 100;
-        const high = Math.round((center + width / 2) * 100) / 100;
+        let low = Math.round((center - width / 2) * 100) / 100;
+        let high = Math.round((center + width / 2) * 100) / 100;
+        let flooredBasis = basis;
+        if (low < MIN_SENS) {
+          low = MIN_SENS;
+          high = Math.round((MIN_SENS + width) * 100) / 100;
+          flooredBasis = `${basis} — floored at ${MIN_SENS.toFixed(2)} min sens`;
+        }
         return {
           hero: h.hero, archetype: h.archetype, gamesPerSlot: String(h.gamesPerSlot),
-          low: String(low), high: String(high), note: '', locked: true, reliable, basis,
+          low: String(low), high: String(high), note: '', locked: true, reliable, basis: flooredBasis,
         };
       });
       setStages('2');
@@ -945,7 +962,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                     className={`${compactField} col-span-3`} aria-label={`Row ${i + 1} archetype`}
                   />
                   <input
-                    type="number" step="0.01" placeholder="Low" value={r.low} onChange={e => updateRow(i, { low: e.target.value })}
+                    type="number" step="0.01" min={MIN_SENS} placeholder="Low" value={r.low} onChange={e => updateRow(i, { low: e.target.value })}
                     disabled={r.locked}
                     className={`${compactField} col-span-2 ${r.locked ? 'opacity-60 cursor-not-allowed' : ''}`} aria-label={`Row ${i + 1} low sens`}
                   />
@@ -1183,7 +1200,7 @@ function CreateTestCard() {
         <div className="grid grid-cols-3 gap-2" data-inspect-id="sl-sens-per-stage-inputs">
           {senses.map((s, i) => (
             <input
-              key={i} type="number" step="0.01" className={field} value={s} placeholder={`Stage ${i + 1}`}
+              key={i} type="number" step="0.01" min={MIN_SENS} className={field} value={s} placeholder={`Stage ${i + 1}`}
               onChange={e => setSenses(prev => prev.map((v, vi) => (vi === i ? e.target.value : v)))}
               aria-label={`Stage ${i + 1} sens`}
             />

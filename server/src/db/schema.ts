@@ -95,6 +95,19 @@ function initSchema(db: DatabaseSync) {
     db.exec(`ALTER TABLE matches ADD COLUMN curve_midpoint REAL`);
   }
 
+  // curve_enabled: whether mouse acceleration (Rawaccel's Motivity curve) was
+  // actually active for this match — ground truth, distinct from
+  // curve_growth_rate/curve_midpoint above. Those two got stamped with the
+  // same constant on every match logged from 2026-08-25 onward regardless of
+  // whether acceleration was really on, which made them useless as a signal.
+  // Column added here (matches table is defined this early); one-time
+  // backfill deferred until after blind_stage_sets/blind_credits exist —
+  // see below, near the end of this function.
+  const needsCurveEnabledBackfill = !cols.find(c => c.name === 'curve_enabled');
+  if (needsCurveEnabledBackfill) {
+    db.exec(`ALTER TABLE matches ADD COLUMN curve_enabled INTEGER NOT NULL DEFAULT 0`);
+  }
+
   // DPI stage-trial bookkeeping. blind_trial flags a match logged while a
   // stage-trial set was active for its hero; blind_set_id + stage_index say
   // which set/stage. The stage's DPI is shown on screen the whole time — there
@@ -396,6 +409,24 @@ function initSchema(db: DatabaseSync) {
     SELECT id, hero, blind_set_id, stage_index FROM matches
     WHERE blind_set_id IS NOT NULL AND stage_index IS NOT NULL
   `);
+
+  // One-time curve_enabled backfill (column added earlier, above — deferred
+  // to here since it needs blind_credits/blind_stage_sets to exist). Phase 7
+  // (2026-08-26 to 2026-08-31, phase key 'custom-1787763963436') was played
+  // with mouse acceleration genuinely on — confirmed 2026-08-31 — and is the
+  // only window it's ever been on, so its credited matches are the only rows
+  // that get curve_enabled=1; everything else defaults to 0 from the ALTER
+  // TABLE above and needs no explicit UPDATE.
+  if (needsCurveEnabledBackfill) {
+    db.exec(`
+      UPDATE matches SET curve_enabled = 1
+      WHERE id IN (
+        SELECT bc.match_id FROM blind_credits bc
+        JOIN blind_stage_sets bss ON bss.id = bc.blind_set_id
+        WHERE bss.phase = 'custom-1787763963436'
+      )
+    `);
+  }
 
   // sens: per-stage varying in-game sensitivity, added when mouse DPI was
   // locked at 1600 permanently (2026-08-08) in favor of testing finer sens

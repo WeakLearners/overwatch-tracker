@@ -9,6 +9,12 @@
 // own per-match dpi (the hidden variable), passed explicitly below.
 export const MOUSE_DPI = 1600;
 
+// Hard usability floor for in-game sens in any test bracket — Sean's call, not
+// a data-derived value. Below this it feels sluggish/unplayable to him
+// ("swimming in mud"), so no test set should ever ask him to play a stage
+// below it, regardless of what a curve fit might suggest.
+export const MIN_SENS = 2.5;
+
 // Overwatch yaw constant: degrees of in-game turn per mouse count at sens 1.
 const OW_YAW = 0.0066;
 
