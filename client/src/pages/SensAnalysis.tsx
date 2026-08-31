@@ -1,6 +1,6 @@
 import {
   ResponsiveContainer, ScatterChart, Scatter, LabelList,
-  ComposedChart, Bar,
+  ComposedChart, Bar, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ReferenceArea,
 } from 'recharts';
 import { useApi } from '../hooks/useApi';
@@ -13,6 +13,7 @@ interface ScaleRow {
   avgOverall: number | null; avgCrit: number | null;
   avgFeel: number | null; avgDelta: number | null; winRate: number | null;
   min: number | null; q1: number | null; median: number | null; q3: number | null; max: number | null;
+  absorbedN: number; distinctDates: number; dateSpanDays: number;
 }
 interface Bucket {
   bucket: string; n: number;
@@ -23,6 +24,10 @@ interface CurveFit {
   optimalSens: number | null; predictedDelta: number | null;
   hasInteriorPeak: boolean; inRange: boolean;
   testedSensMin: number; testedSensMax: number;
+  a: number; b: number; c: number;
+}
+interface TimelinePoint {
+  date: string; hero: string; win: 0 | 1; eDPI: number; cm360: number; delta: number;
 }
 interface HeroRow {
   hero: string; archetype: string; n: number;
@@ -34,6 +39,7 @@ interface HeroRow {
 }
 interface Analysis {
   summary: { n: number; distinctScale: number; lastUpdated: string | null };
+  timeline: TimelinePoint[];
   byScale: ScaleRow[];
   overallCurveFit: CurveFit | null;
   byArchetype: { hitscan: ScaleRow[]; projectile: ScaleRow[] };
@@ -95,8 +101,8 @@ function QuadrantTooltip({ active, payload }: { active?: boolean; payload?: { pa
     <div style={{ background: 'rgb(var(--ow-card))', border: '1px solid rgb(var(--ow-border))', borderRadius: 8, fontSize: 12, padding: '6px 10px' }}>
       <div style={{ fontWeight: 700 }}>{p.sensAt1600.toFixed(2)} sens @ {MOUSE_DPI} DPI</div>
       <div>Felt speed: <b style={{ fontWeight: 700 }}>{f1(p.avgFeel)}</b>/100</div>
-      <div>Accuracy Δ: <b style={{ fontWeight: 700 }}>{signed(p.avgDelta)}</b></div>
-      <div style={{ opacity: 0.7 }}>n=<b style={{ fontWeight: 700 }}>{p.n}</b></div>
+      <div>Accuracy vs. your average: <b style={{ fontWeight: 700 }}>{signed(p.avgDelta)}</b></div>
+      <div style={{ opacity: 0.7 }}>{p.n} game{p.n === 1 ? '' : 's'}</div>
     </div>
   );
 }
@@ -111,8 +117,8 @@ function SpreadTooltip({ active, payload }: { active?: boolean; payload?: { payl
     <div style={{ background: 'rgb(var(--ow-card))', border: '1px solid rgb(var(--ow-border))', borderRadius: 8, fontSize: 12, padding: '6px 10px' }}>
       <div style={{ fontWeight: 700 }}>{p.label}{p.archetype ? ` (${p.archetype})` : ''}</div>
       <div><b style={{ fontWeight: 700 }}>{p.sens.toFixed(2)}</b> sens @ {MOUSE_DPI} DPI</div>
-      <div>Accuracy: <b style={{ fontWeight: 700 }}>{f1(p.raw)}</b>% (<b style={{ fontWeight: 700 }}>{signed(p.delta)}</b> vs. baseline)</div>
-      <div style={{ opacity: 0.7 }}>n=<b style={{ fontWeight: 700 }}>{p.n}</b></div>
+      <div>Accuracy: <b style={{ fontWeight: 700 }}>{f1(p.raw)}</b>% (<b style={{ fontWeight: 700 }}>{signed(p.delta)}</b> vs. your average)</div>
+      <div style={{ opacity: 0.7 }}>{p.n} game{p.n === 1 ? '' : 's'}</div>
     </div>
   );
 }
@@ -126,6 +132,38 @@ const sensAt1600 = (r: { eDPI: number }) => r.eDPI / MOUSE_DPI;
 const fmtScale = (r: { eDPI: number }) => `${sensAt1600(r).toFixed(2)} sens (@${MOUSE_DPI} DPI)`;
 function bySpeed<T extends { eDPI: number }>(rows: T[]): (T & { sensAt1600: number })[] {
   return rows.map(r => ({ ...r, sensAt1600: sensAt1600(r) })).sort((a, b) => a.sensAt1600 - b.sensAt1600);
+}
+
+interface TimelineChartPoint extends TimelinePoint {
+  index: number; sensAt1600: number; rollingDelta: number | null;
+}
+
+// Chronological feed -> chart-ready points: adds a sequential index (evenly
+// spaced x-axis, so a burst of same-day games doesn't compress into an
+// unreadable cluster the way a real date axis would) and a trailing rolling
+// average of delta, so a secular drift (e.g. practice effect improving
+// accuracy independent of scale) is visible as a trend line under the noisy
+// per-match points instead of only showing up as a scale-vs-scale artifact.
+const TIMELINE_WINDOW = 8;
+function buildTimelineChartData(timeline: TimelinePoint[]): TimelineChartPoint[] {
+  return timeline.map((p, i) => {
+    const windowSlice = timeline.slice(Math.max(0, i - TIMELINE_WINDOW + 1), i + 1);
+    const rollingDelta = windowSlice.length >= 3 ? mean(windowSlice.map(w => w.delta)) : null;
+    return { ...p, index: i, sensAt1600: p.eDPI / MOUSE_DPI, rollingDelta };
+  });
+}
+const mean = (xs: number[]): number => xs.reduce((a, b) => a + b, 0) / xs.length;
+
+// Samples the fitted quadratic (y = a*x^2 + b*x + c) across the tested sens
+// range so it can be drawn as a smooth Line instead of just reporting its
+// vertex in a table.
+function buildCurveLine(fit: CurveFit, steps = 40): { x: number; y: number }[] {
+  const { a, b, c, testedSensMin: xMin, testedSensMax: xMax } = fit;
+  if (xMax <= xMin) return [{ x: xMin, y: a * xMin * xMin + b * xMin + c }];
+  return Array.from({ length: steps + 1 }, (_, i) => {
+    const x = xMin + ((xMax - xMin) * i) / steps;
+    return { x: Math.round(x * 1000) / 1000, y: a * x * x + b * x + c };
+  });
 }
 
 // Card wrapper with a title and one-line explanation of how to read it.
@@ -143,25 +181,62 @@ const axisStyle = { fontSize: 11, fill: 'var(--faint)' };
 
 const RELIABLE_N = 4;
 const CONFIDENT_N = 8;
+// Distinct tested scales required before a curve fit's R² gets the confident
+// "good" tone — a 3-point quadratic has 3 free parameters, so it can hit a
+// high R² on degrees-of-freedom alone at the threshold where it's least
+// trustworthy, not because it detected real curvature.
+const CONFIDENT_SCALES = 5;
+// Percentage-point accuracy-delta gap treated as "meaningfully worse," not
+// noise — shared between the Recommendation card's "clearly worse" call and
+// the Insights "weakest reliable scale" callout so both use the same bar.
+const MEANINGFUL_DELTA_GAP = 1.5;
 
 // One color per hero, assigned by a stable hash of the hero's name (not
-// array position) so a hero keeps its color across reloads even as the
-// roster of tested heroes grows or its sort order shifts.
-const HERO_COLORS = ['#f59e0b', '#14b8a6', '#f43f5e', '#84cc16', '#06b6d4', '#d946ef', '#f97316', '#6366f1', '#10b981', '#0ea5e9'];
+// array position, so a hero keeps its color across reloads) via a
+// golden-angle hue step — degrades gracefully as the roster of tested heroes
+// grows, unlike a fixed-size palette + modulo, which silently assigns two
+// unrelated heroes the same color once the roster exceeds the palette size.
 const heroColor = (hero: string): string => {
   let hash = 0;
   for (let i = 0; i < hero.length; i++) hash = (hash * 31 + hero.charCodeAt(i)) >>> 0;
-  return HERO_COLORS[hash % HERO_COLORS.length];
+  const hue = (hash * 137.508) % 360;
+  return `hsl(${hue.toFixed(1)}, 65%, 55%)`;
 };
 
-// Same stable-hash approach as heroColor, keyed on the sens label instead —
-// the by-hero grouped chart colors its boxes by scale, not by hero.
-const SCALE_COLORS = ['#0ea5e9', '#f43f5e', '#84cc16', '#d946ef', '#f59e0b', '#14b8a6', '#6366f1', '#f97316', '#10b981', '#06b6d4'];
-const scaleColor = (label: string): string => {
-  let hash = 0;
-  for (let i = 0; i < label.length; i++) hash = (hash * 31 + label.charCodeAt(i)) >>> 0;
-  return SCALE_COLORS[hash % SCALE_COLORS.length];
-};
+// Same stable-hash/golden-angle scheme as heroColor, keyed on the scale
+// instead of the hero — used only by the timeline chart's per-point coloring.
+const scaleColor = (cm360: number): string => heroColor(cm360.toFixed(1));
+
+const fmtDate = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+// Tooltip for the Accuracy Over Time chart — identifies a point by date, hero
+// and scale, none of which either axis (index, delta) carries on its own.
+function TimelineTooltip({ active, payload }: { active?: boolean; payload?: { payload: TimelineChartPoint }[] }) {
+  if (!active || !payload?.length) return null;
+  const p = payload[0].payload;
+  return (
+    <div style={{ background: 'rgb(var(--ow-card))', border: '1px solid rgb(var(--ow-border))', borderRadius: 8, fontSize: 12, padding: '6px 10px' }}>
+      <div style={{ fontWeight: 700 }}>{fmtDate(p.date)} · {p.hero}</div>
+      <div><b style={{ fontWeight: 700 }}>{p.sensAt1600.toFixed(2)}</b> sens @ {MOUSE_DPI} DPI</div>
+      <div>Accuracy vs. your average: <b style={{ fontWeight: 700 }}>{signed(p.delta)}</b>{p.win ? ' · win' : ' · loss'}</div>
+      {p.rollingDelta != null && <div style={{ opacity: 0.7 }}>Recent trend ({TIMELINE_WINDOW} games): <b style={{ fontWeight: 700 }}>{signed(p.rollingDelta)}</b></div>}
+    </div>
+  );
+}
+
+// Tooltip for the fitted-curve chart — a sampled curve point carries no
+// tested-n, so distinguish it in the readout from an actual tested scale.
+function CurveTooltip({ active, payload }: { active?: boolean; payload?: { payload: { x: number; y: number; n?: number; isFit?: boolean } }[] }) {
+  if (!active || !payload?.length) return null;
+  const p = payload[0].payload;
+  return (
+    <div style={{ background: 'rgb(var(--ow-card))', border: '1px solid rgb(var(--ow-border))', borderRadius: 8, fontSize: 12, padding: '6px 10px' }}>
+      <div style={{ fontWeight: 700 }}>{p.x.toFixed(2)} sens @ {MOUSE_DPI} DPI</div>
+      <div>{p.n != null ? 'Actual result' : 'Estimated'}: <b style={{ fontWeight: 700 }}>{signed(p.y)}</b> vs. your average</div>
+      {p.n != null && <div style={{ opacity: 0.7 }}>{p.n} game{p.n === 1 ? '' : 's'}</div>}
+    </div>
+  );
+}
 
 interface HeroBoxStats { min: number; q1: number; median: number; q3: number; max: number; n: number }
 interface HeroBoxRow { cm360: number; label: string; sensAt1600: number; heroes: Record<string, HeroBoxStats | undefined> }
@@ -200,8 +275,8 @@ function HeroBoxTooltip({ active, payload, label }: { active?: boolean; payload?
       {entries.map(e => (
         <div key={e.hero} style={{ marginTop: 4 }}>
           <div style={{ fontWeight: 600, color: heroColor(e.hero), textTransform: 'uppercase', letterSpacing: '0.02em' }}>{e.hero}</div>
-          <div>Median <b style={{ fontWeight: 700 }}>{f1(e.stats.median)}</b>% (Q1 <b style={{ fontWeight: 700 }}>{f1(e.stats.q1)}</b> · Q3 <b style={{ fontWeight: 700 }}>{f1(e.stats.q3)}</b>)</div>
-          <div style={{ opacity: 0.7 }}>Range <b style={{ fontWeight: 700 }}>{f1(e.stats.min)}</b>–<b style={{ fontWeight: 700 }}>{f1(e.stats.max)}</b>% · n=<b style={{ fontWeight: 700 }}>{e.stats.n}</b></div>
+          <div>Typical <b style={{ fontWeight: 700 }}>{f1(e.stats.median)}</b>% (middle half between <b style={{ fontWeight: 700 }}>{f1(e.stats.q1)}</b>–<b style={{ fontWeight: 700 }}>{f1(e.stats.q3)}</b>%)</div>
+          <div style={{ opacity: 0.7 }}>Range <b style={{ fontWeight: 700 }}>{f1(e.stats.min)}</b>–<b style={{ fontWeight: 700 }}>{f1(e.stats.max)}</b>% · {e.stats.n} game{e.stats.n === 1 ? '' : 's'}</div>
         </div>
       ))}
     </div>
@@ -238,72 +313,6 @@ function heroBoxShape(hero: string) {
   };
 }
 
-interface ScaleBoxRow { hero: string; label: string; scales: Record<string, HeroBoxStats | undefined> }
-
-// Pivots the same per-hero, per-scale stats as buildHeroBoxRows, but the
-// other way around — one row per hero, each carrying whichever sens scales
-// it was actually tested at (2+ games), for a chart clustered by hero.
-function buildScaleBoxRows(data: Analysis): ScaleBoxRow[] {
-  return data.heroes.map(h => {
-    const scalesAtHero: Record<string, HeroBoxStats | undefined> = {};
-    for (const s of h.scales) {
-      if (s.n >= 2 && s.min != null && s.q1 != null && s.median != null && s.q3 != null && s.max != null) {
-        scalesAtHero[fmtScale(s)] = { min: s.min, q1: s.q1, median: s.median, q3: s.q3, max: s.max, n: s.n };
-      }
-    }
-    return { hero: h.hero, label: h.hero, scales: scalesAtHero };
-  });
-}
-
-// Mirror of HeroBoxTooltip — same lookup, but each series is a sens scale
-// rather than a hero.
-function ScaleBoxTooltip({ active, payload, label }: { active?: boolean; payload?: { name?: string; payload: ScaleBoxRow }[]; label?: string }) {
-  if (!active || !payload?.length) return null;
-  const row = payload[0].payload;
-  const entries = payload
-    .map(p => ({ scale: p.name ?? '', stats: row.scales[p.name ?? ''] }))
-    .filter((e): e is { scale: string; stats: HeroBoxStats } => e.stats != null);
-  if (!entries.length) return null;
-  return (
-    <div style={{ background: 'rgb(var(--ow-card))', border: '1px solid rgb(var(--ow-border))', borderRadius: 8, fontSize: 12, padding: '6px 10px' }}>
-      <div style={{ fontWeight: 600 }}>{label}</div>
-      {entries.map(e => (
-        <div key={e.scale} style={{ marginTop: 4 }}>
-          <div style={{ fontWeight: 600, color: scaleColor(e.scale) }}>{e.scale}</div>
-          <div>Median <b style={{ fontWeight: 700 }}>{f1(e.stats.median)}</b>% (Q1 <b style={{ fontWeight: 700 }}>{f1(e.stats.q1)}</b> · Q3 <b style={{ fontWeight: 700 }}>{f1(e.stats.q3)}</b>)</div>
-          <div style={{ opacity: 0.7 }}>Range <b style={{ fontWeight: 700 }}>{f1(e.stats.min)}</b>–<b style={{ fontWeight: 700 }}>{f1(e.stats.max)}</b>% · n=<b style={{ fontWeight: 700 }}>{e.stats.n}</b></div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// Mirror of heroBoxShape — same box/whisker geometry, keyed by scale label
-// against row.scales instead of by hero against row.heroes.
-function scaleBoxShape(label: string) {
-  return (props: any) => {
-    const stats: HeroBoxStats | undefined = props.payload?.scales?.[label];
-    if (!stats) return <g />;
-    const { x, y, width, height } = props;
-    const color = scaleColor(label);
-    const pxPerUnit = stats.q3 !== stats.q1 ? height / (stats.q3 - stats.q1) : 0;
-    const yFor = (v: number) => y + (stats.q3 - v) * pxPerUnit;
-    const cx = x + width / 2;
-    const capHalf = width * 0.3;
-    const boxH = Math.max(height, 1);
-    return (
-      <g>
-        <line x1={cx} x2={cx} y1={yFor(stats.min)} y2={yFor(stats.q1)} stroke={color} strokeWidth={1.5} />
-        <line x1={cx} x2={cx} y1={yFor(stats.q3)} y2={yFor(stats.max)} stroke={color} strokeWidth={1.5} />
-        <line x1={cx - capHalf} x2={cx + capHalf} y1={yFor(stats.min)} y2={yFor(stats.min)} stroke={color} strokeWidth={1.5} />
-        <line x1={cx - capHalf} x2={cx + capHalf} y1={yFor(stats.max)} y2={yFor(stats.max)} stroke={color} strokeWidth={1.5} />
-        <rect x={x} y={y} width={width} height={boxH} fill={color} fillOpacity={0.3} stroke={color} strokeWidth={1.5} rx={2} />
-        <line x1={x} x2={x + width} y1={yFor(stats.median)} y2={yFor(stats.median)} stroke={color} strokeWidth={2.5} />
-      </g>
-    );
-  };
-}
-
 interface Recommendation {
   verdict: 'continue' | 'narrow';
   headline: string;
@@ -315,7 +324,7 @@ interface Recommendation {
 // the edge of what's been tried (no bracketed peak yet), is still thin (n <
 // CONFIDENT_N), or is only narrowly ahead of a runner-up. "Narrow" only fires
 // once a scale is beaten on both sides by worse-but-reliable neighbors.
-function buildRecommendation(data: Analysis): Recommendation {
+function buildRecommendation(data: Analysis, spread: SensSpread): Recommendation {
   const reliable = bySpeed(data.byScale.filter(r => r.n >= RELIABLE_N)); // ascending: slowest -> fastest
 
   if (reliable.length < 3) {
@@ -323,7 +332,7 @@ function buildRecommendation(data: Analysis): Recommendation {
       verdict: 'continue',
       headline: 'Not enough tested scales yet to recommend a DPI.',
       points: [
-        `Only ${reliable.length} scale${reliable.length === 1 ? '' : 's'} ${reliable.length === 1 ? 'has' : 'have'} n≥${RELIABLE_N} logged games — spread more reps across scales before narrowing in.`,
+        `Only ${reliable.length} scale${reliable.length === 1 ? '' : 's'} ${reliable.length === 1 ? 'has' : 'have'} ${RELIABLE_N}+ logged games — spread more reps across scales before narrowing in.`,
       ],
     };
   }
@@ -338,27 +347,42 @@ function buildRecommendation(data: Analysis): Recommendation {
 
   if (isSlowEdge || isFastEdge) {
     points.push(
-      `That's the ${isFastEdge ? 'fastest' : 'slowest'} scale you've tried — you haven't bracketed a peak yet. Try a ${isFastEdge ? 'higher' : 'lower'} DPI stage in your next test set to see whether it keeps improving or turns over.`,
+      `That's the ${isFastEdge ? 'fastest' : 'slowest'} scale you've tried — you don't know yet if it's actually the best, or just the best of what you've tried so far. Try a ${isFastEdge ? 'higher' : 'lower'} DPI stage in your next test set to see whether it keeps improving or starts getting worse.`,
     );
   }
 
   if (best.n < CONFIDENT_N) {
-    points.push(`Only n=${best.n} games on it so far — above the noise floor but still thin. A few more reps would firm it up.`);
+    points.push(`Only ${best.n} games on it so far — enough to take seriously, but still thin. A few more would help confirm it.`);
   }
 
   const runnerUp = [...reliable].filter(r => r !== best).sort((a, b) => (b.avgDelta ?? -Infinity) - (a.avgDelta ?? -Infinity))[0];
   const gap = runnerUp ? (best.avgDelta ?? 0) - (runnerUp.avgDelta ?? 0) : Infinity;
   if (runnerUp && gap < 2) {
     points.push(
-      `${fmtScale(runnerUp)} is close behind at ${signed(runnerUp.avgDelta)}% (n=${runnerUp.n}) — not clearly worse yet, worth keeping in the rotation.`,
+      `${fmtScale(runnerUp)} is close behind at ${signed(runnerUp.avgDelta)}% (${runnerUp.n} games) — not clearly worse yet, worth keeping in the rotation.`,
     );
   }
 
-  const clearlyWorse = reliable.filter(r => r !== best && r !== runnerUp && (r.avgDelta ?? 0) < -1.5 && r.n >= CONFIDENT_N);
+  const clearlyWorse = reliable.filter(r => r !== best && r !== runnerUp && (r.avgDelta ?? 0) < -MEANINGFUL_DELTA_GAP && r.n >= CONFIDENT_N);
   if (clearlyWorse.length > 0) {
     points.push(
       `${clearlyWorse.map(r => fmtScale(r)).join(', ')} ${clearlyWorse.length === 1 ? 'has' : 'have'} enough reps to call ${clearlyWorse.length === 1 ? 'it' : 'them'} clearly worse (${clearlyWorse.map(r => signed(r.avgDelta)).join(', ')}) — safe to drop from the rotation.`,
     );
+  }
+
+  // Hero-level peaks genuinely diverging (spread.verdict === 'scattered')
+  // contradicts converging on one pooled DPI — never claim "narrow focus"
+  // while that's true, no matter how confident the pooled numbers alone
+  // would otherwise look.
+  if (spread.verdict === 'scattered') {
+    points.unshift(
+      `${spread.headline} A single pooled DPI may not fit every hero yet — see "Peak Sens by Category" below before committing.`,
+    );
+    return {
+      verdict: 'continue',
+      headline: `No single best DPI yet — heroes are peaking at different scales. Overall best guess is ${fmtScale(best)} (${signed(best.avgDelta)}%, ${best.n} games), but treat it as provisional.`,
+      points,
+    };
   }
 
   const verdict: 'continue' | 'narrow' =
@@ -370,7 +394,7 @@ function buildRecommendation(data: Analysis): Recommendation {
 
   return {
     verdict,
-    headline: `Best guess right now: ${fmtScale(best)} (tested at DPI ${dpi}) — ${signed(best.avgDelta)}% vs. baseline, n=${best.n}.`,
+    headline: `Best guess right now: ${fmtScale(best)} (tested at DPI ${dpi}) — ${signed(best.avgDelta)}% vs. your average, over ${best.n} games.`,
     points,
   };
 }
@@ -497,11 +521,11 @@ function buildInsights(data: Analysis, heroCounts: Record<string, number>): stri
     // accuracy-best scale so a disagreement between them doesn't get buried.
     if (bestByWin.winRate != null) {
       notes.push(
-        `Your highest win rate is at ${fmtScale(bestByWin)} — ${f1(bestByWin.winRate)}% (n=${bestByWin.n}).`,
+        `Your highest win rate is at ${fmtScale(bestByWin)} — ${f1(bestByWin.winRate)}% (${bestByWin.n} games).`,
       );
       if (bestByWin.cm360 !== bestByData.cm360) {
         notes.push(
-          `That's a different scale than your top performer by accuracy (${fmtScale(bestByData)}, ${signed(bestByData.avgDelta)}% vs. baseline) — win rate and accuracy aren't pointing the same way yet, so treat both as provisional until more games narrow it down.`,
+          `That's a different scale than your top performer by accuracy (${fmtScale(bestByData)}, ${signed(bestByData.avgDelta)}% vs. your average) — win rate and accuracy aren't pointing the same way yet, so treat both as provisional until more games narrow it down.`,
         );
       }
     }
@@ -512,17 +536,22 @@ function buildInsights(data: Analysis, heroCounts: Record<string, number>): stri
     // it as a correction ("feeling fast isn't the same as performing well"),
     // never as a virtue in its own right.
     notes.push(
-      `Your best performer by accuracy is ${fmtScale(bestByData)} (${signed(bestByData.avgDelta)}% vs. baseline, n=${bestByData.n}), which felt ${f1(bestByData.avgFeel)}/100 for speed — accuracy peaks at the scale that's right for you, not at whichever end of the speed range you tested.`,
+      `Your best performer by accuracy is ${fmtScale(bestByData)} (${signed(bestByData.avgDelta)}% vs. your average, over ${bestByData.n} games), which felt ${f1(bestByData.avgFeel)}/100 for speed — accuracy peaks at the scale that's right for you, not at whichever end of the speed range you tested.`,
     );
     if (fastestFeel.cm360 !== bestByData.cm360 && fastestFeel.avgFeel != null) {
       notes.push(
-        `${fmtScale(fastestFeel)} felt fastest to you (${f1(fastestFeel.avgFeel)}/100), but it isn't your top performer (${signed(fastestFeel.avgDelta)}% vs. baseline, n=${fastestFeel.n}) — feeling fast doesn't mean it's the right sens.`,
+        `${fmtScale(fastestFeel)} felt fastest to you (${f1(fastestFeel.avgFeel)}/100), but it isn't your top performer (${signed(fastestFeel.avgDelta)}% vs. your average, ${fastestFeel.n} games) — feeling fast doesn't mean it's the right sens.`,
       );
     }
 
-    if (worst.cm360 !== bestByData.cm360) {
+    // Only call out a "weakest" scale once its gap from the best performer
+    // clears the same bar the Recommendation card uses to call a scale
+    // "clearly worse" — otherwise this fires for any different bucket, even
+    // one that's not really distinguishable from the best.
+    const worstGap = (bestByData.avgDelta ?? 0) - (worst.avgDelta ?? 0);
+    if (worst.cm360 !== bestByData.cm360 && worstGap >= MEANINGFUL_DELTA_GAP) {
       notes.push(
-        `Weakest reliable scale: ${fmtScale(worst)} runs ${signed(worst.avgDelta)}% vs. baseline — felt speed ${f1(worst.avgFeel)}/100, n=${worst.n}.`,
+        `Weakest scale with enough games to trust: ${fmtScale(worst)} runs ${signed(worst.avgDelta)}% vs. your average — felt speed ${f1(worst.avgFeel)}/100, ${worst.n} games.`,
       );
     }
   }
@@ -646,14 +675,39 @@ export default function SensAnalysis() {
   const feelYDomain = centeredDomain(feelPts.map(r => r.avgDelta), meanDelta);
 
   const insights = buildInsights(data, heroCounts);
-  const recommendation = buildRecommendation(data);
+  const recommendation = buildRecommendation(data, spread);
+
+  // Accuracy Over Time: chronological feed, not aggregated by scale — every
+  // other chart on this page loses time order by aggregating, so a secular
+  // drift (e.g. a practice effect improving accuracy independent of which
+  // scale is active) would otherwise be invisible.
+  const timelineData = buildTimelineChartData(data.timeline);
+  const timelineScales = [...new Set(timelineData.map(p => p.cm360))].sort((a, b) => a - b);
+  const timelineDeltaVals = timelineData.map(p => p.delta);
+  const timelineYDomain: [number, number] = timelineDeltaVals.length
+    ? (() => {
+        const lo = Math.min(0, ...timelineDeltaVals);
+        const hi = Math.max(0, ...timelineDeltaVals);
+        const pad = (hi - lo) * 0.1 || 1;
+        return [lo - pad, hi + pad];
+      })()
+    : [-1, 1];
+  // One tick per ~6 points, so the date axis stays readable regardless of
+  // how many matches have been logged.
+  const timelineTickEvery = Math.max(1, Math.ceil(timelineData.length / 8));
+  const timelineTicks = timelineData.filter((_, i) => i % timelineTickEvery === 0).map(p => p.index);
+
+  // Curve Fit chart: sample the fitted quadratic across the tested range and
+  // overlay the actual tested (sens, avgDelta) points it was fit through.
+  const curveLine = data.overallCurveFit ? buildCurveLine(data.overallCurveFit) : null;
+  const curveTestedPts = bySpeed(byScale.filter(r => r.avgDelta != null)).map(r => ({ x: r.sensAt1600, y: r.avgDelta as number, n: r.n }));
 
   return wrap(
     <div className="space-y-6">
       <p className="text-xs text-[var(--faint)]" data-inspect-id="sensAnalysis-summary-banner">
         <span className="text-[var(--ink)] font-bold">{summary.n}</span> logged matches across{' '}
-        <span className="text-[var(--ink)] font-bold" data-inspect-id="sensAnalysis-summary-line">{summary.distinctScale}</span> distinct sens (@{MOUSE_DPI} DPI) scales.
-        Accuracy is shown as a delta vs. your own average on each hero, so heroes mix fairly.
+        <span className="text-[var(--ink)] font-bold" data-inspect-id="sensAnalysis-summary-line">{summary.distinctScale}</span> different sens (@{MOUSE_DPI} DPI) scales.
+        Accuracy is shown as how far above or below your own average you did on each hero, so heroes compare fairly.
         <br />
         <span className="text-[var(--faint-2)]">
           {fmtUpdated(summary.lastUpdated) ? `Last updated ${fmtUpdated(summary.lastUpdated)}` : 'Not yet updated'} —
@@ -662,10 +716,10 @@ export default function SensAnalysis() {
       </p>
 
       <p className="text-xs text-[var(--faint)] rounded-lg bg-ow-darker border border-ow-border px-3 py-2" data-inspect-id="sensAnalysis-standard-of-measure-banner">
-        <span className="text-[var(--ink)] font-semibold">Standard of measure:</span> every scale on this page is
+        <span className="text-[var(--ink)] font-semibold">How scales are shown:</span> every scale on this page is
         shown as <span className="text-[var(--ink)]">in-game sens at {MOUSE_DPI} DPI</span> (eDPI ÷ {MOUSE_DPI}), not
-        cm/360 or the raw DPI tested. DPI is the varied test variable, and the mouse settles back at {MOUSE_DPI} DPI
-        once you commit to a result, so this is the number you'd actually dial in.
+        cm/360 or the raw DPI tested. DPI is what's actually being varied in testing, and your mouse settles back at
+        {MOUSE_DPI} DPI once you commit to a result — so this is the number you'd actually dial in.
       </p>
 
       {/* DPI recommendation + continue-vs-narrow call */}
@@ -706,7 +760,7 @@ export default function SensAnalysis() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Section
           title="Feel vs. Data"
-          hint={`Each dot is a tested scale, placed by how fast it felt (x) against how it actually performed (y). The crosshair sits at your own averages, so the four quadrants split above/below-average feel × above/below-average accuracy. Bottom-right = feels fast but aims worse than average (gut over-rates it); top-left = feels slow but aims better (underrated).`}
+          hint={`Each dot is a tested scale — how fast it felt (left/right) against how well you actually did (up/down). The crosshair marks your own averages. Bottom-right = feels fast but aims worse than usual (it's over-rated); top-left = feels slow but aims better (it's under-rated).`}
           dataInspectId="sensAnalysis-feel-vs-data-card"
         >
           <div className="flex gap-2">
@@ -719,7 +773,7 @@ export default function SensAnalysis() {
                 <ScatterChart data={feelPts} margin={{ top: 12, right: 12, bottom: 4, left: 0 }}>
                   <CartesianGrid stroke="rgb(var(--ow-border))" />
                   <XAxis type="number" dataKey="avgFeel" name="Felt speed" domain={feelXDomain} tick={false} tickLine={false} axisLine={false} />
-                  <YAxis type="number" dataKey="avgDelta" name="Accuracy Δ" domain={feelYDomain} tick={false} tickLine={false} axisLine={false} width={4} />
+                  <YAxis type="number" dataKey="avgDelta" name="Accuracy vs. avg" domain={feelYDomain} tick={false} tickLine={false} axisLine={false} width={4} />
                   <Tooltip content={<QuadrantTooltip />} cursor={{ strokeDasharray: '3 3' }} />
                   <ReferenceLine x={meanFeel} stroke="var(--faint-2)" strokeDasharray="4 4" />
                   <ReferenceLine y={meanDelta} stroke="var(--faint-2)" strokeDasharray="4 4" />
@@ -779,7 +833,7 @@ export default function SensAnalysis() {
                   {spread.baseline != null && (
                     <ReferenceLine
                       y={spread.baseline} stroke="var(--faint-2)" strokeDasharray="4 4"
-                      label={{ value: `Baseline ${f1(spread.baseline)}%`, position: 'insideBottomLeft', fill: 'var(--faint)', fontSize: 10 }}
+                      label={{ value: `Your average: ${f1(spread.baseline)}%`, position: 'insideBottomLeft', fill: 'var(--faint)', fontSize: 10 }}
                     />
                   )}
                   {/* Drop line from each point down to the baseline, so its
@@ -815,6 +869,52 @@ export default function SensAnalysis() {
         </Section>
       </div>
 
+      {/* Accuracy Over Time — chronological, not aggregated by scale, so a
+          secular drift (practice effect) shows up as a trend independent of
+          whichever scale happens to be active. */}
+      <Section
+        title="Accuracy Over Time"
+        hint={`Every logged point in the order it was played (not grouped by scale) — color marks which scale (@${MOUSE_DPI} DPI sens) was active. The dashed line is a trailing ${TIMELINE_WINDOW}-game average: if it drifts up over the whole study regardless of color, that's practice improving your aim, not any one scale winning.`}
+        dataInspectId="sensAnalysis-accuracy-over-time-chart"
+      >
+        {timelineData.length >= 3 ? (
+          <>
+            <ResponsiveContainer width="100%" height={280}>
+              <ComposedChart data={timelineData} margin={{ top: 12, right: 16, bottom: 4, left: 0 }}>
+                <CartesianGrid stroke="rgb(var(--ow-border))" strokeOpacity={0.5} strokeDasharray="3 3" vertical={false} />
+                <XAxis
+                  dataKey="index" type="number" domain={[0, timelineData.length - 1]} ticks={timelineTicks}
+                  tickFormatter={(i: number) => fmtDate(timelineData[i]?.date ?? '')}
+                  tick={axisStyle} tickLine={{ stroke: 'rgb(var(--ow-border))' }} axisLine={{ stroke: 'rgb(var(--ow-border))' }}
+                />
+                <YAxis
+                  domain={timelineYDomain} tick={axisStyle} tickLine={{ stroke: 'rgb(var(--ow-border))' }} axisLine={{ stroke: 'rgb(var(--ow-border))' }} width={40}
+                  label={{ value: 'Accuracy vs. avg', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: 'var(--faint)', fontSize: 11 } }}
+                />
+                <Tooltip content={<TimelineTooltip />} cursor={{ strokeDasharray: '3 3' }} />
+                <ReferenceLine y={0} stroke="var(--faint-2)" strokeDasharray="4 4" />
+                <Scatter
+                  dataKey="delta" isAnimationActive={false}
+                  shape={(props: any) => <circle cx={props.cx} cy={props.cy} r={3} fill={scaleColor(props.payload.cm360)} />}
+                />
+                <Line type="monotone" dataKey="rollingDelta" stroke={FEEL} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
+              </ComposedChart>
+            </ResponsiveContainer>
+            <div className="flex items-center gap-3 text-[10px] text-[var(--faint-2)] mt-2 flex-wrap">
+              {timelineScales.map(s => (
+                <span key={s} className="inline-flex items-center gap-1">
+                  <span className="inline-block w-2 h-2 rounded-full" style={{ background: scaleColor(s) }} />
+                  {timelineData.find(p => p.cm360 === s)?.sensAt1600.toFixed(2)} sens
+                </span>
+              ))}
+              <span className="inline-flex items-center gap-1"><span className="inline-block w-3 h-0.5" style={{ background: FEEL }} />{TIMELINE_WINDOW}-game trend</span>
+            </div>
+          </>
+        ) : (
+          <p className="text-xs text-[var(--faint)]">Not enough logged points yet to chart a timeline.</p>
+        )}
+      </Section>
+
       {/* Cold vs Warm + Adaptation */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Section title="Cold vs. Warm" hint="First game of a session vs. later ones — is a sens good from the jump, or only once warmed up?" dataInspectId="sensAnalysis-cold-warm-card">
@@ -823,7 +923,7 @@ export default function SensAnalysis() {
               <div key={b.bucket} className="rounded-lg bg-ow-darker border border-ow-border p-3">
                 <div className="text-[11px] text-[var(--faint)] mb-1">{b.bucket}</div>
                 <div className="text-2xl num-display text-[var(--ink)]">{f1(b.avgOverall)}<span className="text-xs text-[var(--faint)] ml-0.5">%</span></div>
-                <div className="text-[11px] text-[var(--faint-2)] mt-1 font-bold">Δ {signed(b.avgDelta)} · felt speed {f1(b.avgFeel)}/100 · n={b.n}</div>
+                <div className="text-[11px] text-[var(--faint-2)] mt-1 font-bold">{signed(b.avgDelta)} vs. avg · felt speed {f1(b.avgFeel)}/100 · {b.n} game{b.n === 1 ? '' : 's'}</div>
               </div>
             ))}
           </div>
@@ -835,7 +935,7 @@ export default function SensAnalysis() {
               <div key={b.bucket} className="rounded-lg bg-ow-darker border border-ow-border p-3">
                 <div className="text-[11px] text-[var(--faint)] mb-1">{b.bucket}</div>
                 <div className="text-2xl num-display text-[var(--ink)]">{f1(b.avgOverall)}<span className="text-xs text-[var(--faint)] ml-0.5">%</span></div>
-                <div className="text-[11px] text-[var(--faint-2)] mt-1 font-bold">Δ {signed(b.avgDelta)} · felt speed {f1(b.avgFeel)}/100 · n={b.n}</div>
+                <div className="text-[11px] text-[var(--faint-2)] mt-1 font-bold">{signed(b.avgDelta)} vs. avg · felt speed {f1(b.avgFeel)}/100 · {b.n} game{b.n === 1 ? '' : 's'}</div>
               </div>
             ))}
           </div>
@@ -843,13 +943,13 @@ export default function SensAnalysis() {
       </div>
 
       {/* Per-scale table */}
-      <Section title={`By Scale (sens @${MOUSE_DPI} DPI)`} hint={`Every tested scale, expressed as in-game sens at ${MOUSE_DPI} DPI, with its eDPI and averages. Win % is the actual match win rate at that scale — the outcome that matters, vs. accuracy which is a proxy for it. Δ is accuracy vs. your hero baseline. "Sens" is the raw in-game value actually used during testing (frozen across the DPI stage tests, since DPI was the varied variable).`} dataInspectId="sensAnalysis-by-scale-table">
+      <Section title={`By Scale (sens @${MOUSE_DPI} DPI)`} hint={`Every scale you've tested, shown as in-game sens at ${MOUSE_DPI} DPI, with its eDPI and averages. Win % is your actual win rate at that scale — what really matters, vs. accuracy which is just a stand-in for it. "vs. Avg" is accuracy compared to how you usually do. "Sens" is the raw in-game value used during testing (it stayed fixed while DPI changed between test stages).`} dataInspectId="sensAnalysis-by-scale-table">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
                 <th className="py-1.5 pr-3">{`Sens @${MOUSE_DPI}`}</th><th className="py-1.5 pr-3">eDPI</th><th className="py-1.5 pr-3">Sens</th><th className="py-1.5 pr-3">n</th>
-                <th className="py-1.5 pr-3">Win %</th><th className="py-1.5 pr-3">Overall</th><th className="py-1.5 pr-3">Crit</th><th className="py-1.5 pr-3">Felt speed</th><th className="py-1.5">Δ</th>
+                <th className="py-1.5 pr-3">Win %</th><th className="py-1.5 pr-3">Overall</th><th className="py-1.5 pr-3">Crit</th><th className="py-1.5 pr-3">Felt speed</th><th className="py-1.5">vs. Avg</th>
               </tr>
             </thead>
             <tbody className="font-bold">
@@ -858,7 +958,20 @@ export default function SensAnalysis() {
                   <td className="py-1.5 pr-3 text-[var(--ink)]">{r.sensAt1600.toFixed(2)}</td>
                   <td className="py-1.5 pr-3">{r.eDPI}</td>
                   <td className="py-1.5 pr-3">{r.sens}</td>
-                  <td className="py-1.5 pr-3">{r.n}</td>
+                  <td className="py-1.5 pr-3">
+                    {r.n}
+                    {r.absorbedN > 0 && (
+                      <span className="text-[10px] font-normal text-[var(--faint-2)] ml-1">({r.absorbedN} absorbed)</span>
+                    )}
+                    {r.n >= RELIABLE_N && r.dateSpanDays < 3 && (
+                      <span
+                        className="text-[10px] font-normal text-amber-600 dark:text-amber-400 ml-1"
+                        title="Tested mostly in one short window — may reflect that session more than a stable read"
+                      >
+                        ⚠
+                      </span>
+                    )}
+                  </td>
                   <td className="py-1.5 pr-3 text-[var(--ink)]">{f1(r.winRate)}%</td>
                   <td className="py-1.5 pr-3">{f1(r.avgOverall)}%</td>
                   <td className="py-1.5 pr-3">{f1(r.avgCrit)}%</td>
@@ -872,14 +985,14 @@ export default function SensAnalysis() {
       </Section>
 
       {/* By hero */}
-      <Section title="By Hero" hint={`Sample size per hero — thin rows are noise until they build up. Optimal Sens is the sens (@${MOUSE_DPI} DPI) scale where that hero's own accuracy peaks, with its n in parens — treat it as noise below n=${RELIABLE_N}. Δ Overall/Crit compare that scale's accuracy to the hero's own Overall/Crit average.`} dataInspectId="sensAnalysis-by-hero-table">
+      <Section title="By Hero" hint={`Games logged per hero — a small number here isn't trustworthy yet. Best Sens is the sens (@${MOUSE_DPI} DPI) where that hero's own accuracy is highest, with the game count in parens — treat it as unreliable below ${RELIABLE_N} games. "vs. Avg" columns compare that scale's accuracy to how the hero usually does.`} dataInspectId="sensAnalysis-by-hero-table">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
                 <th className="py-1.5 pr-3">Hero</th><th className="py-1.5 pr-3">Type</th><th className="py-1.5 pr-3">n</th>
-                <th className="py-1.5 pr-3">Win %</th><th className="py-1.5 pr-3">Overall</th><th className="py-1.5 pr-3">Crit</th><th className="py-1.5 pr-3">Optimal Sens</th>
-                <th className="py-1.5 pr-3">Δ Overall</th><th className="py-1.5">Δ Crit</th>
+                <th className="py-1.5 pr-3">Win %</th><th className="py-1.5 pr-3">Overall</th><th className="py-1.5 pr-3">Crit</th><th className="py-1.5 pr-3">Best Sens</th>
+                <th className="py-1.5 pr-3">Overall vs. Avg</th><th className="py-1.5">Crit vs. Avg</th>
               </tr>
             </thead>
             <tbody>
@@ -915,29 +1028,60 @@ export default function SensAnalysis() {
         const withFit = rows.filter(r => r.fit != null);
         const fitNote = (fit: CurveFit): { text: string; tone: 'good' | 'warn' | 'neutral' } => {
           if (!fit.hasInteriorPeak) {
-            return { text: 'No interior peak — accuracy keeps rising toward one edge of what you tested, not a hump in the middle. Test further past that edge.', tone: 'warn' };
+            return { text: 'Accuracy is still climbing toward one edge of what you’ve tested, not leveling off in the middle — try testing further past that edge.', tone: 'warn' };
           }
           if (!fit.inRange) {
-            return { text: `Fitted peak falls outside the tested range (${fit.testedSensMin.toFixed(2)}–${fit.testedSensMax.toFixed(2)}) — extrapolated, not observed. Treat as a direction to test toward, not a final answer.`, tone: 'warn' };
+            return { text: `The estimated best sens falls outside what you’ve actually tested (${fit.testedSensMin.toFixed(2)}–${fit.testedSensMax.toFixed(2)}) — it’s a guess based on the trend, not something you’ve tried. Treat it as a direction to test toward, not a final answer.`, tone: 'warn' };
           }
-          if (fit.r2 >= 0.5 && fit.totalN >= CONFIDENT_N) {
-            return { text: `Fits the tested points well (R²=${fit.r2.toFixed(2)}) with enough games behind it — a reasonably solid read.`, tone: 'good' };
+          if (fit.r2 >= 0.5 && fit.totalN >= CONFIDENT_N && fit.points >= CONFIDENT_SCALES) {
+            return { text: `Fits your results well, and you’ve logged enough games and scales behind it — a reasonably solid guess.`, tone: 'good' };
           }
-          return { text: `R²=${fit.r2.toFixed(2)} on ${fit.totalN} games across ${fit.points} scales — a rough curve, still thin. Keep logging.`, tone: 'neutral' };
+          return { text: `Only ${fit.totalN} games across ${fit.points} scales so far — a rough guess, still thin. Keep logging.`, tone: 'neutral' };
         };
         return (
           <Section
-            title="Curve Fit — Best-Guess Optimal Sens"
-            hint="A quadratic curve fit through each category's tested scales (accuracy delta vs. sens, weighted by games logged), solved for its vertex — a continuous best-guess optimum rather than just whichever tested point scored best. Needs 3+ distinct tested scales to fit at all."
+            title="Estimated Sweet Spot"
+            hint="Draws a smooth curve through each category's tested scales to guess where accuracy actually peaks, instead of just picking whichever tested scale happened to score best. Needs at least 3 different tested scales to draw a curve at all."
             dataInspectId="sensAnalysis-curve-fit-card"
           >
+            {curveLine && curveTestedPts.length >= 3 && (
+              <div className="mb-5" data-inspect-id="sensAnalysis-curve-fit-chart">
+                <ResponsiveContainer width="100%" height={240}>
+                  <ComposedChart margin={{ top: 12, right: 16, bottom: 4, left: 0 }}>
+                    <CartesianGrid stroke="rgb(var(--ow-border))" strokeOpacity={0.5} strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="x" type="number" domain={['dataMin', 'dataMax']} allowDuplicatedCategory={false}
+                      tickFormatter={(v: number) => v.toFixed(2)} tick={axisStyle}
+                      tickLine={{ stroke: 'rgb(var(--ow-border))' }} axisLine={{ stroke: 'rgb(var(--ow-border))' }}
+                      label={{ value: `In-game Sens (@${MOUSE_DPI} dpi)`, position: 'insideBottom', offset: -4, style: { fill: 'var(--faint)', fontSize: 11 } }}
+                    />
+                    <YAxis
+                      dataKey="y" type="number" tick={axisStyle} width={44}
+                      tickLine={{ stroke: 'rgb(var(--ow-border))' }} axisLine={{ stroke: 'rgb(var(--ow-border))' }}
+                      label={{ value: 'Accuracy vs. avg', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: 'var(--faint)', fontSize: 11 } }}
+                    />
+                    <Tooltip content={<CurveTooltip />} />
+                    <ReferenceLine y={0} stroke="var(--faint-2)" strokeDasharray="4 4" />
+                    {data.overallCurveFit?.hasInteriorPeak && data.overallCurveFit.optimalSens != null && (
+                      <ReferenceLine
+                        x={data.overallCurveFit.optimalSens} stroke={FEEL} strokeDasharray="4 4"
+                        label={{ value: `estimated peak ${data.overallCurveFit.optimalSens.toFixed(2)}`, position: 'top', fill: FEEL, fontSize: 10 }}
+                      />
+                    )}
+                    <Line data={curveLine} dataKey="y" stroke={FEEL} strokeWidth={2} dot={false} isAnimationActive={false} name="Estimated curve" />
+                    <Scatter data={curveTestedPts} dataKey="y" fill="var(--ink)" name="Tested scales" />
+                  </ComposedChart>
+                </ResponsiveContainer>
+                <p className="text-[10px] text-[var(--faint-2)] mt-1">Orange line: the estimated curve. Dark dots: your actual tested scales it's based on (Overall only).</p>
+              </div>
+            )}
             {withFit.length ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
-                      <th className="py-1.5 pr-3">Category</th><th className="py-1.5 pr-3">Scales</th><th className="py-1.5 pr-3">Total n</th>
-                      <th className="py-1.5 pr-3">Fitted Optimal Sens</th><th className="py-1.5 pr-3">Predicted Δ</th><th className="py-1.5 pr-3">R²</th><th className="py-1.5">Read</th>
+                      <th className="py-1.5 pr-3">Category</th><th className="py-1.5 pr-3">Scales Tested</th><th className="py-1.5 pr-3">Games Logged</th>
+                      <th className="py-1.5 pr-3">Estimated Best Sens</th><th className="py-1.5 pr-3">Estimated Result</th><th className="py-1.5">Read</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -946,7 +1090,7 @@ export default function SensAnalysis() {
                         return (
                           <tr key={r.label} className="border-t border-ow-border text-[var(--faint)]">
                             <td className="py-1.5 pr-3 hero-name text-[var(--ink)]">{r.label === 'Overall' ? r.label : withHeroCount(r.label, heroCounts)}</td>
-                            <td className="py-1.5 pr-3" colSpan={5}>Needs 3+ distinct tested scales to fit a curve.</td>
+                            <td className="py-1.5 pr-3" colSpan={4}>Needs at least 3 different tested scales to draw a curve.</td>
                           </tr>
                         );
                       }
@@ -961,7 +1105,6 @@ export default function SensAnalysis() {
                             {r.fit.hasInteriorPeak ? r.fit.optimalSens?.toFixed(2) : '—'}
                           </td>
                           <td className={`py-1.5 pr-3 font-bold ${deltaColor(r.fit.predictedDelta)}`}>{r.fit.hasInteriorPeak ? signed(r.fit.predictedDelta) : '—'}</td>
-                          <td className="py-1.5 pr-3 font-bold">{r.fit.r2.toFixed(2)}</td>
                           <td className={`py-1.5 text-xs ${toneClass}`}>{note.text}</td>
                         </tr>
                       );
@@ -970,7 +1113,7 @@ export default function SensAnalysis() {
                 </table>
               </div>
             ) : (
-              <p className="text-xs text-[var(--faint)]">No category has 3+ distinct tested scales yet — keep spreading reps across scales.</p>
+              <p className="text-xs text-[var(--faint)]">No category has 3+ different tested scales yet — keep spreading games across scales.</p>
             )}
           </Section>
         );
@@ -990,7 +1133,7 @@ export default function SensAnalysis() {
         return (
           <Section
             title="Accuracy by Sens — Per Hero"
-            hint={`Sens (@${MOUSE_DPI} DPI) on the x-axis, accuracy on the y-axis — one box per hero per scale it's been tested at (needs 2+ logged games there). Each box spans Q1–Q3 with a median line; whiskers mark min/max.${skipped ? ` ${skipped} hero${skipped === 1 ? '' : 's'} skipped — never tested at 2+ games on the same scale.` : ''}`}
+            hint={`Sens (@${MOUSE_DPI} DPI) left to right, accuracy up the side — one box per hero per scale it's been tested at (needs 2+ logged games there). Each box covers the middle half of that hero's results, with a line for the typical result and whiskers reaching to the best/worst game.${skipped ? ` ${skipped} hero${skipped === 1 ? '' : 's'} skipped — never tested at 2+ games on the same scale.` : ''}`}
             dataInspectId="sensAnalysis-accuracy-by-sens-per-hero-chart"
           >
             {testedHeroes.length ? (
@@ -1032,63 +1175,6 @@ export default function SensAnalysis() {
         );
       })()}
 
-      {/* Accuracy by Hero, per sens — same box-plot pivoted the other way:
-          hero on x, accuracy on y, one color-coded box per scale that hero
-          was tested at. */}
-      {(() => {
-        const scaleRows = buildScaleBoxRows(data);
-        const testedRows = scaleRows.filter(row => Object.keys(row.scales).length > 0);
-        const testedScales = bySpeed(data.byScale).map(fmtScale).filter(label => testedRows.some(row => row.scales[label] != null));
-        const allStats = testedRows.flatMap(row => Object.values(row.scales)).filter((s): s is HeroBoxStats => s != null);
-        const yPad = 3;
-        const yDomain: [number, number] = allStats.length
-          ? [Math.max(0, Math.min(...allStats.map(s => s.min)) - yPad), Math.min(100, Math.max(...allStats.map(s => s.max)) + yPad)]
-          : [0, 100];
-        const skipped = scaleRows.length - testedRows.length;
-        return (
-          <Section
-            title="Accuracy by Hero — Per Sens"
-            hint={`Hero on the x-axis, accuracy on the y-axis — one box per sens scale that hero's been tested at (needs 2+ logged games there). Each box spans Q1–Q3 with a median line; whiskers mark min/max.${skipped ? ` ${skipped} hero${skipped === 1 ? '' : 's'} skipped — never tested at 2+ games on the same scale.` : ''}`}
-            dataInspectId="sensAnalysis-accuracy-by-hero-per-sens-chart"
-          >
-            {testedRows.length ? (
-              <>
-                <ResponsiveContainer width="100%" height={340}>
-                  <ComposedChart data={testedRows} margin={{ top: 8, right: 16, bottom: 24, left: 10 }} barGap={2} barCategoryGap="20%">
-                    <CartesianGrid stroke="rgb(var(--ow-border))" strokeOpacity={0.5} strokeDasharray="3 3" vertical={false} />
-                    <XAxis
-                      dataKey="label" tick={axisStyle} tickLine={{ stroke: 'rgb(var(--ow-border))' }} axisLine={{ stroke: 'rgb(var(--ow-border))' }}
-                      label={{ value: 'Hero', position: 'insideBottom', offset: -8, style: { fill: 'var(--faint)', fontSize: 11 } }}
-                    />
-                    <YAxis
-                      domain={yDomain} tick={axisStyle} tickLine={{ stroke: 'rgb(var(--ow-border))' }} axisLine={{ stroke: 'rgb(var(--ow-border))' }}
-                      label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: 'var(--faint)', fontSize: 11 } }}
-                    />
-                    <Tooltip content={<ScaleBoxTooltip />} cursor={{ fill: 'var(--faint-2)', fillOpacity: 0.08 }} />
-                    {testedScales.map(label => (
-                      <Bar
-                        key={label} name={label}
-                        dataKey={(row: ScaleBoxRow) => { const s = row.scales[label]; return s ? [s.q1, s.q3] : [0, 0]; }}
-                        shape={scaleBoxShape(label)} isAnimationActive={false}
-                      />
-                    ))}
-                  </ComposedChart>
-                </ResponsiveContainer>
-                <div className="flex items-center gap-4 text-[10px] text-[var(--faint-2)] mt-2 flex-wrap">
-                  {testedScales.map(label => (
-                    <span key={label} className="inline-flex items-center gap-1">
-                      <span className="inline-block w-2 h-2 rounded-full" style={{ background: scaleColor(label) }} />
-                      {label}
-                    </span>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <p className="text-xs text-[var(--faint)]">Not enough per-hero, per-scale samples yet — keep logging games so a scale can build up 2+ per hero.</p>
-            )}
-          </Section>
-        );
-      })()}
     </div>,
   );
 }

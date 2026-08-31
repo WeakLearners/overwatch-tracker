@@ -117,7 +117,7 @@ router.get('/analysis', (_req: Request, res: Response) => {
   // played, each against its own hero baseline below, rather than one
   // match-level number duplicated across every hero in it.
   const rows = db.prepare(`
-    SELECT m.id, ah.hero, m.sens, m.dpi, m.win, mh.feel, m.blind_trial, ah.overall_acc, ah.crit_acc, a.created_at
+    SELECT m.id, ah.hero, m.sens, m.dpi, m.win, m.date, mh.feel, m.blind_trial, ah.overall_acc, ah.crit_acc, a.created_at
     FROM aim_stats_heroes ah
     JOIN aim_stats a ON a.match_id = ah.match_id
     JOIN matches m ON m.id = ah.match_id
@@ -125,7 +125,7 @@ router.get('/analysis', (_req: Request, res: Response) => {
     WHERE m.sens IS NOT NULL AND ah.overall_acc IS NOT NULL
   `).all() as unknown as {
     id: number; hero: string; sens: number; dpi: number | null; win: 0 | 1; blind_trial: 0 | 1 | null;
-    overall_acc: number; crit_acc: number | null; feel: number | null; created_at: string;
+    overall_acc: number; crit_acc: number | null; feel: number | null; created_at: string; date: string;
   }[];
 
   // Most recent aim_stats write among the rows actually feeding this analysis.
@@ -135,39 +135,27 @@ router.get('/analysis', (_req: Request, res: Response) => {
     ? rows.reduce((latest, r) => (r.created_at > latest ? r.created_at : latest), rows[0].created_at)
     : null;
 
-  // Per-hero baseline = that hero's mean overall accuracy across logged matches.
-  // Normalizing each match against it keeps cross-hero pooling honest, so a
-  // sens doesn't look better just because more easy-to-aim heroes were played on it.
-  // Crit gets its own baseline since not every match logs a crit stat.
-  const heroMeans = new Map<string, number>();
-  const heroCritMeans = new Map<string, number>();
-  for (const [hero, hrows] of groupBy(rows, r => r.hero)) {
-    const m = mean(hrows.map(r => r.overall_acc));
-    if (m != null) heroMeans.set(hero as string, m);
-    const c = mean(hrows.filter(r => r.crit_acc != null).map(r => r.crit_acc as number));
-    if (c != null) heroCritMeans.set(hero as string, c);
-  }
-
-  const ptsRaw = rows.map(r => ({
-    ...r,
-    cm360: cm360(r.sens, r.dpi ?? MOUSE_DPI),
-    archetype: archetypeOf(r.hero),
-    delta: heroMeans.has(r.hero) ? r.overall_acc - heroMeans.get(r.hero)! : 0,
-    critDelta: (r.crit_acc != null && heroCritMeans.has(r.hero)) ? r.crit_acc - heroCritMeans.get(r.hero)! : null,
-    cold: (posById.get(r.id) ?? 1) === 1,
-    fresh: (sinceById.get(r.id) ?? 0) <= 2,
-  }));
-
   // Aggregate keyed on cm/360 (rounded to 0.1 cm) — the physically comparable
   // axis. This is world-agnostic: legacy fixed-dpi matches bucket exactly as they
   // would by sens, while blind trials (frozen sens, varied dpi) separate by their
   // real cm/360 instead of collapsing into one sens bucket.
   const cmBucket = (v: number) => Math.round(v * 10) / 10;
 
+  const ptsRaw = rows.map(r => ({
+    ...r,
+    cm360: cm360(r.sens, r.dpi ?? MOUSE_DPI),
+    archetype: archetypeOf(r.hero),
+    cold: (posById.get(r.id) ?? 1) === 1,
+    fresh: (sinceById.get(r.id) ?? 0) <= 2,
+  }));
+
   // Absorb legacy near-2.5 sens points into the closest blind-trial cm/360
   // bucket rather than let each sit alone (see LEGACY_SENS_ABSORB above). Only
   // matches that were actually resolved as blind trials count as absorption
   // targets — a legacy point can't merge into another legacy point's bucket.
+  // Runs BEFORE the per-hero baseline below so an absorbed legacy point counts
+  // as the same scale as the blind bucket it merged into for baseline purposes,
+  // not its own thin, separate near-2.5 scale.
   const blindCmBuckets = [...new Set(
     ptsRaw.filter(p => p.blind_trial === 1).map(p => cmBucket(p.cm360)),
   )];
@@ -175,13 +163,50 @@ router.get('/analysis', (_req: Request, res: Response) => {
     blindCmBuckets.length === 0 ? null
       : blindCmBuckets.reduce((best, v) => (Math.abs(v - cm) < Math.abs(best - cm) ? v : best));
 
-  const pts = ptsRaw
+  const ptsAbsorbed = ptsRaw
     .map(p => {
-      if (!LEGACY_SENS_ABSORB.includes(p.sens)) return p;
+      if (!LEGACY_SENS_ABSORB.includes(p.sens)) return { ...p, scaleBucket: cmBucket(p.cm360), absorbed: false };
       const nearest = nearestBlindCm(cmBucket(p.cm360));
-      return nearest == null ? null : { ...p, cm360: nearest };
+      return nearest == null ? null : { ...p, cm360: nearest, scaleBucket: nearest, absorbed: true };
     })
     .filter((p): p is NonNullable<typeof p> => p != null);
+
+  // Per-hero baseline, computed leave-one-scale-out: a match's delta is scored
+  // against that hero's mean accuracy across the hero's OTHER tested scales
+  // only, never including matches from its own scale bucket. Scoring a scale
+  // against a baseline that includes its own matches lets whichever scale
+  // gets the most reps pull its own baseline toward itself, shrinking its
+  // delta by construction rather than reflecting real performance. A hero
+  // with fewer than 2 distinct scale buckets has nothing to compare against
+  // yet, so its points get a null delta rather than a fabricated one.
+  const pts = (() => {
+    const out: (typeof ptsAbsorbed[number] & { delta: number | null; critDelta: number | null })[] = [];
+    for (const [, hrows] of groupBy(ptsAbsorbed, p => p.hero)) {
+      const byBucket = groupBy(hrows, p => p.scaleBucket);
+      const overallByBucket = new Map<number, { sum: number; n: number }>();
+      const critByBucket = new Map<number, { sum: number; n: number }>();
+      for (const [b, bpts] of byBucket) {
+        overallByBucket.set(b as number, { sum: bpts.reduce((s, p) => s + p.overall_acc, 0), n: bpts.length });
+        const c = bpts.filter(p => p.crit_acc != null);
+        critByBucket.set(b as number, { sum: c.reduce((s, p) => s + (p.crit_acc as number), 0), n: c.length });
+      }
+      const totalOverall = [...overallByBucket.values()].reduce((a, v) => ({ sum: a.sum + v.sum, n: a.n + v.n }), { sum: 0, n: 0 });
+      const totalCrit = [...critByBucket.values()].reduce((a, v) => ({ sum: a.sum + v.sum, n: a.n + v.n }), { sum: 0, n: 0 });
+      for (const p of hrows) {
+        const own = overallByBucket.get(p.scaleBucket)!;
+        const otherN = totalOverall.n - own.n;
+        const delta = otherN > 0 ? p.overall_acc - (totalOverall.sum - own.sum) / otherN : null;
+        let critDelta: number | null = null;
+        if (p.crit_acc != null) {
+          const ownC = critByBucket.get(p.scaleBucket)!;
+          const otherCn = totalCrit.n - ownC.n;
+          critDelta = otherCn > 0 ? p.crit_acc - (totalCrit.sum - ownC.sum) / otherCn : null;
+        }
+        out.push({ ...p, delta, critDelta });
+      }
+    }
+    return out;
+  })();
 
   const byScale = (items: typeof pts) =>
     [...groupBy(items, p => cmBucket(p.cm360)).entries()]
@@ -190,6 +215,7 @@ router.get('/analysis', (_req: Request, res: Response) => {
         // legacy point's own sens (e.g. 2.45) isn't what this bucket represents.
         const anchor = ps.find(p => p.blind_trial === 1) ?? ps[0];
         const accSorted = ps.map(p => p.overall_acc).sort((a, b) => a - b);
+        const dates = ps.map(p => p.date);
         return {
           cm360: Number(cm),
           eDPI: Math.round(mean(ps.map(p => eDPI(p.sens, p.dpi ?? MOUSE_DPI))) ?? 0),
@@ -198,7 +224,7 @@ router.get('/analysis', (_req: Request, res: Response) => {
           avgOverall: mean(ps.map(p => p.overall_acc)),
           avgCrit: mean(ps.filter(p => p.crit_acc != null).map(p => p.crit_acc as number)),
           avgFeel: mean(ps.filter(p => p.feel != null).map(p => p.feel as number)),
-          avgDelta: mean(ps.map(p => p.delta)),
+          avgDelta: mean(ps.filter(p => p.delta != null).map(p => p.delta as number)),
           avgCritDelta: mean(ps.filter(p => p.critDelta != null).map(p => p.critDelta as number)),
           // Win rate, not just accuracy — accuracy is a proxy for the scale
           // that actually matters: which sens wins more.
@@ -209,6 +235,16 @@ router.get('/analysis', (_req: Request, res: Response) => {
           median: quantile(accSorted, 0.5),
           q3: quantile(accSorted, 0.75),
           max: accSorted[accSorted.length - 1] ?? null,
+          // How many of this bucket's points are legacy fixed-sens matches
+          // absorbed into it rather than tested at this scale directly (see
+          // LEGACY_SENS_ABSORB above) — surfaced so a bucket's n doesn't read
+          // as more directly-tested than it is.
+          absorbedN: ps.filter(p => p.absorbed).length,
+          // Date spread of this bucket's matches — a bucket built almost
+          // entirely from one narrow window may reflect that session more
+          // than a stable read on the scale itself.
+          distinctDates: new Set(dates).size,
+          dateSpanDays: Math.round((Date.parse(dates.reduce((a, b) => (b > a ? b : a))) - Date.parse(dates.reduce((a, b) => (b < a ? b : a)))) / 86400000),
         };
       })
       .sort((a, b) => a.cm360 - b.cm360);
@@ -230,6 +266,9 @@ router.get('/analysis', (_req: Request, res: Response) => {
       predictedDelta: fit.predictedY != null ? Math.round(fit.predictedY * 10) / 10 : null,
       hasInteriorPeak: fit.hasInteriorPeak, inRange: fit.inRange,
       testedSensMin: Math.round(fit.xMin * 100) / 100, testedSensMax: Math.round(fit.xMax * 100) / 100,
+      // Raw coefficients so the frontend can plot the fitted curve itself
+      // (y = a*x^2 + b*x + c, x = sens @MOUSE_DPI), not just report its vertex.
+      a: fit.a, b: fit.b, c: fit.c,
     };
   };
 
@@ -237,7 +276,7 @@ router.get('/analysis', (_req: Request, res: Response) => {
     bucket: label,
     n: items.length,
     avgOverall: mean(items.map(p => p.overall_acc)),
-    avgDelta: mean(items.map(p => p.delta)),
+    avgDelta: mean(items.filter(p => p.delta != null).map(p => p.delta as number)),
     avgFeel: mean(items.filter(p => p.feel != null).map(p => p.feel as number)),
     winRate: mult100(mean(items.map(p => p.win))),
   });
@@ -248,6 +287,20 @@ router.get('/analysis', (_req: Request, res: Response) => {
       distinctScale: new Set(pts.map(p => cmBucket(p.cm360))).size,
       lastUpdated,
     },
+    // Chronological, point-level feed (not aggregated by scale) so the
+    // frontend can plot accuracy over time — every other view on this page
+    // aggregates by scale bucket, which discards time order entirely and
+    // can't distinguish "this scale is worse" from "I was still improving
+    // when I tested it." Sorted by (date, id) since these rows carry no
+    // time-of-day field.
+    timeline: [...pts]
+      .filter(p => p.delta != null)
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id))
+      .map(p => ({
+        date: p.date, hero: p.hero, win: p.win,
+        eDPI: eDPI(p.sens, p.dpi ?? MOUSE_DPI),
+        cm360: p.scaleBucket, delta: p.delta,
+      })),
     byScale: byScale(pts),
     overallCurveFit: curveFitOf(byScale(pts)),
     byArchetype: {
