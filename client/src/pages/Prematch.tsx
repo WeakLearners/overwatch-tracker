@@ -197,11 +197,19 @@ export default function Prematch() {
     return Math.min(GAUGE_SEGMENTS, Math.round((remaining / a.batch_size) * GAUGE_SEGMENTS));
   };
 
+  // In Quickplay, "Select Your Hero" isn't feeding a DPI test, so the
+  // in-testing filter doesn't apply — show the top 3 win-rate heroes per role
+  // for this map instead, testing or not.
+  const isQP = queueMode === 'qp_role';
+
   // For each role, list every hero with an active sens test — no top-N cap,
   // no collapsed overflow bucket. topOnMap only has rows for heroes with at
   // least one logged game on this exact map, so an active-test hero with zero
   // games here needs a synthetic zero-row or it'd silently vanish.
   function buildRole(role: string) {
+    if (isQP) {
+      return topOnMap.filter(h => h.role === role).slice(0, 3); // already win_rate desc
+    }
     const onMap = topOnMap.filter(h => h.role === role && selectableHeroes.has(h.hero)); // already win_rate desc
     const onMapSet = new Set(onMap.map(h => h.hero));
     const zeroGame = [...selectableHeroes]
@@ -213,6 +221,7 @@ export default function Prematch() {
     DPS:     buildRole('DPS'),
     Support: buildRole('Support'),
   };
+  const showHeroPicker = isQP ? (byRole.DPS.length > 0 || byRole.Support.length > 0) : selectableHeroes.size > 0;
   // Recommended pick panel (no-map state): the hottest-trending DPS + Support
   // pick instead of the single overall-best-win-rate hero — "trending" means
   // biggest recent(30d)-vs-prior(90d) win-rate climb, per /api/stats/momentum,
@@ -703,7 +712,7 @@ export default function Prematch() {
             trailing stats list, so it doesn't get missed after Coaching above it. */}
         <div className="mt-4 pt-4 border-t border-ow-border/40">
         <h3 className="text-sm grad-brand font-black uppercase tracking-widest mb-3" data-inspect-id="prematch-select-your-hero-header">Select Your Hero</h3>
-        {selectableHeroes.size > 0 ? (
+        {showHeroPicker ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" data-inspect-id="prematch-hero-picker-list">
             {(['DPS', 'Support'] as const).map(role => {
               const heroes = byRole[role];

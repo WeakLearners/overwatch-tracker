@@ -131,8 +131,20 @@ export default function LogMatch() {
 
   // Hero dropdowns only offer heroes with an active (in-testing) DPI test —
   // logging is meant to feed the running test, not just record any match.
+  // QP is the exception: it doesn't feed a DPI test (sensForHero above only
+  // resolves a test sens for QP Support), so restricting the list there just
+  // gets in the way — every hero is offered instead.
+  const isQP = queueMode === 'qp_role';
   const inTestingHeroes = new Set((dpiState?.actives ?? []).map(a => a.hero).filter((h): h is string => !!h));
-  const HERO_TEST_LIST = HERO_LIST.filter(([h]) => inTestingHeroes.has(h));
+  const HERO_TEST_LIST = isQP ? HERO_LIST : HERO_LIST.filter(([h]) => inTestingHeroes.has(h));
+  // In QP mode the switch dropdowns offer every hero, so without this a
+  // mid-match "switch" could silently re-pick a hero already in another slot
+  // — each switch slot excludes whichever hero the *other* slots hold.
+  const switchOptionsFor = (i: 0 | 1) => {
+    if (!isQP) return HERO_TEST_LIST;
+    const otherPicks = new Set([form.hero, switchHeroes[i === 0 ? 1 : 0]].filter((h): h is string => !!h));
+    return HERO_TEST_LIST.filter(([h]) => !otherPicks.has(h));
+  };
   const displaySens = activeSetSens ?? (parseFloat(sens) > 0 ? parseFloat(sens) : null);
   // Every hero actually played this match, in slot order, deduped (picking
   // the same hero twice in the switch dropdowns shouldn't double its slider).
@@ -538,7 +550,7 @@ export default function LogMatch() {
                         <option value="">— {i === 0 ? '2nd' : '3rd'} hero —</option>
                         {(['DPS', 'Tank', 'Support'] as const).map(role => (
                           <optgroup key={role} label={role}>
-                            {HERO_TEST_LIST.filter(([, rl]) => rl === role).map(([hh]) => {
+                            {switchOptionsFor(i).filter(([, rl]) => rl === role).map(([hh]) => {
                               const heroSens = displaySensForHero(hh);
                               return (
                                 <option key={hh} value={hh} className="uppercase">
