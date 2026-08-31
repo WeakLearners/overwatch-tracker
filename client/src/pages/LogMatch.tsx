@@ -59,14 +59,6 @@ function centerOnElement(id: string) {
 
 const PENDING_KEY = 'ow-pending-match';
 
-// Ground-truth "was Rawaccel's acceleration curve actually running for this
-// match" — persisted across matches (not reset on submit, unlike hero/notes)
-// since a testing session spans many matches in a row with the same on/off
-// state. Replaces the old always-on-since-2026-08-25 server stamp, which
-// wrote the same curve constants to every match regardless of whether
-// acceleration was really active (see schema.ts's curve_enabled backfill).
-const CURVE_ENABLED_KEY = 'ow-curve-enabled';
-
 // Active stage-test sets, as returned by /api/blind/state — used to show the
 // in-game sens this match will actually be tagged with, not the stale frozen
 // value in context. Mirrors the priority `matches.ts` uses server-side: a
@@ -94,10 +86,6 @@ export default function LogMatch() {
   const feelFor = (h: string) => feelByHero[h] ?? FEEL_MID;
   const setFeelFor = (h: string, v: number) => setFeelByHero(prev => ({ ...prev, [h]: v }));
   const [teamRating, setTeamRating] = useState(0);
-  const [curveEnabled, setCurveEnabled] = useState(() => localStorage.getItem(CURVE_ENABLED_KEY) === '1');
-  useEffect(() => {
-    localStorage.setItem(CURVE_ENABLED_KEY, curveEnabled ? '1' : '0');
-  }, [curveEnabled]);
   const [form, setForm] = useState<FormState>(() => {
     const n = new Date();
     let pending: { hero?: string } = {};
@@ -306,7 +294,6 @@ export default function LogMatch() {
           queue_mode: queueMode,
           sens: displaySens,
           feel: feelFor(form.hero),
-          curve_enabled: curveEnabled,
           team_rating: teamRating,
           notes: form.notes.trim() || null,
         }),
@@ -514,30 +501,6 @@ export default function LogMatch() {
                 <div data-inspect-id="logmatch-sensitivity-display" className="w-full field px-3 py-2 text-sm num-display text-[var(--ink)] whitespace-nowrap overflow-hidden">
                   {displaySens != null ? displaySens.toFixed(2) : '—'}
                 </div>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs text-[var(--muted)] mb-1.5">
-                Mouse Acceleration <span className="text-[var(--faint-2)]">— was Rawaccel's curve actually running this match?</span>
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                {([false, true] as const).map(v => (
-                  <button
-                    key={String(v)}
-                    type="button"
-                    onClick={() => setCurveEnabled(v)}
-                    data-inspect-id={`logmatch-curve-enabled-${v ? 'on' : 'off'}`}
-                    aria-pressed={curveEnabled === v}
-                    className={`py-2 rounded-lg border-2 text-xs font-semibold transition-all ${
-                      curveEnabled === v
-                        ? 'bg-ow-accent/15 border-ow-accent text-ow-accent'
-                        : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)] bg-ow-darker'
-                    }`}
-                  >
-                    {v ? 'On' : 'Off'}
-                  </button>
-                ))}
               </div>
             </div>
 
