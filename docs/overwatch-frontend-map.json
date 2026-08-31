@@ -1778,6 +1778,16 @@
           }
         },
         {
+          "id": "sensAnalysis-accuracy-over-time-chart",
+          "label": "Accuracy Over Time card",
+          "kind": "chart",
+          "description": "Chronological (not scale-aggregated) scatter of every logged point's accuracy delta, colored by which scale was active, with a trailing 8-game rolling-average line — surfaces a practice-effect drift that the rest of the page's scale-aggregated views can't show, since they lose time order entirely.",
+          "locate": {
+            "path": "client/src/pages/SensAnalysis.tsx:876",
+            "grep": "grep -n -F -- 'dataInspectId=\"sensAnalysis-accuracy-over-time-chart\"' client/src/pages/SensAnalysis.tsx"
+          }
+        },
+        {
           "id": "sensAnalysis-cold-warm-card",
           "label": "Cold vs. Warm card",
           "kind": "card",
@@ -1859,12 +1869,22 @@
         },
         {
           "id": "sensAnalysis-curve-fit-card",
-          "label": "Curve Fit \u2014 Best-Guess Optimal Sens card",
+          "label": "Estimated Sweet Spot card",
           "kind": "card",
-          "description": "Table fitting a weighted quadratic (accuracy delta vs. sens, weighted by games logged) through each category's (Overall + per-hero) tested scales, solved for its vertex \u2014 a continuous best-guess optimal sens rather than just whichever tested point scored best. Needs 3+ distinct tested scales per category to fit; each row is colored/annotated as good/warn/neutral depending on R\u00b2, sample size, whether the fit has an interior peak, and whether that peak falls inside the tested range.",
+          "description": "Fits a weighted quadratic (accuracy delta vs. sens, weighted by games logged) through each category's (Overall + per-hero) tested scales, solved for its vertex \u2014 a continuous best-guess optimal sens rather than just whichever tested point scored best. Includes a plotted curve chart (sensAnalysis-curve-fit-chart) for Overall showing the fitted line and actual tested points, above a table with the same read per category. Needs 3+ distinct tested scales per category to fit; each row is annotated good/warn/neutral in plain language depending on fit quality, sample size, whether the fit has an interior peak, and whether that peak falls inside the tested range.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:932",
+            "path": "client/src/pages/SensAnalysis.tsx:1045",
             "grep": "grep -n -F -- 'dataInspectId=\"sensAnalysis-curve-fit-card\"' client/src/pages/SensAnalysis.tsx"
+          }
+        },
+        {
+          "id": "sensAnalysis-curve-fit-chart",
+          "label": "Estimated Sweet Spot curve chart",
+          "kind": "chart",
+          "description": "Plots the fitted quadratic curve (Overall only) sampled across the tested sens range, with the actual tested (sens, accuracy delta) points overlaid as dots and the fitted peak marked with a reference line \u2014 the curve fit's vertex, previously reported only as a table row, made visible as an actual curve.",
+          "locate": {
+            "path": "client/src/pages/SensAnalysis.tsx:1048",
+            "grep": "grep -n -F -- 'data-inspect-id=\"sensAnalysis-curve-fit-chart\"' client/src/pages/SensAnalysis.tsx"
           }
         },
         {
@@ -1873,18 +1893,8 @@
           "kind": "chart",
           "description": "Grouped box-plot chart showing accuracy distribution (min/Q1/median/Q3/max) per hero at each tested sens scale, with a hero color-key legend below it.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:992",
+            "path": "client/src/pages/SensAnalysis.tsx:1135",
             "grep": "grep -n -F -- 'Accuracy by Sens \u2014 Per Hero' client/src/pages/SensAnalysis.tsx"
-          }
-        },
-        {
-          "id": "sensAnalysis-accuracy-by-hero-per-sens-chart",
-          "label": "Accuracy by Hero \u2014 Per Sens box-plot chart",
-          "kind": "chart",
-          "description": "Grouped box-plot chart showing accuracy distribution per sens scale for each hero, pivoted the opposite way from the chart above, with a scale color-key legend below it.",
-          "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:1050",
-            "grep": "grep -n -F -- 'Accuracy by Hero \u2014 Per Sens' client/src/pages/SensAnalysis.tsx"
           }
         }
       ]
