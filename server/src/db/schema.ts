@@ -465,9 +465,24 @@ function initSchema(db: DatabaseSync) {
     // are intentionally left untagged rather than backfilled — the four
     // legacy PLAN_TABS reference phases keep matching by shape alone.
     ['phase', `ALTER TABLE blind_stage_sets ADD COLUMN phase TEXT`],
+    // curve_enabled: whether mouse acceleration (Rawaccel's Motivity curve)
+    // was on for this ENTIRE set — a phase-wide constant chosen when the set
+    // is created, same as in_game_sens defaulting the fallback value, not a
+    // per-match toggle. Matches credited to an active set with this flag set
+    // get curve_enabled/curve_growth_rate/curve_midpoint auto-stamped from
+    // it server-side (routes/matches.ts findActiveStage), the same way
+    // dpi/sens already are — LogMatch's manual toggle only matters when no
+    // active set governs the match at all. Default 0 (existing sets/phases
+    // predate this and were never accel-tested, except Phase 7 below).
+    ['curve_enabled', `ALTER TABLE blind_stage_sets ADD COLUMN curve_enabled INTEGER NOT NULL DEFAULT 0`],
   ] as const) {
     if (!setCols.find(c => c.name === col)) db.exec(ddl);
   }
+  // One-time retroactive fix: Phase 7 (phase key 'custom-1787763963436') was
+  // genuinely played with acceleration on for its entire run (confirmed
+  // 2026-08-31 — see the curve_enabled backfill on matches above), so its
+  // sets should read as accel-on too, not just the individual matches.
+  db.exec(`UPDATE blind_stage_sets SET curve_enabled = 1 WHERE phase = 'custom-1787763963436' AND curve_enabled = 0`);
 
   // Custom DPI/sens test-plan phases, built through SensLog.tsx's "+ Add new
   // phase" form. Previously persisted to browser localStorage (session-only,
@@ -484,6 +499,18 @@ function initSchema(db: DatabaseSync) {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `);
+
+  // curve_enabled: same phase-wide "was acceleration on" flag as
+  // blind_stage_sets above, mirrored here so the "+ Add new phase" form and
+  // phase-tab display can show/set it without needing to inspect a set that
+  // may not exist yet. The two flags are set together whenever this skill's
+  // phase-builder creates sets for a phase's roster (setBodyFor in
+  // SensLog.tsx passes the phase's curve_enabled into every hero's set).
+  const customPhaseCols = db.prepare(`PRAGMA table_info(custom_phases)`).all() as { name: string }[];
+  if (!customPhaseCols.find(c => c.name === 'curve_enabled')) {
+    db.exec(`ALTER TABLE custom_phases ADD COLUMN curve_enabled INTEGER NOT NULL DEFAULT 0`);
+    db.exec(`UPDATE custom_phases SET curve_enabled = 1 WHERE key = 'custom-1787763963436'`);
+  }
 
   // Cache for LLM-generated tactical recommendations, keyed by map+queue_mode.
   db.exec(`

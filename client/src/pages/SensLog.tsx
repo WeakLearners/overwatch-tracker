@@ -434,7 +434,7 @@ interface PlanHero {
   hero: string; archetype: string; gamesPerSlot: number; note: string;
   dpis?: readonly number[]; senses?: readonly number[];
 }
-interface PlanTab { key: string; label: string; description: string; plan: readonly PlanHero[] }
+interface PlanTab { key: string; label: string; description: string; plan: readonly PlanHero[]; curveEnabled?: boolean }
 
 const valuesOf = (h: PlanHero): readonly number[] => h.senses ?? h.dpis ?? [];
 
@@ -634,7 +634,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
   useEffect(() => {
     if (!userPickedTab.current) setTabKeyRaw(lastBuilt.key);
   }, [lastBuilt.key]);
-  const { plan, description } = allTabs.find(t => t.key === tabKey) ?? lastBuilt;
+  const { plan, description, curveEnabled: tabCurveEnabled } = allTabs.find(t => t.key === tabKey) ?? lastBuilt;
 
   const statuses = new Map(plan.map(h => [h.hero, statusForHero(h.hero, actives, sets, h.gamesPerSlot, valuesOf(h), tabKey)]));
   const [cancelling, setCancelling] = useState(false);
@@ -643,6 +643,12 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
   const [loadingAddPhase, setLoadingAddPhase] = useState(false);
   const [stages, setStages] = useState('2');
   const [rows, setRows] = useState<NewPhaseRow[]>([blankRow()]);
+  // Phase-wide "was mouse acceleration on for this whole phase" — same
+  // in_game_sens-style constant every hero's set in the phase shares, not a
+  // per-hero or per-match setting. Passed into every hero's POST /api/blind/sets
+  // call via setBodyFor below, and stamped onto matches server-side the same
+  // way dpi/sens already are (routes/matches.ts findActiveStage).
+  const [phaseCurveEnabled, setPhaseCurveEnabled] = useState(false);
 
   // Every phase after the first is a re-test of the same roster, so the form
   // opens pre-loaded with the latest phase's heroes — excluding a hero is
@@ -705,8 +711,9 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
     const newTab: PlanTab = {
       key: `custom-${Date.now()}`,
       label: `Phase ${nextNumber}`,
-      description: `${plan.length} heroes × ${nStages} stages, ${totalGames} games total.`,
+      description: `${plan.length} heroes × ${nStages} stages, ${totalGames} games total.${phaseCurveEnabled ? ' Mouse acceleration ON for this phase.' : ''}`,
       plan,
+      curveEnabled: phaseCurveEnabled,
     };
     await fetch('/api/custom-phases', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -715,6 +722,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
     revalidateAll();
     setTabKey(newTab.key);
     setShowAddPhase(false);
+    setPhaseCurveEnabled(false);
   }
 
   // Only custom (session-built) phases are deletable — the hardcoded
@@ -735,8 +743,8 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
 
   function setBodyFor(h: PlanHero) {
     return h.senses
-      ? { senses: h.senses, batch_size: h.gamesPerSlot, hero: h.hero, phase: tabKey }
-      : { in_game_sens: 2.5, batch_size: h.gamesPerSlot, dpis: h.dpis, hero: h.hero, phase: tabKey };
+      ? { senses: h.senses, batch_size: h.gamesPerSlot, hero: h.hero, phase: tabKey, curve_enabled: !!tabCurveEnabled }
+      : { in_game_sens: 2.5, batch_size: h.gamesPerSlot, dpis: h.dpis, hero: h.hero, phase: tabKey, curve_enabled: !!tabCurveEnabled };
   }
 
   async function createSetForHero(h: PlanHero) {
@@ -832,7 +840,14 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
           {loadingAddPhase ? 'Analyzing last phase…' : '+ Add new phase'}
         </button>
       </div>
-      <p className="text-xs text-[var(--faint)] mb-3">{description}</p>
+      <p className="text-xs text-[var(--faint)] mb-3">
+        {tabCurveEnabled && (
+          <span data-inspect-id="sl-plan-curve-enabled-badge" className="inline-block mr-1.5 px-1.5 py-0.5 rounded bg-ow-accent/15 text-ow-accent text-[10px] font-semibold align-middle">
+            Mouse Accel ON
+          </span>
+        )}
+        {description}
+      </p>
       {(() => {
         const pendingCount = plan.filter(h => statuses.get(h.hero)?.status === 'none').length;
         if (pendingCount === 0) return null;
@@ -846,7 +861,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
           </button>
         );
       })()}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2" data-inspect-id="sl-plan-hero-grid">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2" data-inspect-id="sl-plan-hero-grid">
         {plan.map(h => {
           const s = statuses.get(h.hero)!;
           return (
@@ -930,13 +945,36 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
               hero's low/high range.
             </p>
 
-            <label className="inline-block mb-3">
-              <span className="block text-xs text-[var(--muted)] mb-1"># Stages</span>
-              <input
-                type="number" step="1" min="2" value={stages} onChange={e => setStages(e.target.value)}
-                data-inspect-id="sl-add-phase-stages-input" className={`${compactField} w-20`}
-              />
-            </label>
+            <div className="flex items-end gap-4 mb-3">
+              <label className="inline-block">
+                <span className="block text-xs text-[var(--muted)] mb-1"># Stages</span>
+                <input
+                  type="number" step="1" min="2" value={stages} onChange={e => setStages(e.target.value)}
+                  data-inspect-id="sl-add-phase-stages-input" className={`${compactField} w-20`}
+                />
+              </label>
+              <label className="inline-block">
+                <span className="block text-xs text-[var(--muted)] mb-1">Mouse Acceleration <span className="text-[var(--faint-2)]">— for this whole phase</span></span>
+                <div className="grid grid-cols-2 gap-1.5 w-40">
+                  {([false, true] as const).map(v => (
+                    <button
+                      key={String(v)}
+                      type="button"
+                      onClick={() => setPhaseCurveEnabled(v)}
+                      data-inspect-id={`sl-add-phase-curve-enabled-${v ? 'on' : 'off'}`}
+                      aria-pressed={phaseCurveEnabled === v}
+                      className={`py-1.5 rounded border-2 text-[10px] font-semibold transition-all ${
+                        phaseCurveEnabled === v
+                          ? 'bg-ow-accent/15 border-ow-accent text-ow-accent'
+                          : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)] bg-ow-darker'
+                      }`}
+                    >
+                      {v ? 'On' : 'Off'}
+                    </button>
+                  ))}
+                </div>
+              </label>
+            </div>
 
             <div className="grid grid-cols-12 gap-1.5 mb-1 px-1 text-[10px] uppercase tracking-wide text-[var(--faint-2)]">
               <span className="col-span-3">Hero</span>
@@ -1144,6 +1182,7 @@ function ActiveTestCard({ active }: { active: DpiTestActive }) {
 function CreateTestCard() {
   const [batchSize, setBatchSize] = useState('12');
   const [senses, setSenses] = useState<string[]>(['2.50', '2.65', '2.80']);
+  const [curveEnabled, setCurveEnabled] = useState(false);
   const [busy, setBusy] = useState(false);
 
   // Resize the sens list to a new slot count, keeping existing values and
@@ -1166,6 +1205,7 @@ function CreateTestCard() {
         body: JSON.stringify({
           batch_size: parseInt(batchSize),
           senses: senses.map(s => parseFloat(s)),
+          curve_enabled: curveEnabled,
         }),
       });
       if (!res.ok) {
@@ -1193,6 +1233,27 @@ function CreateTestCard() {
         <label className="block col-span-2">
           <span className="block text-xs text-[var(--muted)] mb-1.5">Games per stage (samples)</span>
           <input type="number" step="1" min="1" data-inspect-id="sl-games-per-stage-input" className={field} value={batchSize} onChange={e => setBatchSize(e.target.value)} />
+        </label>
+        <label className="block col-span-2">
+          <span className="block text-xs text-[var(--muted)] mb-1.5">Mouse Acceleration <span className="text-[var(--faint-2)]">— for this whole test set</span></span>
+          <div className="grid grid-cols-2 gap-2">
+            {([false, true] as const).map(v => (
+              <button
+                key={String(v)}
+                type="button"
+                onClick={() => setCurveEnabled(v)}
+                data-inspect-id={`sl-adhoc-curve-enabled-${v ? 'on' : 'off'}`}
+                aria-pressed={curveEnabled === v}
+                className={`py-2 rounded-lg border-2 text-xs font-semibold transition-all ${
+                  curveEnabled === v
+                    ? 'bg-ow-accent/15 border-ow-accent text-ow-accent'
+                    : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)] bg-ow-darker'
+                }`}
+              >
+                {v ? 'On' : 'Off'}
+              </button>
+            ))}
+          </div>
         </label>
       </div>
       <div className="mb-4">

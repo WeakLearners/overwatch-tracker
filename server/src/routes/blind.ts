@@ -8,7 +8,7 @@ const router = Router();
 interface SetRow {
   id: number; in_game_sens: number; base_dpi: number; created_at: string;
   batch_size: number; cur_rel: number; games_on_stage: number; hero: string | null;
-  phase: string | null;
+  phase: string | null; curve_enabled: number;
 }
 interface StageRow { stage_index: number; dpi: number; sens: number | null; pct_delta: number; }
 
@@ -107,10 +107,11 @@ router.post('/sets', (req: Request, res: Response) => {
     // scramble_done/resolved are confirmed-dead leftovers from an earlier
     // hidden-DPI design (schema.ts's comment on these columns) — left off
     // here rather than hardcoded on every set, since nothing reads them.
+    const curveEnabled = req.body.curve_enabled === true || req.body.curve_enabled === 1;
     const r = db.prepare(`
-      INSERT INTO blind_stage_sets (in_game_sens, base_dpi, active, note, batch_size, cur_rel, games_on_stage, hero, phase)
-      VALUES (:s, :d, 1, :note, :b, 1, 0, :hero, :phase)
-    `).run({ s: in_game_sens, d: base_dpi, note: req.body.note ?? null, b: batch_size, hero, phase });
+      INSERT INTO blind_stage_sets (in_game_sens, base_dpi, active, note, batch_size, cur_rel, games_on_stage, hero, phase, curve_enabled)
+      VALUES (:s, :d, 1, :note, :b, 1, 0, :hero, :phase, :curve_enabled)
+    `).run({ s: in_game_sens, d: base_dpi, note: req.body.note ?? null, b: batch_size, hero, phase, curve_enabled: curveEnabled ? 1 : 0 });
     set_id = Number(r.lastInsertRowid);
     const ins = db.prepare('INSERT INTO blind_stages (set_id, stage_index, dpi, sens, pct_delta) VALUES (:set_id, :stage_index, :dpi, :sens, :pct_delta)');
     for (const st of stages) ins.run({ set_id, ...st });
@@ -120,7 +121,7 @@ router.post('/sets', (req: Request, res: Response) => {
     throw err;
   }
 
-  res.json({ set_id, in_game_sens, base_dpi, n_stages, batch_size, hero, phase, stages });
+  res.json({ set_id, in_game_sens, base_dpi, n_stages, batch_size, hero, phase, stages, curve_enabled: req.body.curve_enabled === true || req.body.curve_enabled === 1 });
 });
 
 // ── Cancel a set ─────────────────────────────────────────────────────────────
@@ -164,9 +165,9 @@ router.delete('/sets/:id', (req: Request, res: Response) => {
 router.get('/sets', (_req: Request, res: Response) => {
   const db = getDb();
   const rows = db.prepare(`
-    SELECT id, hero, phase, active, batch_size, created_at
+    SELECT id, hero, phase, active, batch_size, created_at, curve_enabled
     FROM blind_stage_sets ORDER BY id ASC
-  `).all() as { id: number; hero: string | null; phase: string | null; active: number; batch_size: number; created_at: string }[];
+  `).all() as { id: number; hero: string | null; phase: string | null; active: number; batch_size: number; created_at: string; curve_enabled: number }[];
   const sets = rows.map(row => {
     const stages = stagesOf(db, row.id);
     const totalGames = totalGamesOf(db, row.id);
@@ -174,7 +175,7 @@ router.get('/sets', (_req: Request, res: Response) => {
       set_id: row.id, hero: row.hero, phase: row.phase, active: !!row.active,
       completed: totalGames >= row.batch_size * stages.length,
       batch_size: row.batch_size, n_stages: stages.length, totalGames, created_at: row.created_at,
-      values: stages.map(s => s.sens ?? s.dpi),
+      values: stages.map(s => s.sens ?? s.dpi), curveEnabled: !!row.curve_enabled,
     };
   });
   res.json({ sets });
@@ -202,7 +203,7 @@ router.get('/state', (_req: Request, res: Response) => {
       batch_size: set.batch_size, cur_stage: set.cur_rel, games_on_stage: set.games_on_stage,
       dpi: curStage?.dpi ?? null, sens: curStage?.sens ?? null, n_stages, hero: set.hero, phase: set.phase, totalGames, completed,
       needSwitch: !completed && set.games_on_stage >= set.batch_size,
-      stages,
+      stages, curveEnabled: !!set.curve_enabled,
     };
   });
 
