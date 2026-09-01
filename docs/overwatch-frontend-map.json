@@ -847,7 +847,7 @@
           "id": "logmatch-feel-slider",
           "label": "Feel slider(s)",
           "kind": "slider",
-          "description": "One range slider (0-100) per filled hero slot, capturing whether the sensitivity felt slow or fast on that hero during this specific match, captured live since the sensation fades before the next match. Container is logmatch-feel-sliders; each individual input shares this same data-inspect-id.",
+          "description": "One range slider (0-100) per filled hero slot, capturing whether the sensitivity felt floaty (slow) or jittery (fast), snappy in the middle, on that hero during this specific match — captured live since the sensation fades before the next match. Container is logmatch-feel-sliders; each individual input shares this same data-inspect-id.",
           "locate": {
             "path": "client/src/pages/LogMatch.tsx:671",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-feel-slider\"' client/src/pages/LogMatch.tsx"
