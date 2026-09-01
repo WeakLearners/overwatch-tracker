@@ -657,7 +657,7 @@ export default function LogMatch() {
                   <div key={h}>
                     <label className="block text-xs text-[var(--muted)] mb-1.5">
                       Feel <span className="text-[var(--ink)] font-bold">— {h}{heroSens != null ? ` @ ${heroSens.toFixed(2)}` : ''}</span>
-                      <span className="text-[var(--faint-2)]"> — did the sens feel slow or fast?</span>
+                      <span className="text-[var(--faint-2)]"> — did the sens feel floaty or jittery?</span>
                     </label>
                     <input
                       type="range"
@@ -667,10 +667,10 @@ export default function LogMatch() {
                       value={feelFor(h)}
                       onChange={e => setFeelFor(h, Number(e.target.value))}
                       className="w-full accent-ow-accent"
-                      aria-label={`Feel — slow to fast — ${h}`}
+                      aria-label={`Feel — floaty to jittery — ${h}`}
                       data-inspect-id="logmatch-feel-slider"
                     />
-                    <div className="flex justify-between text-[10px] text-[var(--faint-2)] mt-1 px-0.5"><span>Slow</span><span>Just Right</span><span>Fast</span></div>
+                    <div className="flex justify-between text-xs text-[var(--muted)] mt-0.5 px-0.5"><span>Floaty</span><span>Snappy</span><span>Jittery</span></div>
                   </div>
                 );
               })}
