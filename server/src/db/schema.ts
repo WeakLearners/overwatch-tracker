@@ -95,6 +95,16 @@ function initSchema(db: DatabaseSync) {
     db.exec(`ALTER TABLE matches ADD COLUMN curve_midpoint REAL`);
   }
 
+  // curve_motivity: the actual Motivity cap in effect for this match. Null
+  // (falls back to the fixed CURVE_MOTIVITY constant) for matches governed by
+  // a flat-value curve-enabled stage; real per-match value, derived from the
+  // active stage's sens_low/sens_high (blind_stages), for matches governed by
+  // a "ranged" curve stage — see blind_stages.sens_low/sens_high above and
+  // lib/aim.ts's deriveMotivity.
+  if (!cols.find(c => c.name === 'curve_motivity')) {
+    db.exec(`ALTER TABLE matches ADD COLUMN curve_motivity REAL`);
+  }
+
   // curve_enabled: whether mouse acceleration (Rawaccel's Motivity curve) was
   // actually active for this match — ground truth, distinct from
   // curve_growth_rate/curve_midpoint above. Those two got stamped with the
@@ -439,6 +449,20 @@ function initSchema(db: DatabaseSync) {
   const stageCols = db.prepare(`PRAGMA table_info(blind_stages)`).all() as { name: string }[];
   if (!stageCols.find(c => c.name === 'sens')) {
     db.exec(`ALTER TABLE blind_stages ADD COLUMN sens REAL`);
+  }
+
+  // sens_low / sens_high: when both are set, this stage is a "ranged" curve
+  // stage — instead of a single flat sens value to play at, it defines the
+  // Motivity curve's floor and ceiling for the whole stage (base sens =
+  // √(low×high), motivity = √(high÷low), see lib/aim.ts). `sens` above still
+  // gets the derived base sens so every existing reader of `sens` (analysis,
+  // adaptation tracking, display) keeps working unchanged — these two columns
+  // are additional metadata only meaningful alongside curve_enabled on the
+  // parent set. Null on every flat-value stage (the normal case).
+  for (const col of ['sens_low', 'sens_high']) {
+    if (!stageCols.find(c => c.name === col)) {
+      db.exec(`ALTER TABLE blind_stages ADD COLUMN ${col} REAL`);
+    }
   }
 
   // Migrate blind_stage_sets created before the guided-loop columns existed.

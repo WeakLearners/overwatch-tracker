@@ -11,6 +11,8 @@
 // dpi NOT NULL constraint still holds. `sens` is null on legacy DPI-varying
 // stages and the varying value on current sens-varying ones.
 
+import { deriveBaseSens } from './aim';
+
 export const LOCKED_DPI = 1600;
 
 export interface StageSpec {
@@ -18,6 +20,8 @@ export interface StageSpec {
   dpi: number;
   sens: number | null;
   pct_delta: number;
+  sens_low?: number;
+  sens_high?: number;
 }
 
 // Generate N DPI values spread evenly across ±pctRange around baseDpi
@@ -50,5 +54,24 @@ export function stagesFromSens(senses: number[]): StageSpec[] {
   const baseSens = senses.reduce((a, b) => a + b, 0) / senses.length;
   return senses.map((sens, i) => ({
     stage_index: i + 1, dpi: LOCKED_DPI, sens, pct_delta: Math.round(((sens - baseSens) / baseSens) * 1000) / 10,
+  }));
+}
+
+// Build "ranged" curve stages from explicit [low, high] pairs, in the order
+// given — each stage is a whole Motivity curve (floor `low`, ceiling `high`)
+// rather than one flat sens value, for curve_enabled sets that want to test
+// two different curve widths per hero per phase instead of two flat sens
+// candidates. `sens` is the derived base sens (√(low×high), lib/aim.ts's
+// deriveBaseSens) so every existing reader of a stage's `sens` still gets a
+// meaningful single number; sens_low/sens_high carry the actual range for
+// deriving motivity (deriveMotivity) and for display. pct_delta is computed
+// against the list's own mean base-sens, same convention as stagesFromSens.
+export function stagesFromRanges(ranges: [number, number][]): StageSpec[] {
+  const bases = ranges.map(([low, high]) => deriveBaseSens(low, high));
+  const baseMean = bases.reduce((a, b) => a + b, 0) / bases.length;
+  return ranges.map(([low, high], i) => ({
+    stage_index: i + 1, dpi: LOCKED_DPI, sens: bases[i],
+    pct_delta: Math.round(((bases[i] - baseMean) / baseMean) * 1000) / 10,
+    sens_low: low, sens_high: high,
   }));
 }

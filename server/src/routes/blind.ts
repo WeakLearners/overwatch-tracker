@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
-import { generateStages, stagesFromDpis, stagesFromSens, LOCKED_DPI } from '../lib/blind';
-import { cm360, eDPI, MIN_SENS } from '../lib/aim';
+import { generateStages, stagesFromDpis, stagesFromSens, stagesFromRanges, LOCKED_DPI } from '../lib/blind';
+import { cm360, eDPI, MIN_SENS, deriveMotivity } from '../lib/aim';
 
 const router = Router();
 
@@ -10,13 +10,16 @@ interface SetRow {
   batch_size: number; cur_rel: number; games_on_stage: number; hero: string | null;
   phase: string | null; curve_enabled: number;
 }
-interface StageRow { stage_index: number; dpi: number; sens: number | null; pct_delta: number; }
+interface StageRow {
+  stage_index: number; dpi: number; sens: number | null; pct_delta: number;
+  sens_low: number | null; sens_high: number | null;
+}
 
 const activeSets = (db: ReturnType<typeof getDb>) =>
   db.prepare('SELECT * FROM blind_stage_sets WHERE active = 1 ORDER BY id').all() as unknown as SetRow[];
 
 const stagesOf = (db: ReturnType<typeof getDb>, setId: number) =>
-  db.prepare('SELECT stage_index, dpi, sens, pct_delta FROM blind_stages WHERE set_id = :id ORDER BY stage_index')
+  db.prepare('SELECT stage_index, dpi, sens, pct_delta, sens_low, sens_high FROM blind_stages WHERE set_id = :id ORDER BY stage_index')
     .all({ id: setId }) as unknown as StageRow[];
 
 // Total games ever logged against a set, across all its stages combined —
@@ -57,14 +60,36 @@ router.post('/sets', (req: Request, res: Response) => {
     return;
   }
 
+  const curveEnabled = req.body.curve_enabled === true || req.body.curve_enabled === 1;
   const sensesInput: number[] | null = Array.isArray(req.body.senses) ? (req.body.senses as unknown[]).map(Number) : null;
   const dpisInput: number[] | null = Array.isArray(req.body.dpis) ? (req.body.dpis as unknown[]).map(Number) : null;
+  // rangesInput: [low, high] pairs — each becomes a "ranged" curve stage
+  // (blind_stages.sens_low/sens_high) instead of a flat sens value. Only
+  // meaningful with curve_enabled, since a flat/no-curve stage has nothing
+  // for a range's low vs high to mean.
+  const rangesInput: [number, number][] | null = Array.isArray(req.body.ranges)
+    ? (req.body.ranges as unknown[]).map(r => (Array.isArray(r) ? [Number(r[0]), Number(r[1])] : [NaN, NaN]) as [number, number])
+    : null;
   let stages: ReturnType<typeof generateStages>;
   let base_dpi: number;
   let in_game_sens: number;
   let n_stages: number;
 
-  if (sensesInput) {
+  if (rangesInput) {
+    if (!curveEnabled) {
+      res.status(400).json({ error: 'ranges requires curve_enabled' });
+      return;
+    }
+    if (rangesInput.length < 2 || rangesInput.some(([lo, hi]) => !(lo > 0) || !(hi > 0) || !(hi > lo) || lo < MIN_SENS)) {
+      res.status(400).json({ error: `ranges must have 2+ [low, high] pairs, each low < high and low >= ${MIN_SENS}` });
+      return;
+    }
+    stages = stagesFromRanges(rangesInput);
+    base_dpi = LOCKED_DPI;
+    const bases = stages.map(s => s.sens as number);
+    in_game_sens = Math.round((bases.reduce((a, b) => a + b, 0) / bases.length) * 1000) / 1000;
+    n_stages = rangesInput.length;
+  } else if (sensesInput) {
     if (sensesInput.length < 2 || sensesInput.some(s => !(s > 0) || s < MIN_SENS)) {
       res.status(400).json({ error: `senses must have 2+ values, all >= ${MIN_SENS}` });
       return;
@@ -107,21 +132,20 @@ router.post('/sets', (req: Request, res: Response) => {
     // scramble_done/resolved are confirmed-dead leftovers from an earlier
     // hidden-DPI design (schema.ts's comment on these columns) — left off
     // here rather than hardcoded on every set, since nothing reads them.
-    const curveEnabled = req.body.curve_enabled === true || req.body.curve_enabled === 1;
     const r = db.prepare(`
       INSERT INTO blind_stage_sets (in_game_sens, base_dpi, active, note, batch_size, cur_rel, games_on_stage, hero, phase, curve_enabled)
       VALUES (:s, :d, 1, :note, :b, 1, 0, :hero, :phase, :curve_enabled)
     `).run({ s: in_game_sens, d: base_dpi, note: req.body.note ?? null, b: batch_size, hero, phase, curve_enabled: curveEnabled ? 1 : 0 });
     set_id = Number(r.lastInsertRowid);
-    const ins = db.prepare('INSERT INTO blind_stages (set_id, stage_index, dpi, sens, pct_delta) VALUES (:set_id, :stage_index, :dpi, :sens, :pct_delta)');
-    for (const st of stages) ins.run({ set_id, ...st });
+    const ins = db.prepare('INSERT INTO blind_stages (set_id, stage_index, dpi, sens, pct_delta, sens_low, sens_high) VALUES (:set_id, :stage_index, :dpi, :sens, :pct_delta, :sens_low, :sens_high)');
+    for (const st of stages) ins.run({ set_id, stage_index: st.stage_index, dpi: st.dpi, sens: st.sens, pct_delta: st.pct_delta, sens_low: st.sens_low ?? null, sens_high: st.sens_high ?? null });
     db.exec('COMMIT');
   } catch (err) {
     db.exec('ROLLBACK');
     throw err;
   }
 
-  res.json({ set_id, in_game_sens, base_dpi, n_stages, batch_size, hero, phase, stages, curve_enabled: req.body.curve_enabled === true || req.body.curve_enabled === 1 });
+  res.json({ set_id, in_game_sens, base_dpi, n_stages, batch_size, hero, phase, stages, curve_enabled: curveEnabled });
 });
 
 // ── Cancel a set ─────────────────────────────────────────────────────────────
@@ -198,12 +222,15 @@ router.get('/state', (_req: Request, res: Response) => {
     const target = set.batch_size * n_stages;
     const completed = totalGames >= target;
 
+    const ranged = curStage?.sens_low != null && curStage?.sens_high != null;
     return {
       set_id: set.id, in_game_sens: set.in_game_sens, base_dpi: set.base_dpi, created_at: set.created_at,
       batch_size: set.batch_size, cur_stage: set.cur_rel, games_on_stage: set.games_on_stage,
       dpi: curStage?.dpi ?? null, sens: curStage?.sens ?? null, n_stages, hero: set.hero, phase: set.phase, totalGames, completed,
       needSwitch: !completed && set.games_on_stage >= set.batch_size,
       stages, curveEnabled: !!set.curve_enabled,
+      sensLow: curStage?.sens_low ?? null, sensHigh: curStage?.sens_high ?? null,
+      motivity: ranged ? deriveMotivity(curStage!.sens_low as number, curStage!.sens_high as number) : null,
     };
   });
 
@@ -284,11 +311,14 @@ router.get('/sets/:id', (req: Request, res: Response) => {
     // Legacy stages (sens null) vary dpi with sens frozen on the set; current
     // stages (sens populated) vary sens with dpi frozen at LOCKED_DPI.
     const stageSens = st.sens ?? set.in_game_sens;
+    const ranged = st.sens_low != null && st.sens_high != null;
     return {
       stage_index: st.stage_index, dpi: st.dpi, sens: st.sens, pct_delta: st.pct_delta,
       eDPI: eDPI(stageSens, st.dpi), cm360: Math.round(cm360(stageSens, st.dpi) * 100) / 100,
       n: trials.length, feelMean, feelVar,
       games: perf.length, winRate, accMean, elimsPer10, dmgPer10,
+      sensLow: st.sens_low, sensHigh: st.sens_high,
+      motivity: ranged ? deriveMotivity(st.sens_low as number, st.sens_high as number) : null,
     };
   });
 

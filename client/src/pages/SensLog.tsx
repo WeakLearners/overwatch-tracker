@@ -38,7 +38,8 @@ interface DpiTestActive {
   dpi: number | null; sens: number | null; n_stages: number;
   hero: string | null; phase: string | null; totalGames: number; completed: boolean;
   needSwitch: boolean;
-  stages: { stage_index: number; dpi: number; sens: number | null }[];
+  stages: { stage_index: number; dpi: number; sens: number | null; sens_low: number | null; sens_high: number | null }[];
+  curveEnabled: boolean; sensLow: number | null; sensHigh: number | null; motivity: number | null;
 }
 interface DpiTestState {
   actives: DpiTestActive[];
@@ -52,6 +53,7 @@ interface AnswerStage {
   stage_index: number; dpi: number; sens: number | null; pct_delta: number;
   eDPI: number; cm360: number; n: number; feelMean: number | null; feelVar: number | null;
   games: number; winRate: number | null; accMean: number | null; elimsPer10: number | null; dmgPer10: number | null;
+  sensLow: number | null; sensHigh: number | null; motivity: number | null;
 }
 // One overall/crit accuracy + duration reading per hero actually played — a
 // match with a mid-match switch gets one row per hero here instead of a
@@ -432,11 +434,19 @@ const PHASE5_PLAN = [
 
 interface PlanHero {
   hero: string; archetype: string; gamesPerSlot: number; note: string;
-  dpis?: readonly number[]; senses?: readonly number[];
+  dpis?: readonly number[]; senses?: readonly number[]; ranges?: readonly (readonly [number, number])[];
 }
 interface PlanTab { key: string; label: string; description: string; plan: readonly PlanHero[]; curveEnabled?: boolean }
 
-const valuesOf = (h: PlanHero): readonly number[] => h.senses ?? h.dpis ?? [];
+// Motivity curve math (mirrors server/src/lib/aim.ts's deriveBaseSens) — base
+// sens = √(low×high), so a "ranged" stage's floor/ceiling become one
+// meaningful sens number for status/target-game calculations, same as a flat
+// sens value would.
+const deriveBaseSens = (low: number, high: number): number => Math.sqrt(low * high);
+const deriveMotivity = (low: number, high: number): number => Math.sqrt(high / low);
+
+const valuesOf = (h: PlanHero): readonly number[] =>
+  h.senses ?? h.dpis ?? h.ranges?.map(([low, high]) => deriveBaseSens(low, high)) ?? [];
 
 const PLAN_TABS: readonly PlanTab[] = [
   {
@@ -557,9 +567,16 @@ function statusForHero(
 interface NewPhaseRow {
   hero: string; archetype: string; gamesPerSlot: string; low: string; high: string; note: string;
   locked: boolean; reliable: boolean; basis: string;
+  // Second range — only used/shown when the phase's Mouse Acceleration
+  // toggle is on (see phaseCurveEnabled in PlanCard). low/high above become
+  // "Range 1"; these are "Range 2" — each range is one curve stage
+  // (base sens/motivity derived, deriveBaseSens/deriveMotivity above), not a
+  // flat sens value. No auto-suggestion for ranges yet (see openAddPhase) —
+  // both ranges always start editable regardless of `locked`.
+  low2: string; high2: string;
 }
 const blankRow = (): NewPhaseRow => ({
-  hero: '', archetype: '', gamesPerSlot: '5', low: '', high: '', note: '',
+  hero: '', archetype: '', gamesPerSlot: '5', low: '', high: '', low2: '', high2: '', note: '',
   locked: false, reliable: true, basis: 'manually added — no prior-phase data to narrow from',
 });
 
@@ -681,16 +698,30 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
         }
         return {
           hero: h.hero, archetype: h.archetype, gamesPerSlot: String(h.gamesPerSlot),
-          low: String(low), high: String(high), note: '', locked: true, reliable, basis: flooredBasis,
+          low: String(low), high: String(high), low2: '', high2: '', note: '', locked: true, reliable, basis: flooredBasis,
         };
       });
       setStages('2');
       setRows(built);
+      setPhaseCurveEnabled(false);
       setShowAddPhase(true);
     } finally {
       setLoadingAddPhase(false);
     }
   }
+
+  // No auto-suggestion exists yet for ranged curve stages (suggestCenter's
+  // curve-fit math was built for single flat sens values) — so the moment
+  // the phase's Mouse Acceleration toggle goes on, every row unlocks for
+  // manual entry of both ranges, even carried-over rows that were just
+  // auto-computed above. Toggling back off leaves rows as-is; low2/high2
+  // simply go unused when the phase is saved without curve mode.
+  useEffect(() => {
+    if (!phaseCurveEnabled) return;
+    setRows(prev => prev.map(r => (r.locked
+      ? { ...r, locked: false, reliable: true, basis: 'manual range — no auto-suggestion yet for acceleration curve testing' }
+      : r)));
+  }, [phaseCurveEnabled]);
 
   function updateRow(i: number, patch: Partial<NewPhaseRow>) {
     setRows(prev => prev.map((r, ri) => (ri === i ? { ...r, ...patch } : r)));
@@ -698,13 +729,22 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
 
   async function saveNewPhase() {
     const nStages = Math.max(2, parseInt(stages) || 2);
-    const validRows = rows.filter(r => r.hero.trim() && r.low.trim() && r.high.trim());
-    if (validRows.length === 0) { alert('Add at least one hero with a sens range.'); return; }
+    // Curve mode: exactly 2 ranges per hero (fixed, not the # Stages input —
+    // each stage here is a whole curve, not a spread point), so both ranges
+    // must be filled in; flat mode: unchanged, low/high spread across nStages.
+    const validRows = rows.filter(r => r.hero.trim() && r.low.trim() && r.high.trim()
+      && (!phaseCurveEnabled || (r.low2.trim() && r.high2.trim())));
+    if (validRows.length === 0) {
+      alert(phaseCurveEnabled ? 'Add at least one hero with both ranges filled in.' : 'Add at least one hero with a sens range.');
+      return;
+    }
     const plan: PlanHero[] = validRows.map(r => ({
       hero: r.hero.trim(), archetype: r.archetype.trim() || 'Unknown',
       gamesPerSlot: Math.max(1, parseInt(r.gamesPerSlot) || 5),
       note: r.note.trim(),
-      senses: spreadSens(parseFloat(r.low), parseFloat(r.high), nStages),
+      ...(phaseCurveEnabled
+        ? { ranges: [[parseFloat(r.low), parseFloat(r.high)], [parseFloat(r.low2), parseFloat(r.high2)]] as [number, number][] }
+        : { senses: spreadSens(parseFloat(r.low), parseFloat(r.high), nStages) }),
     }));
     const nextNumber = allTabs.length + 2; // PLAN_TABS starts at "Phase 2"
     const totalGames = plan.reduce((sum, h) => sum + valuesOf(h).length * h.gamesPerSlot, 0);
@@ -742,6 +782,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
   }
 
   function setBodyFor(h: PlanHero) {
+    if (h.ranges) return { ranges: h.ranges, batch_size: h.gamesPerSlot, hero: h.hero, phase: tabKey, curve_enabled: true };
     return h.senses
       ? { senses: h.senses, batch_size: h.gamesPerSlot, hero: h.hero, phase: tabKey, curve_enabled: !!tabCurveEnabled }
       : { in_game_sens: 2.5, batch_size: h.gamesPerSlot, dpis: h.dpis, hero: h.hero, phase: tabKey, curve_enabled: !!tabCurveEnabled };
@@ -947,10 +988,13 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
 
             <div className="flex items-end gap-4 mb-3">
               <label className="inline-block">
-                <span className="block text-xs text-[var(--muted)] mb-1"># Stages</span>
+                <span className="block text-xs text-[var(--muted)] mb-1">
+                  # Stages {phaseCurveEnabled && <span className="text-[var(--faint-2)]">(fixed at 2 ranges)</span>}
+                </span>
                 <input
-                  type="number" step="1" min="2" value={stages} onChange={e => setStages(e.target.value)}
-                  data-inspect-id="sl-add-phase-stages-input" className={`${compactField} w-20`}
+                  type="number" step="1" min="2" value={phaseCurveEnabled ? '2' : stages}
+                  onChange={e => setStages(e.target.value)} disabled={phaseCurveEnabled}
+                  data-inspect-id="sl-add-phase-stages-input" className={`${compactField} w-20 ${phaseCurveEnabled ? 'opacity-60 cursor-not-allowed' : ''}`}
                 />
               </label>
               <label className="inline-block">
@@ -979,50 +1023,81 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
             <div className="grid grid-cols-12 gap-1.5 mb-1 px-1 text-[10px] uppercase tracking-wide text-[var(--faint-2)]">
               <span className="col-span-3">Hero</span>
               <span className="col-span-3">Archetype</span>
-              <span className="col-span-2">Low sens</span>
-              <span className="col-span-2">High sens</span>
+              <span className="col-span-2">{phaseCurveEnabled ? 'Range 1 low' : 'Low sens'}</span>
+              <span className="col-span-2">{phaseCurveEnabled ? 'Range 1 high' : 'High sens'}</span>
               <span className="col-span-1">Games</span>
             </div>
             <div className="space-y-1 mb-2" data-inspect-id="sl-add-phase-rows">
-              {rows.map((r, i) => (
-                <div key={i} className="grid grid-cols-12 gap-1.5 items-center" title={r.locked ? r.basis : undefined}>
-                  <div className="col-span-3 relative">
+              {rows.map((r, i) => {
+                const low1 = parseFloat(r.low), high1 = parseFloat(r.high);
+                const low2 = parseFloat(r.low2), high2 = parseFloat(r.high2);
+                const range1Valid = low1 > 0 && high1 > low1;
+                const range2Valid = low2 > 0 && high2 > low2;
+                return (
+                <div key={i} className="space-y-1" title={r.locked ? r.basis : undefined}>
+                  <div className="grid grid-cols-12 gap-1.5 items-center">
+                    <div className="col-span-3 relative">
+                      <input
+                        placeholder="Hero" value={r.hero} onChange={e => updateRow(i, { hero: e.target.value })}
+                        className={compactField} aria-label={`Row ${i + 1} hero`}
+                      />
+                      {r.locked && !r.reliable && (
+                        <span className="absolute -right-0.5 -top-1 text-amber-500 text-[10px]" title={r.basis}>⚠</span>
+                      )}
+                    </div>
                     <input
-                      placeholder="Hero" value={r.hero} onChange={e => updateRow(i, { hero: e.target.value })}
-                      className={compactField} aria-label={`Row ${i + 1} hero`}
+                      placeholder="Archetype" value={r.archetype} onChange={e => updateRow(i, { archetype: e.target.value })}
+                      className={`${compactField} col-span-3`} aria-label={`Row ${i + 1} archetype`}
                     />
-                    {r.locked && !r.reliable && (
-                      <span className="absolute -right-0.5 -top-1 text-amber-500 text-[10px]" title={r.basis}>⚠</span>
-                    )}
+                    <input
+                      type="number" step="0.01" min={MIN_SENS} placeholder="Low" value={r.low} onChange={e => updateRow(i, { low: e.target.value })}
+                      disabled={r.locked}
+                      className={`${compactField} col-span-2 ${r.locked ? 'opacity-60 cursor-not-allowed' : ''}`} aria-label={`Row ${i + 1} low sens`}
+                    />
+                    <input
+                      type="number" step="0.01" placeholder="High" value={r.high} onChange={e => updateRow(i, { high: e.target.value })}
+                      disabled={r.locked}
+                      className={`${compactField} col-span-2 ${r.locked ? 'opacity-60 cursor-not-allowed' : ''}`} aria-label={`Row ${i + 1} high sens`}
+                    />
+                    <input
+                      type="number" step="1" min="1" value={r.gamesPerSlot} onChange={e => updateRow(i, { gamesPerSlot: e.target.value })}
+                      className={`${compactField} col-span-1`} aria-label={`Row ${i + 1} games per slot`}
+                    />
+                    <button
+                      type="button" onClick={() => setRows(prev => prev.filter((_, ri) => ri !== i))}
+                      data-inspect-id="sl-add-phase-remove-row-btn"
+                      className="col-span-1 text-[var(--faint)] hover:text-red-400 text-sm font-bold leading-none"
+                      title={`Exclude ${r.hero || 'hero'}`}
+                    >
+                      ×
+                    </button>
                   </div>
-                  <input
-                    placeholder="Archetype" value={r.archetype} onChange={e => updateRow(i, { archetype: e.target.value })}
-                    className={`${compactField} col-span-3`} aria-label={`Row ${i + 1} archetype`}
-                  />
-                  <input
-                    type="number" step="0.01" min={MIN_SENS} placeholder="Low" value={r.low} onChange={e => updateRow(i, { low: e.target.value })}
-                    disabled={r.locked}
-                    className={`${compactField} col-span-2 ${r.locked ? 'opacity-60 cursor-not-allowed' : ''}`} aria-label={`Row ${i + 1} low sens`}
-                  />
-                  <input
-                    type="number" step="0.01" placeholder="High" value={r.high} onChange={e => updateRow(i, { high: e.target.value })}
-                    disabled={r.locked}
-                    className={`${compactField} col-span-2 ${r.locked ? 'opacity-60 cursor-not-allowed' : ''}`} aria-label={`Row ${i + 1} high sens`}
-                  />
-                  <input
-                    type="number" step="1" min="1" value={r.gamesPerSlot} onChange={e => updateRow(i, { gamesPerSlot: e.target.value })}
-                    className={`${compactField} col-span-1`} aria-label={`Row ${i + 1} games per slot`}
-                  />
-                  <button
-                    type="button" onClick={() => setRows(prev => prev.filter((_, ri) => ri !== i))}
-                    data-inspect-id="sl-add-phase-remove-row-btn"
-                    className="col-span-1 text-[var(--faint)] hover:text-red-400 text-sm font-bold leading-none"
-                    title={`Exclude ${r.hero || 'hero'}`}
-                  >
-                    ×
-                  </button>
+                  {phaseCurveEnabled && (
+                    <div className="grid grid-cols-12 gap-1.5 items-center" data-inspect-id="sl-add-phase-range2-row">
+                      <span className="col-span-6 text-right pr-2 text-[10px] text-[var(--faint-2)] uppercase tracking-wide">Range 2</span>
+                      <input
+                        type="number" step="0.01" min={MIN_SENS} placeholder="Low" value={r.low2}
+                        onChange={e => updateRow(i, { low2: e.target.value })}
+                        className={`${compactField} col-span-2`} aria-label={`Row ${i + 1} range 2 low sens`}
+                      />
+                      <input
+                        type="number" step="0.01" placeholder="High" value={r.high2}
+                        onChange={e => updateRow(i, { high2: e.target.value })}
+                        className={`${compactField} col-span-2`} aria-label={`Row ${i + 1} range 2 high sens`}
+                      />
+                      <span className="col-span-2" />
+                    </div>
+                  )}
+                  {phaseCurveEnabled && (range1Valid || range2Valid) && (
+                    <div className="px-1 text-[10px] text-[var(--faint-2)] num-display" data-inspect-id="sl-add-phase-curve-preview">
+                      {range1Valid && `R1 base ${deriveBaseSens(low1, high1).toFixed(2)} / motivity ${deriveMotivity(low1, high1).toFixed(2)}×`}
+                      {range1Valid && range2Valid && '   ·   '}
+                      {range2Valid && `R2 base ${deriveBaseSens(low2, high2).toFixed(2)} / motivity ${deriveMotivity(low2, high2).toFixed(2)}×`}
+                    </div>
+                  )}
                 </div>
-              ))}
+                );
+              })}
               <button
                 type="button" onClick={() => setRows(prev => [...prev, blankRow()])}
                 data-inspect-id="sl-add-phase-add-hero-btn"
@@ -1138,7 +1213,16 @@ function ActiveTestCard({ active }: { active: DpiTestActive }) {
   return (
     <div className="max-w-lg space-y-3">
       <div className="card text-center" data-inspect-id="sl-active-test-card">
-        {active.sens != null ? (
+        {active.curveEnabled && active.sensLow != null && active.sensHigh != null ? (
+          <>
+            <div className="text-xs text-[var(--faint)] mb-1">
+              {active.hero && <><span className="name-caps">{active.hero}</span>{' — '}</>}Stage <b className="font-bold">{active.cur_stage}</b> of <b className="font-bold">{active.n_stages}</b> — set Rawaccel to
+            </div>
+            <div className="text-5xl heading-display text-[var(--ink)] my-2 num-display" data-inspect-id="sl-active-curve-base-sens">{active.sens?.toFixed(2)}</div>
+            <div className="text-xs text-[var(--faint)]">base sens, motivity <b className="num-display" data-inspect-id="sl-active-curve-motivity">{active.motivity?.toFixed(2)}×</b></div>
+            <div className="text-[10px] text-[var(--faint-2)] mt-1">floor {active.sensLow.toFixed(2)} / ceiling {active.sensHigh.toFixed(2)}, mouse DPI locked <b className="num-display">{active.dpi}</b></div>
+          </>
+        ) : active.sens != null ? (
           <>
             <div className="text-xs text-[var(--faint)] mb-1">
               {active.hero && <><span className="name-caps">{active.hero}</span>{' — '}</>}Stage <b className="font-bold">{active.cur_stage}</b> of <b className="font-bold">{active.n_stages}</b> — set your in-game sens to
@@ -1279,7 +1363,7 @@ function AnswerTable({ stages }: { stages: AnswerStage[] }) {
       <table className="w-full text-xs">
         <thead>
           <tr className="text-[var(--faint-2)] text-left">
-            {['Stage', 'DPI', 'Δ%', 'eDPI', 'Sens @1600', 'Trials', 'Feel avg', 'Feel var'].map(h => <th key={h} className="py-1.5 pr-3">{h}</th>)}
+            {['Stage', 'DPI', 'Δ%', 'eDPI', 'Sens @1600', 'Range / Motivity', 'Trials', 'Feel avg', 'Feel var'].map(h => <th key={h} className="py-1.5 pr-3">{h}</th>)}
           </tr>
         </thead>
         <tbody className="num-display">
@@ -1290,6 +1374,7 @@ function AnswerTable({ stages }: { stages: AnswerStage[] }) {
               <td className={`py-1.5 pr-3 ${s.pct_delta > 0 ? 'text-emerald-700 dark:text-emerald-500' : s.pct_delta < 0 ? 'text-red-700 dark:text-red-400' : 'text-[var(--faint)]'}`}>{s.pct_delta > 0 ? '+' : ''}{s.pct_delta}%</td>
               <td className="py-1.5 pr-3">{s.eDPI}</td>
               <td className="py-1.5 pr-3">{(s.eDPI / MOUSE_DPI).toFixed(2)}</td>
+              <td className="py-1.5 pr-3">{s.sensLow != null && s.sensHigh != null ? `${s.sensLow.toFixed(2)}–${s.sensHigh.toFixed(2)} / ${s.motivity?.toFixed(2)}×` : '—'}</td>
               <td className="py-1.5 pr-3">{s.n}</td>
               <td className="py-1.5 pr-3">{s.feelMean != null ? s.feelMean.toFixed(1) : '—'}</td>
               <td className="py-1.5 pr-3">{s.feelVar != null ? s.feelVar.toFixed(2) : '—'}</td>
