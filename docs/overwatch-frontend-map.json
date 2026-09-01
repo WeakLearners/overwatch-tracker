@@ -988,40 +988,100 @@
           "id": "sl-curve-params-card",
           "label": "Mouse acceleration curve card",
           "kind": "card",
-          "description": "Surfaces the current phase's Rawaccel Motivity-curve params (GET /api/aim/curve) so Sean can set Rawaccel to match before playing. A fixed constant for the whole phase \u2014 doesn't vary per hero or per stage the way sens does; every match already gets these values stamped server-side, this card just makes them visible somewhere in the app. Rendered above the Backfill panel.",
+          "description": "Surfaces (and, field-by-field, updates) the live Rawaccel Jump-curve params (GET/PUT /api/aim/curve) so Sean can set Rawaccel to match before playing. One live setting, not per-hero or per-phase \u2014 every match already gets whatever's currently saved stamped on it server-side. Editing locks automatically once any stage-test set goes active (sl-curve-params-lock-badge) so the curve can't drift mid-test. Rendered above the Backfill panel.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:245",
+            "path": "client/src/pages/SensLog.tsx:298",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-curve-params-card\"' client/src/pages/SensLog.tsx"
           }
         },
         {
-          "id": "sl-curve-growth-rate",
-          "label": "Growth Rate stat tile",
-          "kind": "stat-tile",
-          "description": "Displays the current phase's Rawaccel Motivity-curve Growth Rate value.",
+          "id": "sl-curve-params-lock-badge",
+          "label": "Lock badge (curve params card)",
+          "kind": "badge",
+          "description": "Shown instead of any edit affordance whenever `locked` is true (>=1 active stage-test set, via SensLog's dpiState.actives, passed down as the locked prop from the page component). Communicates that editing is frozen until the test finishes or is cancelled.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:254",
-            "grep": "grep -n -F -- 'data-inspect-id=\"sl-curve-growth-rate\"' client/src/pages/SensLog.tsx"
+            "path": "client/src/pages/SensLog.tsx:302",
+            "grep": "grep -n -F -- 'sl-curve-params-lock-badge' client/src/pages/SensLog.tsx"
+          }
+        },
+        {
+          "id": "sl-curve-params-fields",
+          "label": "Smooth/Input/Output field grid (curve params card)",
+          "kind": "grid",
+          "description": "Three independently-editable tiles, one per Jump-curve field (CURVE_FIELD_META: smooth, input, output). Each tile is its own click-to-edit unit \u2014 editing one field doesn't touch the other two \u2014 rather than one shared Edit toggle for the whole card.",
+          "locate": {
+            "path": "client/src/pages/SensLog.tsx:313",
+            "grep": "grep -n -F -- 'sl-curve-params-fields' client/src/pages/SensLog.tsx"
+          }
+        },
+        {
+          "id": "sl-curve-params-field-edit-btn",
+          "label": "Per-field edit button (Smooth/Input/Output)",
+          "kind": "button",
+          "description": "Template id `sl-curve-params-${field}-edit-btn` (smooth/input/output) \u2014 the field's displayed value doubles as its own edit trigger; disabled and greyed out when locked. Wraps the field's stat-tile value span (sl-curve-growth-rate/sl-curve-midpoint/sl-curve-motivity, unchanged ids from before this per-field rework).",
+          "locate": {
+            "path": "client/src/pages/SensLog.tsx:344",
+            "grep": "grep -n -F -- 'sl-curve-params-${field}-edit-btn' client/src/pages/SensLog.tsx"
+          }
+        },
+        {
+          "id": "sl-curve-params-field-input",
+          "label": "Per-field number input (Smooth/Input/Output)",
+          "kind": "input",
+          "description": "Template id `sl-curve-params-${field}-input` \u2014 shown for exactly one field at a time (editingField state), prefilled with that field's current live value on open.",
+          "locate": {
+            "path": "client/src/pages/SensLog.tsx:324",
+            "grep": "grep -n -F -- 'sl-curve-params-${field}-input' client/src/pages/SensLog.tsx"
+          }
+        },
+        {
+          "id": "sl-curve-params-field-save-btn",
+          "label": "Per-field \"Save\" button (Smooth/Input/Output)",
+          "kind": "button",
+          "description": "Template id `sl-curve-params-${field}-save-btn` \u2014 PUTs the current live params with only this one field overwritten, revalidates, and exits edit mode on success; shows the server's validation error inline on failure.",
+          "locate": {
+            "path": "client/src/pages/SensLog.tsx:329",
+            "grep": "grep -n -F -- 'sl-curve-params-${field}-save-btn' client/src/pages/SensLog.tsx"
+          }
+        },
+        {
+          "id": "sl-curve-params-field-cancel-btn",
+          "label": "Per-field \"Cancel\" button (Smooth/Input/Output)",
+          "kind": "button",
+          "description": "Template id `sl-curve-params-${field}-cancel-btn` \u2014 exits edit mode for this field without saving.",
+          "locate": {
+            "path": "client/src/pages/SensLog.tsx:335",
+            "grep": "grep -n -F -- 'sl-curve-params-${field}-cancel-btn' client/src/pages/SensLog.tsx"
+          }
+        },
+        {
+          "id": "sl-curve-growth-rate",
+          "label": "Smooth value (curve params card)",
+          "kind": "stat-tile",
+          "description": "Displays the live Rawaccel Jump-curve Smooth value \u2014 sits inside sl-curve-params-field-edit-btn, which is the click-to-edit trigger for this field. Id assigned via CURVE_FIELD_VALUE_ID[field] rather than a literal data-inspect-id in JSX.",
+          "locate": {
+            "path": "client/src/pages/SensLog.tsx:245",
+            "grep": "grep -n -F -- 'sl-curve-growth-rate' client/src/pages/SensLog.tsx"
           }
         },
         {
           "id": "sl-curve-midpoint",
-          "label": "Midpoint stat tile",
+          "label": "Input (threshold) value (curve params card)",
           "kind": "stat-tile",
-          "description": "Displays the current phase's Rawaccel Motivity-curve Midpoint value.",
+          "description": "Displays the live Rawaccel Jump-curve Input (threshold speed) value \u2014 sits inside sl-curve-params-field-edit-btn, which is the click-to-edit trigger for this field. Id assigned via CURVE_FIELD_VALUE_ID[field] rather than a literal data-inspect-id in JSX.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:258",
-            "grep": "grep -n -F -- 'data-inspect-id=\"sl-curve-midpoint\"' client/src/pages/SensLog.tsx"
+            "path": "client/src/pages/SensLog.tsx:245",
+            "grep": "grep -n -F -- 'sl-curve-midpoint' client/src/pages/SensLog.tsx"
           }
         },
         {
           "id": "sl-curve-motivity",
-          "label": "Motivity (cap) stat tile",
+          "label": "Output (multiplier) value (curve params card)",
           "kind": "stat-tile",
-          "description": "Displays the current phase's Rawaccel Motivity-curve cap (Motivity) value.",
+          "description": "Displays the live Rawaccel Jump-curve Output multiplier value \u2014 sits inside sl-curve-params-field-edit-btn, which is the click-to-edit trigger for this field. Id assigned via CURVE_FIELD_VALUE_ID[field] rather than a literal data-inspect-id in JSX.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:262",
-            "grep": "grep -n -F -- 'data-inspect-id=\"sl-curve-motivity\"' client/src/pages/SensLog.tsx"
+            "path": "client/src/pages/SensLog.tsx:245",
+            "grep": "grep -n -F -- 'sl-curve-motivity' client/src/pages/SensLog.tsx"
           }
         },
         {
@@ -1150,7 +1210,7 @@
           "kind": "input",
           "description": "Global stage count for the new phase \u2014 each hero's auto-narrowed (or manually entered) low/high sens range is evenly spread across this many stage values.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:997",
+            "path": "client/src/pages/SensLog.tsx:958",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-add-phase-stages-input\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -1160,7 +1220,7 @@
           "kind": "button",
           "description": "Sets phaseCurveEnabled=false for the phase about to be created \u2014 every hero set built by this modal shares this one on/off value (in_game_sens-style phase-wide constant), not a per-hero or per-match setting.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1008",
+            "path": "client/src/pages/SensLog.tsx:969",
             "grep": "grep -n -F -- 'sl-add-phase-curve-enabled-' client/src/pages/SensLog.tsx"
           }
         },
@@ -1170,7 +1230,7 @@
           "kind": "button",
           "description": "Sets phaseCurveEnabled=true for the phase about to be created. Same button element as sl-add-phase-curve-enabled-off (mapped from [false, true]) \u2014 both ids come from one data-inspect-id template distinguished by the v flag.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1008",
+            "path": "client/src/pages/SensLog.tsx:969",
             "grep": "grep -n -F -- 'sl-add-phase-curve-enabled-' client/src/pages/SensLog.tsx"
           }
         },
@@ -1180,28 +1240,8 @@
           "kind": "list",
           "description": "One compact row per hero in the new phase: hero name, archetype, low/high sens (read-only + auto-narrowed for heroes carried over from the latest phase, editable for manually added heroes), games/slot, and an exclude (\u00d7) button. The \"+ Add hero\" row sits at the bottom of this list.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1030",
+            "path": "client/src/pages/SensLog.tsx:991",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-add-phase-rows\"' client/src/pages/SensLog.tsx"
-          }
-        },
-        {
-          "id": "sl-add-phase-range2-row",
-          "label": "Range 2 low/high inputs",
-          "kind": "row",
-          "description": "Second range for a hero row, shown only when the phase Mouse Acceleration toggle is on \u2014 each hero needs exactly 2 ranges (fixed), Range 1 reusing the existing Low/High sens inputs, this row adding Range 2 low2/high2.",
-          "locate": {
-            "path": "client/src/pages/SensLog.tsx:1076",
-            "grep": "grep -n -F -- 'sl-add-phase-range2-row' client/src/pages/SensLog.tsx"
-          }
-        },
-        {
-          "id": "sl-add-phase-curve-preview",
-          "label": "Range base sens / motivity preview",
-          "kind": "text",
-          "description": "Live-computed preview under a hero row (curve mode only) showing R1/R2 base sens (deriveBaseSens) and motivity (deriveMotivity) from whatever low/high values are currently entered, before the phase is saved.",
-          "locate": {
-            "path": "client/src/pages/SensLog.tsx:1092",
-            "grep": "grep -n -F -- 'sl-add-phase-curve-preview' client/src/pages/SensLog.tsx"
           }
         },
         {
@@ -1258,30 +1298,10 @@
           "id": "sl-active-test-card",
           "label": "Active DPI/sens stage card",
           "kind": "card",
-          "description": "Shows the current stage number and target \u2014 an in-game sens for sens-varying sets (\"set your in-game sens to\"), or a mouse DPI for the legacy DPI-varying path (\"set your mouse to\", pre-lock stages only) \u2014 plus games remaining in the current batch. One card renders per active set; the panel lays them out in two columns, DPS on the left and Support on the right (hero-less ad-hoc sets default to the DPS column).",
+          "description": "Shows the current stage number and target \u2014 an in-game sens for sens-varying sets (\"set your in-game sens to\"), or a mouse DPI for the legacy DPI-varying path (\"set your mouse to\", pre-lock stages only) \u2014 plus games remaining in the current batch. When the active stage's phase has Mouse Acceleration on, an extra subline notes it and points at the Jump-curve params card. One card renders per active set; the panel lays them out in two columns, DPS on the left and Support on the right (hero-less ad-hoc sets default to the DPS column).",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1215",
+            "path": "client/src/pages/SensLog.tsx:1149",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-active-test-card\"' client/src/pages/SensLog.tsx"
-          }
-        },
-        {
-          "id": "sl-active-curve-base-sens",
-          "label": "Active ranged-stage base sens display",
-          "kind": "stat-tile",
-          "description": "Shown instead of the plain sens display when the active stage is a ranged curve stage (sensLow/sensHigh set) \u2014 the derived base sens to type into Rawaccel.",
-          "locate": {
-            "path": "client/src/pages/SensLog.tsx:1221",
-            "grep": "grep -n -F -- 'sl-active-curve-base-sens' client/src/pages/SensLog.tsx"
-          }
-        },
-        {
-          "id": "sl-active-curve-motivity",
-          "label": "Active ranged-stage motivity display",
-          "kind": "stat-tile",
-          "description": "Derived motivity (deriveMotivity, server-computed via GET /api/blind/state) shown alongside the base sens for the active ranged curve stage.",
-          "locate": {
-            "path": "client/src/pages/SensLog.tsx:1222",
-            "grep": "grep -n -F -- 'sl-active-curve-motivity' client/src/pages/SensLog.tsx"
           }
         },
         {
@@ -1370,7 +1390,7 @@
           "kind": "table",
           "description": "Table of per-stage results (DPI, percent delta, eDPI, equivalent sens at 1600, trial count, feel mean/variance) for a completed DPI test set.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1366",
+            "path": "client/src/pages/SensLog.tsx:1294",
             "grep": "grep -n -F -- 'Sens @1600' client/src/pages/SensLog.tsx"
           }
         },
