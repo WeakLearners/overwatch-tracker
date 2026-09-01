@@ -83,9 +83,17 @@ function initSchema(db: DatabaseSync) {
     db.exec(`UPDATE matches SET dpi = 1600 WHERE dpi IS NULL`);
   }
 
-  // curve_growth_rate / curve_midpoint: Rawaccel Motivity-curve params active
-  // when the match was played (see lib/aim.ts's CURVE_* constants). Null on
-  // every row logged before the mouse-acceleration testing phase started —
+  // curve_growth_rate / curve_midpoint / curve_motivity: Rawaccel curve params
+  // active when the match was played (see lib/curveParams.ts's getCurveParams
+  // — editable in-app since 2026-09-01, was hardcoded constants before that).
+  // Originally a Motivity (sigmoid) curve — growth_rate/midpoint/motivity;
+  // switched to Rawaccel's Jump (step) curve on 2026-09-01, whose real params
+  // are Smooth/Input/Output, stored in these same three columns (renaming a
+  // live SQLite column isn't worth the risk, and the columns were never
+  // exposed outside this app). Rows logged 2026-08-25 through 2026-08-31 hold
+  // real Motivity values; rows from 2026-09-01 on hold Jump values instead —
+  // treat this column's meaning as dependent on when the row was logged. Null
+  // on every row logged before the mouse-acceleration testing phase started —
   // no backfill, since flat per-hero sens (no curve at all) isn't a curve
   // value of "0", it's the absence of one.
   if (!cols.find(c => c.name === 'curve_growth_rate')) {
@@ -94,25 +102,18 @@ function initSchema(db: DatabaseSync) {
   if (!cols.find(c => c.name === 'curve_midpoint')) {
     db.exec(`ALTER TABLE matches ADD COLUMN curve_midpoint REAL`);
   }
-
-  // curve_motivity: the actual Motivity cap in effect for this match. Null
-  // (falls back to the fixed CURVE_MOTIVITY constant) for matches governed by
-  // a flat-value curve-enabled stage; real per-match value, derived from the
-  // active stage's sens_low/sens_high (blind_stages), for matches governed by
-  // a "ranged" curve stage — see blind_stages.sens_low/sens_high above and
-  // lib/aim.ts's deriveMotivity.
   if (!cols.find(c => c.name === 'curve_motivity')) {
     db.exec(`ALTER TABLE matches ADD COLUMN curve_motivity REAL`);
   }
 
-  // curve_enabled: whether mouse acceleration (Rawaccel's Motivity curve) was
-  // actually active for this match — ground truth, distinct from
-  // curve_growth_rate/curve_midpoint above. Those two got stamped with the
-  // same constant on every match logged from 2026-08-25 onward regardless of
-  // whether acceleration was really on, which made them useless as a signal.
-  // Column added here (matches table is defined this early); one-time
-  // backfill deferred until after blind_stage_sets/blind_credits exist —
-  // see below, near the end of this function.
+  // curve_enabled: whether mouse acceleration was actually active for this
+  // match — ground truth, distinct from curve_growth_rate/curve_midpoint
+  // above. Those two got stamped with the same constant on every match
+  // logged from 2026-08-25 onward regardless of whether acceleration was
+  // really on, which made them useless as a signal. Column added here
+  // (matches table is defined this early); one-time backfill deferred until
+  // after blind_stage_sets/blind_credits exist — see below, near the end of
+  // this function.
   const needsCurveEnabledBackfill = !cols.find(c => c.name === 'curve_enabled');
   if (needsCurveEnabledBackfill) {
     db.exec(`ALTER TABLE matches ADD COLUMN curve_enabled INTEGER NOT NULL DEFAULT 0`);
@@ -451,19 +452,15 @@ function initSchema(db: DatabaseSync) {
     db.exec(`ALTER TABLE blind_stages ADD COLUMN sens REAL`);
   }
 
-  // sens_low / sens_high: when both are set, this stage is a "ranged" curve
-  // stage — instead of a single flat sens value to play at, it defines the
-  // Motivity curve's floor and ceiling for the whole stage (base sens =
-  // √(low×high), motivity = √(high÷low), see lib/aim.ts). `sens` above still
-  // gets the derived base sens so every existing reader of `sens` (analysis,
-  // adaptation tracking, display) keeps working unchanged — these two columns
-  // are additional metadata only meaningful alongside curve_enabled on the
-  // parent set. Null on every flat-value stage (the normal case).
-  for (const col of ['sens_low', 'sens_high']) {
-    if (!stageCols.find(c => c.name === col)) {
-      db.exec(`ALTER TABLE blind_stages ADD COLUMN ${col} REAL`);
-    }
-  }
+  // sens_low / sens_high (2026-08-31 through 2026-09-01 only): a short-lived
+  // "ranged" Motivity-curve stage design — floor/ceiling instead of one flat
+  // sens value. Superseded the same day by a switch to Rawaccel's Jump curve,
+  // which needs no derived range at all (Jump's two settings ARE two flat
+  // sens values, tested the normal way). No real games were ever logged
+  // against a ranged stage (only a smoketest set, deleted). Left as dead,
+  // always-null columns on any DB that already ran the old migration —
+  // dropping columns from a live SQLite table isn't worth the risk for
+  // columns nothing reads anymore.
 
   // Migrate blind_stage_sets created before the guided-loop columns existed.
   const setCols = db.prepare(`PRAGMA table_info(blind_stage_sets)`).all() as { name: string }[];
@@ -535,6 +532,21 @@ function initSchema(db: DatabaseSync) {
     db.exec(`ALTER TABLE custom_phases ADD COLUMN curve_enabled INTEGER NOT NULL DEFAULT 0`);
     db.exec(`UPDATE custom_phases SET curve_enabled = 1 WHERE key = 'custom-1787763963436'`);
   }
+
+  // curve_params: the Rawaccel Jump-curve settings Sean is actually running
+  // right now — Smooth/Input/Output, editable from the "Mouse acceleration
+  // curve" card on the testing page (GET/PUT /api/aim/curve, lib/curveParams.ts)
+  // instead of being hardcoded constants. Single row, id fixed at 1. No row
+  // yet (fresh install, or before this table existed) falls back to
+  // lib/curveParams.ts's DEFAULT_CURVE_* — see getCurveParams there.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS curve_params (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      smooth REAL NOT NULL,
+      input REAL NOT NULL,
+      output REAL NOT NULL
+    )
+  `);
 
   // Cache for LLM-generated tactical recommendations, keyed by map+queue_mode.
   db.exec(`

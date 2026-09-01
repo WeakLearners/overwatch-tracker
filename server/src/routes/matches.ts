@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
-import { CURVE_GROWTH_RATE, CURVE_MIDPOINT, CURVE_MOTIVITY, deriveMotivity } from '../lib/aim';
+import { getCurveParams } from '../lib/curveParams';
 
 const router = Router();
 
@@ -46,15 +46,12 @@ function findActiveStage(db: ReturnType<typeof getDb>, hero: string, isCompetiti
     LIMIT 1
   `).get({ hero }) as { id: number; cur_rel: number; in_game_sens: number; curve_enabled: number } | undefined;
   if (!activeSet) return undefined;
-  const stage = db.prepare('SELECT dpi, sens, sens_low, sens_high FROM blind_stages WHERE set_id = :sid AND stage_index = :si')
-    .get({ sid: activeSet.id, si: activeSet.cur_rel }) as { dpi: number; sens: number | null; sens_low: number | null; sens_high: number | null } | undefined;
+  const stage = db.prepare('SELECT dpi, sens FROM blind_stages WHERE set_id = :sid AND stage_index = :si')
+    .get({ sid: activeSet.id, si: activeSet.cur_rel }) as { dpi: number; sens: number | null } | undefined;
   if (!stage) return undefined;
   return {
     setId: activeSet.id, stageIdx: activeSet.cur_rel, dpi: stage.dpi, sens: stage.sens ?? activeSet.in_game_sens,
     curveEnabled: !!activeSet.curve_enabled,
-    // Ranged stage (sens_low/sens_high both set) → real per-stage motivity;
-    // flat-value curve stage → null, insert path falls back to CURVE_MOTIVITY.
-    curveMotivity: stage.sens_low != null && stage.sens_high != null ? deriveMotivity(stage.sens_low, stage.sens_high) : null,
   };
 }
 
@@ -82,13 +79,12 @@ function findStageForRecredit(
   const set = db.prepare('SELECT id, in_game_sens, curve_enabled FROM blind_stage_sets WHERE id = :id')
     .get({ id: priorCredit.blind_set_id }) as { id: number; in_game_sens: number; curve_enabled: number } | undefined;
   if (!set) return undefined;
-  const stage = db.prepare('SELECT dpi, sens, sens_low, sens_high FROM blind_stages WHERE set_id = :sid AND stage_index = :si')
-    .get({ sid: set.id, si: priorCredit.stage_index }) as { dpi: number; sens: number | null; sens_low: number | null; sens_high: number | null } | undefined;
+  const stage = db.prepare('SELECT dpi, sens FROM blind_stages WHERE set_id = :sid AND stage_index = :si')
+    .get({ sid: set.id, si: priorCredit.stage_index }) as { dpi: number; sens: number | null } | undefined;
   if (!stage) return undefined;
   return {
     setId: set.id, stageIdx: priorCredit.stage_index, dpi: stage.dpi, sens: stage.sens ?? set.in_game_sens,
     curveEnabled: !!set.curve_enabled,
-    curveMotivity: stage.sens_low != null && stage.sens_high != null ? deriveMotivity(stage.sens_low, stage.sens_high) : null,
   };
 }
 
@@ -150,10 +146,6 @@ router.post('/', (req: Request, res: Response) => {
   // this match. The manual toggle only matters as the fallback for matches
   // with no active test at all (no hero-tagged or ad-hoc set running).
   const finalCurveEnabled = primaryStage ? primaryStage.curveEnabled : (curve_enabled === true || curve_enabled === 1);
-  // Real per-stage motivity for a "ranged" stage (derived from its
-  // sens_low/sens_high), or the fixed CURVE_MOTIVITY fallback for a
-  // flat-value curve stage / the no-active-test case.
-  const finalCurveMotivity = primaryStage?.curveMotivity ?? CURVE_MOTIVITY;
 
   // Match row + heroes + blind_credits + games_on_stage all describe one
   // logged match together — wrapped in a transaction so a mid-request error
@@ -170,14 +162,15 @@ router.post('/', (req: Request, res: Response) => {
     // above (finalCurveEnabled) from the active stage-test set's phase-wide
     // flag when one governs this match, same priority as dpi/sens; only falls
     // back to LogMatch's manual toggle when no set is active at all. The two
-    // curve params themselves stay the fixed CURVE_* constants from lib/aim.ts
-    // (shape isn't being tuned yet, see aim.ts's file comment) but are only
+    // curve params themselves are whatever's live right now (getCurveParams,
+    // editable from the testing page — see lib/curveParams.ts) but are only
     // written when curve_enabled is actually true, so "not recorded" reads
     // as null, not a false 0/default like sens=null already does for dpi.
+    const curveParams = finalCurveEnabled ? getCurveParams(db) : null;
     const result = db.prepare(`
       INSERT INTO matches (date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, dpi, blind_trial, blind_set_id, stage_index, feel, team_rating, notes, curve_enabled, curve_growth_rate, curve_midpoint, curve_motivity)
       VALUES (:date, :time, :day_of_week, :hour, :hero, :role, :map, :game_type, :win, :deaths, :queue_mode, :sens, :dpi, :blind_trial, :blind_set_id, :stage_index, :feel, :team_rating, :notes, :curve_enabled, :curve_growth_rate, :curve_midpoint, :curve_motivity)
-    `).run({ date, time: time ?? null, day_of_week: day_of_week ?? null, hour: hour ?? null, hero, role, map, game_type, win: win ? 1 : 0, deaths: deathsJson, queue_mode: queue_mode ?? 'comp_role', sens: finalSens, dpi: finalDpi, blind_trial: isStudy, blind_set_id: setId, stage_index: stageIdx, feel: feel ?? null, team_rating: team_rating ?? null, notes: notes?.trim() || null, curve_enabled: finalCurveEnabled ? 1 : 0, curve_growth_rate: finalCurveEnabled ? CURVE_GROWTH_RATE : null, curve_midpoint: finalCurveEnabled ? CURVE_MIDPOINT : null, curve_motivity: finalCurveEnabled ? finalCurveMotivity : null });
+    `).run({ date, time: time ?? null, day_of_week: day_of_week ?? null, hour: hour ?? null, hero, role, map, game_type, win: win ? 1 : 0, deaths: deathsJson, queue_mode: queue_mode ?? 'comp_role', sens: finalSens, dpi: finalDpi, blind_trial: isStudy, blind_set_id: setId, stage_index: stageIdx, feel: feel ?? null, team_rating: team_rating ?? null, notes: notes?.trim() || null, curve_enabled: finalCurveEnabled ? 1 : 0, curve_growth_rate: curveParams?.smooth ?? null, curve_midpoint: curveParams?.input ?? null, curve_motivity: curveParams?.output ?? null });
 
     matchId = result.lastInsertRowid as number;
 
@@ -315,12 +308,13 @@ function syncStageCredits(db: ReturnType<typeof getDb>, matchId: string, sensPro
   // corrected directly via their own EDITABLE fields, so there's no risk of
   // clobbering a value this same request just set on purpose.
   if (primaryStage) {
+    const curveParams = primaryStage.curveEnabled ? getCurveParams(db) : null;
     db.prepare('UPDATE matches SET curve_enabled = :ce, curve_growth_rate = :cgr, curve_midpoint = :cm, curve_motivity = :cmot WHERE id = :id')
       .run({
         id: matchId, ce: primaryStage.curveEnabled ? 1 : 0,
-        cgr: primaryStage.curveEnabled ? CURVE_GROWTH_RATE : null,
-        cm: primaryStage.curveEnabled ? CURVE_MIDPOINT : null,
-        cmot: primaryStage.curveEnabled ? (primaryStage.curveMotivity ?? CURVE_MOTIVITY) : null,
+        cgr: curveParams?.smooth ?? null,
+        cm: curveParams?.input ?? null,
+        cmot: curveParams?.output ?? null,
       });
   }
 }

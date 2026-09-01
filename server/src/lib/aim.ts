@@ -103,43 +103,19 @@ export function fitQuadraticPeak(pts: CurvePoint[]): CurveFitResult | null {
   };
 }
 
-// Rawaccel Motivity (sigmoid) curve params. Curve and per-hero in-game sens
-// are separate, multiplicative layers (curve output × hero sens = final
-// speed) — the curve doesn't replace per-hero sens switching, it's layered
-// on top for within-hero dynamic scaling by raw mouse speed. Enabled per
-// phase/test-set (blind_stage_sets.curve_enabled — see routes/blind.ts and
-// SensLog.tsx's "+ Add new phase" toggle), first genuinely used in Phase 7
-// (2026-08-26).
+// Rawaccel Jump curve. Curve and per-hero in-game sens are separate,
+// multiplicative layers (curve output × hero sens = final speed) — the curve
+// doesn't replace per-hero sens switching, it's layered on top for within-
+// hero dynamic scaling by raw mouse speed. Enabled per phase/test-set
+// (blind_stage_sets.curve_enabled — see routes/blind.ts and SensLog.tsx's
+// "+ Add new phase" toggle), first genuinely used in Phase 7 (2026-08-26).
 //
-// CURVE_MOTIVITY/CURVE_GROWTH_RATE/CURVE_MIDPOINT below are the fixed
-// fallback values used by flat-value curve-enabled stages (a stage with one
-// sens value, curve applied uniformly on top). MOTIVITY was derived from
-// real per-hero converged-sens spread (fastest hero ÷ slowest hero);
-// GROWTH_RATE and MIDPOINT are still unvalidated placeholders — MIDPOINT
-// especially needs a real per-player calibration (play at a very high
-// midpoint to isolate/confirm base sens feel, then lower it until fast
-// flicks start getting boosted — see Raw Accel's own guide) that hasn't
-// been run yet.
-//
-// "Ranged" stages (blind_stages.sens_low/sens_high both set) are the newer,
-// per-stage-varying alternative: instead of one flat sens number, a stage
-// defines the curve's floor and ceiling directly, and MOTIVITY is derived
-// per stage via deriveMotivity below instead of using the fixed constant —
-// GROWTH_RATE/MIDPOINT still come from the fixed constants either way, since
-// those are closer to fixed properties of the player's hand/mouse than
-// something a sens bracket can determine.
-export const CURVE_MOTIVITY = 1.30; // cap multiplier: Shion/Reaper's 2.76 ÷ Zenyatta's 2.13
-export const CURVE_GROWTH_RATE = 1.0; // unvalidated placeholder
-export const CURVE_MIDPOINT = 12; // unvalidated placeholder, counts/ms — needs real calibration
-
-// A Motivity curve maps mouse speed to a sensitivity multiplier that's 1×
-// exactly at the midpoint speed, dropping toward 1/motivity below it and
-// rising toward motivity above it. So if a "ranged" stage wants its slow-speed
-// floor to land on `low` and its fast-speed ceiling to land on `high` (both
-// real, absolute sens values — not multipliers), solving
-// base/motivity = low and base*motivity = high gives:
-export const deriveBaseSens = (low: number, high: number): number => Math.sqrt(low * high);
-export const deriveMotivity = (low: number, high: number): number => Math.sqrt(high / low);
+// Jump is a step function, not a smooth ramp: below Input (the mouse-speed
+// threshold, counts/ms), you get 1× (no boost); above it, you get Output×.
+// Smooth softens the instant snap at the threshold slightly (0 = a true
+// instant jump). The actual current values are real-world Rawaccel settings
+// Sean dials in directly in Rawaccel — see lib/curveParams.ts, editable
+// in-app since 2026-09-01 rather than hardcoded here.
 
 // Aim archetype per hero. Governs how strongly crit/overall accuracy reflects
 // raw sensitivity fit. Only DPS heroes whose accuracy is clearly sens-dominated

@@ -2,17 +2,47 @@ import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
 import {
   cm360, eDPI, archetypeOf, deriveSessionPosition, deriveSensAdaptation, TimelineMatch, MOUSE_DPI,
-  fitQuadraticPeak, CurvePoint, CURVE_GROWTH_RATE, CURVE_MIDPOINT, CURVE_MOTIVITY,
+  fitQuadraticPeak, CurvePoint,
 } from '../lib/aim';
+import { getCurveParams, setCurveParams } from '../lib/curveParams';
 
 const router = Router();
 
-// The Rawaccel Motivity-curve params currently stamped on every match (see
-// matches.ts) — fixed constants for now, not phase-staged, so this is just a
-// read of what's already being written rather than a live/active-set query
-// like /api/blind/state.
+// The Rawaccel Jump-curve params currently stamped on every match (see
+// matches.ts) — editable here, not phase-staged, so a GET is just a read of
+// what's already being written rather than a live/active-set query like
+// /api/blind/state.
 router.get('/curve', (_req: Request, res: Response) => {
-  res.json({ growthRate: CURVE_GROWTH_RATE, midpoint: CURVE_MIDPOINT, motivity: CURVE_MOTIVITY });
+  res.json(getCurveParams(getDb()));
+});
+
+// Updates the live curve params — takes effect on the next match logged, not
+// retroactive (existing matches keep whatever was stamped at the time, same
+// as dpi/sens history). Smooth is a 0-1 softening factor (0 = instant snap);
+// Input is the threshold speed in counts/ms (>0); Output is the above-
+// threshold multiplier (>=1, since <1 would mean acceleration slows you down).
+//
+// Refused outright while any stage-test set is active — same rule the
+// SensLog.tsx curve card enforces client-side (its `locked` prop, derived
+// from GET /api/blind/state's actives.length), repeated here so a stray
+// direct API call can't drift the curve mid-test and silently invalidate
+// whatever that test is measuring.
+router.put('/curve', (req: Request, res: Response) => {
+  const db = getDb();
+  const activeCount = (db.prepare('SELECT COUNT(*) n FROM blind_stage_sets WHERE active = 1').get() as { n: number }).n;
+  if (activeCount > 0) {
+    res.status(409).json({ error: 'curve params are locked while a stage-test set is active' });
+    return;
+  }
+  const smooth = Number(req.body.smooth);
+  const input = Number(req.body.input);
+  const output = Number(req.body.output);
+  if (!(smooth >= 0 && smooth <= 1) || !(input > 0) || !(output >= 1)) {
+    res.status(400).json({ error: 'invalid curve params (smooth 0-1, input > 0, output >= 1)' });
+    return;
+  }
+  setCurveParams(db, { smooth, input, output });
+  res.json(getCurveParams(db));
 });
 
 const mean = (xs: number[]): number | null =>
