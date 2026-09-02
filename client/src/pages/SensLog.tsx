@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useApi, revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
-import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { eDPI, MOUSE_DPI } from '../lib/aim';
 import {
   QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, MODE_TAG, HEROES,
@@ -147,11 +146,12 @@ const btnSecondary = 'border border-ow-border rounded-lg text-[var(--ink)] font-
 const HERO_LIST = Object.entries(HEROES).sort((a, b) => a[0].localeCompare(b[0]));
 
 // ── Shared aim-stat inputs (used by both the stage-trial loop and the backfill form) ─
-function StatFields({ s, upd, updHeroAcc, showHealing, firstDurationRef }: {
+function StatFields({ s, upd, updHeroAcc, showHealing, firstDurationRef, heroSens }: {
   s: StatFieldsT; upd: <K extends Exclude<keyof StatFieldsT, 'heroAcc'>>(k: K, v: StatFieldsT[K]) => void;
   updHeroAcc: (i: number, k: 'overall_acc' | 'crit_acc' | 'extra_acc' | 'duration_min', v: string) => void;
   showHealing: boolean;
   firstDurationRef?: React.RefObject<HTMLInputElement>;
+  heroSens?: Record<string, string>;
 }) {
   const t = (k: Exclude<keyof StatFieldsT, 'heroAcc'>) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => upd(k, e.target.value as never);
   const combatFields = showHealing
@@ -168,7 +168,17 @@ function StatFields({ s, upd, updHeroAcc, showHealing, firstDurationRef }: {
           const critSlot = CRIT_SLOT_LABEL[h.hero] ?? { label: 'Crit %', aria: 'crit accuracy' };
           return (
           <div key={h.hero}>
-            <div className="text-xs hero-name text-[var(--ink)] mb-1.5">{h.hero}</div>
+            <div className="flex items-baseline justify-between text-xs hero-name text-[var(--ink)] mb-1.5">
+              <span>{h.hero}</span>
+              {(() => {
+                const sens = parseFloat(heroSens?.[h.hero] ?? '');
+                return sens > 0 ? (
+                  <span className="text-[var(--ink)] font-normal normal-case tracking-normal">
+                    {sens.toFixed(2)} @ {MOUSE_DPI} (eDPI {Math.round(eDPI(sens))})
+                  </span>
+                ) : null;
+              })()}
+            </div>
             <div className={`grid gap-3 ${extraLabel ? 'grid-cols-4' : 'grid-cols-3'}`}>
               <div>
                 <label className="block text-xs text-[var(--muted)] mb-1.5">Duration <span className="text-ow-accent">*</span></label>
@@ -1564,7 +1574,6 @@ function BackfillPanel({ pending, loading }: {
   const showHealing = selected ? selected.heroes.some(h => h.role === 'Support') : false;
   const durationRef = useRef<HTMLInputElement>(null);
   const mapCounts = useTodayMapCounts();
-  const heroCounts = useTodayHeroCounts();
   const navigate = useNavigate();
 
   // Matches already logged today — a record of what's been entered, with the
@@ -1754,11 +1763,11 @@ function BackfillPanel({ pending, loading }: {
                         <div className="flex items-stretch h-6 min-w-0" title={m.heroes.length > 1 ? m.heroes.slice(1).map(h => h.hero).join(', ') : undefined}>
                           {m.heroes[0] && (
                             <span
-                              className={`pill hero-name border-2 text-white relative z-10 h-full box-border shadow-[3px_3px_0_rgba(0,0,0,0.7)] ${
+                              className={`pill hero-name border-2 text-white relative z-10 h-full box-border shadow-[3px_3px_0_rgba(0,0,0,0.7)] w-24 justify-center truncate ${
                                 m.heroes[0].role === 'DPS' ? 'bg-red-600 border-red-600' : m.heroes[0].role === 'Tank' ? 'bg-blue-600 border-blue-600' : 'bg-green-600 border-green-600'
                               }`}
                             >
-                              {withHeroCount(m.heroes[0].hero, heroCounts)}
+                              {m.heroes[0].hero}
                             </span>
                           )}
                           {/* Hidden mid-match switch heroes rendered as the actual right-edge
@@ -1806,34 +1815,13 @@ function BackfillPanel({ pending, loading }: {
                     )}
                     {active && (
                       <div className={`border-t border-ow-border px-3 py-3 space-y-4 stats-entry-heavy ${c.card}`} data-inspect-id="sl-inline-stats-form">
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                          {m.stage_index != null && <span className="text-[11px] text-ow-accent font-bold">Stage {m.stage_index}</span>}
-                          {/* One sens input per hero actually played — Overwatch sensitivity
-                              is a real per-hero setting, so a mid-match switch can legitimately
-                              be logged at two different values (see match_heroes.sens comment
-                              in schema.ts). Only labeled per-hero when there's more than one,
-                              so the common single-hero case stays as compact as before. */}
-                          {m.heroes.map(h => {
-                            const v = heroSens[h.hero] ?? '';
-                            return (
-                              <div key={h.hero} className="flex items-center gap-2">
-                                <label className="text-[11px] text-[var(--faint)]">{m.heroes.length > 1 ? `${h.hero} Sens` : 'Sens'}</label>
-                                <input
-                                  type="number" step="0.01" min="0" inputMode="decimal" value={v}
-                                  onChange={e => setHeroSens(prev => ({ ...prev, [h.hero]: e.target.value }))}
-                                  data-inspect-id="sl-sens-input" className="w-24 field px-2 py-1 text-sm num-display" placeholder="—" aria-label={`${h.hero} sensitivity`}
-                                />
-                                {parseFloat(v) > 0 && <span className="text-[11px] text-[var(--faint)] font-bold">{Math.round(eDPI(parseFloat(v)))} eDPI</span>}
-                              </div>
-                            );
-                          })}
-                        </div>
                         <StatFields
                           s={stats}
                           upd={(k, v) => setStats(s => ({ ...s, [k]: v }))}
                           updHeroAcc={(i, k, v) => setStats(s => ({ ...s, heroAcc: s.heroAcc.map((h, hi) => hi === i ? { ...h, [k]: v } : h) }))}
                           showHealing={showHealing}
                           firstDurationRef={durationRef}
+                          heroSens={heroSens}
                         />
                         <button type="button" onClick={save} disabled={!(primaryAccValid && durationsValid) || status === 'saving'} data-inspect-id="sl-save-stats-btn" className="btn-primary w-full py-2.5 text-sm">
                           {status === 'saving' ? 'Saving…' : status === 'success' ? '✓ Saved' : 'Save Stats'}
@@ -1915,11 +1903,11 @@ function BackfillPanel({ pending, loading }: {
                           <div className="flex items-stretch h-6 min-w-0" title={m.heroes.length > 1 ? m.heroes.slice(1).map(h => h.hero).join(', ') : undefined}>
                             {m.heroes[0] && (
                               <span
-                                className={`pill hero-name border-2 text-white relative z-10 h-full box-border shadow-[3px_3px_0_rgba(0,0,0,0.7)] ${
+                                className={`pill hero-name border-2 text-white relative z-10 h-full box-border shadow-[3px_3px_0_rgba(0,0,0,0.7)] w-24 justify-center truncate ${
                                   m.heroes[0].role === 'DPS' ? 'bg-red-600 border-red-600' : m.heroes[0].role === 'Tank' ? 'bg-blue-600 border-blue-600' : 'bg-green-600 border-green-600'
                                 }`}
                               >
-                                {withHeroCount(m.heroes[0].hero, heroCounts)}
+                                {m.heroes[0].hero}
                               </span>
                             )}
                             {/* Hidden mid-match switch heroes rendered as the actual right-edge
@@ -1967,28 +1955,12 @@ function BackfillPanel({ pending, loading }: {
                     )}
                     {active && (
                       <div className={`border-t border-ow-border px-3 py-3 space-y-4 ${c.card}`} data-inspect-id="sl-logged-today-stats-form">
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                          {m.stage_index != null && <span className="text-[11px] text-ow-accent font-bold">Stage {m.stage_index}</span>}
-                          {m.heroes.map(h => {
-                            const v = loggedHeroSens[h.hero] ?? '';
-                            return (
-                              <div key={h.hero} className="flex items-center gap-2">
-                                <label className="text-[11px] text-[var(--faint)]">{m.heroes.length > 1 ? `${h.hero} Sens` : 'Sens'}</label>
-                                <input
-                                  type="number" step="0.01" min="0" inputMode="decimal" value={v}
-                                  onChange={e => setLoggedHeroSens(prev => ({ ...prev, [h.hero]: e.target.value }))}
-                                  data-inspect-id="sl-logged-today-sens-input" className="w-24 field px-2 py-1 text-sm num-display" placeholder="—" aria-label={`${h.hero} sensitivity`}
-                                />
-                                {parseFloat(v) > 0 && <span className="text-[11px] text-[var(--faint)] font-bold">{Math.round(eDPI(parseFloat(v)))} eDPI</span>}
-                              </div>
-                            );
-                          })}
-                        </div>
                         <StatFields
                           s={loggedStats}
                           upd={(k, v) => setLoggedStats(s => ({ ...s, [k]: v }))}
                           updHeroAcc={(i, k, v) => setLoggedStats(s => ({ ...s, heroAcc: s.heroAcc.map((h, hi) => hi === i ? { ...h, [k]: v } : h) }))}
                           showHealing={loggedShowHealing}
+                          heroSens={loggedHeroSens}
                         />
                         <button type="button" onClick={saveLogged} disabled={!(loggedPrimaryAccValid && loggedDurationsValid) || loggedStatus === 'saving'} data-inspect-id="sl-logged-today-save-btn" className="btn-primary w-full py-2.5 text-sm">
                           {loggedStatus === 'saving' ? 'Saving…' : loggedStatus === 'success' ? '✓ Saved' : 'Save Changes'}
