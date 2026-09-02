@@ -103,7 +103,7 @@ router.get('/pending', (req: Request, res: Response) => {
   // Every hero actually played (slot 1 = the one already on m.hero/m.role
   // above), so the combat-details form can ask for accuracy per hero instead
   // of assuming the match was played on one hero start to finish.
-  const heroesStmt = db.prepare('SELECT hero, role FROM match_heroes WHERE match_id = :id ORDER BY slot');
+  const heroesStmt = db.prepare('SELECT hero, role, sens FROM match_heroes WHERE match_id = :id ORDER BY slot');
   for (const row of rows) row.heroes = heroesStmt.all({ id: row.id as number });
   // Total backlog size irrespective of `limit` — the Trial HUD's backlog
   // counter needs the true count, not just how many rows this page returned.
@@ -145,14 +145,21 @@ router.get('/analysis', (_req: Request, res: Response) => {
   // Per-hero accuracy (aim_stats_heroes), not the match-level aim_stats row —
   // a match with a mid-match switch contributes one reading per hero actually
   // played, each against its own hero baseline below, rather than one
-  // match-level number duplicated across every hero in it.
+  // match-level number duplicated across every hero in it. sens comes from
+  // match_heroes (mh.sens), not matches (m.sens) — Overwatch sensitivity is a
+  // real per-hero setting, so a switched-to hero's sens can differ from the
+  // match's primary hero (see schema.ts's comment on match_heroes.sens).
+  // Filtering on mh.sens IS NOT NULL (not m.sens) is what drops the handful
+  // of historical switch-hero rows whose true sens couldn't be reconstructed
+  // (scripts/backfill-hero-sens.py) instead of silently misattributing them
+  // to the primary hero's sens.
   const rows = db.prepare(`
-    SELECT m.id, ah.hero, m.sens, m.dpi, m.win, m.date, mh.feel, m.blind_trial, ah.overall_acc, ah.crit_acc, a.created_at
+    SELECT m.id, ah.hero, mh.sens, m.dpi, m.win, m.date, mh.feel, m.blind_trial, ah.overall_acc, ah.crit_acc, a.created_at
     FROM aim_stats_heroes ah
     JOIN aim_stats a ON a.match_id = ah.match_id
     JOIN matches m ON m.id = ah.match_id
     LEFT JOIN match_heroes mh ON mh.match_id = ah.match_id AND mh.hero = ah.hero
-    WHERE m.sens IS NOT NULL AND ah.overall_acc IS NOT NULL
+    WHERE mh.sens IS NOT NULL AND ah.overall_acc IS NOT NULL
   `).all() as unknown as {
     id: number; hero: string; sens: number; dpi: number | null; win: 0 | 1; blind_trial: 0 | 1 | null;
     overall_acc: number; crit_acc: number | null; feel: number | null; created_at: string; date: string;
@@ -392,7 +399,7 @@ router.get('/today', (req: Request, res: Response) => {
     WHERE m.date = :date
     ORDER BY m.id DESC
   `).all({ date }) as Record<string, unknown>[];
-  const heroesStmt = db.prepare('SELECT hero, role FROM match_heroes WHERE match_id = :id ORDER BY slot');
+  const heroesStmt = db.prepare('SELECT hero, role, sens FROM match_heroes WHERE match_id = :id ORDER BY slot');
   const heroAccStmt = db.prepare('SELECT hero, overall_acc, crit_acc, extra_acc, duration_min FROM aim_stats_heroes WHERE match_id = :id');
   for (const row of rows) {
     row.heroes = heroesStmt.all({ id: row.id as number });

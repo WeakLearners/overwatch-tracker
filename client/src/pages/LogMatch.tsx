@@ -286,7 +286,7 @@ export default function LogMatch() {
           hour,
           hero: form.hero,
           role: heroRole,
-          heroes: switchHeroes.filter(h => h).map(h => ({ hero: h, role: HEROES[h], feel: feelFor(h) })),
+          heroes: switchHeroes.filter(h => h).map(h => ({ hero: h, role: HEROES[h], feel: feelFor(h), sens: displaySensForHero(h) })),
           map,
           game_type: mapType,
           win: form.win === '1',

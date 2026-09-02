@@ -18,8 +18,11 @@ interface PendingMatch {
   queue_mode: QueueMode; win: 0 | 1; sens: number | null;
   stage_index?: number | null;
   // Every hero actually played this match, slot order (slot 1 = hero/role
-  // above) — a match with a mid-match switch has more than one.
-  heroes: { hero: string; role: string }[];
+  // above) — a match with a mid-match switch has more than one. Each hero's
+  // own sens (match_heroes.sens) — a real per-hero value in Overwatch, not
+  // just the match-level `sens` above, which is only slot 1's — null when a
+  // historical switch-hero row couldn't be reconstructed (see schema.ts).
+  heroes: { hero: string; role: string; sens: number | null }[];
 }
 // A match that already has aim stats saved today — /api/aim/today's shape.
 // Mirrors PendingMatch (same heroes[] ordering) plus the saved combat totals
@@ -87,6 +90,23 @@ const emptyStats = (heroes: { hero: string }[]): StatFieldsT => ({
 });
 
 const num = (s: string) => (s.trim() === '' ? null : parseFloat(s));
+// Seeds a per-hero sens input map from a match's own heroes[] — each hero's
+// existing match_heroes.sens value (blank when null, e.g. an unreconstructed
+// historical switch-hero row — see schema.ts's match_heroes.sens comment).
+const heroSensFromMatch = (m: PendingMatch): Record<string, string> =>
+  Object.fromEntries(m.heroes.map(h => [h.hero, h.sens != null ? String(h.sens) : '']));
+// Builds the sens portion of a stats-backfill PUT body: `sens` corrects
+// slot 1 (matches.sens' column of record) same as always, `heroSens` carries
+// any additional hero's own value — omitted entirely for the common
+// single-hero match so the PUT body doesn't grow for the 95% case.
+const heroSensBody = (m: PendingMatch, heroSens: Record<string, string>) => ({
+  sens: num(heroSens[m.heroes[0]?.hero] ?? ''),
+  ...(m.heroes.length > 1 ? {
+    heroSens: Object.fromEntries(
+      m.heroes.slice(1).map(h => [h.hero, num(heroSens[h.hero] ?? '')]).filter((e): e is [string, number] => e[1] != null),
+    ),
+  } : {}),
+});
 // Duration is entered as m:ss (e.g. "4:32", "12:01") rather than decimal
 // minutes — easier to read off the in-game match timer than converting.
 const parseDurationMin = (s: string): number | null => {
@@ -1531,7 +1551,11 @@ function BackfillPanel({ pending, loading }: {
   pending: PendingMatch[]; loading: boolean;
 }) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [sens, setSens] = useState('');
+  // Keyed by hero name, not slot — every hero actually played gets its own
+  // sens input (Overwatch sensitivity is a real per-hero setting, so a
+  // mid-match switch can legitimately have a different value per hero; see
+  // schema.ts's comment on match_heroes.sens).
+  const [heroSens, setHeroSens] = useState<Record<string, string>>({});
   const [stats, setStats] = useState<StatFieldsT>(emptyStats([]));
   const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [showCaughtUp, setShowCaughtUp] = useState(false);
@@ -1549,7 +1573,7 @@ function BackfillPanel({ pending, loading }: {
   const { data: loggedData, loading: loggedLoading } = useApi<{ rows: LoggedMatch[] }>(`/api/aim/today?date=${today}`);
   const logged = loggedData?.rows ?? [];
   const [loggedSelectedId, setLoggedSelectedId] = useState<number | null>(null);
-  const [loggedSens, setLoggedSens] = useState('');
+  const [loggedHeroSens, setLoggedHeroSens] = useState<Record<string, string>>({});
   const [loggedStats, setLoggedStats] = useState<StatFieldsT>(emptyStats([]));
   const [loggedStatus, setLoggedStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [loggedEditingId, setLoggedEditingId] = useState<number | null>(null);
@@ -1559,7 +1583,7 @@ function BackfillPanel({ pending, loading }: {
   function toggleLogged(m: LoggedMatch) {
     if (m.id === loggedSelectedId) { setLoggedSelectedId(null); return; }
     setLoggedSelectedId(m.id);
-    setLoggedSens(m.sens != null ? String(m.sens) : '');
+    setLoggedHeroSens(heroSensFromMatch(m));
     setLoggedStats(statsFromLogged(m));
     setLoggedStatus('idle');
   }
@@ -1571,7 +1595,7 @@ function BackfillPanel({ pending, loading }: {
     if (!loggedSelected || !(loggedPrimaryAccValid && loggedDurationsValid)) return;
     setLoggedStatus('saving');
     try {
-      const putRes = await fetch(`/api/matches/${loggedSelected.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sens: num(loggedSens) }) });
+      const putRes = await fetch(`/api/matches/${loggedSelected.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(heroSensBody(loggedSelected, loggedHeroSens)) });
       if (!putRes.ok) throw new Error('sens save failed');
       const res = await fetch('/api/aim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(statsBody(loggedSelected.id, loggedStats)) });
       if (!res.ok) throw new Error('save failed');
@@ -1604,7 +1628,7 @@ function BackfillPanel({ pending, loading }: {
 
   function selectMatch(m: PendingMatch) {
     setSelectedId(m.id);
-    setSens(m.sens != null ? String(m.sens) : '');
+    setHeroSens(heroSensFromMatch(m));
     setStats(emptyStats(m.heroes));
     setStatus('idle');
   }
@@ -1621,13 +1645,13 @@ function BackfillPanel({ pending, loading }: {
     if (!selected || !(primaryAccValid && durationsValid)) return;
     setStatus('saving');
     try {
-      const putRes = await fetch(`/api/matches/${selected.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sens: num(sens) }) });
+      const putRes = await fetch(`/api/matches/${selected.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(heroSensBody(selected, heroSens)) });
       if (!putRes.ok) throw new Error('sens save failed');
       const res = await fetch('/api/aim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(statsBody(selected.id, stats)) });
       if (!res.ok) throw new Error('save failed');
       // This was the last pending match — the backlog is about to hit zero.
       if (pending.length === 1) setShowCaughtUp(true);
-      setStatus('success'); setSelectedId(null); setStats(emptyStats([])); setSens('');
+      setStatus('success'); setSelectedId(null); setStats(emptyStats([])); setHeroSens({});
       revalidateAll();
       setTimeout(() => setStatus('idle'), 1800);
     } catch { setStatus('error'); setTimeout(() => setStatus('idle'), 3000); }
@@ -1774,16 +1798,35 @@ function BackfillPanel({ pending, loading }: {
                       <EditMatchForm
                         match={m}
                         onClose={() => setEditingId(null)}
-                        onSaved={u => { setStats(emptyStats(u.heroes.map(h => ({ hero: h })))); setSens(u.sens); }}
+                        onSaved={u => {
+                          setStats(emptyStats(u.heroes.map(h => ({ hero: h }))));
+                          setHeroSens(prev => ({ ...Object.fromEntries(u.heroes.map(h => [h, prev[h] ?? ''])), [u.hero]: u.sens }));
+                        }}
                       />
                     )}
                     {active && (
                       <div className={`border-t border-ow-border px-3 py-3 space-y-4 stats-entry-heavy ${c.card}`} data-inspect-id="sl-inline-stats-form">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                           {m.stage_index != null && <span className="text-[11px] text-ow-accent font-bold">Stage {m.stage_index}</span>}
-                          <label className="text-[11px] text-[var(--faint)]">Sens</label>
-                          <input type="number" step="0.01" min="0" inputMode="decimal" value={sens} onChange={e => setSens(e.target.value)} data-inspect-id="sl-sens-input" className="w-24 field px-2 py-1 text-sm num-display" placeholder="—" aria-label="Sensitivity" />
-                          {parseFloat(sens) > 0 && <span className="text-[11px] text-[var(--faint)] font-bold">{Math.round(eDPI(parseFloat(sens)))} eDPI</span>}
+                          {/* One sens input per hero actually played — Overwatch sensitivity
+                              is a real per-hero setting, so a mid-match switch can legitimately
+                              be logged at two different values (see match_heroes.sens comment
+                              in schema.ts). Only labeled per-hero when there's more than one,
+                              so the common single-hero case stays as compact as before. */}
+                          {m.heroes.map(h => {
+                            const v = heroSens[h.hero] ?? '';
+                            return (
+                              <div key={h.hero} className="flex items-center gap-2">
+                                <label className="text-[11px] text-[var(--faint)]">{m.heroes.length > 1 ? `${h.hero} Sens` : 'Sens'}</label>
+                                <input
+                                  type="number" step="0.01" min="0" inputMode="decimal" value={v}
+                                  onChange={e => setHeroSens(prev => ({ ...prev, [h.hero]: e.target.value }))}
+                                  data-inspect-id="sl-sens-input" className="w-24 field px-2 py-1 text-sm num-display" placeholder="—" aria-label={`${h.hero} sensitivity`}
+                                />
+                                {parseFloat(v) > 0 && <span className="text-[11px] text-[var(--faint)] font-bold">{Math.round(eDPI(parseFloat(v)))} eDPI</span>}
+                              </div>
+                            );
+                          })}
                         </div>
                         <StatFields
                           s={stats}
@@ -1916,16 +1959,30 @@ function BackfillPanel({ pending, loading }: {
                       <EditMatchForm
                         match={m}
                         onClose={() => setLoggedEditingId(null)}
-                        onSaved={u => { setLoggedStats(emptyStats(u.heroes.map(h => ({ hero: h })))); setLoggedSens(u.sens); }}
+                        onSaved={u => {
+                          setLoggedStats(emptyStats(u.heroes.map(h => ({ hero: h }))));
+                          setLoggedHeroSens(prev => ({ ...Object.fromEntries(u.heroes.map(h => [h, prev[h] ?? ''])), [u.hero]: u.sens }));
+                        }}
                       />
                     )}
                     {active && (
                       <div className={`border-t border-ow-border px-3 py-3 space-y-4 ${c.card}`} data-inspect-id="sl-logged-today-stats-form">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                           {m.stage_index != null && <span className="text-[11px] text-ow-accent font-bold">Stage {m.stage_index}</span>}
-                          <label className="text-[11px] text-[var(--faint)]">Sens</label>
-                          <input type="number" step="0.01" min="0" inputMode="decimal" value={loggedSens} onChange={e => setLoggedSens(e.target.value)} data-inspect-id="sl-logged-today-sens-input" className="w-24 field px-2 py-1 text-sm num-display" placeholder="—" aria-label="Sensitivity" />
-                          {parseFloat(loggedSens) > 0 && <span className="text-[11px] text-[var(--faint)] font-bold">{Math.round(eDPI(parseFloat(loggedSens)))} eDPI</span>}
+                          {m.heroes.map(h => {
+                            const v = loggedHeroSens[h.hero] ?? '';
+                            return (
+                              <div key={h.hero} className="flex items-center gap-2">
+                                <label className="text-[11px] text-[var(--faint)]">{m.heroes.length > 1 ? `${h.hero} Sens` : 'Sens'}</label>
+                                <input
+                                  type="number" step="0.01" min="0" inputMode="decimal" value={v}
+                                  onChange={e => setLoggedHeroSens(prev => ({ ...prev, [h.hero]: e.target.value }))}
+                                  data-inspect-id="sl-logged-today-sens-input" className="w-24 field px-2 py-1 text-sm num-display" placeholder="—" aria-label={`${h.hero} sensitivity`}
+                                />
+                                {parseFloat(v) > 0 && <span className="text-[11px] text-[var(--faint)] font-bold">{Math.round(eDPI(parseFloat(v)))} eDPI</span>}
+                              </div>
+                            );
+                          })}
                         </div>
                         <StatFields
                           s={loggedStats}

@@ -343,16 +343,46 @@ function initSchema(db: DatabaseSync) {
     `);
   }
 
+  // sens: per-hero, same split as feel above and for a sharper reason — in
+  // Overwatch, sensitivity is a genuinely independent per-hero setting (unlike
+  // DPI, which is a single hardware value), so a mid-match switch really was
+  // played at two different sens values, not just perceived differently at
+  // one. matches.sens stays the column of record for slot 1 (the hero a
+  // stage-test's lookup is keyed on — see findActiveStage in matches.ts),
+  // since blind.ts/aim.ts's legacy per-match reads still key off it; this
+  // column is what per-hero analysis (aim.ts /analysis) and matches_by_hero
+  // read instead of duplicating matches.sens across every hero in a switch.
+  // Backfilled for slot 1 only (that value was always correct); slots 2/3 on
+  // existing rows are backfilled separately, once, by a one-off script
+  // (scripts/backfill-hero-sens — see its header) that reconstructs each
+  // historical switch-hero's real sens from the surrounding credited matches
+  // for that same hero, rather than guessing here. Left NULL where that
+  // reconstruction couldn't resolve one confidently — NULL correctly drops
+  // those rows out of per-hero sens analysis instead of attributing them to
+  // a sens they were never confirmed to have been played at.
+  if (!mhCols.find(c => c.name === 'sens')) {
+    db.exec(`ALTER TABLE match_heroes ADD COLUMN sens REAL`);
+    db.exec(`
+      UPDATE match_heroes SET sens = (
+        SELECT m.sens FROM matches m WHERE m.id = match_heroes.match_id
+      )
+      WHERE slot = 1 AND sens IS NULL
+        AND EXISTS (SELECT 1 FROM matches m WHERE m.id = match_heroes.match_id AND m.sens IS NOT NULL)
+    `);
+  }
+
   // matches_by_hero: one row per (match, hero played) — the hero-attribution
   // view every by-hero stats query reads from instead of `matches` directly,
   // so a match with a mid-match switch counts toward every hero it touched.
   // Recreated on every start (cheap) rather than migrated, so it always
-  // reflects whatever columns `matches` currently has.
+  // reflects whatever columns `matches` currently has. sens comes from
+  // match_heroes (per hero), not matches (primary hero only) — see the sens
+  // column comment above.
   db.exec(`DROP VIEW IF EXISTS matches_by_hero`);
   db.exec(`
     CREATE VIEW matches_by_hero AS
     SELECT m.id, m.date, m.time, m.day_of_week, m.hour, mh.hero, mh.role, m.map, m.game_type, m.win,
-           m.created_at, m.deaths, m.queue_mode, m.sens, m.dpi, m.blind_trial, m.blind_set_id,
+           m.created_at, m.deaths, m.queue_mode, mh.sens, m.dpi, m.blind_trial, m.blind_set_id,
            m.rel_pos, m.stage_index, m.revealed, m.feel, m.team_rating, m.notes, mh.slot
     FROM matches m JOIN match_heroes mh ON mh.match_id = m.id
   `);

@@ -181,16 +181,25 @@ router.post('/', (req: Request, res: Response) => {
     // first (see matches_by_hero in schema.ts). feel is per hero (LogMatch
     // shows one slider per hero played) — slot 1's feel also mirrors into
     // matches.feel above since that's what blind.ts's per-stage analysis reads.
-    const heroSlots: { hero: string; role: string; feel: number | null }[] = [
-      { hero, role, feel: typeof feel === 'number' ? feel : null },
-      ...(Array.isArray(heroes) ? heroes.filter((h: any) => h?.hero && h?.role).slice(0, 2).map((h: any) => ({
+    // sens is per hero too, and for the same "own active stage wins" priority
+    // as the primary hero's finalSens above: Overwatch's in-game sens is a
+    // real per-hero setting, so a switched-to hero's own active stage (not
+    // the primary's) is authoritative when one exists; otherwise fall back
+    // to whatever LogMatch sent for that hero (its own manual/display value —
+    // see LogMatch.tsx's displaySensForHero), never the primary's sens.
+    const extraHeroStages = (Array.isArray(heroes) ? heroes.filter((h: any) => h?.hero && h?.role).slice(0, 2) : [])
+      .map((h: any) => ({ hero: h.hero, role: h.role, feel: h.feel, sens: h.sens, stage: findActiveStage(db, h.hero, isCompetitive) }));
+    const heroSlots: { hero: string; role: string; feel: number | null; sens: number | null }[] = [
+      { hero, role, feel: typeof feel === 'number' ? feel : null, sens: finalSens },
+      ...extraHeroStages.map(h => ({
         hero: h.hero, role: h.role, feel: typeof h.feel === 'number' ? h.feel : null,
-      })) : []),
+        sens: h.stage ? h.stage.sens : (typeof h.sens === 'number' ? h.sens : null),
+      })),
     ];
     const insertHeroSlot = db.prepare(
-      'INSERT INTO match_heroes (match_id, slot, hero, role, feel) VALUES (:match_id, :slot, :hero, :role, :feel)'
+      'INSERT INTO match_heroes (match_id, slot, hero, role, feel, sens) VALUES (:match_id, :slot, :hero, :role, :feel, :sens)'
     );
-    heroSlots.forEach((h, i) => insertHeroSlot.run({ match_id: matchId, slot: i + 1, hero: h.hero, role: h.role, feel: h.feel }));
+    heroSlots.forEach((h, i) => insertHeroSlot.run({ match_id: matchId, slot: i + 1, hero: h.hero, role: h.role, feel: h.feel, sens: h.sens }));
 
     const insertCredit = db.prepare(
       'INSERT OR IGNORE INTO blind_credits (match_id, hero, blind_set_id, stage_index) VALUES (:match_id, :hero, :blind_set_id, :stage_index)'
@@ -198,13 +207,11 @@ router.post('/', (req: Request, res: Response) => {
     // Credit every hero actually played, not just the primary — a hero played
     // only as a mid-match switch (slot 2/3) still logged games at its own
     // active test's current stage, and needs its own set's counters moved.
-    // Primary reuses the lookup already done above rather than re-querying.
+    // Primary and extras both reuse the lookups already done above rather
+    // than re-querying.
     const creditsToApply = [
       ...(primaryStage ? [{ hero, ...primaryStage }] : []),
-      ...heroSlots.slice(1).flatMap(h => {
-        const stage = findActiveStage(db, h.hero, isCompetitive);
-        return stage ? [{ hero: h.hero, ...stage }] : [];
-      }),
+      ...extraHeroStages.flatMap(h => (h.stage ? [{ hero: h.hero, ...h.stage }] : [])),
     ];
 
     for (const credit of creditsToApply) {
@@ -280,6 +287,15 @@ function syncStageCredits(db: ReturnType<typeof getDb>, matchId: string, sensPro
   heroSlots.forEach((slot, i) => {
     const stage = findStageForRecredit(db, slot.hero, isCompetitive, oldCreditByHero.get(slot.hero));
     if (i === 0) primaryStage = stage;
+    // Slot 1's match_heroes.sens mirrors matches.sens below instead (honoring
+    // `sensProvided` — an explicit sens in this same request beats a
+    // recomputed stage for the primary hero). Slots 2/3 have no such manual-
+    // override concept on a roster edit, so an active stage is authoritative
+    // here whenever one exists, same priority as the POST insert path.
+    if (stage && i > 0) {
+      db.prepare('UPDATE match_heroes SET sens = :sens WHERE match_id = :id AND slot = :slot')
+        .run({ id: matchId, slot: i + 1, sens: stage.sens });
+    }
     if (!stage) return;
     const { changes } = insertCredit.run({ match_id: matchId, hero: slot.hero, blind_set_id: stage.setId, stage_index: stage.stageIdx });
     if (changes === 0) return;
@@ -300,6 +316,8 @@ function syncStageCredits(db: ReturnType<typeof getDb>, matchId: string, sensPro
   if (primaryStage && !sensProvided) {
     db.prepare('UPDATE matches SET dpi = :dpi, sens = :sens WHERE id = :id')
       .run({ id: matchId, dpi: primaryStage.dpi, sens: primaryStage.sens });
+    db.prepare('UPDATE match_heroes SET sens = :sens WHERE match_id = :id AND slot = 1')
+      .run({ id: matchId, sens: primaryStage.sens });
   }
   // Same priority as dpi/sens above: a set's phase-wide curve_enabled flag
   // overrides whatever was recorded before, whenever a set actually governs
@@ -321,7 +339,7 @@ function syncStageCredits(db: ReturnType<typeof getDb>, matchId: string, sensPro
 
 router.get('/:id/heroes', (req: Request, res: Response) => {
   const db = getDb();
-  const rows = db.prepare('SELECT hero, role, feel FROM match_heroes WHERE match_id = :id ORDER BY slot')
+  const rows = db.prepare('SELECT hero, role, feel, sens FROM match_heroes WHERE match_id = :id ORDER BY slot')
     .all({ id: req.params.id }) as Record<string, unknown>[];
   res.json({ rows });
 });
@@ -330,7 +348,8 @@ router.put('/:id', (req: Request, res: Response) => {
   const db = getDb();
   const fields = EDITABLE.filter(k => k in req.body);
   const heroesProvided = Array.isArray(req.body.heroes);
-  if (fields.length === 0 && !heroesProvided) {
+  const heroSensProvided = !!(req.body.heroSens && typeof req.body.heroSens === 'object');
+  if (fields.length === 0 && !heroesProvided && !heroSensProvided) {
     res.status(400).json({ error: 'No editable fields provided' });
     return;
   }
@@ -349,12 +368,22 @@ router.put('/:id', (req: Request, res: Response) => {
       return;
     }
     // Keep match_heroes' slot-1 row (the by-hero stats attribution source) in
-    // sync whenever the primary hero/role is corrected via edit.
-    if (fields.includes('hero') || fields.includes('role')) {
+    // sync whenever the primary hero/role/sens is corrected via edit. sens
+    // mirrors the same way feel/duration never needed to (they're captured
+    // per hero from the start) — matches.sens is still slot 1's column of
+    // record, so any direct edit to it (e.g. the /sens backfill form on a
+    // single-hero match) needs to reach match_heroes too, or per-hero
+    // analysis (which reads match_heroes.sens, not matches.sens) would keep
+    // showing the pre-edit value.
+    if (fields.includes('hero') || fields.includes('role') || fields.includes('sens')) {
       db.prepare(`
-        UPDATE match_heroes SET hero = COALESCE(:hero, hero), role = COALESCE(:role, role)
+        UPDATE match_heroes SET hero = COALESCE(:hero, hero), role = COALESCE(:role, role),
+          sens = CASE WHEN :sensProvided THEN :sens ELSE sens END
         WHERE match_id = :id AND slot = 1
-      `).run({ id: req.params.id, hero: fields.includes('hero') ? params.hero : null, role: fields.includes('role') ? params.role : null });
+      `).run({
+        id: req.params.id, hero: fields.includes('hero') ? params.hero : null, role: fields.includes('role') ? params.role : null,
+        sensProvided: fields.includes('sens') ? 1 : 0, sens: fields.includes('sens') ? params.sens : null,
+      });
     }
   }
 
@@ -365,12 +394,26 @@ router.put('/:id', (req: Request, res: Response) => {
     const extra = (req.body.heroes as any[]).filter(h => h?.hero && h?.role).slice(0, 2);
     db.prepare('DELETE FROM match_heroes WHERE match_id = :id AND slot > 1').run({ id: req.params.id });
     const insertHeroSlot = db.prepare(
-      'INSERT INTO match_heroes (match_id, slot, hero, role, feel) VALUES (:match_id, :slot, :hero, :role, :feel)'
+      'INSERT INTO match_heroes (match_id, slot, hero, role, feel, sens) VALUES (:match_id, :slot, :hero, :role, :feel, :sens)'
     );
     extra.forEach((h, i) => insertHeroSlot.run({
       match_id: req.params.id, slot: i + 2, hero: h.hero, role: h.role,
       feel: typeof h.feel === 'number' ? h.feel : null,
+      sens: typeof h.sens === 'number' ? h.sens : null,
     }));
+  }
+
+  // Standalone per-hero sens correction, keyed by hero name rather than slot —
+  // what the /sens backfill form (SensLog.tsx) sends for a match with a
+  // mid-match switch, since it's only ever correcting sens for stats already
+  // entered, never touching the roster/feel the way the edit-match drawer's
+  // `heroes` replace above does. Separate from `heroes` so it can target a
+  // single hero's sens without having to resend the whole roster.
+  if (req.body.heroSens && typeof req.body.heroSens === 'object') {
+    const updHeroSens = db.prepare('UPDATE match_heroes SET sens = :sens WHERE match_id = :id AND hero = :hero');
+    for (const [heroName, val] of Object.entries(req.body.heroSens as Record<string, unknown>)) {
+      if (typeof val === 'number') updHeroSens.run({ id: req.params.id, hero: heroName, sens: val });
+    }
   }
 
   // Hero/role/queue_mode/roster edits can move this match onto a different
