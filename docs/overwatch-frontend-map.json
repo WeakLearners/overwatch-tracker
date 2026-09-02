@@ -1468,7 +1468,7 @@
           "id": "sl-sens-input",
           "label": "Sens input (Awaiting Stats inline form)",
           "kind": "input",
-          "description": "Number input for the in-game sensitivity used in the selected pending match; also displays the computed eDPI next to it.",
+          "description": "One number input per hero actually played in the selected pending match (match_heroes.sens is per-hero, since Overwatch sensitivity is a genuinely independent per-hero setting) — labeled with the hero name only when there's more than one; each shows its own computed eDPI next to it. Saved via PUT /api/matches/:id as { sens, heroSens }.",
           "locate": {
             "path": "client/src/pages/SensLog.tsx:1765",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-sens-input\"' client/src/pages/SensLog.tsx"
@@ -1558,7 +1558,7 @@
           "id": "sl-logged-today-sens-input",
           "label": "Sens input (Logged Today inline form)",
           "kind": "input",
-          "description": "Number input for the in-game sensitivity used in the selected already-logged match, prefilled from its saved value; also displays the computed eDPI next to it.",
+          "description": "One number input per hero actually played in the selected already-logged match, prefilled from that hero's own match_heroes.sens (per-hero, not one shared match value); each shows its own computed eDPI next to it. Saved via PUT /api/matches/:id as { sens, heroSens }.",
           "locate": {
             "path": "client/src/pages/SensLog.tsx:1907",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-logged-today-sens-input\"' client/src/pages/SensLog.tsx"
