@@ -1458,20 +1458,10 @@
           "id": "sl-inline-stats-form",
           "label": "Inline combat-stats form (Awaiting Stats card)",
           "kind": "card",
-          "description": "Expands beneath a selected Awaiting Stats match card: sens input + eDPI readout, the shared StatFields inputs (accuracy, hero stat, combat totals, duration), and the Save Stats button (sl-save-stats-btn). Replaces the old separate Aim Stats side panel.",
+          "description": "Expands beneath a selected Awaiting Stats match card: the shared StatFields inputs (accuracy, hero stat, combat totals, duration), and the Save Stats button (sl-save-stats-btn). Each hero's tested sens is shown read-only inline next to their name inside StatFields (sl-hero-acc-inputs), formatted \"s.ss @ dddd (eDPI eeee)\" — no separate editable sens input in this form; correcting sens goes through EditMatchForm (sl-edit-match-form) instead.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1761",
+            "path": "client/src/pages/SensLog.tsx:1817",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-inline-stats-form\"' client/src/pages/SensLog.tsx"
-          }
-        },
-        {
-          "id": "sl-sens-input",
-          "label": "Sens input (Awaiting Stats inline form)",
-          "kind": "input",
-          "description": "One number input per hero actually played in the selected pending match (match_heroes.sens is per-hero, since Overwatch sensitivity is a genuinely independent per-hero setting) — labeled with the hero name only when there's more than one; each shows its own computed eDPI next to it. Saved via PUT /api/matches/:id as { sens, heroSens }.",
-          "locate": {
-            "path": "client/src/pages/SensLog.tsx:1765",
-            "grep": "grep -n -F -- 'data-inspect-id=\"sl-sens-input\"' client/src/pages/SensLog.tsx"
           }
         },
         {
@@ -1548,20 +1538,10 @@
           "id": "sl-logged-today-stats-form",
           "label": "Inline combat-stats form (Logged Today card)",
           "kind": "card",
-          "description": "Expands beneath a selected Logged Today match card, prefilled from its saved aim_stats/aim_stats_heroes rows: sens input (sl-logged-today-sens-input) + eDPI readout, the shared StatFields inputs, and the Save Changes button (sl-logged-today-save-btn) which upserts corrections over the existing row.",
+          "description": "Expands beneath a selected Logged Today match card, prefilled from its saved aim_stats/aim_stats_heroes rows: the shared StatFields inputs and the Save Changes button (sl-logged-today-save-btn) which upserts corrections over the existing row. Each hero's tested sens is shown read-only inline next to their name inside StatFields (sl-hero-acc-inputs), formatted \"s.ss @ dddd (eDPI eeee)\" — no separate editable sens input in this form; correcting sens goes through EditMatchForm (sl-edit-match-form) instead.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1903",
+            "path": "client/src/pages/SensLog.tsx:1957",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-logged-today-stats-form\"' client/src/pages/SensLog.tsx"
-          }
-        },
-        {
-          "id": "sl-logged-today-sens-input",
-          "label": "Sens input (Logged Today inline form)",
-          "kind": "input",
-          "description": "One number input per hero actually played in the selected already-logged match, prefilled from that hero's own match_heroes.sens (per-hero, not one shared match value); each shows its own computed eDPI next to it. Saved via PUT /api/matches/:id as { sens, heroSens }.",
-          "locate": {
-            "path": "client/src/pages/SensLog.tsx:1907",
-            "grep": "grep -n -F -- 'data-inspect-id=\"sl-logged-today-sens-input\"' client/src/pages/SensLog.tsx"
           }
         },
         {
@@ -1628,9 +1608,9 @@
           "id": "sl-hero-acc-inputs",
           "label": "Hero accuracy + duration rows",
           "kind": "list",
-          "description": "One row per hero actually played in the selected match, each with overall accuracy, crit accuracy, and duration inputs. Shared by both the Awaiting Stats and Logged Today inline forms.",
+          "description": "One row per hero actually played in the selected match, each with overall accuracy, crit accuracy, and duration inputs. The hero-name header of each row is a flex row (justify-between): the name on the left, and — when that hero's sens is known (heroSens/loggedHeroSens, seeded from match_heroes.sens) — a right-aligned read-only string \"s.ss @ dddd (eDPI eeee)\" via eDPI (lib/aim) and MOUSE_DPI. Shared by both the Awaiting Stats and Logged Today inline forms (StatFields component).",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:146",
+            "path": "client/src/pages/SensLog.tsx:165",
             "grep": "grep -n -F -- 'sl-hero-acc-inputs' client/src/pages/SensLog.tsx"
           }
         },
