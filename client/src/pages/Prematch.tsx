@@ -630,7 +630,7 @@ export default function Prematch() {
               const delta = rec && !rec.is_new && rec.recent_wr != null && rec.prev_wr != null
                 ? Math.round((rec.recent_wr - rec.prev_wr) * 10) / 10 : null;
               return (
-                <div key={role} className="rounded-xl bg-gradient-to-br from-ow-accent/10 via-ow-accent/[0.04] to-transparent px-4 py-3">
+                <div key={role} className="rounded-xl match-card-bg px-4 py-3">
                   <div className="text-[10px] grad-brand font-bold uppercase tracking-widest mb-1">Trending {role}</div>
                   {rec ? (
                     <>

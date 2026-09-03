@@ -7,13 +7,17 @@ import { QueueMode, ModeWatermarkVariant, QUEUE_MODE_COLORS, MODE_TAG, MODE_TAG_
 // so it paints above this absolutely-positioned (and thus higher-painting) span.
 // `variant` picks the size/position config (see MODE_TAG_CLS) so each context tunes
 // independently; `className` adds per-call extras (e.g. the dashboard's scale).
+// Weight is also set per variant/mode in MODE_TAG_CLS (not hardcoded here) so a
+// single mode's boldness can be dialed differently per context without a second
+// font-weight utility landing on the same element and racing this one for
+// cascade order.
 export default function ModeWatermark({ mode, variant, className = '', color, style }: { mode: QueueMode; variant: ModeWatermarkVariant; className?: string; color?: string; style?: React.CSSProperties }) {
   return (
     <span
       aria-hidden="true"
       style={style}
       data-inspect-id="modeWatermark-tag"
-      className={`pointer-events-none select-none absolute inset-0 flex items-center justify-center font-display font-black italic leading-none tracking-[-0.07em] opacity-15 ${MODE_TAG_CLS[variant][mode]} ${color ?? QUEUE_MODE_COLORS[mode].accent} ${className}`}
+      className={`pointer-events-none select-none absolute inset-0 flex items-center justify-center num-display italic leading-none tracking-[-0.07em] opacity-15 ${MODE_TAG_CLS[variant][mode]} ${color ?? QUEUE_MODE_COLORS[mode].accent} ${className}`}
     >
       {MODE_TAG[mode]}
     </span>

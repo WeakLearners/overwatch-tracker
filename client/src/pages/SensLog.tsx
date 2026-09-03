@@ -5,7 +5,7 @@ import { useApi, revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { eDPI, MOUSE_DPI } from '../lib/aim';
 import {
-  QueueMode, QUEUE_MODE_COLORS, HEROES,
+  QueueMode, QUEUE_MODE_COLORS, MODE_WASH_CLASS, HEROES, ROLE_PILL_CLASS, ROLE_PILL_CLASS_DARK,
 } from '../types';
 import { format } from 'date-fns';
 import SensNav from '../components/SensNav';
@@ -1545,7 +1545,7 @@ function BackfillPanel({ pending, loading }: {
               {pending.map(m => {
                 const c = QUEUE_MODE_COLORS[m.queue_mode]; const active = m.id === selectedId;
                 return (
-                  <div key={m.id} className={`relative overflow-hidden rounded-lg border bg-ow-darker transition-all ${active ? `${c.accent} ${c.glow}` : 'border-ow-border hover:border-gray-500'}`}>
+                  <div key={m.id} className={`relative overflow-hidden rounded-lg border ${MODE_WASH_CLASS[m.queue_mode]} transition-all ${active ? `${c.accent} ${c.glow}` : 'border-ow-border hover:border-gray-500'}`}>
                     {/* Header block (watermark + toggle + collapsed row) gets its own
                         relative/overflow-hidden box so the oversized watermark glyph is
                         clipped to just this block — otherwise, being absolutely positioned
@@ -1578,7 +1578,7 @@ function BackfillPanel({ pending, loading }: {
                           {m.heroes[0] && (
                             <span
                               className={`pill hero-name border-2 text-white relative z-10 h-full box-border shadow-[3px_3px_0_rgba(0,0,0,0.7)] w-24 justify-center truncate ${
-                                m.heroes[0].role === 'DPS' ? 'bg-red-600 border-red-600' : m.heroes[0].role === 'Tank' ? 'bg-blue-600 border-blue-600' : 'bg-green-600 border-green-600'
+                                ROLE_PILL_CLASS[m.heroes[0].role] ?? ROLE_PILL_CLASS.Support
                               }`}
                             >
                               {m.heroes[0].hero}
@@ -1592,7 +1592,7 @@ function BackfillPanel({ pending, loading }: {
                             <span key={h.hero} aria-hidden="true" className="relative w-3 h-full overflow-hidden ml-px" style={{ zIndex: 5 - i }}>
                               <span
                                 className={`pill hero-name absolute inset-y-0 right-0 border-2 shadow-[3px_3px_0_rgba(0,0,0,0.7)] ${
-                                  h.role === 'DPS' ? 'bg-red-600 border-red-600' : h.role === 'Tank' ? 'bg-blue-600 border-blue-600' : 'bg-green-600 border-green-600'
+                                  (ROLE_PILL_CLASS_DARK[h.role] ?? ROLE_PILL_CLASS_DARK.Support)[i]
                                 }`}
                                 style={{ width: '3.5rem' }}
                               />
@@ -1642,7 +1642,7 @@ function BackfillPanel({ pending, loading }: {
               {logged.map(m => {
                 const c = QUEUE_MODE_COLORS[m.queue_mode]; const active = m.id === loggedSelectedId;
                 return (
-                  <div key={m.id} className={`relative overflow-hidden rounded-lg border bg-ow-darker transition-all ${active ? `${c.accent} ${c.glow}` : 'border-ow-border hover:border-gray-500'}`}>
+                  <div key={m.id} className={`relative overflow-hidden rounded-lg border ${MODE_WASH_CLASS[m.queue_mode]} transition-all ${active ? `${c.accent} ${c.glow}` : 'border-ow-border hover:border-gray-500'}`}>
                     {/* Header block (watermark + toggle + collapsed row) gets its own
                         relative/overflow-hidden box so the oversized watermark glyph is
                         clipped to just this block — otherwise, being absolutely positioned
@@ -1675,7 +1675,7 @@ function BackfillPanel({ pending, loading }: {
                             {m.heroes[0] && (
                               <span
                                 className={`pill hero-name border-2 text-white relative z-10 h-full box-border shadow-[3px_3px_0_rgba(0,0,0,0.7)] w-24 justify-center truncate ${
-                                  m.heroes[0].role === 'DPS' ? 'bg-red-600 border-red-600' : m.heroes[0].role === 'Tank' ? 'bg-blue-600 border-blue-600' : 'bg-green-600 border-green-600'
+                                  ROLE_PILL_CLASS[m.heroes[0].role] ?? ROLE_PILL_CLASS.Support
                                 }`}
                               >
                                 {m.heroes[0].hero}
@@ -1689,7 +1689,7 @@ function BackfillPanel({ pending, loading }: {
                               <span key={h.hero} aria-hidden="true" className="relative w-3 h-full overflow-hidden ml-px" style={{ zIndex: 5 - i }}>
                                 <span
                                   className={`pill hero-name absolute inset-y-0 right-0 border-2 shadow-[3px_3px_0_rgba(0,0,0,0.7)] ${
-                                    h.role === 'DPS' ? 'bg-red-600 border-red-600' : h.role === 'Tank' ? 'bg-blue-600 border-blue-600' : 'bg-green-600 border-green-600'
+                                    (ROLE_PILL_CLASS_DARK[h.role] ?? ROLE_PILL_CLASS_DARK.Support)[i]
                                   }`}
                                   style={{ width: '3.5rem' }}
                                 />

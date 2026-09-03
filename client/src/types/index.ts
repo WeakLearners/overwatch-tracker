@@ -22,6 +22,16 @@ export const QUEUE_MODE_COLORS: Record<QueueMode, { selected: string; card: stri
 // Short tag shown as the big italic mode watermark (the "background lettering").
 export const MODE_TAG: Record<QueueMode, string> = { qp_role: 'QP', comp_role: 'V5', comp_open: 'V6' };
 
+// Subtle per-mode background wash for match-card rows (Today's Matches,
+// Awaiting Stats, Logged Today) — see .mode-wash-* in index.css. Distinct
+// from QUEUE_MODE_COLORS.card, which is a flatter fill used for mode-selector
+// buttons/tiles where a stronger, non-gradient fill reads better.
+export const MODE_WASH_CLASS: Record<QueueMode, string> = {
+  qp_role: 'mode-wash-qp_role',
+  comp_role: 'mode-wash-comp_role',
+  comp_open: 'mode-wash-comp_open',
+};
+
 // The three contexts the watermark appears in. Each gets its own size/position
 // config below so tuning one never affects the others.
 //   strip    — Recently Logged rows (Log Match page)
@@ -33,20 +43,22 @@ export type ModeWatermarkVariant = 'strip' | 'selector' | 'tile';
 // class names — don't interpolate. Edit a single variant's row to nudge just that
 // context; the dashboard tile also gets a `className` scale at its call site.
 export const MODE_TAG_CLS: Record<ModeWatermarkVariant, Record<QueueMode, string>> = {
+  // No weight override here — falls back to num-display's own base 200, the
+  // original light readout weight (pre font-black bump).
   strip: {
-    qp_role:   'text-[5rem] translate-x-[-0.075em] translate-y-[0em]',
-    comp_role: 'text-[5rem] translate-x-[-0.075em] translate-y-[0.057em]',
-    comp_open: 'text-[5rem] translate-x-[-0.075em] translate-y-[0.057em]',
+    qp_role:   'text-[4.9368rem] translate-x-[-0.06em] translate-y-[0em]',
+    comp_role: 'text-[4.9368rem] translate-x-[-0.06em] translate-y-[0.057em]',
+    comp_open: 'text-[4.9368rem] translate-x-[-0.06em] translate-y-[0.057em]',
   },
   selector: {
-    qp_role:   'text-[5rem] translate-x-[-0.125em] translate-y-[0.057em]',
-    comp_role: 'text-[5rem] translate-x-[-0.125em] translate-y-[0.057em]',
-    comp_open: 'text-[5rem] translate-x-[-0.125em] translate-y-[0.057em]',
+    qp_role:   'text-[5rem] translate-x-[-0.125em] translate-y-[0.057em] font-black',
+    comp_role: 'text-[5rem] translate-x-[-0.125em] translate-y-[0.057em] font-black',
+    comp_open: 'text-[5rem] translate-x-[-0.125em] translate-y-[0.057em] font-black',
   },
   tile: {
-    qp_role:   'text-[4.5rem] translate-x-[-0.075em] translate-y-[-0.35em]',
-    comp_role: 'text-[4.5rem] translate-x-[-0.075em] translate-y-[-0.35em]',
-    comp_open: 'text-[4.5rem] translate-x-[-0.075em] translate-y-[-0.35em]',
+    qp_role:   'text-[4.5rem] translate-x-[-0.075em] translate-y-[-0.35em] font-black',
+    comp_role: 'text-[4.5rem] translate-x-[-0.075em] translate-y-[-0.35em] font-black',
+    comp_open: 'text-[4.5rem] translate-x-[-0.075em] translate-y-[-0.35em] font-black',
   },
 };
 
@@ -263,10 +275,32 @@ export const MAPS: Record<string, string> = {
   'Throne of Anubis': 'Clash',
 };
 
+// DPS violet / Support teal (not red/green) — this app already uses red for
+// Loss and Comp-Role mode, and emerald for Win, so a red DPS badge or green
+// Support badge read as an outcome/mode signal instead of a role one. Tank
+// keeps blue since nothing else in the app claims that hue.
 export const ROLE_COLORS: Record<string, string> = {
-  DPS: 'bg-red-500/15 text-red-700 dark:text-red-400',
+  DPS: 'bg-violet-500/15 text-violet-700 dark:text-violet-400',
   Tank: 'bg-blue-500/15 text-blue-700 dark:text-blue-400',
-  Support: 'bg-green-600/15 text-green-700 dark:text-green-400',
+  Support: 'bg-teal-600/15 text-teal-700 dark:text-teal-400',
+};
+
+// Same reasoning as ROLE_COLORS above, for the solid role-pill treatment used
+// on match-card hero tags (Today's Matches, Awaiting Stats, Logged Today).
+export const ROLE_PILL_CLASS: Record<string, string> = {
+  DPS: 'bg-violet-600 border-violet-600',
+  Tank: 'bg-blue-600 border-blue-600',
+  Support: 'bg-teal-600 border-teal-600',
+};
+
+// Mid-match switch heroes (slots 2/3) peek out from behind the primary pill —
+// indexed one shade darker per slot (index 0 = 2nd hero, index 1 = 3rd hero)
+// so they read as further back in the stack instead of just a repeat of the
+// primary pill's color.
+export const ROLE_PILL_CLASS_DARK: Record<string, [string, string]> = {
+  DPS: ['bg-violet-700 border-violet-700', 'bg-violet-900 border-violet-900'],
+  Tank: ['bg-blue-700 border-blue-700', 'bg-blue-900 border-blue-900'],
+  Support: ['bg-teal-700 border-teal-700', 'bg-teal-900 border-teal-900'],
 };
 
 export const TYPE_COLORS: Record<string, string> = {

@@ -78,6 +78,27 @@
     text-transform: uppercase;
     letter-spacing: 0.06em;
   }
+  /* Shared background for every match-card row (Today's Matches, Awaiting
+     Stats, Logged Today) and the Trending pick cards — one definition so
+     they read as the same visual family instead of independently-tuned
+     tints per page. */
+  .match-card-bg {
+    background-image: linear-gradient(to bottom right, rgb(247 147 30 / 0.1), rgb(247 147 30 / 0.04), transparent);
+  }
+  /* Per-mode match-card wash — same diagonal-fade-to-transparent shape as
+     match-card-bg above, just recolored per queue mode, so a match row reads
+     its mode from a subtle background tint instead of a flat fill or a
+     second watermark glyph competing with the W/L one. Fixed colors (not
+     theme-swapped) — same choice match-card-bg already makes. */
+  .mode-wash-qp_role {
+    background-image: linear-gradient(to bottom right, rgb(56 189 248 / 0.16), rgb(56 189 248 / 0.05), transparent);
+  }
+  .mode-wash-comp_role {
+    background-image: linear-gradient(to bottom right, rgb(239 68 68 / 0.16), rgb(239 68 68 / 0.05), transparent);
+  }
+  .mode-wash-comp_open {
+    background-image: linear-gradient(to bottom right, rgb(249 115 22 / 0.16), rgb(249 115 22 / 0.05), transparent);
+  }
   /* Headline stat numbers: Science Gothic, weight 200 — variable-weight
      grotesk, dialed down from 800 (7/30) to a light weight per request.
      Falls back to sans-serif, not a system monospace, since it's

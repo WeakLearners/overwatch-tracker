@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { HEROES, ROLE_COLORS, TYPE_COLORS, DEATH_AXES, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS } from '../types';
+import { HEROES, MAPS, ROLE_COLORS, ROLE_PILL_CLASS, ROLE_PILL_CLASS_DARK, TYPE_COLORS, DEATH_AXES, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, MODE_WASH_CLASS } from '../types';
 import { useMatch } from '../contexts/MatchContext';
 import EmptyState from '../components/EmptyState';
 import ModeWatermark from '../components/ModeWatermark';
@@ -23,6 +23,227 @@ interface FormState {
 type SwitchHeroes = [string, string];
 
 const HERO_LIST = Object.entries(HEROES).sort((a, b) => a[0].localeCompare(b[0]));
+const MAP_LIST = Object.keys(MAPS).sort();
+
+interface TodayMatchRow {
+  id: number;
+  hero: string;
+  map: string;
+  win: 0 | 1;
+  queue_mode: QueueMode;
+  time: string | null;
+  stage_index: number | null;
+  sens: number | null;
+}
+
+interface MatchHeroRow {
+  hero: string;
+  role: string;
+  feel: number | null;
+}
+
+// Inline editable-fields panel for a Today's Matches row — expands in place
+// below the row's header block instead of opening a side drawer, matching
+// the Awaiting Stats card's collapsed-row/inline-form pattern on the Sens page.
+function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueMode, togglingId }: {
+  match: TodayMatchRow;
+  heroCounts: ReturnType<typeof useTodayHeroCounts>;
+  mapCounts: ReturnType<typeof useTodayMapCounts>;
+  onDone: () => void;
+  toggleQueueMode: (id: number, current: QueueMode) => void;
+  togglingId: number | null;
+}) {
+  const [hero, setHero] = useState(match.hero);
+  const [map, setMap] = useState(match.map);
+  const [win, setWin] = useState<0 | 1>(match.win);
+  // Fixed 2nd/3rd hero slots, '' meaning none — same shape as the Log Match
+  // form's own switch-hero dropdowns, so a mid-match switch edits the same way
+  // it was originally logged.
+  const [switchHeroes, setSwitchHeroes] = useState<[string, string]>(['', '']);
+  const [status, setStatus] = useState<'idle' | 'saving' | 'error'>('idle');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/matches/${match.id}/heroes`)
+      .then(res => res.json())
+      .then(data => {
+        if (cancelled) return;
+        const rows = (data.rows ?? []) as MatchHeroRow[];
+        const extra = rows.slice(1).map(h => h.hero);
+        setSwitchHeroes([extra[0] ?? '', extra[1] ?? '']);
+      })
+      .catch(() => { if (!cancelled) setSwitchHeroes(['', '']); });
+    return () => { cancelled = true; };
+  }, [match.id]);
+
+  // Each switch slot excludes whichever hero the other slots already hold, so
+  // picking a hero already used elsewhere in this match can't silently dupe it.
+  const switchOptionsFor = (i: 0 | 1) => {
+    const otherPicks = new Set([hero, switchHeroes[i === 0 ? 1 : 0]].filter(Boolean));
+    return HERO_LIST.filter(([h]) => !otherPicks.has(h));
+  };
+  function setSwitchHero(i: 0 | 1, h: string) {
+    setSwitchHeroes(prev => { const next: [string, string] = [...prev]; next[i] = h; return next; });
+  }
+
+  const heroRole = hero ? HEROES[hero] : '';
+  const mapType = map ? TYPE_COLORS[MAPS[map]] : '';
+
+  async function save() {
+    setStatus('saving');
+    try {
+      const res = await fetch(`/api/matches/${match.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hero, role: heroRole, map, game_type: MAPS[map], win,
+          heroes: switchHeroes.filter(h => h).map(h => ({ hero: h, role: HEROES[h] })),
+        }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      revalidateAll();
+      onDone();
+    } catch {
+      setStatus('error');
+    }
+  }
+
+  async function remove() {
+    setStatus('saving');
+    try {
+      const res = await fetch(`/api/matches/${match.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed');
+      revalidateAll();
+      onDone();
+    } catch {
+      setStatus('error');
+    }
+  }
+
+  return (
+    <div className="space-y-3" onClick={e => e.stopPropagation()}>
+      <div>
+        <label className="block text-xs text-[var(--muted)] mb-1.5">Mode</label>
+        <div className="flex items-center gap-2" data-inspect-id="logmatch-inline-edit-mode-toggle-group">
+          <span className="text-xs font-black text-blue-400">Q</span>
+          <button
+            type="button"
+            onClick={() => toggleQueueMode(match.id, match.queue_mode)}
+            disabled={togglingId === match.id}
+            aria-label={`Match type: ${match.queue_mode === 'qp_role' ? 'Quick Play' : 'Competitive'} — tap to switch`}
+            data-inspect-id="logmatch-inline-edit-mode-toggle"
+            className={`relative shrink-0 w-9 h-5 rounded-full transition-colors disabled:opacity-50 ${match.queue_mode === 'qp_role' ? 'bg-blue-500' : 'bg-red-500'}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${match.queue_mode === 'qp_role' ? 'translate-x-0' : 'translate-x-4'}`} />
+          </button>
+          <span className="text-xs font-black text-red-400">C</span>
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-xs text-[var(--muted)] mb-1.5">
+          Hero <span className="text-[var(--faint-2)]">— 2nd/3rd only if you switched mid-match</span>
+        </label>
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <select value={hero} onChange={e => setHero(e.target.value)} data-inspect-id="logmatch-inline-edit-hero-select" className="w-full field px-2 py-2 text-sm">
+              <option value="">— 1st hero —</option>
+              {(['DPS', 'Tank', 'Support'] as const).map(role => (
+                <optgroup key={role} label={role}>
+                  {HERO_LIST.filter(([, r]) => r === role).map(([h]) => (
+                    <option key={h} value={h}>{withHeroCount(h, heroCounts)}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+            {heroRole && <span className={`pill mt-1.5 ${ROLE_COLORS[heroRole]}`}>{heroRole}</span>}
+          </div>
+          {([0, 1] as const).map(i => {
+            const h = switchHeroes[i];
+            const r = h ? HEROES[h] : '';
+            return (
+              <div key={i}>
+                <select
+                  value={h}
+                  onChange={e => setSwitchHero(i, e.target.value)}
+                  data-inspect-id={`logmatch-inline-edit-hero-switch-select-${i + 2}`}
+                  className="w-full field px-2 py-2 text-sm"
+                >
+                  <option value="">— {i === 0 ? '2nd' : '3rd'} hero —</option>
+                  {(['DPS', 'Tank', 'Support'] as const).map(role => (
+                    <optgroup key={role} label={role}>
+                      {switchOptionsFor(i).filter(([, rl]) => rl === role).map(([hh]) => (
+                        <option key={hh} value={hh}>{withHeroCount(hh, heroCounts)}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+                {r && <span className={`pill mt-1.5 ${ROLE_COLORS[r]}`}>{r}</span>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-xs text-[var(--muted)] mb-1.5">Map</label>
+        <select value={map} onChange={e => setMap(e.target.value)} data-inspect-id="logmatch-inline-edit-map-select" className="w-full field px-3 py-2 text-sm">
+          {MAP_LIST.map(m => (
+            <option key={m} value={m}>{withMapCount(m, mapCounts).toUpperCase()} ({MAPS[m]})</option>
+          ))}
+        </select>
+        {mapType && <span className={`pill mt-1.5 ${mapType}`}>{MAPS[map]}</span>}
+      </div>
+
+      <div>
+        <label className="block text-xs text-[var(--muted)] mb-1.5">Result</label>
+        <div className="flex gap-3">
+          {[{ v: 1, label: 'Win', cls: 'border-emerald-500 bg-emerald-500/20 text-emerald-600' },
+            { v: 0, label: 'Loss', cls: 'border-red-500 bg-red-500/20 text-red-600' }].map(({ v, label, cls }) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setWin(v as 0 | 1)}
+              data-inspect-id={`logmatch-inline-edit-result-${label.toLowerCase()}`}
+              className={`flex-1 py-2.5 rounded-lg border text-sm font-semibold transition-all ${win === v ? cls : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="pt-1 space-y-2">
+        <button
+          type="button"
+          onClick={save}
+          disabled={status === 'saving' || !hero || !map}
+          data-inspect-id="logmatch-inline-edit-save-button"
+          className="btn-primary w-full py-2.5 text-sm"
+        >
+          {status === 'saving' ? 'Saving…' : 'Save Changes'}
+        </button>
+        {status === 'error' && <p className="text-red-600 text-xs text-center">Failed to save — is the server running?</p>}
+
+        {confirmDelete ? (
+          <div className="flex gap-2">
+            <button type="button" onClick={remove} disabled={status === 'saving'} data-inspect-id="logmatch-inline-edit-confirm-delete-button" className="flex-1 py-2 rounded-lg border border-red-500 bg-red-500/15 text-red-600 text-sm font-semibold hover:bg-red-500/25 transition-colors">
+              Confirm delete
+            </button>
+            <button type="button" onClick={() => setConfirmDelete(false)} className="flex-1 py-2 rounded-lg border border-ow-border text-[var(--muted)] text-sm hover:text-[var(--ink)] transition-colors">
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button type="button" onClick={() => setConfirmDelete(true)} data-inspect-id="logmatch-inline-edit-delete-button" className="w-full py-2 rounded-lg border border-ow-border text-xs text-[var(--faint)] hover:text-red-600 hover:border-red-500/50 transition-colors">
+            Delete this match
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // Perceived sens speed, 0 (felt slow) to 10 (felt fast) — not a quality rating.
 // Captured here, live, rather than backfilled later on /sens: the sensation is
@@ -228,10 +449,35 @@ export default function LogMatch() {
   // consolidated here (instead of also living on the Sens page) so there's
   // one place to look, not two independent toggles that can drift.
   const today = format(new Date(), 'yyyy-MM-dd');
-  const { data: todayData } = useApi<{ rows: { id: number; hero: string; map: string; win: 0 | 1; queue_mode: QueueMode }[] }>(
+  const { data: todayData } = useApi<{ rows: TodayMatchRow[] }>(
     `/api/matches?from=${today}&to=${today}&limit=50`
   );
   const recent = todayData?.rows ?? [];
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  // Mid-match switch heroes (slots 2/3) per row — fetched separately since
+  // /api/matches only returns each match's primary hero. Keyed off a stable
+  // string of today's match ids so it only refires when that set changes —
+  // plus a manual tick bumped after an inline edit saves, since a roster
+  // change (e.g. adding/removing a switch hero) doesn't change the id set.
+  const [extraHeroesByMatch, setExtraHeroesByMatch] = useState<Record<number, MatchHeroRow[]>>({});
+  const [heroesTick, setHeroesTick] = useState(0);
+  const recentIdsKey = recent.map(r => r.id).join(',');
+  useEffect(() => {
+    const ids = recentIdsKey ? recentIdsKey.split(',').map(Number) : [];
+    if (ids.length === 0) { setExtraHeroesByMatch({}); return; }
+    let cancelled = false;
+    Promise.all(
+      ids.map(id =>
+        fetch(`/api/matches/${id}/heroes`)
+          .then(res => res.json())
+          .then((data: { rows?: MatchHeroRow[] }) => [id, (data.rows ?? []).slice(1)] as [number, MatchHeroRow[]])
+      )
+    )
+      .then(results => { if (!cancelled) setExtraHeroesByMatch(Object.fromEntries(results)); })
+      .catch(() => { if (!cancelled) setExtraHeroesByMatch({}); });
+    return () => { cancelled = true; };
+  }, [recentIdsKey, heroesTick]);
 
   const [togglingId, setTogglingId] = useState<number | null>(null);
   async function toggleQueueMode(id: number, current: QueueMode) {
@@ -255,24 +501,6 @@ export default function LogMatch() {
       setTogglingId(null);
     }
   }
-
-  // Per-row "last 5 on this map" pip strip — fetched per unique map. Keyed off a
-  // stable string of today's maps so it only refires when that set changes.
-  const [mapHistory, setMapHistory] = useState<Record<string, boolean[]>>({});
-  const mapKey = [...new Set(recent.map(r => r.map))].sort().join('|');
-  useEffect(() => {
-    const maps = mapKey ? mapKey.split('|') : [];
-    if (maps.length === 0) { setMapHistory({}); return; }
-    Promise.all(
-      maps.map(m =>
-        fetch(`/api/matches?map=${encodeURIComponent(m)}&limit=5`)
-          .then(r => r.json())
-          .then((data: any) => [m, data.rows.map((d: any) => d.win === 1)] as [string, boolean[]])
-      )
-    )
-      .then(results => setMapHistory(Object.fromEntries(results)))
-      .catch(() => {});
-  }, [mapKey]);
 
   const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement | HTMLTextAreaElement>) => {
     if (k === 'date') dateTouched.current = true;
@@ -724,66 +952,83 @@ export default function LogMatch() {
           {recent.length > 0 ? (
             <div className="space-y-2" data-inspect-id="logmatch-recently-logged-list">
               {recent.map(r => {
-                // Build 5 display slots: oldest on left, newest on right.
-                // API returns newest-first; display newest on the left (direct index).
-                const hist = mapHistory[r.map];
-                const slots = Array.from({ length: 5 }, (_, j) =>
-                  hist ? (j < hist.length ? hist[j] : undefined) : undefined
-                );
+                const expanded = expandedId === r.id;
+                const c = QUEUE_MODE_COLORS[r.queue_mode];
                 return (
-                  <div key={r.id} className={`relative overflow-hidden flex items-center gap-3 py-2.5 px-3 rounded-lg ${QUEUE_MODE_COLORS[r.queue_mode].card}`}>
-                    {/* Mode-tinted strip with a big centred italic tag watermark —
-                        same lettering as the mode selectors. */}
-                    <ModeWatermark mode={r.queue_mode} variant="strip" />
-                    <div className={`relative z-10 w-8 h-8 rounded flex items-center justify-center text-xs font-bold shrink-0 ${r.win ? 'bg-emerald-500/20 text-emerald-600' : 'bg-red-500/20 text-red-600'}`}>
-                      {r.win ? 'W' : 'L'}
-                    </div>
-                    <div className="relative z-10 flex-1 min-w-0">
-                      <div className="text-xs hero-name text-[var(--ink)]">{withHeroCount(r.hero, heroCounts)}</div>
-                      <div className="text-xs map-name text-[var(--faint)]">{withMapCount(r.map, mapCounts)}</div>
-                    </div>
-                    {/* qp/comp toggle — moved here from the Sens page so this card is
-                        the single place a match's queue mode can be corrected. Overlaid
-                        centered on the watermark (same inset-0 + items-center/justify-center
-                        centering ModeWatermark uses on this row), not in normal flex flow,
-                        so it doesn't compete with the hero/map/pips for row width. */}
-                    <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-                      <div className="flex items-center gap-1 pointer-events-auto" data-inspect-id="logmatch-todays-matches-mode-toggle-group">
-                        <span className="text-xs font-black text-blue-400">Q</span>
-                        <button
-                          type="button"
-                          onClick={() => toggleQueueMode(r.id, r.queue_mode)}
-                          disabled={togglingId === r.id}
-                          aria-label={`Match type: ${r.queue_mode === 'qp_role' ? 'Quick Play' : 'Competitive'} — tap to switch`}
-                          data-inspect-id="logmatch-todays-matches-mode-toggle"
-                          className={`relative shrink-0 w-9 h-5 rounded-full transition-colors disabled:opacity-50 ${r.queue_mode === 'qp_role' ? 'bg-blue-500' : 'bg-red-500'}`}
-                        >
-                          <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${r.queue_mode === 'qp_role' ? 'translate-x-0' : 'translate-x-4'}`} />
-                        </button>
-                        <span className="text-xs font-black text-red-400">C</span>
-                      </div>
-                    </div>
-                    <div className="relative z-10 flex flex-col items-end gap-0.5 shrink-0">
-                      <div className="flex items-center gap-1">
-                        <span className="text-[10px] text-[var(--faint-2)] tracking-tight">recent</span>
-                        <div className="flex gap-0.5">
-                          {slots.map((pip, j) => (
-                            <div
-                              key={j}
-                              title={pip === undefined ? 'No data' : pip ? 'Win' : 'Loss'}
-                              className={`w-3 h-3 rounded-sm ${
-                                pip === undefined
-                                  ? 'bg-gray-700'
-                                  : pip
-                                  ? 'bg-emerald-400'
-                                  : 'bg-red-400'
-                              }`}
-                            />
-                          ))}
+                  <div
+                    key={r.id}
+                    data-inspect-id="logmatch-todays-matches-card-row"
+                    className={`relative overflow-hidden rounded-lg transition-all ${expanded ? `${c.accent} ${c.glow} ring-1 ring-inset` : ''}`}
+                  >
+                    {/* Header block gets its own relative/overflow-hidden box so the
+                        absolutely-positioned watermark stays clipped to the collapsed
+                        row instead of re-centering on the whole card once the form
+                        expands below — same fix as the Awaiting Stats card on the Sens
+                        page. */}
+                    <div
+                      onClick={() => setExpandedId(expanded ? null : r.id)}
+                      className={`relative overflow-hidden flex items-center gap-3 min-h-16 py-2.5 px-3 rounded-lg cursor-pointer transition-colors hover:brightness-110 ${MODE_WASH_CLASS[r.queue_mode]}`}
+                    >
+                      {/* Oversized W/L result watermark + right-aligned map name — same
+                          treatment as the Logged Today card on the Sens page. Queue mode
+                          is signaled by this row's background wash (c.card above) instead
+                          of a second big watermark glyph competing with this one. */}
+                      <span
+                        aria-hidden="true"
+                        data-inspect-id="logmatch-todays-matches-result-watermark"
+                        className={`pointer-events-none select-none absolute top-7 -translate-y-1/2 right-0 text-[7rem] font-display font-black italic leading-none tracking-[-0.07em] whitespace-nowrap opacity-15 ${r.win ? 'translate-x-[20%] text-emerald-500' : 'translate-x-[-15%] text-red-500'}`}
+                      >
+                        {r.win ? 'W' : 'L'}
+                      </span>
+                      <div className="relative z-10 flex-1 min-w-0">
+                        {(() => {
+                          const extra = extraHeroesByMatch[r.id] ?? [];
+                          return (
+                            <div className="flex items-stretch h-6 min-w-0" title={extra.length > 0 ? extra.map(h => h.hero).join(', ') : undefined}>
+                              <span
+                                className={`pill hero-name border-2 text-white relative z-10 h-full box-border shadow-[3px_3px_0_rgba(0,0,0,0.7)] w-24 justify-center truncate ${
+                                  ROLE_PILL_CLASS[HEROES[r.hero]] ?? ROLE_PILL_CLASS.Support
+                                }`}
+                              >
+                                {r.hero}
+                              </span>
+                              {/* Hidden mid-match switch heroes rendered as the actual right-edge
+                                  slice of a pill (real chamfered corner, not an invented rectangle)
+                                  peeking out from behind the primary tag — same treatment as the
+                                  Logged Today card on the Sens page. */}
+                              {extra.map((h, i) => (
+                                <span key={h.hero} aria-hidden="true" className="relative w-3 h-full overflow-hidden ml-px" style={{ zIndex: 5 - i }}>
+                                  <span
+                                    className={`pill hero-name absolute inset-y-0 right-0 border-2 shadow-[3px_3px_0_rgba(0,0,0,0.7)] ${
+                                      (ROLE_PILL_CLASS_DARK[h.role] ?? ROLE_PILL_CLASS_DARK.Support)[i]
+                                    }`}
+                                    style={{ width: '3.5rem' }}
+                                  />
+                                </span>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                        <div className="flex items-center gap-3 mt-1 text-[11px] text-[var(--faint)]">
+                          <span>{r.time ? format(new Date(r.time), 'MMM d, h:mm a') : today}</span><span>·</span>
+                          <span>{r.stage_index != null ? <>stage <b className="font-bold">{r.stage_index}</b> · sens <b className="font-bold">{r.sens}</b></> : r.sens != null ? <>sens <b className="font-bold">{r.sens}</b></> : 'no sens'}</span>
                         </div>
-                        <span className="text-[10px] text-[var(--faint-2)] tracking-tight">older</span>
                       </div>
+                      <span className="relative z-10 block shrink-0 self-center mr-1.5 w-[7.5rem] text-xs map-name text-[var(--ink)] text-right leading-tight whitespace-normal break-words">{r.map}</span>
                     </div>
+                    {expanded && (
+                      <div className={`border-t border-ow-border px-3 py-3 ${c.card}`} data-inspect-id="logmatch-inline-edit-form">
+                        <TodayMatchEditForm
+                          key={r.id}
+                          match={r}
+                          heroCounts={heroCounts}
+                          mapCounts={mapCounts}
+                          onDone={() => { setExpandedId(null); setHeroesTick(t => t + 1); }}
+                          toggleQueueMode={toggleQueueMode}
+                          togglingId={togglingId}
+                        />
+                      </div>
+                    )}
                   </div>
                 );
               })}
