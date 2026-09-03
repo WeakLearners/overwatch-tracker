@@ -220,7 +220,6 @@ router.post('/', (req: Request, res: Response) => {
       // (match_id, hero) PK means only the first insert actually lands.
       const { changes } = insertCredit.run({ match_id: matchId, hero: credit.hero, blind_set_id: credit.setId, stage_index: credit.stageIdx });
       if (changes === 0) continue;
-      db.prepare('UPDATE blind_stage_sets SET games_on_stage = games_on_stage + 1 WHERE id = :id').run({ id: credit.setId });
       // Multiple sets can be active at once now (one per hero), so nothing else
       // retires a finished set the way the old single-active-slot model used to
       // when a new set took over. Retire it here instead, the moment its last
@@ -252,14 +251,14 @@ const EDITABLE = ['date', 'time', 'day_of_week', 'hour', 'hero', 'role', 'map', 
 // credits, after an edit changes hero/role/queue_mode/heroes. A match logged
 // mid-test can move onto a different active set, off a test entirely, or
 // (rarely) onto one for the first time — in every case the old blind_credits
-// rows and the games_on_stage counters they fed are stale and would silently
-// overcount/undercount a stage's trial batch. Drops the old credits (undoing
-// their games_on_stage increment, same MAX(...,0)-guarded decrement the
-// delete route uses so an already-advanced stage isn't touched), then
-// re-runs the same lookup+credit+retire logic the POST insert path uses.
-// `sensProvided` is true when this same request also set matches.sens
-// directly — in that case the caller's explicit value wins over whatever the
-// recomputed stage would have stamped.
+// rows are stale and would silently overcount/undercount a stage's trial
+// batch. Drops the old credits, then re-runs the same lookup+credit+retire
+// logic the POST insert path uses. games_on_stage/totalGames are both
+// derived live from blind_credits (blind.ts's gamesOnStageOf/totalGamesOf) —
+// deleting/inserting rows here is the only bookkeeping needed; there's no
+// separate counter to keep in sync. `sensProvided` is true when this same
+// request also set matches.sens directly — in that case the caller's
+// explicit value wins over whatever the recomputed stage would have stamped.
 function syncStageCredits(db: ReturnType<typeof getDb>, matchId: string, sensProvided: boolean) {
   const match = db.prepare('SELECT hero, role, queue_mode FROM matches WHERE id = :id')
     .get({ id: matchId }) as { hero: string; role: string; queue_mode: string } | undefined;
@@ -271,12 +270,6 @@ function syncStageCredits(db: ReturnType<typeof getDb>, matchId: string, sensPro
     .all({ id: matchId }) as { hero: string; blind_set_id: number; stage_index: number }[];
   const oldCreditByHero = new Map(oldCredits.map(c => [c.hero, c]));
   db.prepare('DELETE FROM blind_credits WHERE match_id = :id').run({ id: matchId });
-  for (const c of oldCredits) {
-    db.prepare(`
-      UPDATE blind_stage_sets SET games_on_stage = MAX(games_on_stage - 1, 0)
-      WHERE id = :id AND cur_rel = :stage_index
-    `).run({ id: c.blind_set_id, stage_index: c.stage_index });
-  }
 
   const isCompetitive = (match.queue_mode ?? 'comp_role') !== 'qp_role';
   const insertCredit = db.prepare(
@@ -299,7 +292,6 @@ function syncStageCredits(db: ReturnType<typeof getDb>, matchId: string, sensPro
     if (!stage) return;
     const { changes } = insertCredit.run({ match_id: matchId, hero: slot.hero, blind_set_id: stage.setId, stage_index: stage.stageIdx });
     if (changes === 0) return;
-    db.prepare('UPDATE blind_stage_sets SET games_on_stage = games_on_stage + 1 WHERE id = :id').run({ id: stage.setId });
     const set = db.prepare('SELECT batch_size FROM blind_stage_sets WHERE id = :id').get({ id: stage.setId }) as { batch_size: number };
     const nStages = (db.prepare('SELECT COUNT(*) n FROM blind_stages WHERE set_id = :id').get({ id: stage.setId }) as { n: number }).n;
     const totalGames = (db.prepare('SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id').get({ id: stage.setId }) as { n: number }).n;
@@ -439,24 +431,12 @@ router.delete('/:id', (req: Request, res: Response) => {
   const matchId = req.params.id;
 
   // blind_credits rows for this match cascade-delete with it (schema.ts's
-  // ON DELETE CASCADE), which keeps totalGamesOf (COUNT(*) on blind_credits)
-  // self-healing. games_on_stage on blind_stage_sets does not self-heal —
-  // it's a hand-incremented counter (matches.ts's POST handler above) with
-  // no other decrement path — so read the credits before the cascade wipes
-  // them and decrement games_on_stage for any that belonged to their set's
-  // *current* stage (a credit for an already-advanced-past stage doesn't
-  // affect the current stage's count).
+  // ON DELETE CASCADE), which keeps both totalGamesOf and gamesOnStageOf
+  // (COUNT(*) queries on blind_credits — blind.ts) self-healing automatically.
+  // No separate counter to decrement.
   db.exec('BEGIN');
   try {
-    const credits = db.prepare('SELECT blind_set_id, stage_index FROM blind_credits WHERE match_id = :id')
-      .all({ id: matchId }) as { blind_set_id: number; stage_index: number }[];
     db.prepare('DELETE FROM matches WHERE id = :id').run({ id: matchId });
-    for (const credit of credits) {
-      db.prepare(`
-        UPDATE blind_stage_sets SET games_on_stage = MAX(games_on_stage - 1, 0)
-        WHERE id = :id AND cur_rel = :stage_index
-      `).run({ id: credit.blind_set_id, stage_index: credit.stage_index });
-    }
     db.exec('COMMIT');
   } catch (err) {
     db.exec('ROLLBACK');

@@ -5,7 +5,7 @@ import { useApi, revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { eDPI, MOUSE_DPI } from '../lib/aim';
 import {
-  QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, MODE_TAG, HEROES,
+  QueueMode, QUEUE_MODE_COLORS, HEROES,
 } from '../types';
 import { format } from 'date-fns';
 import SensNav from '../components/SensNav';
@@ -143,7 +143,6 @@ const statsFromLogged = (m: LoggedMatch): StatFieldsT => ({
 const field = 'w-full field px-3 py-2 text-sm num-display';
 const compactField = 'w-full field px-2 py-1 text-xs num-display';
 const btnSecondary = 'border border-ow-border rounded-lg text-[var(--ink)] font-semibold hover:border-gray-500 transition-all disabled:opacity-40 disabled:cursor-not-allowed';
-const HERO_LIST = Object.entries(HEROES).sort((a, b) => a[0].localeCompare(b[0]));
 
 // ── Shared aim-stat inputs (used by both the stage-trial loop and the backfill form) ─
 function StatFields({ s, upd, updHeroAcc, showHealing, firstDurationRef, heroSens }: {
@@ -1436,126 +1435,6 @@ function AnswerTable({ stages }: { stages: AnswerStage[] }) {
   );
 }
 
-// Inline edit form for a pending-match card — corrects hero(es), match type
-// (queue mode), and sens before stats are entered. Saved via a PUT, which
-// also re-derives that match's stage-test credit server-side (a hero/mode
-// edit can move it onto a different active DPI test, or off one entirely),
-// so games_on_stage counters stay accurate rather than reflecting the
-// pre-edit hero.
-function EditMatchForm({ match, onClose, onSaved }: {
-  match: PendingMatch; onClose: () => void;
-  // Fires with the just-saved hero roster + sens right after the PUT succeeds,
-  // so the combat-stats entry form below (built from the pre-edit roster when
-  // the card was first expanded) can resync to the corrected hero(es) instead
-  // of silently staying stuck on stale rows.
-  onSaved?: (updated: { hero: string; heroes: string[]; sens: string }) => void;
-}) {
-  const [hero, setHero] = useState(match.hero);
-  // Fixed 2 switch slots (2nd/3rd hero played). '' means that slot has no
-  // recorded switch — defaults to '' when the match has no 2nd/3rd hero.
-  const [extra, setExtra] = useState<string[]>(() => {
-    const rest = match.heroes.slice(1).map(h => h.hero);
-    return [rest[0] ?? '', rest[1] ?? ''];
-  });
-  const [queueMode, setQueueMode] = useState<QueueMode>(match.queue_mode);
-  const [sens, setSens] = useState(match.sens != null ? String(match.sens) : '');
-  const [status, setStatus] = useState<'idle' | 'saving' | 'error'>('idle');
-
-  // Role Queue (both Quickplay Role and Competitive Role) locks a player to
-  // the role they queued as for the whole match — a mid-match switch can only
-  // be to another hero of that same role. Open Queue has no such lock.
-  const roleLocked = queueMode !== 'comp_open';
-  const lockedRole = HEROES[hero];
-
-  // If the primary hero (and so the locked role) or the queue mode changes
-  // such that an already-picked switch hero no longer fits, snap it to the
-  // first hero of the now-locked role rather than leaving an invalid pick.
-  // An empty (None) slot is left alone either way.
-  useEffect(() => {
-    if (!roleLocked) return;
-    setExtra(e => e.map(h => (!h || HEROES[h] === lockedRole ? h : HERO_LIST.find(([, r]) => r === lockedRole)![0])));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roleLocked, lockedRole]);
-
-  // Setting a slot back to '' (None) is how a mistakenly-added switch hero
-  // gets removed from the form.
-  function updateHero(i: number, h: string) { setExtra(e => e.map((x, idx) => (idx === i ? h : x))); }
-
-  async function save() {
-    setStatus('saving');
-    try {
-      const filledExtra = extra.filter(Boolean);
-      const res = await fetch(`/api/matches/${match.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          hero, role: HEROES[hero], queue_mode: queueMode, sens: num(sens),
-          heroes: filledExtra.map(h => ({ hero: h, role: HEROES[h] })),
-        }),
-      });
-      if (!res.ok) throw new Error('save failed');
-      revalidateAll();
-      onSaved?.({ hero, heroes: [hero, ...filledExtra], sens });
-      onClose();
-    } catch { setStatus('error'); }
-  }
-
-  const heroSelect = (value: string, onChange: (h: string) => void, key: string, opts?: { restrictToRole?: string; allowNone?: boolean }) => (
-    <select key={key} value={value} onChange={e => onChange(e.target.value)} className="w-full field px-2 py-1.5 text-xs">
-      {opts?.allowNone && <option value="">None</option>}
-      {(['DPS', 'Tank', 'Support'] as const).filter(role => !opts?.restrictToRole || role === opts.restrictToRole).map(role => (
-        <optgroup key={role} label={role}>
-          {HERO_LIST.filter(([, r]) => r === role).map(([h]) => <option key={h} value={h}>{h}</option>)}
-        </optgroup>
-      ))}
-    </select>
-  );
-
-  return (
-    <div className="border-t border-ow-border px-3 py-3 space-y-3" data-inspect-id="sl-edit-match-form">
-      <div>
-        <label className="block text-[10px] text-[var(--faint)] mb-1">Hero</label>
-        <div className="flex flex-wrap gap-1.5">
-          <div className="flex-1 min-w-[100px]">{heroSelect(hero, setHero, 'primary')}</div>
-          {extra.map((h, i) => (
-            <div key={i} className="flex-1 min-w-[100px]">
-              {heroSelect(h, v => updateHero(i, v), `extra-${i}`, { restrictToRole: roleLocked ? lockedRole : undefined, allowNone: true })}
-            </div>
-          ))}
-        </div>
-      </div>
-      <div>
-        <label className="block text-[10px] text-[var(--faint)] mb-1">Match Type</label>
-        <div className="grid grid-cols-3 gap-1.5">
-          {QUEUE_MODES.map(qm => {
-            const c = QUEUE_MODE_COLORS[qm.value]; const on = queueMode === qm.value;
-            return (
-              <button key={qm.value} type="button" onClick={() => setQueueMode(qm.value)}
-                className={`py-1.5 rounded border text-[10px] font-semibold transition-all ${on ? `${c.card} ${c.accent}` : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'}`}>
-                {MODE_TAG[qm.value]}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-      <div>
-        <label className="block text-[10px] text-[var(--faint)] mb-1">Sens</label>
-        <input type="number" step="0.01" min="0" inputMode="decimal" value={sens} onChange={e => setSens(e.target.value)}
-          className="w-24 field px-2 py-1.5 text-xs num-display" placeholder="—" aria-label="Sensitivity" />
-      </div>
-      <div className="flex gap-2 pt-1">
-        <button type="button" onClick={save} disabled={status === 'saving'} data-inspect-id="sl-edit-match-save-btn" className="flex-1 btn-primary py-1.5 text-xs">
-          {status === 'saving' ? 'Saving…' : 'Save'}
-        </button>
-        <button type="button" onClick={onClose} className="flex-1 py-1.5 rounded-lg border border-ow-border text-[var(--faint)] text-xs hover:text-[var(--ink)] transition-colors">
-          Cancel
-        </button>
-      </div>
-      {status === 'error' && <p className="text-red-600 text-[10px] text-center">Failed to save</p>}
-    </div>
-  );
-}
-
 // ── Non-blind backfill (matches logged elsewhere that still need stats) ───────
 function BackfillPanel({ pending, loading }: {
   pending: PendingMatch[]; loading: boolean;
@@ -1569,7 +1448,6 @@ function BackfillPanel({ pending, loading }: {
   const [stats, setStats] = useState<StatFieldsT>(emptyStats([]));
   const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [showCaughtUp, setShowCaughtUp] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
   const selected = pending.find(m => m.id === selectedId) ?? null;
   const showHealing = selected ? selected.heroes.some(h => h.role === 'Support') : false;
   const durationRef = useRef<HTMLInputElement>(null);
@@ -1585,7 +1463,6 @@ function BackfillPanel({ pending, loading }: {
   const [loggedHeroSens, setLoggedHeroSens] = useState<Record<string, string>>({});
   const [loggedStats, setLoggedStats] = useState<StatFieldsT>(emptyStats([]));
   const [loggedStatus, setLoggedStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
-  const [loggedEditingId, setLoggedEditingId] = useState<number | null>(null);
   const loggedSelected = logged.find(m => m.id === loggedSelectedId) ?? null;
   const loggedShowHealing = loggedSelected ? loggedSelected.heroes.some(h => h.role === 'Support') : false;
 
@@ -1612,21 +1489,6 @@ function BackfillPanel({ pending, loading }: {
       revalidateAll();
       setTimeout(() => setLoggedStatus('idle'), 1800);
     } catch { setLoggedStatus('error'); setTimeout(() => setLoggedStatus('idle'), 3000); }
-  }
-
-  const [togglingLoggedId, setTogglingLoggedId] = useState<number | null>(null);
-  async function toggleLoggedQueueMode(m: LoggedMatch) {
-    const newMode: QueueMode = m.queue_mode === 'qp_role' ? 'comp_role' : 'qp_role';
-    setTogglingLoggedId(m.id);
-    try {
-      const res = await fetch(`/api/matches/${m.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ queue_mode: newMode }) });
-      if (!res.ok) throw new Error('mode toggle failed');
-      revalidateAll();
-    } catch {
-      // Toggle stays put on failure — the pencil edit form is the fallback.
-    } finally {
-      setTogglingLoggedId(null);
-    }
   }
 
   // Selecting a card should land the cursor on Duration — the required field and
@@ -1666,31 +1528,6 @@ function BackfillPanel({ pending, loading }: {
     } catch { setStatus('error'); setTimeout(() => setStatus('idle'), 3000); }
   }
 
-  // Quick qp/comp flip from the collapsed card — a simplified binary view of
-  // the 3-way queue_mode; flipping into comp always lands on comp_role
-  // (the more common of the two comp variants), same as a fresh match log.
-  const [togglingId, setTogglingId] = useState<number | null>(null);
-  async function toggleQueueMode(m: PendingMatch) {
-    const newMode: QueueMode = m.queue_mode === 'qp_role' ? 'comp_role' : 'qp_role';
-    // Comp -> QP is a correction, not a flip: it rolls back this match's
-    // stage-test credit (games_on_stage -1) and drops the card from Awaiting
-    // Stats entirely, since QP games never need aim stats. That's a bigger
-    // consequence than the reverse direction, so confirm before doing it.
-    if (newMode === 'qp_role' && !window.confirm('Switch this match to Quick Play? It will roll back its stage-test count by 1 and be removed from Awaiting Stats.')) {
-      return;
-    }
-    setTogglingId(m.id);
-    try {
-      const res = await fetch(`/api/matches/${m.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ queue_mode: newMode }) });
-      if (!res.ok) throw new Error('mode toggle failed');
-      revalidateAll();
-    } catch {
-      // Toggle stays put on failure — the pencil edit form is the fallback.
-    } finally {
-      setTogglingId(null);
-    }
-  }
-
   return (
     <div>
       <h2 data-inspect-id="sl-record-combat-header" className="text-sm heading-display text-[var(--ink)] mb-1">Record combat details</h2>
@@ -1707,7 +1544,6 @@ function BackfillPanel({ pending, loading }: {
             <div className="space-y-2" data-inspect-id="sl-awaiting-stats-list">
               {pending.map(m => {
                 const c = QUEUE_MODE_COLORS[m.queue_mode]; const active = m.id === selectedId;
-                const editing = m.id === editingId;
                 return (
                   <div key={m.id} className={`relative overflow-hidden rounded-lg border bg-ow-darker transition-all ${active ? `${c.accent} ${c.glow}` : 'border-ow-border hover:border-gray-500'}`}>
                     {/* Header block (watermark + toggle + collapsed row) gets its own
@@ -1730,28 +1566,6 @@ function BackfillPanel({ pending, loading }: {
                       >
                         {m.win ? 'W' : 'L'}
                       </span>
-                      {/* iOS-style qp/comp toggle, above the watermark. Pinned to a fixed
-                          top offset (not top-1/2) so it stays put next to the collapsed
-                          header row instead of drifting down when the card expands and
-                          grows taller. Left+blue = qp, right+red = comp, flanked by a blue
-                          Q / red C label. It's a sibling of the selectable row below, not
-                          nested inside it, so its own click never also selects the card. */}
-                      <div className="absolute left-[65%] top-7 -translate-x-1/2 -translate-y-1/2 z-20 flex items-center gap-1.5">
-                        <span className="text-sm font-black text-blue-400">Q</span>
-                        <button
-                          type="button"
-                          onClick={() => toggleQueueMode(m)}
-                          disabled={togglingId === m.id}
-                          aria-label={`Match type: ${m.queue_mode === 'qp_role' ? 'Quick Play' : 'Competitive'} — tap to switch`}
-                          data-inspect-id="sl-awaiting-stats-mode-toggle"
-                          className={`relative shrink-0 w-9 h-5 rounded-full transition-colors disabled:opacity-50 ${m.queue_mode === 'qp_role' ? 'bg-blue-500' : 'bg-red-500'}`}
-                        >
-                          <span
-                            className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${m.queue_mode === 'qp_role' ? 'translate-x-0' : 'translate-x-4'}`}
-                          />
-                        </button>
-                        <span className="text-sm font-black text-red-400">C</span>
-                      </div>
                     <div className="relative z-10 flex items-stretch">
                       <div
                         role="button"
@@ -1784,16 +1598,6 @@ function BackfillPanel({ pending, loading }: {
                               />
                             </span>
                           ))}
-                          {active && (
-                            <button type="button"
-                              onClick={e => { e.stopPropagation(); setEditingId(editing ? null : m.id); }}
-                              aria-label="Edit match"
-                              data-inspect-id="sl-awaiting-stats-edit-btn"
-                              className={`shrink-0 self-center ml-2 flex items-center gap-1 px-1.5 py-0.5 rounded-md border font-bold text-[10px] transition-colors ${editing ? 'border-ow-accent text-ow-accent bg-ow-accent/10' : 'border-ow-border bg-ow-darker text-[var(--ink)] hover:border-ow-accent hover:text-ow-accent'}`}>
-                              <span className="text-xs leading-none">✎</span>
-                              Edit
-                            </button>
-                          )}
                         </div>
                         <div className="flex items-center gap-3 mt-1 text-[11px] text-[var(--faint)]">
                           <span>{m.time ? format(new Date(m.time), 'MMM d, h:mm a') : m.date}</span><span>·</span>
@@ -1803,16 +1607,6 @@ function BackfillPanel({ pending, loading }: {
                       <span className="block shrink-0 self-center mr-1.5 w-[7.5rem] text-xs map-name text-[var(--ink)] text-right leading-tight whitespace-normal break-words">{m.map}</span>
                     </div>
                     </div>
-                    {editing && (
-                      <EditMatchForm
-                        match={m}
-                        onClose={() => setEditingId(null)}
-                        onSaved={u => {
-                          setStats(emptyStats(u.heroes.map(h => ({ hero: h }))));
-                          setHeroSens(prev => ({ ...Object.fromEntries(u.heroes.map(h => [h, prev[h] ?? ''])), [u.hero]: u.sens }));
-                        }}
-                      />
-                    )}
                     {active && (
                       <div className={`border-t border-ow-border px-3 py-3 space-y-4 stats-entry-heavy ${c.card}`} data-inspect-id="sl-inline-stats-form">
                         <StatFields
@@ -1847,7 +1641,6 @@ function BackfillPanel({ pending, loading }: {
             <div className="space-y-2" data-inspect-id="sl-logged-today-list">
               {logged.map(m => {
                 const c = QUEUE_MODE_COLORS[m.queue_mode]; const active = m.id === loggedSelectedId;
-                const editing = m.id === loggedEditingId;
                 return (
                   <div key={m.id} className={`relative overflow-hidden rounded-lg border bg-ow-darker transition-all ${active ? `${c.accent} ${c.glow}` : 'border-ow-border hover:border-gray-500'}`}>
                     {/* Header block (watermark + toggle + collapsed row) gets its own
@@ -1870,28 +1663,6 @@ function BackfillPanel({ pending, loading }: {
                       >
                         {m.win ? 'W' : 'L'}
                       </span>
-                      {/* iOS-style qp/comp toggle, above the watermark. Pinned to a fixed
-                          top offset (not top-1/2) so it stays put next to the collapsed
-                          header row instead of drifting down when the card expands and
-                          grows taller. Left+blue = qp, right+red = comp, flanked by a blue
-                          Q / red C label. It's a sibling of the selectable row below, not
-                          nested inside it, so its own click never also selects the card. */}
-                      <div className="absolute left-[65%] top-7 -translate-x-1/2 -translate-y-1/2 z-20 flex items-center gap-1.5">
-                        <span className="text-sm font-black text-blue-400">Q</span>
-                        <button
-                          type="button"
-                          onClick={() => toggleLoggedQueueMode(m)}
-                          disabled={togglingLoggedId === m.id}
-                          aria-label={`Match type: ${m.queue_mode === 'qp_role' ? 'Quick Play' : 'Competitive'} — tap to switch`}
-                          data-inspect-id="sl-logged-today-mode-toggle"
-                          className={`relative shrink-0 w-9 h-5 rounded-full transition-colors disabled:opacity-50 ${m.queue_mode === 'qp_role' ? 'bg-blue-500' : 'bg-red-500'}`}
-                        >
-                          <span
-                            className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${m.queue_mode === 'qp_role' ? 'translate-x-0' : 'translate-x-4'}`}
-                          />
-                        </button>
-                        <span className="text-sm font-black text-red-400">C</span>
-                      </div>
                       <div className="relative z-10 flex items-stretch">
                         <div
                           role="button"
@@ -1924,16 +1695,6 @@ function BackfillPanel({ pending, loading }: {
                                 />
                               </span>
                             ))}
-                            {active && (
-                              <button type="button"
-                                onClick={e => { e.stopPropagation(); setLoggedEditingId(editing ? null : m.id); }}
-                                aria-label="Edit match"
-                                data-inspect-id="sl-logged-today-edit-btn"
-                                className={`shrink-0 self-center ml-2 flex items-center gap-1 px-1.5 py-0.5 rounded-md border font-bold text-[10px] transition-colors ${editing ? 'border-ow-accent text-ow-accent bg-ow-accent/10' : 'border-ow-border bg-ow-darker text-[var(--ink)] hover:border-ow-accent hover:text-ow-accent'}`}>
-                                <span className="text-xs leading-none">✎</span>
-                                Edit
-                              </button>
-                            )}
                           </div>
                           <div className="flex items-center gap-3 mt-1 text-[11px] text-[var(--faint)]">
                             <span>{m.time ? format(new Date(m.time), 'MMM d, h:mm a') : m.date}</span><span>·</span>
@@ -1943,16 +1704,6 @@ function BackfillPanel({ pending, loading }: {
                         <span className="block shrink-0 self-center mr-1.5 w-[7.5rem] text-xs map-name text-[var(--ink)] text-right leading-tight whitespace-normal break-words">{m.map}</span>
                       </div>
                     </div>
-                    {editing && (
-                      <EditMatchForm
-                        match={m}
-                        onClose={() => setLoggedEditingId(null)}
-                        onSaved={u => {
-                          setLoggedStats(emptyStats(u.heroes.map(h => ({ hero: h }))));
-                          setLoggedHeroSens(prev => ({ ...Object.fromEntries(u.heroes.map(h => [h, prev[h] ?? ''])), [u.hero]: u.sens }));
-                        }}
-                      />
-                    )}
                     {active && (
                       <div className={`border-t border-ow-border px-3 py-3 space-y-4 ${c.card}`} data-inspect-id="sl-logged-today-stats-form">
                         <StatFields

@@ -29,6 +29,20 @@ const stagesOf = (db: ReturnType<typeof getDb>, setId: number) =>
 const totalGamesOf = (db: ReturnType<typeof getDb>, setId: number) =>
   (db.prepare('SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id').get({ id: setId }) as { n: number }).n;
 
+// Games credited toward one specific stage — derived live from blind_credits
+// (same source of truth as totalGamesOf above), not from the stored
+// blind_stage_sets.games_on_stage column. That column used to be a
+// hand-maintained running counter with its own increment/decrement call
+// sites in matches.ts, which could drift from the live blind_credits count
+// (e.g. a credit landing on a stage index games_on_stage's writers didn't
+// expect) and produce contradictory "0 left in test" / "1 left in stage"
+// numbers on the HUD. Computing both from the same table keeps them
+// consistent by construction. The column itself is left in the schema,
+// unused, per this codebase's no-drop-columns convention.
+const gamesOnStageOf = (db: ReturnType<typeof getDb>, setId: number, stageIndex: number) =>
+  (db.prepare('SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id AND stage_index = :si')
+    .get({ id: setId, si: stageIndex }) as { n: number }).n;
+
 // ── Create a set ─────────────────────────────────────────────────────────────
 // Stages are shown plainly — no shuffle, no scramble step. Three ways to
 // specify them: pass `senses` (explicit, hand-picked in-game sens values —
@@ -199,12 +213,13 @@ router.get('/state', (_req: Request, res: Response) => {
     const totalGames = totalGamesOf(db, set.id);
     const target = set.batch_size * n_stages;
     const completed = totalGames >= target;
+    const gamesOnStage = gamesOnStageOf(db, set.id, set.cur_rel);
 
     return {
       set_id: set.id, in_game_sens: set.in_game_sens, base_dpi: set.base_dpi, created_at: set.created_at,
-      batch_size: set.batch_size, cur_stage: set.cur_rel, games_on_stage: set.games_on_stage,
+      batch_size: set.batch_size, cur_stage: set.cur_rel, games_on_stage: gamesOnStage,
       dpi: curStage?.dpi ?? null, sens: curStage?.sens ?? null, n_stages, hero: set.hero, phase: set.phase, totalGames, completed,
-      needSwitch: !completed && set.games_on_stage >= set.batch_size,
+      needSwitch: !completed && gamesOnStage >= set.batch_size,
       stages, curveEnabled: !!set.curve_enabled,
     };
   });
@@ -225,7 +240,7 @@ router.post('/advance', (req: Request, res: Response) => {
   if (set.cur_rel >= n) { res.status(409).json({ error: 'already at the last stage' }); return; }
 
   const next = set.cur_rel + 1;
-  db.prepare('UPDATE blind_stage_sets SET cur_rel = :next, games_on_stage = 0 WHERE id = :id').run({ next, id: set.id });
+  db.prepare('UPDATE blind_stage_sets SET cur_rel = :next WHERE id = :id').run({ next, id: set.id });
   const stage = stages.find(s => s.stage_index === next);
   res.json({ cur_stage: next, dpi: stage?.dpi ?? null, sens: stage?.sens ?? null, n_stages: n });
 });

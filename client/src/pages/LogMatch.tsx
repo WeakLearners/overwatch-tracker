@@ -221,14 +221,40 @@ export default function LogMatch() {
   }, [form.hero]);
   const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
 
-  // "Recently Logged" reads today's matches straight from the DB — the single
+  // "Today's Matches" reads today's matches straight from the DB — the single
   // source of truth — so it's always accurate and resets on its own when the
-  // date rolls over, since the query is scoped to the current day.
+  // date rolls over, since the query is scoped to the current day. This card
+  // is the only place a match's queue mode can be corrected after logging —
+  // consolidated here (instead of also living on the Sens page) so there's
+  // one place to look, not two independent toggles that can drift.
   const today = format(new Date(), 'yyyy-MM-dd');
   const { data: todayData } = useApi<{ rows: { id: number; hero: string; map: string; win: 0 | 1; queue_mode: QueueMode }[] }>(
     `/api/matches?from=${today}&to=${today}&limit=50`
   );
   const recent = todayData?.rows ?? [];
+
+  const [togglingId, setTogglingId] = useState<number | null>(null);
+  async function toggleQueueMode(id: number, current: QueueMode) {
+    const newMode: QueueMode = current === 'qp_role' ? 'comp_role' : 'qp_role';
+    // Comp -> QP is a correction, not a flip: it rolls back this match's
+    // stage-test credit (drops its blind_credits row server-side, see
+    // syncStageCredits in matches.ts) and pulls it out of Awaiting Stats on
+    // the Sens page entirely, since QP games never need aim stats. That's a
+    // bigger consequence than the reverse direction, so confirm before doing it.
+    if (newMode === 'qp_role' && !window.confirm('Switch this match to Quick Play? It will roll back its stage-test count by 1 and remove it from Awaiting Stats.')) {
+      return;
+    }
+    setTogglingId(id);
+    try {
+      const res = await fetch(`/api/matches/${id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ queue_mode: newMode }),
+      });
+      if (!res.ok) throw new Error('mode toggle failed');
+      revalidateAll();
+    } finally {
+      setTogglingId(null);
+    }
+  }
 
   // Per-row "last 5 on this map" pip strip — fetched per unique map. Keyed off a
   // stable string of today's maps so it only refires when that set changes.
@@ -693,8 +719,8 @@ export default function LogMatch() {
           </form>
         </div>
 
-        <div className="card" data-inspect-id="logmatch-recently-logged-card">
-          <h2 className="text-sm heading-display text-[var(--ink-2)] mb-4">Recently Logged</h2>
+        <div className="card" data-inspect-id="logmatch-todays-matches-card">
+          <h2 className="text-sm heading-display text-[var(--ink-2)] mb-4">Today's Matches</h2>
           {recent.length > 0 ? (
             <div className="space-y-2" data-inspect-id="logmatch-recently-logged-list">
               {recent.map(r => {
@@ -715,6 +741,27 @@ export default function LogMatch() {
                     <div className="relative z-10 flex-1 min-w-0">
                       <div className="text-xs hero-name text-[var(--ink)]">{withHeroCount(r.hero, heroCounts)}</div>
                       <div className="text-xs map-name text-[var(--faint)]">{withMapCount(r.map, mapCounts)}</div>
+                    </div>
+                    {/* qp/comp toggle — moved here from the Sens page so this card is
+                        the single place a match's queue mode can be corrected. Overlaid
+                        centered on the watermark (same inset-0 + items-center/justify-center
+                        centering ModeWatermark uses on this row), not in normal flex flow,
+                        so it doesn't compete with the hero/map/pips for row width. */}
+                    <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+                      <div className="flex items-center gap-1 pointer-events-auto" data-inspect-id="logmatch-todays-matches-mode-toggle-group">
+                        <span className="text-xs font-black text-blue-400">Q</span>
+                        <button
+                          type="button"
+                          onClick={() => toggleQueueMode(r.id, r.queue_mode)}
+                          disabled={togglingId === r.id}
+                          aria-label={`Match type: ${r.queue_mode === 'qp_role' ? 'Quick Play' : 'Competitive'} — tap to switch`}
+                          data-inspect-id="logmatch-todays-matches-mode-toggle"
+                          className={`relative shrink-0 w-9 h-5 rounded-full transition-colors disabled:opacity-50 ${r.queue_mode === 'qp_role' ? 'bg-blue-500' : 'bg-red-500'}`}
+                        >
+                          <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${r.queue_mode === 'qp_role' ? 'translate-x-0' : 'translate-x-4'}`} />
+                        </button>
+                        <span className="text-xs font-black text-red-400">C</span>
+                      </div>
                     </div>
                     <div className="relative z-10 flex flex-col items-end gap-0.5 shrink-0">
                       <div className="flex items-center gap-1">

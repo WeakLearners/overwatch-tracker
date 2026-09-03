@@ -10,7 +10,6 @@ import ModeWatermark from '../components/ModeWatermark';
 import PageHeader from '../components/PageHeader';
 import { useHeroDrawer } from '../contexts/HeroDrawerContext';
 import { useMatch } from '../contexts/MatchContext';
-import { useMatchEditDrawer } from '../contexts/MatchEditDrawerContext';
 import { format, parseISO } from 'date-fns';
 import Prematch from './Prematch';
 import LogMatch from './LogMatch';
@@ -163,7 +162,6 @@ export default function Dashboard() {
   const { data: streaks } = useApi<Streaks>('/api/stats/streaks');
   const { data: trends } = useApi<TrendPoint[]>('/api/stats/trends?window=20');
   const { data: modeComparison } = useApi<ModeComparison[]>('/api/stats/mode-comparison');
-  const { openEdit } = useMatchEditDrawer();
   const mapCounts = useTodayMapCounts();
   const heroCounts = useTodayHeroCounts();
   // Session tilt is map-independent, so a no-arg prematch fetch gives it to us.
@@ -258,9 +256,6 @@ export default function Dashboard() {
           <div className="flex items-center justify-between flex-wrap gap-y-1 mb-4">
             <div className="flex items-center gap-2">
               <h2 className="text-sm heading-display text-[var(--ink-2)]">Recent Matches</h2>
-              {recentGames.length > 0 && (
-                <span data-inspect-id="dash-tap-to-edit-badge" className="text-xs text-[var(--faint)] bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap">tap to edit</span>
-              )}
             </div>
             {wr25 !== null && (
               <div className="flex items-baseline gap-2 text-xs" data-inspect-id="dash-recent-form-stat">
@@ -294,19 +289,17 @@ export default function Dashboard() {
                   </div>
                 )}
                 {group.games.map(g => (
-                  <button
+                  <div
                     key={g.id}
-                    type="button"
-                    onClick={() => openEdit(g)}
-                    title={`${g.win ? 'Win' : 'Loss'} · ${withHeroCount(g.hero, heroCounts).toUpperCase()} on ${withMapCount(g.map, mapCounts).toUpperCase()} (${format(parseISO(g.date), 'MMM d')}) — tap to edit`}
-                    className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-sm italic font-display font-black transition-all duration-150 cursor-pointer hover:-translate-y-0.5 hover:ring-2 hover:ring-offset-1 hover:ring-offset-transparent ${
+                    title={`${g.win ? 'Win' : 'Loss'} · ${withHeroCount(g.hero, heroCounts).toUpperCase()} on ${withMapCount(g.map, mapCounts).toUpperCase()} (${format(parseISO(g.date), 'MMM d')})`}
+                    className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-sm italic font-display font-black ${
                       g.win
-                        ? 'bg-emerald-100 text-emerald-700 hover:ring-emerald-400/60 dark:bg-emerald-500/15 dark:text-emerald-300'
-                        : 'bg-rose-100 text-rose-700 hover:ring-rose-400/60 dark:bg-rose-500/15 dark:text-rose-300'
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                        : 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300'
                     }`}
                   >
                     {MODE_LETTER[g.queue_mode] ?? '·'}
-                  </button>
+                  </div>
                 ))}
               </Fragment>
             ))}

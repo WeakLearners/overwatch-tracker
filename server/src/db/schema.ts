@@ -389,13 +389,18 @@ function initSchema(db: DatabaseSync) {
 
   // DPI stage-trial sets. Each set is N DPI values (blind_stages: stage_index →
   // dpi) shown plainly on screen — no hiding, no shuffle. The player types
-  // those values into the mouse in order, plays batch_size games per stage
-  // (games_on_stage counts toward it), then advances cur_rel to the next stage.
-  // Several sets can be active at once (one per hero, plus at most one ad-hoc
-  // set) so heroes can be tested in parallel. scramble_done, resolved,
-  // revealed_slot, last_click_count are unused leftovers from an earlier
-  // hidden-DPI design, kept only because dropping columns from a live SQLite DB
-  // isn't worth the risk.
+  // those values into the mouse in order, plays batch_size games per stage,
+  // then advances cur_rel to the next stage. Several sets can be active at
+  // once (one per hero, plus at most one ad-hoc set) so heroes can be tested
+  // in parallel. scramble_done, resolved, revealed_slot, last_click_count are
+  // unused leftovers from an earlier hidden-DPI design, kept only because
+  // dropping columns from a live SQLite DB isn't worth the risk. games_on_stage
+  // is likewise dead — it used to be a hand-maintained running counter with
+  // its own increment/decrement call sites in matches.ts, which could drift
+  // from the live blind_credits count and show contradictory numbers (e.g.
+  // "0 matches left in test" alongside "1 game left in this stage"). Both
+  // per-stage and whole-test counts are now derived live from blind_credits
+  // (blind.ts's gamesOnStageOf/totalGamesOf) so they can't disagree.
   db.exec(`
     CREATE TABLE IF NOT EXISTS blind_stage_sets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -423,8 +428,8 @@ function initSchema(db: DatabaseSync) {
   `);
 
   // blind_credits: one row per (match, hero) that actually counted toward a
-  // DPI/sens stage-test — the source of truth for games_on_stage/totalGames,
-  // instead of matches.blind_set_id. matches.blind_set_id only ever tracked
+  // DPI/sens stage-test — the single source of truth for both per-stage and
+  // whole-test game counts, instead of matches.blind_set_id. matches.blind_set_id only ever tracked
   // slot 1 (the hero the match started on), so a hero played only as a
   // mid-match switch (match_heroes slot 2/3) never credited its own active
   // test even though it was genuinely played at that hero's current stage.
