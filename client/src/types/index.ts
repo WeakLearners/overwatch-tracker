@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react';
+
 export type QueueMode = 'qp_role' | 'comp_role' | 'comp_open';
 
 export const QUEUE_MODES: { value: QueueMode; label: string; short: string }[] = [
@@ -30,6 +32,26 @@ export const MODE_WASH_CLASS: Record<QueueMode, string> = {
   qp_role: 'mode-wash-qp_role',
   comp_role: 'mode-wash-comp_role',
   comp_open: 'mode-wash-comp_open',
+};
+
+// Two-line mode labels — shared by LogMatch's in-form mode toggle and every
+// hero/map history strip's win/loss-dash tooltip (Today's Matches, Logged
+// Today), so a queue mode reads the same way wherever it's spelled out.
+export const MODE_COMPACT: Record<string, { top: string; bot: string }> = {
+  qp_role:   { top: 'Quickplay',   bot: 'Role' },
+  comp_role: { top: 'Competitive', bot: 'Role' },
+  comp_open: { top: 'Competitive', bot: 'Open' },
+};
+
+// Hero/map history strips draw newest-first (leftmost); only the last dash —
+// whichever one lands oldest, however many are actually present — fades out
+// left-to-right within itself (opaque at its own left edge, transparent at
+// its right) to mark the tail end of the group, via a mask instead of a flat
+// opacity so its fill color still shows through where it's visible. Shared by
+// every history strip (Today's Matches, Logged Today).
+export const OLDEST_DASH_FADE_STYLE: CSSProperties = {
+  WebkitMaskImage: 'linear-gradient(to right, black, transparent)',
+  maskImage: 'linear-gradient(to right, black, transparent)',
 };
 
 // The three contexts the watermark appears in. Each gets its own size/position

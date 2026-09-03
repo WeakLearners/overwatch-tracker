@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, type CSSProperties } from 'react';
-import { HEROES, MAPS, ROLE_COLORS, ROLE_PILL_CLASS, ROLE_PILL_CLASS_DARK, TYPE_COLORS, DEATH_AXES, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, MODE_WASH_CLASS } from '../types';
+import { useState, useEffect, useRef } from 'react';
+import { HEROES, MAPS, ROLE_COLORS, ROLE_PILL_CLASS, ROLE_PILL_CLASS_DARK, TYPE_COLORS, DEATH_AXES, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, MODE_WASH_CLASS, MODE_COMPACT, OLDEST_DASH_FADE_STYLE } from '../types';
 import { useMatch } from '../contexts/MatchContext';
 import EmptyState from '../components/EmptyState';
 import ModeWatermark from '../components/ModeWatermark';
@@ -250,23 +250,6 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueM
 // gone by the next match, so this is the only point it can honestly be logged.
 const FEEL_MIN = 0, FEEL_MAX = 100, FEEL_MID = 50;
 
-// Two-line labels for the in-form mode toggle (the full names are too wide for
-// three narrow columns).
-const MODE_COMPACT: Record<string, { top: string; bot: string }> = {
-  qp_role:   { top: 'Quickplay',   bot: 'Role' },
-  comp_role: { top: 'Competitive', bot: 'Role' },
-  comp_open: { top: 'Competitive', bot: 'Open' },
-};
-
-// Hero/map history strips draw newest-first (leftmost); only the last dash —
-// whichever one lands oldest, however many are actually present — fades out
-// left-to-right within itself (opaque at its own left edge, transparent at
-// its right) to mark the tail end of the group, via a mask instead of a flat
-// opacity so its fill color still shows through where it's visible.
-const OLDEST_DASH_FADE_STYLE: CSSProperties = {
-  WebkitMaskImage: 'linear-gradient(to right, black, transparent)',
-  maskImage: 'linear-gradient(to right, black, transparent)',
-};
 
 
 function getDayOfWeek(dateStr: string) {

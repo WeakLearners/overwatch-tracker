@@ -6,6 +6,7 @@ import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { eDPI, MOUSE_DPI } from '../lib/aim';
 import {
   QueueMode, QUEUE_MODE_COLORS, MODE_WASH_CLASS, HEROES, ROLE_PILL_CLASS, ROLE_PILL_CLASS_DARK,
+  MODE_COMPACT, OLDEST_DASH_FADE_STYLE,
 } from '../types';
 import { format } from 'date-fns';
 import SensNav from '../components/SensNav';
@@ -1474,6 +1475,27 @@ function BackfillPanel({ pending, loading }: {
     setLoggedStatus('idle');
   }
 
+  // Win/mode history for each row's hero/map, last 5 strictly before it — same
+  // batched-fetch-keyed-on-id-set pattern LogMatch's Today's Matches uses,
+  // backing this card's own hero/map history strips.
+  const [loggedHeroHistoryByMatch, setLoggedHeroHistoryByMatch] = useState<Record<number, { win: 0 | 1; queue_mode: QueueMode }[]>>({});
+  const [loggedMapHistoryByMatch, setLoggedMapHistoryByMatch] = useState<Record<number, { win: 0 | 1; queue_mode: QueueMode }[]>>({});
+  const loggedIdsKey = logged.map(m => m.id).join(',');
+  useEffect(() => {
+    const ids = loggedIdsKey ? loggedIdsKey.split(',').map(Number) : [];
+    if (ids.length === 0) { setLoggedHeroHistoryByMatch({}); setLoggedMapHistoryByMatch({}); return; }
+    let cancelled = false;
+    Promise.all(ids.map(id => fetch(`/api/matches/${id}/hero-history`).then(res => res.json())
+      .then((data: { rows?: { win: 0 | 1; queue_mode: QueueMode }[] }) => [id, data.rows ?? []] as [number, { win: 0 | 1; queue_mode: QueueMode }[]])))
+      .then(results => { if (!cancelled) setLoggedHeroHistoryByMatch(Object.fromEntries(results)); })
+      .catch(() => { if (!cancelled) setLoggedHeroHistoryByMatch({}); });
+    Promise.all(ids.map(id => fetch(`/api/matches/${id}/map-history`).then(res => res.json())
+      .then((data: { rows?: { win: 0 | 1; queue_mode: QueueMode }[] }) => [id, data.rows ?? []] as [number, { win: 0 | 1; queue_mode: QueueMode }[]])))
+      .then(results => { if (!cancelled) setLoggedMapHistoryByMatch(Object.fromEntries(results)); })
+      .catch(() => { if (!cancelled) setLoggedMapHistoryByMatch({}); });
+    return () => { cancelled = true; };
+  }, [loggedIdsKey]);
+
   const loggedPrimaryAccValid = parseFloat(loggedStats.heroAcc[0]?.overall_acc ?? '') >= 0;
   const loggedDurationsValid = loggedStats.heroAcc.length > 0 && loggedStats.heroAcc.every(h => parseDurationMin(h.duration_min) != null);
 
@@ -1642,14 +1664,17 @@ function BackfillPanel({ pending, loading }: {
               {logged.map(m => {
                 const c = QUEUE_MODE_COLORS[m.queue_mode]; const active = m.id === loggedSelectedId;
                 return (
-                  <div key={m.id} className={`relative overflow-hidden rounded-lg border ${MODE_WASH_CLASS[m.queue_mode]} transition-all ${active ? `${c.accent} ${c.glow}` : 'border-ow-border hover:border-gray-500'}`}>
-                    {/* Header block (watermark + toggle + collapsed row) gets its own
-                        relative/overflow-hidden box so the oversized watermark glyph is
-                        clipped to just this block — otherwise, being absolutely positioned
-                        against the *outer* card, it'd paint over the expanded form section
-                        below (the form isn't positioned, so it can't out-stack an absolute
-                        sibling) instead of disappearing behind its background like intended. */}
-                    <div className="relative overflow-hidden">
+                  <div key={m.id} className={`relative overflow-hidden rounded-lg transition-all ${active ? `${c.accent} ${c.glow} ring-1 ring-inset` : ''}`}>
+                    {/* Header block gets its own relative/overflow-hidden box so the
+                        absolutely-positioned watermark stays clipped to the collapsed
+                        row instead of re-centering on the whole card once the form
+                        expands below — same card treatment as Today's Matches on the
+                        Log Match page (no border at rest, wash+click+padding unified
+                        on this one row div, ring-1 ring-inset accent when expanded). */}
+                    <div
+                      onClick={() => toggleLogged(m)}
+                      className={`relative overflow-hidden flex items-center gap-3 min-h-16 py-2.5 px-3 rounded-lg cursor-pointer transition-colors hover:brightness-110 ${MODE_WASH_CLASS[m.queue_mode]}`}
+                    >
                       {/* Oversized W/L watermark, same treatment as ModeWatermark. Sized
                           taller than the row so top and bottom clip on overflow-hidden too.
                           Pinned to a fixed top offset (not inset-y-0 + items-center) so it
@@ -1663,45 +1688,76 @@ function BackfillPanel({ pending, loading }: {
                       >
                         {m.win ? 'W' : 'L'}
                       </span>
-                      <div className="relative z-10 flex items-stretch">
-                        <div
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => toggleLogged(m)}
-                          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleLogged(m); } }}
-                          className="flex-1 min-w-0 text-left py-2.5 pl-3 pr-1.5 cursor-pointer"
-                        >
-                          <div className="flex items-stretch h-6 min-w-0" title={m.heroes.length > 1 ? m.heroes.slice(1).map(h => h.hero).join(', ') : undefined}>
-                            {m.heroes[0] && (
+                      <div className="relative z-10 flex-1 min-w-0">
+                        <div className="flex items-stretch h-6 min-w-0" title={m.heroes.length > 1 ? m.heroes.slice(1).map(h => h.hero).join(', ') : undefined}>
+                          {m.heroes[0] && (
+                            <span
+                              className={`pill hero-name border-2 text-white relative z-10 h-full box-border shadow-[3px_3px_0_rgba(0,0,0,0.7)] w-24 justify-center truncate ${
+                                ROLE_PILL_CLASS[m.heroes[0].role] ?? ROLE_PILL_CLASS.Support
+                              }`}
+                            >
+                              {m.heroes[0].hero}
+                            </span>
+                          )}
+                          {/* Hidden mid-match switch heroes rendered as the actual right-edge
+                              slice of a pill (real chamfered corner, not an invented rectangle)
+                              peeking out from behind the primary tag — a narrow overflow-hidden
+                              window crops a full-width pill anchored to its right edge. */}
+                          {m.heroes.slice(1).map((h, i) => (
+                            <span key={h.hero} aria-hidden="true" className="relative w-3 h-full overflow-hidden ml-px" style={{ zIndex: 5 - i }}>
                               <span
-                                className={`pill hero-name border-2 text-white relative z-10 h-full box-border shadow-[3px_3px_0_rgba(0,0,0,0.7)] w-24 justify-center truncate ${
-                                  ROLE_PILL_CLASS[m.heroes[0].role] ?? ROLE_PILL_CLASS.Support
+                                className={`pill hero-name absolute inset-y-0 right-0 border-2 shadow-[3px_3px_0_rgba(0,0,0,0.7)] ${
+                                  (ROLE_PILL_CLASS_DARK[h.role] ?? ROLE_PILL_CLASS_DARK.Support)[i]
                                 }`}
-                              >
-                                {m.heroes[0].hero}
-                              </span>
-                            )}
-                            {/* Hidden mid-match switch heroes rendered as the actual right-edge
-                                slice of a pill (real chamfered corner, not an invented rectangle)
-                                peeking out from behind the primary tag — a narrow overflow-hidden
-                                window crops a full-width pill anchored to its right edge. */}
-                            {m.heroes.slice(1).map((h, i) => (
-                              <span key={h.hero} aria-hidden="true" className="relative w-3 h-full overflow-hidden ml-px" style={{ zIndex: 5 - i }}>
-                                <span
-                                  className={`pill hero-name absolute inset-y-0 right-0 border-2 shadow-[3px_3px_0_rgba(0,0,0,0.7)] ${
-                                    (ROLE_PILL_CLASS_DARK[h.role] ?? ROLE_PILL_CLASS_DARK.Support)[i]
-                                  }`}
-                                  style={{ width: '3.5rem' }}
-                                />
-                              </span>
-                            ))}
-                          </div>
-                          <div className="flex items-center gap-3 mt-1 text-[11px] text-[var(--faint)]">
-                            <span>{m.time ? format(new Date(m.time), 'MMM d, h:mm a') : m.date}</span><span>·</span>
-                            <span>{m.stage_index != null ? <>stage <b className="font-bold">{m.stage_index}</b> · sens <b className="font-bold">{m.sens}</b></> : m.sens != null ? <>sens <b className="font-bold">{m.sens}</b></> : 'no sens'}</span>
-                          </div>
+                                style={{ width: '3.5rem' }}
+                              />
+                            </span>
+                          ))}
                         </div>
-                        <span className="block shrink-0 self-center mr-1.5 w-[7.5rem] text-xs map-name text-[var(--ink)] text-right leading-tight whitespace-normal break-words">{m.map}</span>
+                        {/* Last 5 matches on this hero, strictly before this one — same
+                            win/loss-colored dash treatment as Today's Matches on the Log
+                            Match page. */}
+                        <div className="flex items-center gap-1 mt-2 w-24" data-inspect-id="sl-logged-today-hero-history">
+                          {(() => {
+                            const hist = [...(loggedHeroHistoryByMatch[m.id] ?? [])].reverse();
+                            return hist.map((h, i) => (
+                              <span
+                                key={i}
+                                style={i === hist.length - 1 ? OLDEST_DASH_FADE_STYLE : undefined}
+                                className={`flex-1 h-[3px] rounded-full ${h.win ? 'bg-emerald-500' : 'bg-red-500'}`}
+                                title={`${h.win ? 'Win' : 'Loss'} · ${MODE_COMPACT[h.queue_mode]?.top ?? h.queue_mode} ${MODE_COMPACT[h.queue_mode]?.bot ?? ''}`.trim()}
+                              />
+                            ));
+                          })()}
+                        </div>
+                      </div>
+                      {/* Fixed to the card, not the hero column's flow — same treatment as
+                          Today's Matches so it holds position regardless of how wide the
+                          hero column's mid-match-switch peek slices make it. */}
+                      <div
+                        className="absolute inset-y-0 left-[6.75rem] right-[8.625rem] z-10 flex flex-col items-center justify-center gap-0.5 text-center pointer-events-none"
+                        data-inspect-id="sl-logged-today-time-sens"
+                      >
+                        <span className="text-[11px] text-[var(--faint)]">{m.time ? format(new Date(m.time), 'MMM d, h:mm a') : m.date}</span>
+                        <span className="text-[11px] text-[var(--faint)]">{m.stage_index != null ? <>stage <b className="font-bold">{m.stage_index}</b> · sens <b className="font-bold">{m.sens}</b></> : m.sens != null ? <>sens <b className="font-bold">{m.sens}</b></> : 'no sens'}</span>
+                      </div>
+                      <div className="relative z-10 flex flex-col items-end shrink-0 self-center mr-1.5 w-[7.5rem]">
+                        <span className="block text-xs map-name text-[var(--ink)] text-right leading-tight whitespace-normal break-words">{m.map}</span>
+                        {/* Last 5 matches on this map, strictly before this one — same dash
+                            treatment as the hero history strip above. */}
+                        <div className="flex items-center gap-1 mt-2 w-24" data-inspect-id="sl-logged-today-map-history">
+                          {(() => {
+                            const hist = [...(loggedMapHistoryByMatch[m.id] ?? [])].reverse();
+                            return hist.map((h, i) => (
+                              <span
+                                key={i}
+                                style={i === hist.length - 1 ? OLDEST_DASH_FADE_STYLE : undefined}
+                                className={`flex-1 h-[3px] rounded-full ${h.win ? 'bg-emerald-500' : 'bg-red-500'}`}
+                                title={`${h.win ? 'Win' : 'Loss'} · ${MODE_COMPACT[h.queue_mode]?.top ?? h.queue_mode} ${MODE_COMPACT[h.queue_mode]?.bot ?? ''}`.trim()}
+                              />
+                            ));
+                          })()}
+                        </div>
                       </div>
                     </div>
                     {active && (
