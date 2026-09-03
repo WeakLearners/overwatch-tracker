@@ -336,6 +336,39 @@ router.get('/:id/heroes', (req: Request, res: Response) => {
   res.json({ rows });
 });
 
+// Last 5 matches played on this match's own (primary) hero, strictly before
+// it — id order as the "point in time" tiebreak, same convention stats.ts's
+// recent10 uses. Powers the win/mode history strip shown under a match row's
+// hero pill (Today's Matches, Logged Today) instead of a static timestamp.
+router.get('/:id/hero-history', (req: Request, res: Response) => {
+  const db = getDb();
+  const match = db.prepare('SELECT hero FROM matches WHERE id = :id').get({ id: req.params.id }) as { hero: string } | undefined;
+  if (!match) { res.status(404).json({ error: 'match not found' }); return; }
+
+  const rows = db.prepare(`
+    SELECT win, queue_mode FROM matches_by_hero
+    WHERE hero = :hero AND id < :id
+    ORDER BY id DESC LIMIT 5
+  `).all({ hero: match.hero, id: req.params.id }) as { win: 0 | 1; queue_mode: string }[];
+  res.json({ rows: rows.reverse() });
+});
+
+// Same idea as hero-history above, keyed on this match's map instead of its
+// hero — reads straight off `matches` rather than matches_by_hero since a map
+// result isn't per-hero, so a mid-match switch shouldn't multiply it.
+router.get('/:id/map-history', (req: Request, res: Response) => {
+  const db = getDb();
+  const match = db.prepare('SELECT map FROM matches WHERE id = :id').get({ id: req.params.id }) as { map: string } | undefined;
+  if (!match) { res.status(404).json({ error: 'match not found' }); return; }
+
+  const rows = db.prepare(`
+    SELECT win, queue_mode FROM matches
+    WHERE map = :map AND id < :id
+    ORDER BY id DESC LIMIT 5
+  `).all({ map: match.map, id: req.params.id }) as { win: 0 | 1; queue_mode: string }[];
+  res.json({ rows: rows.reverse() });
+});
+
 router.put('/:id', (req: Request, res: Response) => {
   const db = getDb();
   const fields = EDITABLE.filter(k => k in req.body);

@@ -275,22 +275,22 @@ export const MAPS: Record<string, string> = {
   'Throne of Anubis': 'Clash',
 };
 
-// DPS violet / Support teal (not red/green) — this app already uses red for
+// DPS teal / Support pink (not red/green) — this app already uses red for
 // Loss and Comp-Role mode, and emerald for Win, so a red DPS badge or green
 // Support badge read as an outcome/mode signal instead of a role one. Tank
 // keeps blue since nothing else in the app claims that hue.
 export const ROLE_COLORS: Record<string, string> = {
-  DPS: 'bg-violet-500/15 text-violet-700 dark:text-violet-400',
+  DPS: 'bg-teal-600/15 text-teal-700 dark:text-teal-400',
   Tank: 'bg-blue-500/15 text-blue-700 dark:text-blue-400',
-  Support: 'bg-teal-600/15 text-teal-700 dark:text-teal-400',
+  Support: 'bg-pink-500/15 text-pink-700 dark:text-pink-400',
 };
 
 // Same reasoning as ROLE_COLORS above, for the solid role-pill treatment used
 // on match-card hero tags (Today's Matches, Awaiting Stats, Logged Today).
 export const ROLE_PILL_CLASS: Record<string, string> = {
-  DPS: 'bg-violet-600 border-violet-600',
+  DPS: 'bg-teal-600 border-teal-600',
   Tank: 'bg-blue-600 border-blue-600',
-  Support: 'bg-teal-600 border-teal-600',
+  Support: 'bg-pink-600 border-pink-600',
 };
 
 // Mid-match switch heroes (slots 2/3) peek out from behind the primary pill —
@@ -298,9 +298,9 @@ export const ROLE_PILL_CLASS: Record<string, string> = {
 // so they read as further back in the stack instead of just a repeat of the
 // primary pill's color.
 export const ROLE_PILL_CLASS_DARK: Record<string, [string, string]> = {
-  DPS: ['bg-violet-700 border-violet-700', 'bg-violet-900 border-violet-900'],
+  DPS: ['bg-teal-700 border-teal-700', 'bg-teal-900 border-teal-900'],
   Tank: ['bg-blue-700 border-blue-700', 'bg-blue-900 border-blue-900'],
-  Support: ['bg-teal-700 border-teal-700', 'bg-teal-900 border-teal-900'],
+  Support: ['bg-pink-700 border-pink-700', 'bg-pink-900 border-pink-900'],
 };
 
 export const TYPE_COLORS: Record<string, string> = {

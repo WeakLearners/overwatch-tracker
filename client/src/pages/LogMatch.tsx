@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { HEROES, MAPS, ROLE_COLORS, ROLE_PILL_CLASS, ROLE_PILL_CLASS_DARK, TYPE_COLORS, DEATH_AXES, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, MODE_WASH_CLASS } from '../types';
 import { useMatch } from '../contexts/MatchContext';
 import EmptyState from '../components/EmptyState';
@@ -258,6 +258,16 @@ const MODE_COMPACT: Record<string, { top: string; bot: string }> = {
   comp_open: { top: 'Competitive', bot: 'Open' },
 };
 
+// Hero/map history strips draw newest-first (leftmost); only the last dash —
+// whichever one lands oldest, however many are actually present — fades out
+// left-to-right within itself (opaque at its own left edge, transparent at
+// its right) to mark the tail end of the group, via a mask instead of a flat
+// opacity so its fill color still shows through where it's visible.
+const OLDEST_DASH_FADE_STYLE: CSSProperties = {
+  WebkitMaskImage: 'linear-gradient(to right, black, transparent)',
+  maskImage: 'linear-gradient(to right, black, transparent)',
+};
+
 
 function getDayOfWeek(dateStr: string) {
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -476,6 +486,46 @@ export default function LogMatch() {
     )
       .then(results => { if (!cancelled) setExtraHeroesByMatch(Object.fromEntries(results)); })
       .catch(() => { if (!cancelled) setExtraHeroesByMatch({}); });
+    return () => { cancelled = true; };
+  }, [recentIdsKey, heroesTick]);
+
+  // Win/mode history for the same hero's last 5 matches strictly before each
+  // row — same batched-fetch-keyed-on-id-set pattern as extraHeroesByMatch
+  // above, backing the colored history strip shown under the hero pill in
+  // place of a plain timestamp.
+  const [heroHistoryByMatch, setHeroHistoryByMatch] = useState<Record<number, { win: 0 | 1; queue_mode: QueueMode }[]>>({});
+  useEffect(() => {
+    const ids = recentIdsKey ? recentIdsKey.split(',').map(Number) : [];
+    if (ids.length === 0) { setHeroHistoryByMatch({}); return; }
+    let cancelled = false;
+    Promise.all(
+      ids.map(id =>
+        fetch(`/api/matches/${id}/hero-history`)
+          .then(res => res.json())
+          .then((data: { rows?: { win: 0 | 1; queue_mode: QueueMode }[] }) => [id, data.rows ?? []] as [number, { win: 0 | 1; queue_mode: QueueMode }[]])
+      )
+    )
+      .then(results => { if (!cancelled) setHeroHistoryByMatch(Object.fromEntries(results)); })
+      .catch(() => { if (!cancelled) setHeroHistoryByMatch({}); });
+    return () => { cancelled = true; };
+  }, [recentIdsKey, heroesTick]);
+
+  // Same idea, keyed on this row's map instead of its hero — backs the
+  // history strip shown under the map name.
+  const [mapHistoryByMatch, setMapHistoryByMatch] = useState<Record<number, { win: 0 | 1; queue_mode: QueueMode }[]>>({});
+  useEffect(() => {
+    const ids = recentIdsKey ? recentIdsKey.split(',').map(Number) : [];
+    if (ids.length === 0) { setMapHistoryByMatch({}); return; }
+    let cancelled = false;
+    Promise.all(
+      ids.map(id =>
+        fetch(`/api/matches/${id}/map-history`)
+          .then(res => res.json())
+          .then((data: { rows?: { win: 0 | 1; queue_mode: QueueMode }[] }) => [id, data.rows ?? []] as [number, { win: 0 | 1; queue_mode: QueueMode }[]])
+      )
+    )
+      .then(results => { if (!cancelled) setMapHistoryByMatch(Object.fromEntries(results)); })
+      .catch(() => { if (!cancelled) setMapHistoryByMatch({}); });
     return () => { cancelled = true; };
   }, [recentIdsKey, heroesTick]);
 
@@ -1009,12 +1059,54 @@ export default function LogMatch() {
                             </div>
                           );
                         })()}
-                        <div className="flex items-center gap-3 mt-1 text-[11px] text-[var(--faint)]">
-                          <span>{r.time ? format(new Date(r.time), 'MMM d, h:mm a') : today}</span><span>·</span>
-                          <span>{r.stage_index != null ? <>stage <b className="font-bold">{r.stage_index}</b> · sens <b className="font-bold">{r.sens}</b></> : r.sens != null ? <>sens <b className="font-bold">{r.sens}</b></> : 'no sens'}</span>
+                        {/* Last 5 matches on this hero, strictly before this one (heroHistoryByMatch,
+                            fetched from /api/matches/:id/hero-history) — each a win/loss-colored
+                            dash instead of this row's own timestamp/sens, since those already show
+                            once the row is expanded. */}
+                        <div className="flex items-center gap-1 mt-2 w-24" data-inspect-id="logmatch-todays-matches-hero-history">
+                          {(() => {
+                            const hist = [...(heroHistoryByMatch[r.id] ?? [])].reverse();
+                            return hist.map((h, i) => (
+                              <span
+                                key={i}
+                                style={i === hist.length - 1 ? OLDEST_DASH_FADE_STYLE : undefined}
+                                className={`flex-1 h-[3px] rounded-full ${h.win ? 'bg-emerald-500' : 'bg-red-500'}`}
+                                title={`${h.win ? 'Win' : 'Loss'} · ${MODE_COMPACT[h.queue_mode]?.top ?? h.queue_mode} ${MODE_COMPACT[h.queue_mode]?.bot ?? ''}`.trim()}
+                              />
+                            ));
+                          })()}
                         </div>
                       </div>
-                      <span className="relative z-10 block shrink-0 self-center mr-1.5 w-[7.5rem] text-xs map-name text-[var(--ink)] text-right leading-tight whitespace-normal break-words">{r.map}</span>
+                      {/* Fixed to the card, not the hero column's flow — anchored by absolute
+                          left/right offsets (padding + hero pill width on the left, padding +
+                          map column width on the right) so it holds its position regardless of
+                          how wide the hero column's mid-match-switch peek slices make it. */}
+                      <div
+                        className="absolute inset-y-0 left-[6.75rem] right-[8.625rem] z-10 flex flex-col items-center justify-center gap-0.5 text-center pointer-events-none"
+                        data-inspect-id="logmatch-todays-matches-time-sens"
+                      >
+                        <span className="text-[11px] text-[var(--faint)]">{r.time ? format(new Date(r.time), 'MMM d, h:mm a') : today}</span>
+                        <span className="text-[11px] text-[var(--faint)]">{r.stage_index != null ? <>stage <b className="font-bold">{r.stage_index}</b> · sens <b className="font-bold">{r.sens}</b></> : r.sens != null ? <>sens <b className="font-bold">{r.sens}</b></> : 'no sens'}</span>
+                      </div>
+                      <div className="relative z-10 flex flex-col items-end shrink-0 self-center mr-1.5 w-[7.5rem]">
+                        <span className="text-xs map-name text-[var(--ink)] text-right leading-tight whitespace-normal break-words">{r.map}</span>
+                        {/* Last 5 matches on this map, strictly before this one (mapHistoryByMatch,
+                            fetched from /api/matches/:id/map-history) — same win/loss-colored
+                            dash treatment as the hero history strip above. */}
+                        <div className="flex items-center gap-1 mt-2 w-24" data-inspect-id="logmatch-todays-matches-map-history">
+                          {(() => {
+                            const hist = [...(mapHistoryByMatch[r.id] ?? [])].reverse();
+                            return hist.map((h, i) => (
+                              <span
+                                key={i}
+                                style={i === hist.length - 1 ? OLDEST_DASH_FADE_STYLE : undefined}
+                                className={`flex-1 h-[3px] rounded-full ${h.win ? 'bg-emerald-500' : 'bg-red-500'}`}
+                                title={`${h.win ? 'Win' : 'Loss'} · ${MODE_COMPACT[h.queue_mode]?.top ?? h.queue_mode} ${MODE_COMPACT[h.queue_mode]?.bot ?? ''}`.trim()}
+                              />
+                            ));
+                          })()}
+                        </div>
+                      </div>
                     </div>
                     {expanded && (
                       <div className={`border-t border-ow-border px-3 py-3 ${c.card}`} data-inspect-id="logmatch-inline-edit-form">
