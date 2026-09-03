@@ -92,16 +92,6 @@
           }
         },
         {
-          "id": "dash-tap-to-edit-badge",
-          "label": "\"tap to edit\" badge",
-          "kind": "badge",
-          "description": "Small pill shown next to the Recent Matches header hinting that the match tiles below can be tapped to open the edit drawer.",
-          "locate": {
-            "path": "client/src/pages/Dashboard.tsx:262",
-            "grep": "grep -n -F -- 'bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap\">tap to edit' client/src/pages/Dashboard.tsx"
-          }
-        },
-        {
           "id": "dash-recent-form-stat",
           "label": "Recent form win-rate readout",
           "kind": "stat-tile",
@@ -115,10 +105,10 @@
           "id": "dash-recent-match-history-list",
           "label": "Recent match history strip",
           "kind": "list",
-          "description": "Horizontally scrolling, day-grouped row of small win/loss tiles (up to the last 60 games, newest first); clicking a tile opens that match in the match-edit drawer, and hovering shows a tooltip with hero/map/date.",
+          "description": "Horizontally scrolling, day-grouped row of small win/loss tiles (up to the last 60 games, newest first); static (no click-to-edit \u2014 that moved to Today's Matches on the Log Match page, logmatch-todays-matches-card), hovering shows a tooltip with hero/map/date.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:302",
-            "grep": "grep -n -F -- 'hover:-translate-y-0.5 hover:ring-2' client/src/pages/Dashboard.tsx"
+            "path": "client/src/pages/Dashboard.tsx:273",
+            "grep": "grep -n -F -- 'dash-recent-match-history-list' client/src/pages/Dashboard.tsx"
           }
         },
         {
@@ -659,7 +649,7 @@
           "kind": "card",
           "description": "Card that lists deaths buffered via the floating skull button during the current match, with a Clear all action and per-death remove controls.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:343",
+            "path": "client/src/pages/LogMatch.tsx:369",
             "grep": "grep -n -F -- 'id=\"notable-deaths\" className=\"card mb-6 scroll-mt-24\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -669,7 +659,7 @@
           "kind": "button",
           "description": "Button shown only when deaths are buffered; clears the entire in-progress death buffer for the current match.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:351",
+            "path": "client/src/pages/LogMatch.tsx:377",
             "grep": "grep -n -F -- 'hover:text-red-600 transition-colors\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -679,7 +669,7 @@
           "kind": "list",
           "description": "List of deaths logged so far this match, each row showing its axis label, a worded lean (or 'Neutral'), and an x button to remove that entry from the buffer.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:363",
+            "path": "client/src/pages/LogMatch.tsx:389",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-death-buffer-list\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -689,7 +679,7 @@
           "kind": "card",
           "description": "Card containing the match-logging form; its header includes the Reset button that clears hero, notes, map, and feel.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:393",
+            "path": "client/src/pages/LogMatch.tsx:419",
             "grep": "grep -n -F -- '>Match Details<' client/src/pages/LogMatch.tsx"
           }
         },
@@ -699,7 +689,7 @@
           "kind": "button",
           "description": "Clears the currently selected hero, notes, map, and resets the Feel slider back to its midpoint; disabled when nothing is selected.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:426",
+            "path": "client/src/pages/LogMatch.tsx:452",
             "grep": "grep -n -F -- 'disabled={!form.hero && !map}' client/src/pages/LogMatch.tsx"
           }
         },
@@ -709,7 +699,7 @@
           "kind": "button",
           "description": "Cancels the match currently being built: clears hero, notes, map, feel, team rating, and the death buffer (with a confirm prompt if any deaths were already tracked), and calls notifyMatchLogged() with no args so Prematch's Map Voting picks reset too (bumps matchLoggedSignal without setting lastLog, so it doesn't also trigger the win/loss flash overlay). Sits beside Reset in the Match Details card header; unlike Reset it also clears the win/loss result and the death buffer. Scrolling/focusing the map search input is deferred a double requestAnimationFrame so it targets the post-reset layout (once the Map Voting card has actually collapsed) instead of the stale pre-reset one.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:418",
+            "path": "client/src/pages/LogMatch.tsx:444",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-cancel-match-button\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -719,7 +709,7 @@
           "kind": "form",
           "description": "The full match-logging form (date, time, sensitivity display, hero, map, mode, result, notes, feel) that POSTs a new match to /api/matches on submit.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:434",
+            "path": "client/src/pages/LogMatch.tsx:460",
             "grep": "grep -n -F -- 'onSubmit={submit}' client/src/pages/LogMatch.tsx"
           }
         },
@@ -729,7 +719,7 @@
           "kind": "input",
           "description": "Date picker for the match being logged; defaults to today and auto-advances with the clock until the user hand-edits it (backfill).",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:478",
+            "path": "client/src/pages/LogMatch.tsx:504",
             "grep": "grep -n -F -- 'type=\"date\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -739,7 +729,7 @@
           "kind": "input",
           "description": "Time picker for the match being logged; defaults to the current clock time and stops auto-following once hand-edited (backfill).",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:488",
+            "path": "client/src/pages/LogMatch.tsx:514",
             "grep": "grep -n -F -- 'type=\"time\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -749,7 +739,7 @@
           "kind": "stat-tile",
           "description": "Read-only display of the in-game sensitivity this match will actually be logged at: the picked hero's active DPI test stage value if one's running (Competitive, or Quickplay-as-Support), otherwise the frozen fallback sens. Not editable from this form.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:501",
+            "path": "client/src/pages/LogMatch.tsx:527",
             "grep": "grep -n -F -- 'num-display text-[var(--ink)] whitespace-nowrap' client/src/pages/LogMatch.tsx"
           }
         },
@@ -759,7 +749,7 @@
           "kind": "select",
           "description": "Dropdown grouped by role (DPS/Tank/Support) for choosing the match's starting hero (pre-filled from the Pre-Match picker); each option shows today's play count for that hero. First of three hero slots \u2014 see logmatch-hero-switch-select-2/3 for the optional mid-match switches, all of which share the match's result on submit.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:520",
+            "path": "client/src/pages/LogMatch.tsx:546",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-hero-select\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -769,7 +759,7 @@
           "kind": "select",
           "description": "Optional second hero slot for a mid-match hero switch; grouped by role like the 1st hero select. The logged result and death buffer apply to every filled hero slot, not just the first.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:547",
+            "path": "client/src/pages/LogMatch.tsx:573",
             "grep": "grep -n -F -- 'logmatch-hero-switch-select-${i + 2}' client/src/pages/LogMatch.tsx"
           }
         },
@@ -779,7 +769,7 @@
           "kind": "select",
           "description": "Optional third hero slot for a second mid-match hero switch; grouped by role like the 1st hero select. The logged result and death buffer apply to every filled hero slot, not just the first. (Rendered by the same map as logmatch-hero-switch-select-2 \u2014 locate command matches both.)",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:547",
+            "path": "client/src/pages/LogMatch.tsx:573",
             "grep": "grep -n -F -- 'logmatch-hero-switch-select-${i + 2}' client/src/pages/LogMatch.tsx"
           }
         },
@@ -789,7 +779,7 @@
           "kind": "badge",
           "description": "Colored pill (DPS/Tank/Support) that appears under the Hero select once a hero has been chosen, reflecting that hero's role.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:537",
+            "path": "client/src/pages/LogMatch.tsx:563",
             "grep": "grep -n -F -- 'pill mt-1.5 ${ROLE_COLORS[heroRole]}' client/src/pages/LogMatch.tsx"
           }
         },
@@ -799,7 +789,7 @@
           "kind": "stat-tile",
           "description": "Shows the map currently picked in the Pre-Match section along with its type pill, or a prompt to pick one there if none is selected yet.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:579",
+            "path": "client/src/pages/LogMatch.tsx:605",
             "grep": "grep -n -F -- 'Pick a map in the Pre-Match section above to log a result.' client/src/pages/LogMatch.tsx"
           }
         },
@@ -809,7 +799,7 @@
           "kind": "badge",
           "description": "Pill showing the selected map's type (e.g. Control, Escort, Hybrid, Push) next to the map name.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:576",
+            "path": "client/src/pages/LogMatch.tsx:602",
             "grep": "grep -n -F -- 'pill ${TYPE_COLORS[mapType] ?? '\"'\"''\"'\"'}' client/src/pages/LogMatch.tsx"
           }
         },
@@ -819,7 +809,7 @@
           "kind": "radio-group",
           "description": "Three-button toggle for the queue mode this match is being recorded as (Quickplay Role, Competitive Role, Competitive Open); selecting one sets the mode used on log. Moved to the top of the Match Details form (first element, above Date/Time/Sensitivity) since it affects the Sensitivity display's value; a short line below the buttons explains which modes count toward the sens test.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:437",
+            "path": "client/src/pages/LogMatch.tsx:463",
             "grep": "grep -n -F -- 'recording this match as' client/src/pages/LogMatch.tsx"
           }
         },
@@ -829,7 +819,7 @@
           "kind": "radio-group",
           "description": "Win/Loss toggle with an animated sliding fill and chevron rank-insignia buttons; selecting Win or Loss sets the outcome to be logged for this match.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:584",
+            "path": "client/src/pages/LogMatch.tsx:610",
             "grep": "grep -n -F -- 'mb-1.5\">Result</label>' client/src/pages/LogMatch.tsx"
           }
         },
@@ -839,7 +829,7 @@
           "kind": "textarea",
           "description": "Free-text field for notes on perceived factors affecting the match (e.g. fatigue, warmup, stage change), saved with the logged match.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:649",
+            "path": "client/src/pages/LogMatch.tsx:675",
             "grep": "grep -n -F -- 'fatigue, warmup, just switched stage\u2026' client/src/pages/LogMatch.tsx"
           }
         },
@@ -849,7 +839,7 @@
           "kind": "slider",
           "description": "One range slider (0-100) per filled hero slot, capturing whether the sensitivity felt floaty (slow) or jittery (fast), snappy in the middle, on that hero during this specific match — captured live since the sensation fades before the next match. Container is logmatch-feel-sliders; each individual input shares this same data-inspect-id.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:671",
+            "path": "client/src/pages/LogMatch.tsx:697",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-feel-slider\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -859,7 +849,7 @@
           "kind": "button",
           "description": "Primary submit button that saves the match to the database (POST /api/matches); shows Saving\u2026/\u2713 Saved states and is disabled until hero, map, result, date, and sens are all valid.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:690",
+            "path": "client/src/pages/LogMatch.tsx:716",
             "grep": "grep -n -F -- 'status === '\"'\"'success'\"'\"' ? '\"'\"'\u2713 Saved'\"'\"' : '\"'\"'Log Match'\"'\"'' client/src/pages/LogMatch.tsx"
           }
         },
@@ -869,37 +859,47 @@
           "kind": "banner",
           "description": "Inline error message shown briefly under the Log Match button if saving the match to the server fails.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:692",
+            "path": "client/src/pages/LogMatch.tsx:718",
             "grep": "grep -n -F -- 'Failed to save \u2014 is the server running?' client/src/pages/LogMatch.tsx"
           }
         },
         {
-          "id": "logmatch-recently-logged-card",
-          "label": "Recently Logged card",
+          "id": "logmatch-todays-matches-card",
+          "label": "Today's Matches card",
           "kind": "card",
-          "description": "Card showing today's logged matches, read live from the database so it stays accurate and resets automatically when the day rolls over.",
+          "description": "Card showing today's logged matches, read live from the database so it stays accurate and resets automatically when the day rolls over. This is the app's only surface for correcting a match's queue mode after logging (via the qp/comp toggle on each row) \u2014 the duplicate Edit forms/toggles previously on the Sens page's Awaiting Stats and Logged Today lists were removed in favor of this one place.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:697",
-            "grep": "grep -n -F -- '>Recently Logged<' client/src/pages/LogMatch.tsx"
+            "path": "client/src/pages/LogMatch.tsx:722",
+            "grep": "grep -n -F -- 'logmatch-todays-matches-card' client/src/pages/LogMatch.tsx"
           }
         },
         {
           "id": "logmatch-recently-logged-list",
-          "label": "Recently Logged list",
+          "label": "Today's Matches list",
           "kind": "list",
-          "description": "List of today's logged matches; each row shows a mode-tinted watermark strip, win/loss badge, hero, map, and a 5-match recent win/loss pip strip for that map.",
+          "description": "List of today's logged matches; each row shows a mode-tinted watermark strip, win/loss badge, hero, map, a qp/comp toggle (logmatch-todays-matches-mode-toggle) centered over the watermark, and a 5-match recent win/loss pip strip for that map.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:726",
+            "path": "client/src/pages/LogMatch.tsx:773",
             "grep": "grep -n -F -- 'pip === undefined ? '\"'\"'No data'\"'\"' : pip ? '\"'\"'Win'\"'\"' : '\"'\"'Loss'\"'\"'' client/src/pages/LogMatch.tsx"
+          }
+        },
+        {
+          "id": "logmatch-todays-matches-mode-toggle",
+          "label": "Queue mode toggle",
+          "kind": "toggle",
+          "description": "iOS-style switch overlaid centered on each row's watermark (blue \"Q\"/red \"C\" flanking labels), same visual/placement convention the Sens page's now-removed toggles used. Clicking it PUTs a queue_mode flip (qp_role \u2194 comp_role) to /api/matches/:id and calls revalidateAll. Comp -> QP prompts a window.confirm first \u2014 that direction rolls back the match's DPI-test stage credit (drops its blind_credits row server-side) and removes it from the Sens page's Awaiting Stats list.",
+          "locate": {
+            "path": "client/src/pages/LogMatch.tsx:758",
+            "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-todays-matches-mode-toggle\"' client/src/pages/LogMatch.tsx"
           }
         },
         {
           "id": "logmatch-nothing-logged-empty-state",
           "label": "Nothing logged today empty state",
           "kind": "banner",
-          "description": "Empty-state message shown in the Recently Logged card when no matches have been logged yet for the current day.",
+          "description": "Empty-state message shown in the Today's Matches card when no matches have been logged yet for the current day.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:748",
+            "path": "client/src/pages/LogMatch.tsx:795",
             "grep": "grep -n -F -- 'title=\"Nothing logged today\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1410,7 +1410,7 @@
           "kind": "card",
           "description": "Left column of the backfill area: the selectable list of matches still missing their aim/combat stats (sl-awaiting-stats-list). Clicking a match expands it in place to show its combat-stats entry form (sl-inline-stats-form) instead of populating a separate form panel.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1699",
+            "path": "client/src/pages/SensLog.tsx:1536",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-awaiting-stats-card\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -1418,9 +1418,9 @@
           "id": "sl-awaiting-stats-list",
           "label": "Awaiting Stats (pending matches) list",
           "kind": "list",
-          "description": "Selectable list of matches still missing their aim/combat stats; clicking a match toggles it open, expanding an inline combat-stats form (sl-inline-stats-form) beneath that card. Clicking the already-open match collapses it again. Each card carries an oversized W/L watermark (sl-awaiting-stats-watermark) and a qp/comp toggle (sl-awaiting-stats-mode-toggle).",
+          "description": "Selectable list of matches still missing their aim/combat stats; clicking a match toggles it open, expanding an inline combat-stats form (sl-inline-stats-form) beneath that card. Clicking the already-open match collapses it again. Each card carries an oversized W/L watermark (sl-awaiting-stats-watermark). Queue-mode correction is no longer available here \u2014 it moved to logmatch-todays-matches-mode-toggle on the Log Match page, the app's single place to edit a match.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1707",
+            "path": "client/src/pages/SensLog.tsx:1544",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-awaiting-stats-list\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -1430,37 +1430,17 @@
           "kind": "decoration",
           "description": "Oversized italic W/L letter painted behind the card at ~15% opacity, same treatment as ModeWatermark (font-display, font-black, italic, tracking-tight) \u2014 green for a win, red for a loss. Right-anchored and translated so it bleeds off the card's right edge, and sized taller than the row so it clips top and bottom too. aria-hidden; purely decorative.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1728",
+            "path": "client/src/pages/SensLog.tsx:1564",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-awaiting-stats-watermark\"' client/src/pages/SensLog.tsx"
-          }
-        },
-        {
-          "id": "sl-awaiting-stats-mode-toggle",
-          "label": "qp/comp toggle (Awaiting Stats card)",
-          "kind": "toggle",
-          "description": "iOS-style switch centered horizontally at ~65% across the card and pinned to a fixed top offset (so it doesn't drift when the card expands), flanked by a blue \"Q\" and red \"C\" label. Thumb left + blue track = qp_role, thumb right + red track = comp. Clicking it PUTs a queue_mode flip to /api/matches/:id (comp always resolves to comp_role) and calls revalidateAll \u2014 a quick binary alternative to the full hero/mode/sens edit form. Sits (with the watermark) inside its own clipped header wrapper, a sibling of the selectable row, so its click doesn't also expand/collapse the card and the header content can't bleed into the expanded form below.",
-          "locate": {
-            "path": "client/src/pages/SensLog.tsx:1746",
-            "grep": "grep -n -F -- 'data-inspect-id=\"sl-awaiting-stats-mode-toggle\"' client/src/pages/SensLog.tsx"
-          }
-        },
-        {
-          "id": "sl-awaiting-stats-edit-btn",
-          "label": "\"Edit\" button \u2014 Awaiting Stats card",
-          "kind": "button",
-          "description": "Small bordered \"\u270e Edit\" pill sitting inline right after the hero pill(s) (only rendered once the card is expanded); toggles open EditMatchForm (sl-edit-match-form) below the card to correct hero(es), match type, or sens before combat details are entered. Highlights (accent border/background) while its form is open. Its onClick calls stopPropagation since it now lives inside the row's clickable expand/collapse area.",
-          "locate": {
-            "path": "client/src/pages/SensLog.tsx:1791",
-            "grep": "grep -n -F -- 'data-inspect-id=\"sl-awaiting-stats-edit-btn\"' client/src/pages/SensLog.tsx"
           }
         },
         {
           "id": "sl-inline-stats-form",
           "label": "Inline combat-stats form (Awaiting Stats card)",
           "kind": "card",
-          "description": "Expands beneath a selected Awaiting Stats match card: the shared StatFields inputs (accuracy, hero stat, combat totals, duration), and the Save Stats button (sl-save-stats-btn). Each hero's tested sens is shown read-only inline next to their name inside StatFields (sl-hero-acc-inputs), formatted \"s.ss @ dddd (eDPI eeee)\" — no separate editable sens input in this form; correcting sens goes through EditMatchForm (sl-edit-match-form) instead.",
+          "description": "Expands beneath a selected Awaiting Stats match card: the shared StatFields inputs (accuracy, hero stat, combat totals, duration), and the Save Stats button (sl-save-stats-btn). Each hero's tested sens is shown read-only inline next to their name inside StatFields (sl-hero-acc-inputs), formatted \"s.ss @ dddd (eDPI eeee)\" \u2014 no separate editable sens input in this form; correcting hero/mode/sens now happens only on logmatch-todays-matches-card on the Log Match page.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1817",
+            "path": "client/src/pages/SensLog.tsx:1611",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-inline-stats-form\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -1470,7 +1450,7 @@
           "kind": "button",
           "description": "Saves the selected pending match's sensitivity and aim/combat stats via PUT /api/matches/:id and POST /api/aim; disabled until required fields are filled. On success the match drops out of Awaiting Stats and reappears in Logged Today.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1826",
+            "path": "client/src/pages/SensLog.tsx:1620",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-save-stats-btn\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -1480,7 +1460,7 @@
           "kind": "banner",
           "description": "Inline error message shown when saving a pending match's aim stats fails.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1829",
+            "path": "client/src/pages/SensLog.tsx:1623",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-save-error-banner\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -1488,9 +1468,9 @@
           "id": "sl-logged-today-card",
           "label": "Logged Today card",
           "kind": "card",
-          "description": "Right column of the backfill area: a running record of every match already saved today (GET /api/aim/today), so combat-stats entry isn't a write-only funnel. Clicking a match expands it in place, prefilled from its saved stats, to review or correct them; the pencil button independently opens EditMatchForm for hero/mode/sens.",
+          "description": "Right column of the backfill area: a running record of every match already saved today (GET /api/aim/today), so combat-stats entry isn't a write-only funnel. Clicking a match expands it in place, prefilled from its saved stats, to review or correct them. Hero/mode correction is no longer available here \u2014 that moved to logmatch-todays-matches-card on the Log Match page.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1839",
+            "path": "client/src/pages/SensLog.tsx:1633",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-logged-today-card\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -1498,9 +1478,9 @@
           "id": "sl-logged-today-list",
           "label": "Logged Today (saved matches) list",
           "kind": "list",
-          "description": "Selectable list of matches already logged today; clicking a match toggles open an inline, prefilled combat-stats form (sl-logged-today-stats-form) beneath that card. Clicking the already-open match collapses it again. Each card carries the same W/L watermark (sl-logged-today-watermark) and qp/comp toggle (sl-logged-today-mode-toggle) treatment as the Awaiting Stats cards.",
+          "description": "Selectable list of matches already logged today; clicking a match toggles open an inline, prefilled combat-stats form (sl-logged-today-stats-form) beneath that card. Clicking the already-open match collapses it again. Each card carries the same W/L watermark (sl-logged-today-watermark) treatment as the Awaiting Stats cards. Queue-mode correction is no longer available here \u2014 it moved to logmatch-todays-matches-mode-toggle on the Log Match page.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1847",
+            "path": "client/src/pages/SensLog.tsx:1641",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-logged-today-list\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -1510,37 +1490,17 @@
           "kind": "decoration",
           "description": "Oversized italic W/L letter painted behind the card at ~15% opacity, identical treatment to sl-awaiting-stats-watermark (font-display, font-black, italic, tracking-tight, right-anchored/bled off the edge, sized to clip top and bottom too). aria-hidden; purely decorative.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1868",
+            "path": "client/src/pages/SensLog.tsx:1661",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-logged-today-watermark\"' client/src/pages/SensLog.tsx"
-          }
-        },
-        {
-          "id": "sl-logged-today-mode-toggle",
-          "label": "qp/comp toggle (Logged Today card)",
-          "kind": "toggle",
-          "description": "iOS-style switch, identical placement/behavior to sl-awaiting-stats-mode-toggle: centered at ~65% across the card, pinned to a fixed top offset, blue \"Q\"/red \"C\" flanking labels. Clicking it PUTs a queue_mode flip (qp_role \u2194 comp_role) to /api/matches/:id via toggleLoggedQueueMode and calls revalidateAll.",
-          "locate": {
-            "path": "client/src/pages/SensLog.tsx:1886",
-            "grep": "grep -n -F -- 'data-inspect-id=\"sl-logged-today-mode-toggle\"' client/src/pages/SensLog.tsx"
-          }
-        },
-        {
-          "id": "sl-logged-today-edit-btn",
-          "label": "\"Edit\" button \u2014 Logged Today card",
-          "kind": "button",
-          "description": "Small bordered \"\u270e Edit\" pill sitting inline right after the hero pill(s) on a Logged Today card (only rendered once the card is expanded); toggles open EditMatchForm (sl-edit-match-form) below the card to correct hero(es), match type, or sens after the fact. Highlights (accent border/background) while its form is open. Its onClick calls stopPropagation since it lives inside the row's clickable expand/collapse area.",
-          "locate": {
-            "path": "client/src/pages/SensLog.tsx:1931",
-            "grep": "grep -n -F -- 'data-inspect-id=\"sl-logged-today-edit-btn\"' client/src/pages/SensLog.tsx"
           }
         },
         {
           "id": "sl-logged-today-stats-form",
           "label": "Inline combat-stats form (Logged Today card)",
           "kind": "card",
-          "description": "Expands beneath a selected Logged Today match card, prefilled from its saved aim_stats/aim_stats_heroes rows: the shared StatFields inputs and the Save Changes button (sl-logged-today-save-btn) which upserts corrections over the existing row. Each hero's tested sens is shown read-only inline next to their name inside StatFields (sl-hero-acc-inputs), formatted \"s.ss @ dddd (eDPI eeee)\" — no separate editable sens input in this form; correcting sens goes through EditMatchForm (sl-edit-match-form) instead.",
+          "description": "Expands beneath a selected Logged Today match card, prefilled from its saved aim_stats/aim_stats_heroes rows: the shared StatFields inputs and the Save Changes button (sl-logged-today-save-btn) which upserts corrections over the existing row. Each hero's tested sens is shown read-only inline next to their name inside StatFields (sl-hero-acc-inputs), formatted \"s.ss @ dddd (eDPI eeee)\" \u2014 no separate editable sens input in this form; correcting hero/mode/sens now happens only on logmatch-todays-matches-card on the Log Match page.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1957",
+            "path": "client/src/pages/SensLog.tsx:1708",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-logged-today-stats-form\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -1550,28 +1510,8 @@
           "kind": "button",
           "description": "Re-saves the selected already-logged match's sensitivity and aim/combat stats via PUT /api/matches/:id and POST /api/aim (upsert), correcting the existing row rather than creating a new one.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1965",
+            "path": "client/src/pages/SensLog.tsx:1716",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-logged-today-save-btn\"' client/src/pages/SensLog.tsx"
-          }
-        },
-        {
-          "id": "sl-edit-match-form",
-          "label": "Edit match form (hero/mode/sens)",
-          "kind": "card",
-          "description": "Shared inline edit form used by both the Awaiting Stats and Logged Today pencil buttons: corrects hero(es), queue mode, and sens via PUT /api/matches/:id, which also re-derives that match's stage-test credit server-side. The 2nd/3rd hero slots are always-visible dropdowns defaulting to \"None\" (not an add/remove list) \u2014 picking None on a filled slot removes that hero from the match on save. In Role Queue (qp_role/comp_role, not comp_open) the switch slots are restricted to the primary hero's role and auto-snap to a valid hero if the primary hero or queue mode changes underneath them. On successful save, an onSaved callback hands the corrected roster/sens back to the parent so the combat-stats fields below (sl-inline-stats-form / sl-logged-today-stats-form) resync instead of staying stuck on the pre-edit roster.",
-          "locate": {
-            "path": "client/src/pages/SensLog.tsx:1515",
-            "grep": "grep -n -F -- 'data-inspect-id=\"sl-edit-match-form\"' client/src/pages/SensLog.tsx"
-          }
-        },
-        {
-          "id": "sl-edit-match-save-btn",
-          "label": "\"Save\" button (edit match form)",
-          "kind": "button",
-          "description": "Submits the hero/mode/sens correction from sl-edit-match-form.",
-          "locate": {
-            "path": "client/src/pages/SensLog.tsx:1547",
-            "grep": "grep -n -F -- 'data-inspect-id=\"sl-edit-match-save-btn\"' client/src/pages/SensLog.tsx"
           }
         },
         {
@@ -1580,7 +1520,7 @@
           "kind": "modal",
           "description": "Confirmation modal shown after saving the last pending match, offering to navigate back to the Match Tracker.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1982",
+            "path": "client/src/pages/SensLog.tsx:1733",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-caught-up-modal\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2565,7 +2505,7 @@
       "category": "client-component",
       "layer": 2,
       "file": "client/src/components/MatchEditDrawer.tsx",
-      "description": "Slide-over editor (backdrop + panel) for a previously logged match: mode/hero/map/result fields, a Save Changes button, and a two-step Delete confirmation.",
+      "description": "Slide-over editor (backdrop + panel) for a previously logged match: mode/hero/map/result fields, a Save Changes button, and a two-step Delete confirmation. Currently unreachable \u2014 still globally mounted in App.tsx, but Dashboard's Recent Matches tiles (its only caller) no longer call openEdit, so nothing opens it. Match editing now lives on logmatch-todays-matches-card (queue mode only, via a simple toggle) instead.",
       "uiElements": [
         {
           "id": "matchEditDrawer-mode-toggle",
