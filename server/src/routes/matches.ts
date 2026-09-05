@@ -336,10 +336,11 @@ router.get('/:id/heroes', (req: Request, res: Response) => {
   res.json({ rows });
 });
 
-// Last 5 matches played on this match's own (primary) hero, strictly before
-// it — id order as the "point in time" tiebreak, same convention stats.ts's
-// recent10 uses. Powers the win/mode history strip shown under a match row's
-// hero pill (Today's Matches, Logged Today) instead of a static timestamp.
+// Last 5 matches played on this match's own (primary) hero, including this
+// match itself — id order as the "point in time" tiebreak, same convention
+// stats.ts's recent10 uses. Powers the win/mode history strip shown under a
+// match row's hero pill (Today's Matches, Logged Today) instead of a static
+// timestamp.
 router.get('/:id/hero-history', (req: Request, res: Response) => {
   const db = getDb();
   const match = db.prepare('SELECT hero FROM matches WHERE id = :id').get({ id: req.params.id }) as { hero: string } | undefined;
@@ -347,7 +348,7 @@ router.get('/:id/hero-history', (req: Request, res: Response) => {
 
   const rows = db.prepare(`
     SELECT win, queue_mode FROM matches_by_hero
-    WHERE hero = :hero AND id < :id
+    WHERE hero = :hero AND id <= :id
     ORDER BY id DESC LIMIT 5
   `).all({ hero: match.hero, id: req.params.id }) as { win: 0 | 1; queue_mode: string }[];
   res.json({ rows: rows.reverse() });
@@ -363,7 +364,7 @@ router.get('/:id/map-history', (req: Request, res: Response) => {
 
   const rows = db.prepare(`
     SELECT win, queue_mode FROM matches
-    WHERE map = :map AND id < :id
+    WHERE map = :map AND id <= :id
     ORDER BY id DESC LIMIT 5
   `).all({ map: match.map, id: req.params.id }) as { win: 0 | 1; queue_mode: string }[];
   res.json({ rows: rows.reverse() });

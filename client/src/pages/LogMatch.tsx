@@ -1042,7 +1042,7 @@ export default function LogMatch() {
                             </div>
                           );
                         })()}
-                        {/* Last 5 matches on this hero, strictly before this one (heroHistoryByMatch,
+                        {/* Last 5 matches on this hero, including this one (heroHistoryByMatch,
                             fetched from /api/matches/:id/hero-history) — each a win/loss-colored
                             dash instead of this row's own timestamp/sens, since those already show
                             once the row is expanded. */}
@@ -1073,7 +1073,7 @@ export default function LogMatch() {
                       </div>
                       <div className="relative z-10 flex flex-col items-end shrink-0 self-center mr-1.5 w-[7.5rem]">
                         <span className="text-xs map-name text-[var(--ink)] text-right leading-tight whitespace-normal break-words">{r.map}</span>
-                        {/* Last 5 matches on this map, strictly before this one (mapHistoryByMatch,
+                        {/* Last 5 matches on this map, including this one (mapHistoryByMatch,
                             fetched from /api/matches/:id/map-history) — same win/loss-colored
                             dash treatment as the hero history strip above. */}
                         <div className="flex items-center gap-1 mt-2 w-24" data-inspect-id="logmatch-todays-matches-map-history">
