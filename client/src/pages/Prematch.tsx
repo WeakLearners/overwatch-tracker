@@ -538,17 +538,22 @@ export default function Prematch() {
               the row's width (one row, no wrap) regardless of card width;
               the map name itself is a separate truncating span at a small
               fixed font size so even the longest map names ("Shambali
-              Monastery") stay inside the pill instead of forcing it wider. */}
+              Monastery") stay inside the pill instead of forcing it wider.
+              Shape matches Dashboard's "Log sens stats" link — same notched
+              clip-path (scaled down to a 6px cut for this smaller pill)
+              instead of rounded-full, so the two clipped-corner shapes in
+              the app are consistent rather than mixing pill styles. */}
           {selected.length > 0 && (
             <div className="flex gap-2" data-inspect-id="prematch-selected-map-chips">
               {selected.map(m => (
                 <span
                   key={m}
-                  className={`flex-1 min-w-0 flex items-center justify-center gap-1 pl-2 pr-1 py-1 rounded-full text-[10px] map-name transition-colors ${
+                  className={`flex-1 min-w-0 flex items-center justify-center gap-1 pl-2 pr-1 py-1 text-[10px] map-name transition-colors ${
                     m === winner
                       ? 'bg-emerald-500/20 text-emerald-700'
                       : 'bg-ow-accent/15 text-ow-accent'
                   }`}
+                  style={{ clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)' }}
                 >
                   <button
                     onClick={() => setMap(m)}
@@ -569,7 +574,8 @@ export default function Prematch() {
               ))}
               <button
                 onClick={() => { setSelected([]); advisorSelectRef.current?.focus(); }}
-                className="flex-1 min-w-0 flex items-center justify-center px-2 py-1 rounded-full text-[10px] font-medium bg-ow-border/40 text-[var(--ink-2)] hover:bg-ow-border/70 hover:text-[var(--ink)] transition-colors"
+                className="flex-1 min-w-0 flex items-center justify-center px-2 py-1 text-[10px] font-medium bg-ow-border/40 text-[var(--ink-2)] hover:bg-ow-border/70 hover:text-[var(--ink)] transition-colors"
+                style={{ clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)' }}
                 data-inspect-id="prematch-map-voting-clear-button"
               >
                 Clear
