@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
 import { generateStages, stagesFromDpis, stagesFromSens, LOCKED_DPI } from '../lib/blind';
-import { cm360, eDPI, MIN_SENS } from '../lib/aim';
+import { cm360, eDPI } from '../lib/aim';
 
 const router = Router();
 
@@ -82,8 +82,8 @@ router.post('/sets', (req: Request, res: Response) => {
   let n_stages: number;
 
   if (sensesInput) {
-    if (sensesInput.length < 2 || sensesInput.some(s => !(s > 0) || s < MIN_SENS)) {
-      res.status(400).json({ error: `senses must have 2+ values, all >= ${MIN_SENS}` });
+    if (sensesInput.length < 2 || sensesInput.some(s => !(s > 0))) {
+      res.status(400).json({ error: 'senses must have 2+ positive values' });
       return;
     }
     stages = stagesFromSens(sensesInput);
@@ -96,8 +96,8 @@ router.post('/sets', (req: Request, res: Response) => {
       return;
     }
     in_game_sens = Number(req.body.in_game_sens ?? 2.5);
-    if (in_game_sens < MIN_SENS) {
-      res.status(400).json({ error: `in_game_sens must be >= ${MIN_SENS}` });
+    if (!(in_game_sens > 0)) {
+      res.status(400).json({ error: 'in_game_sens must be > 0' });
       return;
     }
     stages = stagesFromDpis(dpisInput);
@@ -108,8 +108,8 @@ router.post('/sets', (req: Request, res: Response) => {
     const pct_range = Number(req.body.pct_range ?? 10);
     n_stages = Number(req.body.n_stages ?? 5);
     in_game_sens = Number(req.body.in_game_sens ?? 2.5);
-    if (!(base_dpi > 0) || !(n_stages >= 2) || !(in_game_sens > 0) || in_game_sens < MIN_SENS) {
-      res.status(400).json({ error: `invalid set params (in_game_sens must be >= ${MIN_SENS})` });
+    if (!(base_dpi > 0) || !(n_stages >= 2) || !(in_game_sens > 0)) {
+      res.status(400).json({ error: 'invalid set params (in_game_sens must be > 0)' });
       return;
     }
     stages = generateStages(base_dpi, pct_range, n_stages);

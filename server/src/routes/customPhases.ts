@@ -26,6 +26,29 @@ router.post('/', (req: Request, res: Response) => {
   res.status(201).json({ ok: true });
 });
 
+// ── Update a custom phase's plan/description in place (e.g. recomputing
+// brackets after a rule change like the MIN_SENS floor removal). Any test
+// sets already created from the old plan stay as-is — this only edits the
+// phase definition itself, not history. ─────────────────────────────────────
+router.patch('/:key', (req: Request, res: Response) => {
+  const { plan, description } = req.body as { plan?: unknown; description?: string };
+  if (plan === undefined && description === undefined) {
+    res.status(400).json({ error: 'at least one of plan or description is required' });
+    return;
+  }
+  const db = getDb();
+  const existing = db.prepare('SELECT * FROM custom_phases WHERE key = :key').get({ key: req.params.key }) as unknown as CustomPhaseRow | undefined;
+  if (!existing) {
+    res.status(404).json({ error: 'no custom phase with that key' });
+    return;
+  }
+  const nextPlan = plan !== undefined ? JSON.stringify(plan) : existing.plan;
+  const nextDescription = description !== undefined ? description : existing.description;
+  db.prepare('UPDATE custom_phases SET plan = :plan, description = :description WHERE key = :key')
+    .run({ key: req.params.key, plan: nextPlan, description: nextDescription });
+  res.json({ ok: true });
+});
+
 // ── Delete a custom phase (tab/plan definition only — any test sets already
 // created from it stay as-is, same as the old localStorage behavior). ───────
 router.delete('/:key', (req: Request, res: Response) => {
