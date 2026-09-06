@@ -455,9 +455,10 @@ export default function Prematch() {
                   <button
                     key={r}
                     onClick={() => setTestRole(r)}
-                    className={`px-3 py-1 rounded-lg border-2 text-xs font-semibold transition-all ${
+                    className={`px-3 py-1 border-2 text-xs font-semibold transition-all ${
                       active ? `${ROLE_COLORS[r]} ${activeBorder}` : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)]'
                     }`}
+                    style={{ clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)' }}
                     data-inspect-id={`prematch-role-pick-${r.toLowerCase()}-button`}
                   >
                     {r}
