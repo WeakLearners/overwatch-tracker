@@ -502,11 +502,11 @@ export default function Prematch() {
             )}
           </div>
 
-          {/* Scroll region for everything below the pinned search input —
-              this is what actually grows (idle list, selected chips, vote
-              recommendation), so it scrolls internally rather than pushing
-              the card's (and thus the whole row's) height. */}
-          <div className="flex-1 min-h-0 overflow-y-auto">
+          {/* Everything below the pinned search input — content here must
+              stay compact enough to fit the row's fixed height on its own;
+              cards never scroll internally, so overflow is fixed by
+              shrinking content, not by adding a scroll region. */}
+          <div className="flex-1 min-h-0">
 
           {/* Idle: best & worst maps by win rate — tap one to add it to your
               picks (which swaps this block for the chips + vote below). */}
