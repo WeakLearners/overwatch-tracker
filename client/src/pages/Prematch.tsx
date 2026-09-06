@@ -600,20 +600,20 @@ export default function Prematch() {
               {testPick?.available && testPick.picks.length > 0 ? (
                 <div className="flex items-center gap-4">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-0.5">
                       <div className="text-xs text-[var(--faint)] uppercase tracking-wider">Vote for</div>
                       <span className={`pill ${ROLE_COLORS[testRole]}`}>{testRole}</span>
                     </div>
-                    <button onClick={() => setMap(testPick.picks[0].map)} className="text-xl map-name text-emerald-600 hover:text-emerald-700 transition-colors text-left" data-inspect-id="prematch-vote-for-button">
+                    <button onClick={() => setMap(testPick.picks[0].map)} className="text-lg map-name text-emerald-600 hover:text-emerald-700 transition-colors text-left" data-inspect-id="prematch-vote-for-button">
                       {withMapCount(testPick.picks[0].map, mapCounts)}
                     </button>
-                    <div className="text-xs text-[var(--faint)] mt-0.5">
+                    <div className="text-xs text-[var(--faint)]">
                       <span className="hero-name">{testPick.picks[0].hero}</span> · <b className="font-bold text-emerald-500">{testPick.picks[0].win_rate}</b>%
                       {testPick.picks[0].sample_size === 'thin' && <span className="text-amber-500"> · thin</span>}
                       {' · '}<b className="font-bold">{testPick.picks[0].games}</b>g played
                     </div>
                   </div>
-                  <div className="text-right space-y-1">
+                  <div className="text-right space-y-0.5">
                     {testPick.picks.slice(1).map(p => (
                       <div key={`${p.map}|${p.hero}`} className="text-[10px] text-[var(--faint)]">
                         <span className="map-name">{withMapCount(p.map, mapCounts)}</span> · <span className="hero-name">{p.hero}</span> · <b className="font-bold">{p.win_rate}</b>%
@@ -626,17 +626,17 @@ export default function Prematch() {
               ) : (
                 <div className="flex items-center gap-4">
                   <div className="flex-1">
-                    <div className="text-xs text-[var(--faint)] mb-1 uppercase tracking-wider">Vote for</div>
-                    <button onClick={() => openMap(winner)} className="text-xl map-name text-emerald-600 hover:text-emerald-700 transition-colors text-left" data-inspect-id="prematch-vote-for-button">
+                    <div className="text-xs text-[var(--faint)] mb-0.5 uppercase tracking-wider">Vote for</div>
+                    <button onClick={() => openMap(winner)} className="text-lg map-name text-emerald-600 hover:text-emerald-700 transition-colors text-left" data-inspect-id="prematch-vote-for-button">
                       {withMapCount(winner, mapCounts)}
                     </button>
                     {scoreMap[winner] && (
-                      <div className="text-xs text-[var(--faint)] mt-0.5">
+                      <div className="text-xs text-[var(--faint)]">
                         <b className="font-bold">{scoreMap[winner].blended_score}</b>% blended · <b className="font-bold">{scoreMap[winner].total_games}</b>g played
                       </div>
                     )}
                   </div>
-                  <div className="text-right space-y-1">
+                  <div className="text-right space-y-0.5">
                     {ranked.slice(1).map(m => (
                       <div key={m} className="text-[10px] text-[var(--faint)]">
                         <span className="map-name">{withMapCount(m, mapCounts)}</span>{scoreMap[m] ? <> · <b className="font-bold">{scoreMap[m].blended_score}</b>%</> : ' · no data'}
