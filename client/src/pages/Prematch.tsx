@@ -398,7 +398,7 @@ export default function Prematch() {
               <Odometer value={backlogCount} dataInspectId="prematch-backlog-odometer" />
               <div className="leading-tight">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-[var(--ink)]">in backlog</span>
+                  <span className="text-sm text-[var(--ink)]">backlog</span>
                   <Link
                     to="/sens"
                     className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-gradient-to-r from-ow-accent to-ow-accentLight text-white shadow-md shadow-ow-accent/30 hover:brightness-110 active:brightness-95 transition-all whitespace-nowrap"
@@ -407,7 +407,6 @@ export default function Prematch() {
                     Go →
                   </Link>
                 </div>
-                <div className="text-[10px] text-[var(--faint-2)]">matches awaiting stats</div>
               </div>
             </div>
           ) : (
