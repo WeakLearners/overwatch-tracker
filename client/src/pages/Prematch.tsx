@@ -353,7 +353,7 @@ export default function Prematch() {
             Drives off the same state the Sens page loop does. Sits where the
             sens picker used to. */}
         <div className="card sm:aspect-square shrink-0 flex flex-col self-stretch" data-inspect-id="prematch-dpi-hud-card">
-          <div className="flex items-center justify-between mb-2 gap-2">
+          <div className="flex items-center justify-between mb-1 gap-2">
             <h2 className="text-sm heading-display text-[var(--ink)] whitespace-nowrap">{bt?.sens != null ? 'Sens Test' : 'DPI Test'}</h2>
             {bt && (
               <span className="text-xs num-display text-[var(--ink)] shrink-0" data-inspect-id="prematch-dpi-value-badge">
@@ -365,7 +365,7 @@ export default function Prematch() {
             <select
               value={bt ? (bt.hero ?? AD_HOC_KEY) : ''}
               onChange={e => setBtHeroPick(e.target.value)}
-              className="text-[11px] field px-1.5 py-1 mb-2 w-full"
+              className="text-[11px] field px-1.5 py-1 mb-1 w-full"
               aria-label="Hero to show DPI-test progress for"
               data-inspect-id="prematch-dpi-hero-picker-select"
             >
@@ -377,16 +377,16 @@ export default function Prematch() {
             </select>
           )}
           {btActives.length === 1 && (
-            <div className="text-[10px] hero-name text-[var(--faint-2)] -mt-1 mb-2 truncate">{bt!.hero ?? 'ad-hoc'}</div>
+            <div className="text-[10px] hero-name text-[var(--faint-2)] -mt-1 mb-1 truncate">{bt!.hero ?? 'ad-hoc'}</div>
           )}
           {bt ? (
-            <div className="flex-1 grid grid-cols-[auto_auto] items-center gap-x-3 gap-y-1.5 content-start">
-              <Odometer value={btTestLeft} dataInspectId="prematch-dpi-matches-left-odometer" />
+            <div className="flex-1 grid grid-cols-[auto_auto] items-center gap-x-3 gap-y-1 content-start">
+              <Odometer value={btTestLeft} size={36} dataInspectId="prematch-dpi-matches-left-odometer" />
               <div className="leading-tight">
                 <div className="text-sm text-[var(--ink)]">matches left</div>
                 <div className="text-[10px] text-[var(--faint-2)]">in this test</div>
               </div>
-              <Odometer value={btGamesLeft} dataInspectId="prematch-dpi-games-left-odometer" />
+              <Odometer value={btGamesLeft} size={36} dataInspectId="prematch-dpi-games-left-odometer" />
               <div className="leading-tight">
                 <div className="text-sm text-[var(--ink)]">games left</div>
                 <div className="text-[10px] text-[var(--faint-2)]">in stage <b className="font-bold">{bt.cur_stage}</b></div>
@@ -395,7 +395,7 @@ export default function Prematch() {
                   being its own grid) so its drum is guaranteed to land in the
                   same x position as the two above — a separate grid re-centers
                   independently and drifts whenever the label text width differs. */}
-              <Odometer value={backlogCount} dataInspectId="prematch-backlog-odometer" />
+              <Odometer value={backlogCount} size={36} dataInspectId="prematch-backlog-odometer" />
               <div className="leading-tight">
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-[var(--ink)]">backlog</span>
