@@ -504,8 +504,10 @@ export default function Prematch() {
           {/* Everything below the pinned search input — content here must
               stay compact enough to fit the row's fixed height on its own;
               cards never scroll internally, so overflow is fixed by
-              shrinking content, not by adding a scroll region. */}
-          <div className="flex-1 min-h-0">
+              shrinking content, not by adding a scroll region. flex-col so
+              the Vote-for block below can pin itself to the bottom edge
+              with mt-auto instead of sitting right under the chips. */}
+          <div className="flex-1 min-h-0 flex flex-col">
 
           {/* Idle: best & worst maps by win rate — tap one to add it to your
               picks (which swaps this block for the chips + vote below). */}
@@ -594,7 +596,7 @@ export default function Prematch() {
               per "new feature does not equate to new elements" rather than
               keeping two side-by-side recommendations. */}
           {selected.length > 0 && (testPick?.available ? testPick.picks.length > 0 : ranked.length > 0) && (
-            <div className="mt-1">
+            <div className="mt-auto pt-1">
               {testPick?.available && testPick.picks.length > 0 ? (
                 <div className="flex items-start gap-4">
                   <div className="flex-1 min-w-0">
