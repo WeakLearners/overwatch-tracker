@@ -491,7 +491,7 @@ export default function Prematch() {
                   <button
                     key={m}
                     onMouseDown={() => selectMap(m)}
-                    className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-white/5 transition-colors text-left"
+                    className="w-full flex items-center justify-between px-3 py-2 text-xs hover:bg-white/5 transition-colors text-left"
                   >
                     <span className="map-name text-[var(--ink)]">{withMapCount(m, mapCounts)}</span>
                     <span className={`pill ${TYPE_COLORS[MAPS[m]] ?? ''}`}>{MAPS[m]}</span>
