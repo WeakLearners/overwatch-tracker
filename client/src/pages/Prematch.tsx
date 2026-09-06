@@ -380,13 +380,19 @@ export default function Prematch() {
             <div className="text-[10px] hero-name text-[var(--faint-2)] -mt-1 mb-1 truncate">{bt!.hero ?? 'ad-hoc'}</div>
           )}
           {bt ? (
-            <div className="flex-1 grid grid-cols-[auto_auto] items-center gap-x-3 gap-y-1 content-start">
-              <Odometer value={btTestLeft} size={36} dataInspectId="prematch-dpi-matches-left-odometer" />
+            // mt-5 nudges this group down to line up with the Map Voting
+            // card's "best maps" list start (its header + search input push
+            // that list ~100px down; this card has less above the grid, so
+            // it needs an explicit offset to match). Odometers dropped to
+            // 32/gap-y-0.5 (from 36/gap-y-1) to make room for that offset
+            // within the card's fixed ~178.88px content budget.
+            <div className="flex-1 grid grid-cols-[auto_auto] items-center gap-x-3 gap-y-0.5 content-start mt-5">
+              <Odometer value={btTestLeft} size={32} dataInspectId="prematch-dpi-matches-left-odometer" />
               <div className="leading-tight">
                 <div className="text-sm text-[var(--ink)]">matches left</div>
                 <div className="text-[10px] text-[var(--faint-2)]">in this test</div>
               </div>
-              <Odometer value={btGamesLeft} size={36} dataInspectId="prematch-dpi-games-left-odometer" />
+              <Odometer value={btGamesLeft} size={32} dataInspectId="prematch-dpi-games-left-odometer" />
               <div className="leading-tight">
                 <div className="text-sm text-[var(--ink)]">games left</div>
                 <div className="text-[10px] text-[var(--faint-2)]">in stage <b className="font-bold">{bt.cur_stage}</b></div>
@@ -395,7 +401,7 @@ export default function Prematch() {
                   being its own grid) so its drum is guaranteed to land in the
                   same x position as the two above — a separate grid re-centers
                   independently and drifts whenever the label text width differs. */}
-              <Odometer value={backlogCount} size={36} dataInspectId="prematch-backlog-odometer" />
+              <Odometer value={backlogCount} size={32} dataInspectId="prematch-backlog-odometer" />
               <div className="leading-tight">
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-[var(--ink)]">backlog</span>
