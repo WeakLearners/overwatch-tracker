@@ -691,7 +691,7 @@ export default function Prematch() {
               panel, generous padding, bigger numerals) instead of just
               floating in the middle of the card. */}
           {!map && (
-            <div className="flex-1 flex flex-col justify-center mt-[0.934rem] gap-4">
+            <div className="flex-1 flex flex-col justify-center mt-[0.6604rem] gap-4">
               {/* True 2-row grid (labels row, values row) instead of three
                   independently-centered flex columns — that's what keeps all
                   three labels on one line and all three value blocks on the
