@@ -511,7 +511,7 @@ export default function Prematch() {
           {/* Idle: best & worst maps by win rate — tap one to add it to your
               picks (which swaps this block for the chips + vote below). */}
           {selected.length === 0 && rankedMaps.length > 0 && (
-            <div className="flex-1 grid grid-cols-2 gap-x-4 content-center" data-inspect-id="prematch-best-worst-maps-list">
+            <div className="flex-1 grid grid-cols-2 gap-x-4 content-start mt-4" data-inspect-id="prematch-best-worst-maps-list">
               {([
                 { label: 'Best maps', color: 'text-emerald-600', pct: 'text-emerald-500', list: bestMaps },
                 { label: 'Worst maps', color: 'text-red-500', pct: 'text-red-500', list: worstMaps },
