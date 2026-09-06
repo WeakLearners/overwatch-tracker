@@ -380,7 +380,7 @@ export default function Prematch() {
             <div className="text-[10px] hero-name text-[var(--faint-2)] -mt-1 mb-2 truncate">{bt!.hero ?? 'ad-hoc'}</div>
           )}
           {bt ? (
-            <div className="flex-1 grid grid-cols-[auto_auto] items-center gap-x-3 gap-y-1.5 place-content-center">
+            <div className="flex-1 grid grid-cols-[auto_auto] items-center gap-x-3 gap-y-1.5 content-start">
               <Odometer value={btTestLeft} dataInspectId="prematch-dpi-matches-left-odometer" />
               <div className="leading-tight">
                 <div className="text-sm text-[var(--ink)]">matches left</div>
@@ -411,7 +411,7 @@ export default function Prematch() {
               </div>
             </div>
           ) : (
-            <div className="flex-1 grid place-items-center text-center px-2" data-inspect-id="prematch-dpi-idle-banner">
+            <div className="flex-1 grid justify-items-center content-start text-center px-2" data-inspect-id="prematch-dpi-idle-banner">
               <div>
                 <div className="text-xs text-[var(--faint)]">No DPI test running</div>
                 <div className="text-[10px] text-[var(--faint-2)] mt-1">Start one on the Sens page →</div>
