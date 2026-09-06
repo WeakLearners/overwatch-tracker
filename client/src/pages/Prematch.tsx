@@ -442,7 +442,7 @@ export default function Prematch() {
 
         {/* Map Voting */}
         <div className="card flex-1 min-w-0 flex flex-col overflow-hidden" data-inspect-id="prematch-map-voting-card">
-          <div className="flex items-center justify-between mb-4 min-h-8">
+          <div className="flex items-center justify-between mb-2 min-h-8">
             <div className="flex items-center gap-2">
               <h2 className="text-sm heading-display text-[var(--ink)] whitespace-nowrap">Map Voting</h2>
               <span className="text-xs text-[var(--faint)] bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">tap up to 3</span>
@@ -468,7 +468,7 @@ export default function Prematch() {
           </div>
 
           {/* Search input */}
-          <div className="relative mb-3">
+          <div className="relative mb-2">
             <input
               ref={inputRef}
               id="map-search"
@@ -595,7 +595,7 @@ export default function Prematch() {
               per "new feature does not equate to new elements" rather than
               keeping two side-by-side recommendations. */}
           {selected.length > 0 && (testPick?.available ? testPick.picks.length > 0 : ranked.length > 0) && (
-            <div className="pt-2 mt-2">
+            <div className="mt-1">
               {testPick?.available && testPick.picks.length > 0 ? (
                 <div className="flex items-center gap-4">
                   <div className="flex-1 min-w-0">
@@ -651,7 +651,7 @@ export default function Prematch() {
 
         {/* Hero Advisor — Map selector */}
         <div className="card flex-1 min-w-0 flex flex-col overflow-hidden" data-inspect-id="prematch-hero-advisor-card">
-          <div className="flex items-center justify-between mb-4 min-h-8">
+          <div className="flex items-center justify-between mb-2 min-h-8">
             <div className="flex items-center gap-2">
               <h2 className="text-sm heading-display text-[var(--ink)] whitespace-nowrap">Hero Advisor</h2>
               <span className="text-xs text-[var(--faint)] bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">pick a map</span>
@@ -663,7 +663,7 @@ export default function Prematch() {
             )}
           </div>
 
-          <div className="mb-3">
+          <div className="mb-2">
             <select
               ref={advisorSelectRef}
               value={map}
