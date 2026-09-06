@@ -353,7 +353,12 @@ export default function Prematch() {
             Drives off the same state the Sens page loop does. Sits where the
             sens picker used to. */}
         <div className="card sm:aspect-square shrink-0 flex flex-col self-stretch" data-inspect-id="prematch-dpi-hud-card">
-          <div className="flex items-center justify-between mb-1 gap-2">
+          {/* mb-2 min-h-8 matches Map Voting's/Hero Advisor's header row
+              exactly (both use the same two classes) so this card's title
+              sits at the same vertical position and the row below it starts
+              from the same 40px offset their search-input/select rows do —
+              see the mt-2.5 comment below for how that offset is spent. */}
+          <div className="flex items-center justify-between mb-2 min-h-8 gap-2">
             <h2 className="text-sm heading-display text-[var(--ink)] whitespace-nowrap">{bt?.sens != null ? 'Sens Test' : 'DPI Test'}</h2>
             {bt && (
               <span className="text-xs num-display text-[var(--ink)] shrink-0" data-inspect-id="prematch-dpi-value-badge">
@@ -377,16 +382,34 @@ export default function Prematch() {
             </select>
           )}
           {btActives.length === 1 && (
-            <div className="text-[10px] hero-name text-[var(--faint-2)] -mt-1 mb-1 truncate">{bt!.hero ?? 'ad-hoc'}</div>
+            // Fixed h-[23px] + mb-1 makes this row's total height/margin
+            // (27px) match the <select> branch above pixel-for-pixel (its
+            // ~23px field height + mb-1), so the odometer grid below starts
+            // from the same offset regardless of which of the two branches
+            // rendered — needed so the grid's bottom edge (aligned to Map
+            // Voting's best-maps list, see mt-2.5 comment below) doesn't
+            // shift depending on how many DPI tests are active.
+            <div className="h-[23px] flex items-center mb-1">
+              <span className="text-[10px] hero-name text-[var(--faint-2)] truncate">{bt!.hero ?? 'ad-hoc'}</span>
+            </div>
           )}
           {bt ? (
-            // mt-5 nudges this group down to line up with the Map Voting
-            // card's "best maps" list start (its header + search input push
-            // that list ~100px down; this card has less above the grid, so
-            // it needs an explicit offset to match). Odometers dropped to
-            // 32/gap-y-0.5 (from 36/gap-y-1) to make room for that offset
-            // within the card's fixed ~178.88px content budget.
-            <div className="flex-1 grid grid-cols-[auto_auto] items-center gap-x-3 gap-y-0.5 content-start mt-5">
+            // Two-point alignment with the Map Voting card's idle best-maps
+            // list (both cards share the same ~178.88px content budget):
+            // top of the hero-picker select == top of Map Voting's search
+            // box (both at 40px from content top: a 32px min-h-8 header row
+            // + 8px margin, identical classes on both cards' header rows),
+            // and bottom of this odometer group == bottom of Map Voting's
+            // 3-row best-maps list (both land at ~177px). Header(40) +
+            // select-or-name-line block(27, see branch above) = 67px used
+            // before this grid; mt-2.5 (10px) + the grid's own 3-row content
+            // (~100px at size=32/gap-y-0.5) lands its bottom at ~177px,
+            // matching Map Voting's list bottom. Odometers stay at 32 (down
+            // from the original 46 default) — shrinking further to buy more
+            // offset would make them hard to read, so this is as close as
+            // the two cards' differing internal content gets without that
+            // tradeoff.
+            <div className="flex-1 grid grid-cols-[auto_auto] items-center gap-x-3 gap-y-0.5 content-start mt-2.5">
               <Odometer value={btTestLeft} size={32} dataInspectId="prematch-dpi-matches-left-odometer" />
               <div className="leading-tight">
                 <div className="text-sm text-[var(--ink)]">matches left</div>
