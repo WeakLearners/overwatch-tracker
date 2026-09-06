@@ -518,15 +518,15 @@ export default function Prematch() {
                 { label: 'Worst maps', color: 'text-red-500', pct: 'text-red-500', list: worstMaps },
               ] as const).map(col => (
                 <div key={col.label}>
-                  <div className={`text-[10px] uppercase tracking-wider mb-1.5 ${col.color}`}>{col.label}</div>
+                  <div className={`text-[9px] uppercase tracking-wider mb-1 ${col.color}`}>{col.label}</div>
                   {col.list.map(m => (
                     <button
                       key={m.map}
                       onClick={() => selectMap(m.map)}
-                      className="flex items-center justify-between w-full text-left py-1 px-1 -mx-1 rounded hover:bg-white/5 transition-colors group"
+                      className="flex items-center justify-between w-full text-left py-0.5 px-1 -mx-1 rounded hover:bg-white/5 transition-colors group"
                     >
-                      <span className="text-sm map-name text-[var(--ink)] truncate group-hover:text-ow-accent transition-colors">{withMapCount(m.map, mapCounts)}</span>
-                      <span className={`text-xs font-bold shrink-0 ml-2 ${col.pct}`}>{Math.round(m.historical_rate)}%</span>
+                      <span className="text-xs map-name text-[var(--ink)] truncate group-hover:text-ow-accent transition-colors">{withMapCount(m.map, mapCounts)}</span>
+                      <span className={`text-[10px] font-bold shrink-0 ml-2 ${col.pct}`}>{Math.round(m.historical_rate)}%</span>
                     </button>
                   ))}
                 </div>
