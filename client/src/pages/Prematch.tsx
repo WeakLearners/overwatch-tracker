@@ -425,7 +425,7 @@ export default function Prematch() {
               <Odometer value={backlogCount} />
               <div className="leading-tight">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-[var(--ink)]">in backlog</span>
+                  <span className="text-sm text-[var(--ink)]">backlog</span>
                   <Link
                     to="/sens"
                     className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-gradient-to-r from-ow-accent to-ow-accentLight text-white shadow-md shadow-ow-accent/30 hover:brightness-110 active:brightness-95 transition-all whitespace-nowrap"
@@ -433,7 +433,6 @@ export default function Prematch() {
                     Go →
                   </Link>
                 </div>
-                <div className="text-[10px] text-[var(--faint-2)]">matches awaiting stats</div>
               </div>
             </div>
           )}
@@ -677,11 +676,10 @@ export default function Prematch() {
           </div>
           {mapType && <span className={`pill ${TYPE_COLORS[mapType] ?? ''}`} data-inspect-id="prematch-map-type-badge">{mapType}</span>}
 
-          {/* Scroll region for everything below the pinned map selector —
-              same treatment as Map Voting's scroll wrapper, so the row's
-              fixed height holds regardless of how tall the hero
-              recommendation/coaching content below gets. */}
-          <div className="flex-1 min-h-0 overflow-y-auto">
+          {/* Everything below the pinned map selector — same treatment as
+              Map Voting: no scroll region, content must fit the row's
+              fixed height through compression alone. */}
+          <div className="flex-1 min-h-0">
 
           {/* Idle: session & timing snapshot — how you're doing right now.
               The panel is deliberately roomier than its content strictly
