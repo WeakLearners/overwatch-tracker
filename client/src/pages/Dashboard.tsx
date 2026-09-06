@@ -51,7 +51,7 @@ function ModeTile({ meta, m, selected, onSelect, openHero, lastLog }: {
       type="button"
       onClick={onSelect}
       data-inspect-id="dash-mode-tiles"
-      className={`relative overflow-hidden text-left rounded-xl p-4 transition-all duration-200 mode-tile hover:-translate-x-1 hover:-translate-y-1 ${selected ? `${c.card} ${c.glow}` : c.tileDim}`}
+      className={`relative overflow-hidden text-left rounded-lg p-4 transition-all duration-200 mode-tile hover:-translate-x-1 hover:-translate-y-1 ${selected ? `${c.card} ${c.glow}` : c.tileDim}`}
     >
       {/* 10% larger than the other (selector) watermarks — these tiles are bigger.
           Opacity is left at the component default (15%) even when selected —
@@ -90,14 +90,14 @@ function ModeTile({ meta, m, selected, onSelect, openHero, lastLog }: {
               </div>
             );
           })()}
-          <div className="text-xs text-[var(--muted)] dark:text-white/80 mt-0.5">
+          <div className="text-xs text-[var(--muted)] mt-0.5">
             last <b className="font-bold">{m.recent_window}</b>d · <span className="text-emerald-500 font-bold">{m.recent_wins}W</span> <span className="text-red-400 font-bold">{m.recent_games - m.recent_wins}L</span>
           </div>
-          <div className="text-[11px] text-[var(--faint)] dark:text-white/65 mt-0.5">
+          <div className="text-[11px] text-[var(--faint)] mt-0.5">
             <b className="font-bold">{m.win_rate}</b>% all-time · <b className="font-bold">{m.games}</b>g
           </div>
           <div className="mt-3">
-            <div className="text-[10px] text-[var(--muted)] dark:text-white/70 uppercase tracking-wider mb-1">Most played</div>
+            <div className="text-[10px] text-[var(--muted)] uppercase tracking-wider mb-1">Most played</div>
             {m.top_hero ? (
               <div className="flex items-center justify-between">
                 <span
@@ -107,17 +107,17 @@ function ModeTile({ meta, m, selected, onSelect, openHero, lastLog }: {
                 >
                   {withHeroCount(m.top_hero.hero, heroCounts)}
                 </span>
-                <span className="text-xs text-[var(--muted)] dark:text-white/70 shrink-0 ml-2 font-bold">
+                <span className="text-xs text-[var(--muted)] shrink-0 ml-2 font-bold">
                   {m.top_hero.win_rate}% · {m.top_hero.games}g
                 </span>
               </div>
             ) : (
-              <div className="text-sm text-[var(--faint)] dark:text-white/65">—</div>
+              <div className="text-sm text-[var(--faint)]">—</div>
             )}
           </div>
         </>
       ) : (
-        <div className="text-sm text-[var(--faint)] dark:text-white/50 mt-1">No games yet</div>
+        <div className="text-sm text-[var(--faint)] mt-1">No games yet</div>
       )}
       </div>
     </button>
@@ -294,8 +294,8 @@ export default function Dashboard() {
                     title={`${g.win ? 'Win' : 'Loss'} · ${withHeroCount(g.hero, heroCounts).toUpperCase()} on ${withMapCount(g.map, mapCounts).toUpperCase()} (${format(parseISO(g.date), 'MMM d')})`}
                     className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-sm italic font-display font-black ${
                       g.win
-                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
-                        : 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300'
+                        ? 'bg-emerald-500/15 text-emerald-600'
+                        : 'bg-rose-500/15 text-rose-600'
                     }`}
                   >
                     {MODE_LETTER[g.queue_mode] ?? '·'}
@@ -315,7 +315,7 @@ export default function Dashboard() {
           </div>
 
           {tilt?.on_tilt && (
-            <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 mt-4" data-inspect-id="dash-tilt-warning-banner">
+            <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-3 mt-4" data-inspect-id="dash-tilt-warning-banner">
               <span className="text-amber-600 text-lg shrink-0">⚠</span>
               <div>
                 <div className="text-sm font-semibold text-amber-700">You've lost <b className="font-bold">2</b> in a row today</div>

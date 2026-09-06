@@ -66,7 +66,7 @@ export default function AdvisorCard({ map, queueLabel, rec, loading, error, onRe
   return (
     <div
       data-inspect-id="advisorCard-outerCard"
-      className={bare ? '' : 'rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-3'}
+      className={bare ? '' : 'rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-4 py-3'}
     >
       {!bare && (
         <div className="flex items-center justify-between mb-2">

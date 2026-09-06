@@ -45,7 +45,7 @@ export default function DeathLogger() {
           {/* Invisible backdrop for click-outside dismissal */}
           <div className="fixed inset-0 -z-10" onClick={() => setOpen(false)} />
 
-          <div data-inspect-id="deathLogger-loggingPopover" className="w-72 bg-ow-card border border-ow-border rounded-2xl shadow-2xl overflow-hidden">
+          <div data-inspect-id="deathLogger-loggingPopover" className="w-72 bg-ow-card border border-ow-border rounded-lg shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between px-4 pt-3 pb-2">
               <span data-inspect-id="deathLogger-popoverTitle" className="text-xs font-semibold text-[var(--faint)] uppercase tracking-widest">
                 Death <b className="font-bold">{count + 1}</b> · {spec.label}
@@ -82,7 +82,7 @@ export default function DeathLogger() {
                 data-inspect-id="deathLogger-logItButton"
                 type="button"
                 onClick={confirm}
-                className="w-full mt-3 rounded-xl bg-ow-accent/15 border border-ow-accent/50 text-[var(--ink)] text-sm font-semibold py-2.5 hover:bg-ow-accent/25 active:scale-[0.98] transition-all"
+                className="w-full mt-3 rounded-lg bg-ow-accent/15 border border-ow-accent/50 text-[var(--ink)] text-sm font-semibold py-2.5 hover:bg-ow-accent/25 active:scale-[0.98] transition-all"
               >
                 Log it
               </button>
@@ -102,7 +102,7 @@ export default function DeathLogger() {
 
       {/* Buffer review panel */}
       {showBuffer && count > 0 && !open && (
-        <div className="w-64 bg-ow-card border border-ow-border rounded-xl shadow-xl p-3">
+        <div className="w-64 bg-ow-card border border-ow-border rounded-lg shadow-xl p-3">
           <p data-inspect-id="deathLogger-bufferReviewList" className="text-xs text-[var(--ink-2)] font-semibold mb-2">Deaths this match</p>
           <div className="space-y-1">
             {deathBuffer.map((d, i) => (

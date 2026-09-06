@@ -39,20 +39,22 @@ function shuffled<T>(items: T[]): T[] {
 // room for.
 function fontSizeClass(len: number): string {
   if (len <= 90) return 'text-lg sm:text-2xl leading-snug sm:leading-tight';
-  if (len <= 130) return 'text-base sm:text-xl leading-snug';
-  if (len <= 170) return 'text-sm sm:text-lg leading-snug';
-  return 'text-sm sm:text-base leading-snug';
+  if (len <= 130) return 'text-base sm:text-lg leading-snug';
+  if (len <= 170) return 'text-sm sm:text-base leading-snug';
+  return 'text-xs sm:text-sm leading-snug';
 }
 
 function FactoidCard({ f }: { f: Factoid }) {
   const len = f.parts.reduce((n, p) => n + p.text.length, 0);
   return (
-    // Square only from sm: up — at the narrower mobile 2-column width the
-    // square constraint was clipping factoid text mid-sentence with no
-    // ellipsis (flex's `my-auto` collapses to 0 on overflow, so the tail of
-    // the sentence silently fell past the card's bottom edge).
-    <div className="card aspect-auto sm:aspect-square flex flex-col overflow-visible sm:overflow-y-auto">
-      <div className="text-[10px] text-[var(--muted)] uppercase tracking-wider mb-2 shrink-0">{f.category}</div>
+    // Square only from sm: up. No-scroll-in-cards rule: overflow is solved by
+    // compression, never a scroll region. Mobile stays aspect-auto (the
+    // square constraint used to clip long factoids mid-sentence with no
+    // ellipsis, since flex's `my-auto` collapses to 0 on overflow). The sm:+
+    // square is kept scroll-free via tighter padding, a smaller category
+    // label, and a longer tail of font-size tiers for the longest factoids.
+    <div className="card !p-3 aspect-auto sm:aspect-square flex flex-col overflow-visible">
+      <div className="text-[9px] text-[var(--muted)] uppercase tracking-wider mb-1 shrink-0">{f.category}</div>
       <p className={`font-medium text-[var(--ink)] my-auto ${fontSizeClass(len)}`}>
         {f.parts.map((p, i) => p.color
           ? <span key={i} className={PART_COLOR[p.color]}>{p.text}</span>

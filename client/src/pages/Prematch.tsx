@@ -435,7 +435,7 @@ export default function Prematch() {
                   <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">backlog</span>
                   <Link
                     to="/sens"
-                    className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-gradient-to-r from-ow-accent to-ow-accentLight text-white shadow-md shadow-ow-accent/30 hover:brightness-110 active:brightness-95 transition-all whitespace-nowrap"
+                    className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-lg bg-gradient-to-r from-ow-accent to-ow-accentLight text-white shadow-md shadow-ow-accent/30 hover:brightness-110 active:brightness-95 transition-all whitespace-nowrap"
                     data-inspect-id="prematch-backlog-go-link"
                   >
                     Go →
@@ -462,7 +462,7 @@ export default function Prematch() {
                   <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">backlog</span>
                   <Link
                     to="/sens"
-                    className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-gradient-to-r from-ow-accent to-ow-accentLight text-white shadow-md shadow-ow-accent/30 hover:brightness-110 active:brightness-95 transition-all whitespace-nowrap"
+                    className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-lg bg-gradient-to-r from-ow-accent to-ow-accentLight text-white shadow-md shadow-ow-accent/30 hover:brightness-110 active:brightness-95 transition-all whitespace-nowrap"
                   >
                     Go →
                   </Link>
@@ -734,7 +734,7 @@ export default function Prematch() {
                   content-sized (not stretched to equal width) with
                   justify-evenly, so spacing is even without forcing the three
                   categories to occupy equal space. */}
-              <div className="rounded-xl border border-ow-border/40 bg-gradient-to-br from-ow-accent/[0.06] via-ow-accent/[0.02] to-transparent grid grid-cols-[repeat(3,max-content)] justify-evenly items-center gap-x-2 pt-4 pb-6">
+              <div className="rounded-lg border border-ow-border/40 bg-gradient-to-br from-ow-accent/[0.06] via-ow-accent/[0.02] to-transparent grid grid-cols-[repeat(3,max-content)] justify-evenly items-center gap-x-2 pt-4 pb-6">
                 <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] col-start-1 row-start-1 justify-self-center" data-inspect-id="prematch-today-stat-tile">Today</div>
                 <div className="col-start-1 row-start-2 justify-self-center">
                   {todayRows.length > 0 ? (
@@ -763,7 +763,7 @@ export default function Prematch() {
                     <div className="flex items-center justify-center w-full">
                       <div className="relative">
                         <span
-                          className={`text-[27px] num-display leading-none rounded-md px-1 py-2 ${hourRow.qp_games > 0 ? 'text-blue-500' : 'text-[var(--faint)]'}`}
+                          className={`text-[27px] num-display leading-none rounded-lg px-1 py-2 ${hourRow.qp_games > 0 ? 'text-blue-500' : 'text-[var(--faint)]'}`}
                         >
                           {hourRow.qp_games > 0 ? `${Math.round(hourRow.qp_win_rate!)}%` : '—'}
                         </span>
@@ -772,7 +772,7 @@ export default function Prematch() {
                       <span className="text-[27px] num-display leading-none text-[var(--faint-2)] -mx-0.5">/</span>
                       <div className="relative">
                         <span
-                          className={`text-[27px] num-display leading-none rounded-md px-1 py-2 ${hourRow.comp_games > 0 ? 'text-red-500' : 'text-[var(--faint)]'}`}
+                          className={`text-[27px] num-display leading-none rounded-lg px-1 py-2 ${hourRow.comp_games > 0 ? 'text-red-500' : 'text-[var(--faint)]'}`}
                         >
                           {hourRow.comp_games > 0 ? `${Math.round(hourRow.comp_win_rate!)}%` : '—'}
                         </span>
@@ -832,7 +832,7 @@ export default function Prematch() {
               const delta = rec && !rec.is_new && rec.recent_wr != null && rec.prev_wr != null
                 ? Math.round((rec.recent_wr - rec.prev_wr) * 10) / 10 : null;
               return (
-                <div key={role} className="rounded-xl match-card-bg px-4 py-3">
+                <div key={role} className="rounded-lg match-card-bg px-4 py-3">
                   <div className="text-[10px] grad-brand font-bold uppercase tracking-widest mb-1">Trending {role}</div>
                   {rec ? (
                     <>
@@ -878,7 +878,7 @@ export default function Prematch() {
             stretch pick — a role with no in-testing hero just shows empty
             rather than an error, since the other column may still have one. */}
         {map && (
-          <div id="coaching" className="scroll-mt-24 rounded-xl bg-emerald-500/5 px-4 py-3 mt-3" data-inspect-id="prematch-coaching-section">
+          <div id="coaching" className="scroll-mt-24 rounded-lg bg-emerald-500/5 px-4 py-3 mt-3" data-inspect-id="prematch-coaching-section">
             <div className="text-[10px] text-emerald-600 uppercase tracking-widest font-semibold mb-2">Coaching</div>
             {recLoading && !rec && <div className="text-xs text-[var(--faint)]">Loading…</div>}
             {recError && <div className="text-xs text-red-600">{recError}</div>}

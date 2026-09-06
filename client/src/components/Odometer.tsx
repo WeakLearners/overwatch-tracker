@@ -9,7 +9,7 @@ const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 function Drum({ digit, size }: { digit: number; size: number }) {
   return (
     <div
-      className="relative overflow-hidden rounded-md bg-ow-card select-none"
+      className="relative overflow-hidden rounded-lg bg-ow-card select-none"
       style={{ width: Math.round(size * 0.72), height: size }}
     >
       <div

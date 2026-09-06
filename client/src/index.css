@@ -2,6 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Micro type scale (UI-consistency pass, 2026-09-06): compressed cards that
+   can't use standard Tailwind steps (text-xs and up) without overflowing —
+   HUD counters, stat labels, badges — are sized with `text-[Npx]` arbitrary
+   values drawn from one fixed set only: 7 / 8 / 9 / 10 / 11px for micro
+   copy, and 27px for the odometer-style numeral displays (Prematch DPI-HUD).
+   Treat any px value outside this set as a new outlier to fold back in,
+   not a precedent for another one-off. */
+
 @layer base {
   /* ── Lifted-panel theme (default/"light") — a raised slate surface, not a
      paper-white flip, so the HUD identity holds before the toggle. ── */
