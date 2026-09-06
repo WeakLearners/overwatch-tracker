@@ -335,7 +335,7 @@ export default function Prematch() {
       {/* DPI test HUD (square) + Map Voting + Hero Advisor row — stacks on
           phone widths; three-across only once there's room for each card's
           own header (title + badge) to fit without wrapping. */}
-      {/* Fixed height at sm+ (sm:h-[15.2rem], 5% under the original 16rem) so this row holds steady regardless of
+      {/* Fixed height at sm+ (sm:h-[13.68rem], 15.2rem - another 10%) so this row holds steady regardless of
           card content, with Map Voting and Hero Advisor matching DPI-HUD's
           card size instead of growing past it — their variable content
           (vote recommendation, hero coaching, etc.) scrolls internally past
@@ -343,7 +343,7 @@ export default function Prematch() {
           self-stretch + aspect-square so its width is always derived from
           this SAME shared height (square, deterministic) rather than a
           separate guessed width — all three cards size off one number. */}
-      <div className="flex flex-col sm:flex-row items-stretch gap-4 mb-4 sm:h-[15.2rem]">
+      <div className="flex flex-col sm:flex-row items-stretch gap-4 mb-4 sm:h-[13.68rem]">
 
         {/* DPI stage-test HUD — a dropdown picks which "In Testing" hero you're
             about to play (several can be active at once, but the mouse can
