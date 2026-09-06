@@ -412,12 +412,17 @@ export default function Prematch() {
             <div className="flex-1 grid grid-cols-[auto_auto] items-center gap-x-3 gap-y-0.5 content-start mt-2.5">
               <Odometer value={btTestLeft} size={32} dataInspectId="prematch-dpi-matches-left-odometer" />
               <div className="leading-tight">
-                <div className="text-sm text-[var(--ink)]">matches left</div>
+                {/* text-[10px] uppercase tracking-wider text-[var(--muted)]
+                    matches Hero Advisor's stat-tile labels (Today/Streak/
+                    This hour, prematch-today-stat-tile etc.) exactly, so
+                    this card's counter names read with the same caps
+                    treatment as the app's other small stat labels. */}
+                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">matches left</div>
                 <div className="text-[10px] text-[var(--faint-2)]">in this test</div>
               </div>
               <Odometer value={btGamesLeft} size={32} dataInspectId="prematch-dpi-games-left-odometer" />
               <div className="leading-tight">
-                <div className="text-sm text-[var(--ink)]">games left</div>
+                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">games left</div>
                 <div className="text-[10px] text-[var(--faint-2)]">in stage <b className="font-bold">{bt.cur_stage}</b></div>
               </div>
               {/* Backlog counter shares this grid's column tracks (rather than
@@ -427,7 +432,7 @@ export default function Prematch() {
               <Odometer value={backlogCount} size={32} dataInspectId="prematch-backlog-odometer" />
               <div className="leading-tight">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-[var(--ink)]">backlog</span>
+                  <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">backlog</span>
                   <Link
                     to="/sens"
                     className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-gradient-to-r from-ow-accent to-ow-accentLight text-white shadow-md shadow-ow-accent/30 hover:brightness-110 active:brightness-95 transition-all whitespace-nowrap"
@@ -454,7 +459,7 @@ export default function Prematch() {
               <Odometer value={backlogCount} />
               <div className="leading-tight">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-[var(--ink)]">backlog</span>
+                  <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">backlog</span>
                   <Link
                     to="/sens"
                     className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-gradient-to-r from-ow-accent to-ow-accentLight text-white shadow-md shadow-ow-accent/30 hover:brightness-110 active:brightness-95 transition-all whitespace-nowrap"
