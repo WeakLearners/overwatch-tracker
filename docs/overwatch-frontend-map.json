@@ -295,7 +295,7 @@
           "kind": "card",
           "description": "Square card showing the current DPI-test hero's DPI value plus matches-left, games-left, and backlog odometers; mirrors the active-test state driven from the Sens page.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:250",
+            "path": "client/src/pages/Prematch.tsx:355",
             "grep": "grep -n -F -- 'prematch-dpi-hud-card' client/src/pages/Prematch.tsx"
           }
         },
@@ -305,7 +305,7 @@
           "kind": "badge",
           "description": "Small badge in the DPI Test HUD header showing the current stage's DPI number for the picked hero.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:254",
+            "path": "client/src/pages/Prematch.tsx:359",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-dpi-value-badge\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -315,7 +315,7 @@
           "kind": "select",
           "description": "Dropdown shown when multiple DPI tests are active at once, letting the user choose which hero's DPI/progress the HUD card displays.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:264",
+            "path": "client/src/pages/Prematch.tsx:369",
             "grep": "grep -n -F -- 'aria-label=\"Hero to show DPI-test progress for\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -325,7 +325,7 @@
           "kind": "stat-tile",
           "description": "Odometer-style counter showing how many matches remain in the currently selected DPI test overall.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:281",
+            "path": "client/src/pages/Prematch.tsx:386",
             "grep": "grep -n -F -- 'className=\"text-sm text-[var(--ink)]\">matches left</div>' client/src/pages/Prematch.tsx"
           }
         },
@@ -335,7 +335,7 @@
           "kind": "stat-tile",
           "description": "Odometer-style counter showing how many games remain before the DPI test advances to its next stage.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:286",
+            "path": "client/src/pages/Prematch.tsx:391",
             "grep": "grep -n -F -- '<div className=\"text-sm text-[var(--ink)]\">games left</div>' client/src/pages/Prematch.tsx"
           }
         },
@@ -345,7 +345,7 @@
           "kind": "stat-tile",
           "description": "Odometer-style counter showing how many matches are awaiting stats processing; shown in both the active-test and idle layouts of the DPI card. (the same markup is duplicated for the active-test and idle-test layouts, so the locate command below matches both.)",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:296",
+            "path": "client/src/pages/Prematch.tsx:401",
             "grep": "grep -n -F -- 'className=\"text-sm text-[var(--ink)]\">in backlog</span>' client/src/pages/Prematch.tsx"
           }
         },
@@ -355,7 +355,7 @@
           "kind": "link",
           "description": "Link that navigates to the Sens page so the user can work through the backlog of matches awaiting stats. (duplicated for the active-test and idle-test layouts \u2014 locate command matches both.)",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:299",
+            "path": "client/src/pages/Prematch.tsx:404",
             "grep": "grep -n -F -- 'rounded-md bg-gradient-to-r from-ow-accent to-ow-accentLight' client/src/pages/Prematch.tsx"
           }
         },
@@ -365,7 +365,7 @@
           "kind": "banner",
           "description": "Placeholder message shown inside the DPI Test HUD card when no DPI stage test is currently active, prompting the user to start one on the Sens page.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:311",
+            "path": "client/src/pages/Prematch.tsx:416",
             "grep": "grep -n -F -- 'No DPI test running' client/src/pages/Prematch.tsx"
           }
         },
@@ -373,10 +373,43 @@
           "id": "prematch-map-voting-card",
           "label": "Map Voting card",
           "kind": "card",
-          "description": "Card for picking up to 3 candidate maps and seeing a blended-score recommendation of which one to vote for.",
+          "description": "Card for picking up to 3 candidate maps (the ones the in-game vote screen actually offered) and seeing a \"Vote for\" recommendation. That recommendation prefers a hero-informed pick (ranked across candidate maps x the DPS/Support role toggle's currently-active testing hero pool) when data exists, falling back to the plain map-only blended-score ranking otherwise — see prematch-vote-for-button.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:342",
+            "path": "client/src/pages/Prematch.tsx:447",
             "grep": "grep -n -F -- 'Map Voting</h2>' client/src/pages/Prematch.tsx"
+          }
+        },
+        {
+          "id": "prematch-role-pick-toggle",
+          "label": "Role Pick DPS/Support toggle group",
+          "kind": "nav",
+          "description": "Top-right corner of the Map Voting card header. DPS/Support pill buttons that pick which role's currently-active testing hero pool to rank the \"Vote for\" recommendation from. A standalone Role Pick card existed briefly earlier in this feature's development and was folded in here instead, since a selector this small didn't need its own card.",
+          "calls": [
+            "GET /api/advisor/test-pick?role=...&maps=..."
+          ],
+          "locate": {
+            "path": "client/src/pages/Prematch.tsx:450",
+            "grep": "grep -n -F -- 'prematch-role-pick-toggle' client/src/pages/Prematch.tsx"
+          }
+        },
+        {
+          "id": "prematch-role-pick-dps-button",
+          "label": "Role Pick DPS button",
+          "kind": "button",
+          "description": "Selects DPS as the role to rank the \"Vote for\" recommendation for.",
+          "locate": {
+            "path": "client/src/pages/Prematch.tsx:461",
+            "grep": "grep -n -F -- 'prematch-role-pick-${r.toLowerCase()}-button' client/src/pages/Prematch.tsx"
+          }
+        },
+        {
+          "id": "prematch-role-pick-support-button",
+          "label": "Role Pick Support button",
+          "kind": "button",
+          "description": "Selects Support as the role to rank the \"Vote for\" recommendation for. (Rendered by the same map as prematch-role-pick-dps-button — locate command matches both.)",
+          "locate": {
+            "path": "client/src/pages/Prematch.tsx:461",
+            "grep": "grep -n -F -- 'prematch-role-pick-${r.toLowerCase()}-button' client/src/pages/Prematch.tsx"
           }
         },
         {
@@ -385,7 +418,7 @@
           "kind": "search-box",
           "description": "Text input for filtering/searching maps by name to add to the up-to-3 voting picks; auto-focused whenever no map is currently selected.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:361",
+            "path": "client/src/pages/Prematch.tsx:484",
             "grep": "grep -n -F -- ''\"'\"'Type a map name\u2026'\"'\"'' client/src/pages/Prematch.tsx"
           }
         },
@@ -395,7 +428,7 @@
           "kind": "dropdown",
           "description": "Dropdown list of maps matching the search query; clicking a result adds it to the current voting picks.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:367",
+            "path": "client/src/pages/Prematch.tsx:490",
             "grep": "grep -n -F -- 'absolute top-full left-0 right-0 mt-1 bg-ow-card' client/src/pages/Prematch.tsx"
           }
         },
@@ -405,7 +438,7 @@
           "kind": "list",
           "description": "Idle-state two-column list of the user's best and worst maps by historical win rate; tapping a map adds it to the voting picks.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:387",
+            "path": "client/src/pages/Prematch.tsx:516",
             "grep": "grep -n -F -- 'label: '\"'\"'Best maps'\"'\"', color: '\"'\"'text-emerald-600'\"'\"'' client/src/pages/Prematch.tsx"
           }
         },
@@ -415,7 +448,7 @@
           "kind": "list",
           "description": "Row of chips, one per currently selected voting map, with the recommended winner highlighted green. Clicking the chip body sets that map as the active match map (drives the Hero Advisor below); a separate, more prominent circular \u00d7 button removes it from the voting picks.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:409",
+            "path": "client/src/pages/Prematch.tsx:543",
             "grep": "grep -n -F -- 'prematch-selected-map-chips' client/src/pages/Prematch.tsx"
           }
         },
@@ -425,7 +458,7 @@
           "kind": "button",
           "description": "Clears all currently selected map-voting picks. Rendered as a muted pill at the tail end of the selected-map chips row (not a map itself) so it's easy to hit when the game rolls a 'Random' map that isn't one of the offered picks.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:437",
+            "path": "client/src/pages/Prematch.tsx:571",
             "grep": "grep -n -F -- 'advisorSelectRef.current?.focus()' client/src/pages/Prematch.tsx"
           }
         },
@@ -435,7 +468,7 @@
           "kind": "button",
           "description": "Shows the recommended map to vote for based on blended win-rate score; clicking it opens the Map drawer for that map.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:455",
+            "path": "client/src/pages/Prematch.tsx:600",
             "grep": "grep -n -F -- 'prematch-vote-for-button' client/src/pages/Prematch.tsx"
           }
         },
@@ -445,7 +478,7 @@
           "kind": "card",
           "description": "Card for choosing the current map, which drives the hero recommendations, coaching, and hero-selection panel shown lower on the page.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:481",
+            "path": "client/src/pages/Prematch.tsx:650",
             "grep": "grep -n -F -- 'Hero Advisor</h2>' client/src/pages/Prematch.tsx"
           }
         },
@@ -455,7 +488,7 @@
           "kind": "button",
           "description": "Clears the currently selected map, reverting the Hero Advisor and Your Heroes panels back to their idle state.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:485",
+            "path": "client/src/pages/Prematch.tsx:654",
             "grep": "grep -n -F -- 'onClick={() => setMap('\"'\"''\"'\"')} className=\"text-xs' client/src/pages/Prematch.tsx"
           }
         },
@@ -465,7 +498,7 @@
           "kind": "select",
           "description": "Dropdown to choose the current match's map, which drives hero recommendations, coaching, and the your-heroes breakdown across the page.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:499",
+            "path": "client/src/pages/Prematch.tsx:668",
             "grep": "grep -n -F -- '\u2014 Select map \u2014' client/src/pages/Prematch.tsx"
           }
         },
@@ -475,7 +508,7 @@
           "kind": "badge",
           "description": "Pill badge showing the game-mode type (e.g. Escort, Control, Flashpoint) of the currently selected map.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:505",
+            "path": "client/src/pages/Prematch.tsx:674",
             "grep": "grep -n -F -- 'TYPE_COLORS[mapType] ?? '\"'\"''\"'\"'' client/src/pages/Prematch.tsx"
           }
         },
@@ -485,7 +518,7 @@
           "kind": "stat-tile",
           "description": "Shows today's win/loss tally; idle-state filler in the Hero Advisor card shown when no map is selected.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:525",
+            "path": "client/src/pages/Prematch.tsx:700",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-today-stat-tile\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -495,7 +528,7 @@
           "kind": "stat-tile",
           "description": "Shows the current win or loss streak length; idle-state filler in the Hero Advisor card shown when no map is selected.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:536",
+            "path": "client/src/pages/Prematch.tsx:711",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-streak-stat-tile\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -505,7 +538,7 @@
           "kind": "stat-tile",
           "description": "Shows the historical win rate for the current hour of day; idle-state filler in the Hero Advisor card shown when no map is selected.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:547",
+            "path": "client/src/pages/Prematch.tsx:722",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-this-hour-stat-tile\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -515,7 +548,7 @@
           "kind": "card",
           "description": "Main card below the top row combining the recommended hero pick, LLM coaching, and the full your-heroes-by-role breakdown for the selected map.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:577",
+            "path": "client/src/pages/Prematch.tsx:756",
             "grep": "grep -n -F -- 'Consolidated advisor \u2014 recommendation + coaching' client/src/pages/Prematch.tsx"
           }
         },
@@ -525,7 +558,7 @@
           "kind": "link",
           "description": "Clickable map name in the Consolidated Advisor card's header that opens the Map drawer for the currently selected map.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:586",
+            "path": "client/src/pages/Prematch.tsx:765",
             "grep": "grep -n -F -- 'Your Heroes on <button onClick={() => openMap(map)}' client/src/pages/Prematch.tsx"
           }
         },
@@ -535,7 +568,7 @@
           "kind": "icon-button",
           "description": "Icon button (\u21bb) that re-fetches the LLM pre-match advisor recommendation for the current map and queue mode.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:598",
+            "path": "client/src/pages/Prematch.tsx:777",
             "grep": "grep -n -F -- 'title=\"Refresh advisor\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -545,7 +578,7 @@
           "kind": "card",
           "description": "Highlighted panel shown when no map is selected, with one column per role (DPS/Support) showing that role's hottest-trending hero (biggest recent-vs-prior win-rate climb) with recent win rate and games played.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:613",
+            "path": "client/src/pages/Prematch.tsx:792",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-recommended-pick-card\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -555,7 +588,7 @@
           "kind": "button",
           "description": "Clickable hero name inside the Recommended Pick panel; opens the Hero drawer for that hero.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:624",
+            "path": "client/src/pages/Prematch.tsx:803",
             "grep": "grep -n -F -- 'onClick={() => openHero(rec.hero)}' client/src/pages/Prematch.tsx"
           }
         },
@@ -565,8 +598,18 @@
           "kind": "section",
           "description": "Section shown once a map is picked, embedding the LLM tactical-read AdvisorCard (matchup coaching and death patterns) for that map.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:664",
+            "path": "client/src/pages/Prematch.tsx:843",
             "grep": "grep -n -F -- 'id=\"coaching\" className=\"scroll-mt-24' client/src/pages/Prematch.tsx"
+          }
+        },
+        {
+          "id": "prematch-coaching-columns",
+          "label": "Coaching DPS/Support columns",
+          "kind": "list",
+          "description": "Two-column (DPS/Support) layout inside the Coaching section, one AdvisorCard per role for the picked map, shown once the /api/advisor/recommend response is in.",
+          "locate": {
+            "path": "client/src/pages/Prematch.tsx:848",
+            "grep": "grep -n -F -- 'prematch-coaching-columns' client/src/pages/Prematch.tsx"
           }
         },
         {
@@ -575,7 +618,7 @@
           "kind": "header",
           "description": "Header labeling the hero-selection panel that lists top heroes per role for the currently selected map.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:699",
+            "path": "client/src/pages/Prematch.tsx:878",
             "grep": "grep -n -F -- 'Select Your Hero</h3>' client/src/pages/Prematch.tsx"
           }
         },
@@ -583,20 +626,40 @@
           "id": "prematch-hero-picker-list",
           "label": "Hero picker list (by role)",
           "kind": "list",
-          "description": "Two-column (DPS/Support) list of every hero with an active sens test, ranked by win rate on the selected map \u2014 shown even with 0 games logged on that map, no top-N cap or collapsed overflow; clicking a hero pre-fills it into the Log Match form.",
+          "description": "Two-column (DPS/Support) list of heroes \u2014 the union of every hero with an active sens test AND every hero belonging to the current DPI/sens testing phase's roster (so already-finished heroes stay visible instead of disappearing the moment their test completes), ranked by win rate on the selected map. Clicking a hero records it as an ordered pick (see prematch-hero-picker-order-badge) and pre-fills Log Match's hero slots in that order; clicking an already-picked hero again toggles it off.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:701",
+            "path": "client/src/pages/Prematch.tsx:880",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-hero-picker-list\"' client/src/pages/Prematch.tsx"
+          }
+        },
+        {
+          "id": "prematch-hero-picker-order-badge",
+          "label": "Hero picker click-order badge",
+          "kind": "badge",
+          "description": "\u2460/\u2461/\u2462 badge shown on a hero row once it's been clicked, marking its position in the up-to-3 ordered click sequence that fills Log Match's hero slots (1st click \u2192 primary hero, 2nd/3rd \u2192 the two switch-hero slots). Colored via ROLE_PILL_CLASS to match the app's existing DPS/Tank/Support role-color convention rather than a generic accent.",
+          "locate": {
+            "path": "client/src/pages/Prematch.tsx:912",
+            "grep": "grep -n -F -- 'prematch-hero-picker-order-badge' client/src/pages/Prematch.tsx"
           }
         },
         {
           "id": "prematch-hero-picker-gauge",
           "label": "Hero picker remaining-tests gauge",
           "kind": "meter",
-          "description": "5-segment parallelogram gauge (battery-meter style) centered horizontally inside each hero picker row. Green segments = games remaining in the current DPI/sens stage, grey filled (50% opacity) segments = already logged; quantized from that hero's active test batch_size/games_on_stage onto a fixed 5-bar scale.",
+          "description": "5-segment parallelogram gauge (battery-meter style) centered horizontally inside each hero picker row. Green segments = games remaining in the current DPI/sens stage, grey filled (50% opacity) segments = already logged; quantized from that hero's active test batch_size/games_on_stage onto a fixed 5-bar scale. Only shown for a hero with an active test \u2014 see prematch-hero-picker-done-badge for the alternative shown once a hero's test finishes.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:728",
+            "path": "client/src/pages/Prematch.tsx:925",
             "grep": "grep -n -F -- 'prematch-hero-picker-gauge' client/src/pages/Prematch.tsx"
+          }
+        },
+        {
+          "id": "prematch-hero-picker-done-badge",
+          "label": "Hero picker \"Done\" badge",
+          "kind": "badge",
+          "description": "Shown on a hero row in Select Your Hero when that hero belongs to the current DPI/sens testing phase's roster but has already finished it (no active test, blind_stage_sets completed=true for that phase) \u2014 lets the whole phase roster stay visible instead of dropping a hero the moment its test completes.",
+          "locate": {
+            "path": "client/src/pages/Prematch.tsx:946",
+            "grep": "grep -n -F -- 'prematch-hero-picker-done-badge' client/src/pages/Prematch.tsx"
           }
         },
         {
@@ -605,7 +668,7 @@
           "kind": "banner",
           "description": "Empty-state message shown when no games have been logged for the current map/filter, prompting the user to pick a map or log a match.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:756",
+            "path": "client/src/pages/Prematch.tsx:966",
             "grep": "grep -n -F -- 'dataInspectId=\"prematch-empty-state-banner\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -615,7 +678,7 @@
           "kind": "stat-tile",
           "description": "In-game sens paired with the trending hero pick, derived from that hero's own best-tested DPI scale.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:643",
+            "path": "client/src/pages/Prematch.tsx:822",
             "grep": "grep -n -F -- 'prematch-recommended-sens' client/src/pages/Prematch.tsx"
           }
         },
@@ -623,9 +686,9 @@
           "id": "prematch-hero-picker-button",
           "label": "Hero picker button",
           "kind": "button",
-          "description": "Selects a hero from the Select Your Hero list (filtered to heroes with an active DPI test) and pre-fills it into the Match Log.",
+          "description": "Selects a hero from the Select Your Hero list (in-testing ∪ current-phase-roster, filtered to whichever role Role Pick's toggle selected). Click order fills Log Match's hero slots 1st/2nd/3rd (up to 3, silently ignored past that); clicking an already-picked hero toggles it back off and clears its slot.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:712",
+            "path": "client/src/pages/Prematch.tsx:894",
             "grep": "grep -n -F -- 'prematch-hero-picker-button' client/src/pages/Prematch.tsx"
           }
         }
