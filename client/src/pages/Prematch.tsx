@@ -595,7 +595,7 @@ export default function Prematch() {
               per "new feature does not equate to new elements" rather than
               keeping two side-by-side recommendations. */}
           {selected.length > 0 && (testPick?.available ? testPick.picks.length > 0 : ranked.length > 0) && (
-            <div className="pt-4 mt-4">
+            <div className="pt-2 mt-2">
               {testPick?.available && testPick.picks.length > 0 ? (
                 <div className="flex items-center gap-4">
                   <div className="flex-1 min-w-0">
