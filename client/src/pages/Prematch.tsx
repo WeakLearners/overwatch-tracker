@@ -533,13 +533,18 @@ export default function Prematch() {
             </div>
           )}
 
-          {/* Selected chips */}
+          {/* Selected chips — all four pills (up to 3 maps + Clear) share
+              equal width via flex-1/min-w-0 so they always sum to exactly
+              the row's width (one row, no wrap) regardless of card width;
+              the map name itself is a separate truncating span at a small
+              fixed font size so even the longest map names ("Shambali
+              Monastery") stay inside the pill instead of forcing it wider. */}
           {selected.length > 0 && (
-            <div className="flex gap-2 flex-wrap" data-inspect-id="prematch-selected-map-chips">
+            <div className="flex gap-2" data-inspect-id="prematch-selected-map-chips">
               {selected.map(m => (
                 <span
                   key={m}
-                  className={`flex items-center gap-1.5 pl-3 pr-1.5 py-1 rounded-full text-sm map-name transition-colors ${
+                  className={`flex-1 min-w-0 flex items-center justify-center gap-1 pl-2 pr-1 py-1 rounded-full text-[10px] map-name transition-colors ${
                     m === winner
                       ? 'bg-emerald-500/20 text-emerald-700'
                       : 'bg-ow-accent/15 text-ow-accent'
@@ -547,15 +552,15 @@ export default function Prematch() {
                 >
                   <button
                     onClick={() => setMap(m)}
-                    className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+                    className="flex items-center gap-1 min-w-0 hover:opacity-80 transition-opacity"
                     title={`Set ${m} as the match map`}
                   >
-                    {m === winner && <span className="text-xs normal-case">✓</span>}
-                    {withMapCount(m, mapCounts)}
+                    {m === winner && <span className="shrink-0 normal-case">✓</span>}
+                    <span className="truncate">{withMapCount(m, mapCounts)}</span>
                   </button>
                   <button
                     onClick={() => toggleMap(m)}
-                    className="flex items-center justify-center w-5 h-5 rounded-full text-sm font-bold leading-none hover:bg-black/10 hover:text-red-600 transition-colors"
+                    className="flex items-center justify-center w-4 h-4 shrink-0 rounded-full text-xs font-bold leading-none hover:bg-black/10 hover:text-red-600 transition-colors"
                     title={`Remove ${m}`}
                   >
                     ×
@@ -564,7 +569,7 @@ export default function Prematch() {
               ))}
               <button
                 onClick={() => { setSelected([]); advisorSelectRef.current?.focus(); }}
-                className="flex items-center px-3 py-1 rounded-full text-sm font-medium bg-ow-border/40 text-[var(--ink-2)] hover:bg-ow-border/70 hover:text-[var(--ink)] transition-colors"
+                className="flex-1 min-w-0 flex items-center justify-center px-2 py-1 rounded-full text-[10px] font-medium bg-ow-border/40 text-[var(--ink-2)] hover:bg-ow-border/70 hover:text-[var(--ink)] transition-colors"
                 data-inspect-id="prematch-map-voting-clear-button"
               >
                 Clear
