@@ -285,11 +285,26 @@ interface DpiTestActive {
 }
 interface DpiTestState { actives: DpiTestActive[] }
 
+// /api/blind/sets — every DPI/sens-test set ever created, tagged with its
+// testing phase. Same shape/route Prematch's Select Your Hero reads to build
+// the current phase's full roster; fetched independently here too (same
+// pattern this file already uses for /api/blind/state) so the hero dropdowns
+// below can be scoped to "heroes being tested in the selected role" rather
+// than just whichever hero currently has an active run.
+interface BlindSetSummary {
+  set_id: number;
+  hero: string | null;
+  phase: string | null;
+  active: boolean;
+  completed: boolean;
+}
+
 export default function LogMatch() {
   // Map + queue mode are shared with the Pre-Match section via context; this
   // section only owns date/time/hero/win plus the death tags.
-  const { queueMode, setQueueMode, map, setMap, mapType, sens, pendingHero, setPendingHero, revalidateRec, notifyMatchLogged, deathBuffer, removeDeathFromBuffer, clearDeathBuffer } = useMatch();
+  const { queueMode, setQueueMode, map, setMap, mapType, sens, testRole, pendingHeroes, setPendingHeroes, revalidateRec, notifyMatchLogged, deathBuffer, removeDeathFromBuffer, clearDeathBuffer } = useMatch();
   const { data: dpiState } = useApi<DpiTestState>('/api/blind/state');
+  const { data: blindSets } = useApi<{ sets: BlindSetSummary[] }>('/api/blind/sets');
   const mapCounts = useTodayMapCounts();
   const heroCounts = useTodayHeroCounts();
   // One feel reading per hero actually played (mirrors switchHeroes/duration_min
@@ -343,14 +358,28 @@ export default function LogMatch() {
   const displaySensForHero = (h: string): number | null => sensForHero(h) ?? (parseFloat(sens) > 0 ? parseFloat(sens) : null);
   const activeSetSens = sensForHero(form.hero);
 
-  // Hero dropdowns only offer heroes with an active (in-testing) DPI test —
-  // logging is meant to feed the running test, not just record any match.
-  // QP is the exception: it doesn't feed a DPI test (sensForHero above only
-  // resolves a test sens for QP Support), so restricting the list there just
-  // gets in the way — every hero is offered instead.
+  // Hero dropdowns only offer heroes actually being tested — logging is meant
+  // to feed the running test, not just record any match — scoped down
+  // further to whichever role Role Pick has selected (Prematch's toggle,
+  // shared via context), not the full DPS/Support roster class. "Being
+  // tested" = the current testing phase's roster (active OR already finished
+  // this phase — same phaseHeroes/currentPhase logic as Prematch's Select
+  // Your Hero, so a hero clicked there always has a matching option here),
+  // unioned with any currently-active test so an active ad-hoc/legacy test
+  // outside the current phase still shows too. QP is the exception: it
+  // doesn't feed a DPI test (sensForHero above only resolves a test sens for
+  // QP Support), so restricting the list there just gets in the way — every
+  // hero is offered instead.
   const isQP = queueMode === 'qp_role';
   const inTestingHeroes = new Set((dpiState?.actives ?? []).map(a => a.hero).filter((h): h is string => !!h));
-  const HERO_TEST_LIST = isQP ? HERO_LIST : HERO_LIST.filter(([h]) => inTestingHeroes.has(h));
+  const allBlindSets = blindSets?.sets ?? [];
+  const currentPhase = [...allBlindSets].reverse().find(s => s.phase)?.phase ?? null;
+  const phaseHeroes = new Set(
+    (currentPhase ? allBlindSets.filter(s => s.phase === currentPhase) : [])
+      .map(s => s.hero).filter((h): h is string => !!h),
+  );
+  const testableHeroes = new Set([...inTestingHeroes, ...phaseHeroes]);
+  const HERO_TEST_LIST = isQP ? HERO_LIST : HERO_LIST.filter(([h, r]) => testableHeroes.has(h) && r === testRole);
   // In QP mode the switch dropdowns offer every hero, so without this a
   // mid-match "switch" could silently re-pick a hero already in another slot
   // — each switch slot excludes whichever hero the *other* slots hold.
@@ -405,15 +434,22 @@ export default function LogMatch() {
     };
   }, []);
 
-  // A hero tapped in the Pre-Match hero list pre-fills the form here, then we
-  // centre Match Details so the auto-fill is visible.
+  // Heroes tapped in the Pre-Match "Select Your Hero" list pre-fill the form
+  // here, in click order — index 0 is the starting hero (form.hero), 1/2 are
+  // the two switch-hero slots, mirroring that section's own click-order
+  // badges exactly. Sent as the FULL current click list on every click (not
+  // a delta), so this always fully re-derives all 3 slots from whatever's
+  // currently clicked — including clearing a slot back out when a hero is
+  // toggled off there. Then we centre Match Details so the auto-fill is visible.
   useEffect(() => {
-    if (pendingHero) {
-      setForm(f => ({ ...f, hero: pendingHero }));
-      setPendingHero(null);
+    if (pendingHeroes) {
+      const [h1, h2, h3] = pendingHeroes;
+      setForm(f => ({ ...f, hero: h1 ?? '' }));
+      setSwitchHeroes([h2 ?? '', h3 ?? '']);
+      setPendingHeroes(null);
       centerOnElement('match-details');
     }
-  }, [pendingHero, setPendingHero]);
+  }, [pendingHeroes, setPendingHeroes]);
 
   // Picking a map from the Hero Advisor dropdown brings the whole
   // Consolidated Advisor card into a centred view first — not just the
@@ -875,13 +911,13 @@ export default function LogMatch() {
                 <span
                   aria-hidden="true"
                   className={`pointer-events-none absolute inset-y-0 left-0 w-1/2 transition-all duration-200 ease-out ${
-                    form.win === '1' ? 'translate-x-0 bg-emerald-800'
-                    : form.win === '0' ? 'translate-x-full bg-red-800'
+                    form.win === '1' ? 'translate-x-0 bg-teal-700'
+                    : form.win === '0' ? 'translate-x-full bg-pink-700'
                     : 'opacity-0'
                   }`}
                 />
-                {[{ v: '1', label: 'Win',  onColor: 'text-emerald-400', litColor: 'text-emerald-300' },
-                  { v: '0', label: 'Loss', onColor: 'text-red-400',     litColor: 'text-red-300' }].map(({ v, label, onColor, litColor }) => {
+                {[{ v: '1', label: 'Win',  onColor: 'text-teal-400', litColor: 'text-teal-300' },
+                  { v: '0', label: 'Loss', onColor: 'text-pink-400', litColor: 'text-pink-300' }].map(({ v, label, onColor, litColor }) => {
                   const selected = form.win === v;
                   // Stacked chevrons like a military rank insignia — pointing up
                   // for Win, down for Loss. Filled bands so the arm-ends are cut
@@ -973,6 +1009,7 @@ export default function LogMatch() {
               disabled={!valid || status === 'saving'}
               data-inspect-id="logmatch-log-match-button"
               className="btn-primary w-full py-2.5 text-sm"
+              style={{ backgroundImage: 'linear-gradient(to bottom right, rgb(247 147 30 / 0.1), rgb(247 147 30 / 0.04), transparent)' }}
             >
               {status === 'saving' ? 'Saving…' : status === 'success' ? '✓ Saved' : 'Log Match'}
             </button>

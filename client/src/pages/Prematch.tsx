@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { useApi } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
-import { MAPS, QUEUE_MODES, ROLE_COLORS, TYPE_COLORS, HEROES, MapVotingRow, Streaks } from '../types';
+import { MAPS, QUEUE_MODES, ROLE_COLORS, ROLE_PILL_CLASS, TYPE_COLORS, HEROES, MapVotingRow, Streaks } from '../types';
 import AdvisorCard from '../components/AdvisorCard';
 import EmptyState from '../components/EmptyState';
 import { useMapDrawer } from '../contexts/MapDrawerContext';
@@ -28,6 +28,37 @@ const DPI_TEST_HERO_KEY = 'ow-dpi-test-hero';
 const AD_HOC_KEY = '__adhoc__';
 
 interface HeroRow { hero: string; role: string; games: number; wins: number; win_rate: number }
+
+// /api/blind/sets — every DPI/sens-test set ever created (active or not),
+// tagged with its testing phase. Used to build the full "5 heroes per role"
+// roster for whichever phase is current, including heroes that already
+// finished this phase — /api/blind/state only returns currently-active sets,
+// which is why "Select Your Hero" used to drop a hero the moment its test
+// completed.
+interface BlindSetSummary {
+  set_id: number;
+  hero: string | null;
+  phase: string | null;
+  active: boolean;
+  completed: boolean;
+}
+
+// /api/advisor/test-pick response — top 3 (map, hero) combos ranked by win
+// rate across (candidate maps) x (current phase roster for the selected
+// role). See that route for the ranking/sparse-data rules.
+interface TestPickCombo {
+  map: string;
+  hero: string;
+  games: number;
+  win_rate: number;
+  sample_size: 'strong' | 'thin';
+}
+interface TestPick {
+  role: 'DPS' | 'Support';
+  available: boolean;
+  reason?: 'no_phase_heroes' | 'no_data' | 'no_maps_selected';
+  picks: TestPickCombo[];
+}
 
 interface AimAnalysisHero { hero: string; bestScaleEDPI: number; bestScaleN: number }
 
@@ -57,7 +88,7 @@ interface PrematchData {
 export default function Prematch() {
   // Shared, single-instance match state (queue mode, map, advisor) lives here
   // and is consumed by the Log Match section too.
-  const { queueMode, map, setMap, mapType, rec, recLoading, recError, refreshRec, setPendingHero, matchLoggedSignal } = useMatch();
+  const { queueMode, map, setMap, mapType, rec, recLoading, recError, refreshRec, testRole, setTestRole, setPendingHeroes, matchLoggedSignal } = useMatch();
   const { data: dpiHud } = useApi<DpiTestHud>('/api/blind/state');
   const btActives = dpiHud?.actives ?? [];
   // Several heroes can be "In Testing" at once, but the mouse can only be set
@@ -82,6 +113,26 @@ export default function Prematch() {
   const mapCounts = useTodayMapCounts();
   const heroCounts = useTodayHeroCounts();
 
+  // Full roster for the CURRENT testing phase, so "Select Your Hero" can show
+  // every hero that belongs to this phase — not just the ones still actively
+  // testing. "Current phase" = the most recent non-null `phase` tag among all
+  // sets ever created (blind_stage_sets.phase, set once per phase via
+  // SensLog's phase-builder); verified against the live DB rather than
+  // assumed — every phase so far is exactly 5 DPS + 5 Support sets created
+  // together, and only one phase is ever "live" at a time (a new phase's
+  // roster carryover cancels the previous phase's sets). "Done this phase" =
+  // that hero's set for the phase has completed (totalGames reached its
+  // batch_size × n_stages target) — checked against `active` too, and in the
+  // live data the two always agree (a done hero's set is also inactive), but
+  // `completed` is the more direct signal for "finished testing" and is what
+  // gets shown, independent of whether it also happens to be inactive.
+  const { data: blindSets } = useApi<{ sets: BlindSetSummary[] }>('/api/blind/sets');
+  const allSets = blindSets?.sets ?? [];
+  const currentPhase = [...allSets].reverse().find(s => s.phase)?.phase ?? null;
+  const phaseRoster = currentPhase ? allSets.filter(s => s.phase === currentPhase) : [];
+  const phaseHeroes = new Set(phaseRoster.map(s => s.hero).filter((h): h is string => !!h));
+  const doneThisPhase = new Set(phaseRoster.filter(s => s.completed && s.hero).map(s => s.hero!));
+
   const params = new URLSearchParams();
   if (map) params.set('map', map);
   if (mapType) params.set('game_type', mapType);
@@ -98,23 +149,56 @@ export default function Prematch() {
   const { data: streaksData } = useApi<Streaks>('/api/stats/streaks');
   const { data: byHour } = useApi<{ hour: number; games: number; wins: number; win_rate: number; qp_games: number; qp_win_rate: number | null; comp_games: number; comp_win_rate: number | null }[]>('/api/stats/by-hour');
   const [selected, setSelected] = useState<string[]>([]);
+
+  // Test Pick — top 3 (map, hero) combos ranked by win rate, once maps are
+  // entered. Reuses Map Voting's own `selected` picks — the same up-to-3
+  // maps Sean already enters there, which is what the in-game vote screen
+  // actually offered — as the candidate set, rather than a second map
+  // picker. Ranked across (candidate maps) x (current phase roster for the
+  // Role Pick role) — see /api/advisor/test-pick for the ranking/sparse-data
+  // rules. Displayed attached to Map Voting further down, only once
+  // `selected` is non-empty — a single "best map" pick wouldn't help vote
+  // differently among 3 fixed candidates, so Role Pick itself shows no
+  // recommendation. `testRole` lives in MatchContext (not local state) so Log
+  // Match's hero dropdowns can read the same chosen role to filter by.
+  const testPickMaps = selected.join(',');
+  const { data: testPick } = useApi<TestPick>(
+    `/api/advisor/test-pick?role=${testRole}&maps=${encodeURIComponent(testPickMaps)}`,
+    [testRole, testPickMaps],
+  );
+
   const [query, setQuery]       = useState('');
   const [open, setOpen]         = useState(false);
-  // Which hero card in "Select Your Hero" is currently picked, kept
-  // separately from the context's `pendingHero` — that one is a one-shot
-  // signal LogMatch consumes and clears the instant it pre-fills the form,
-  // so it can't double as "what should stay highlighted here."
-  const [selectedHero, setSelectedHero] = useState<string | null>(null);
+  // Ordered heroes clicked in "Select Your Hero" this match, kept separately
+  // from the context's `pendingHeroes` — that one is a one-shot signal Log
+  // Match consumes and clears the instant it pre-fills the form, so it can't
+  // double as "what should stay highlighted here." Order matters: index 0 is
+  // the 1st click (Log Match's form.hero/starting hero), 1/2 are the 2nd/3rd
+  // clicks (Log Match's two switch-hero slots) — clicking an already-clicked
+  // hero again toggles it off (and reflows the ones after it up), and a 4th
+  // click while 3 are already picked is a no-op, same "tap up to 3, blocked
+  // past that" convention Map Voting's own toggleMap already uses above.
+  const [clickedHeroes, setClickedHeroes] = useState<string[]>([]);
   const inputRef                = useRef<HTMLInputElement>(null);
   const advisorSelectRef        = useRef<HTMLSelectElement>(null);
 
+  function toggleHeroClick(hero: string) {
+    const next = clickedHeroes.includes(hero)
+      ? clickedHeroes.filter(h => h !== hero)
+      : clickedHeroes.length < 3 ? [...clickedHeroes, hero] : clickedHeroes;
+    if (next === clickedHeroes) return; // blocked (4th click) — no-op, nothing to sync
+    setClickedHeroes(next);
+    setPendingHeroes(next);
+  }
+
   // Once a hero is picked in "Select Your Hero", snap the DPI/sens HUD to
-  // that hero's active test (if it has one) instead of leaving it on
-  // whatever hero was last picked in the HUD's own dropdown.
+  // whichever one was clicked most recently (not the 1st click) — that's the
+  // hero about to be played next when multiple are queued up.
   useEffect(() => {
-    if (!selectedHero) return;
-    if (btActives.some(a => a.hero === selectedHero)) setBtHeroPick(selectedHero);
-  }, [selectedHero, btActives]);
+    const last = clickedHeroes[clickedHeroes.length - 1];
+    if (!last) return;
+    if (btActives.some(a => a.hero === last)) setBtHeroPick(last);
+  }, [clickedHeroes, btActives]);
 
   // Reset the voting picks after a match is logged (skips the initial mount).
   const didMount = useRef(false);
@@ -123,7 +207,7 @@ export default function Prematch() {
     setSelected([]);
     setQuery('');
     setOpen(false);
-    setSelectedHero(null);
+    setClickedHeroes([]);
   }, [matchLoggedSignal]);
 
   // Keep focus on the map search whenever the app is idle (no map selected).
@@ -170,12 +254,16 @@ export default function Prematch() {
   const ranked  = [...selected].sort((a, b) => (scoreMap[b]?.blended_score ?? 0) - (scoreMap[a]?.blended_score ?? 0));
   const winner  = ranked[0];
   const topOnMap = data?.byHero ?? [];
-  // "Select Your Hero" surfaces heroes with an active (in-testing) DPI test —
-  // picking here is meant to feed a test, not just log any match. Heroes
-  // whose set has already completed drop out entirely rather than lingering
-  // with a Completed badge.
+  // "Select Your Hero" surfaces every hero in the CURRENT testing phase's
+  // full roster — both the ones still actively testing and the ones that
+  // already finished this phase (see phaseHeroes/doneThisPhase above) — union
+  // with inTestingHeroes so an active ad-hoc/legacy test outside the current
+  // phase (if one is ever running) still shows up too, additive rather than
+  // narrowing. Previously this dropped a hero the instant its test completed;
+  // now it stays visible with a "Done" badge instead (see the button render
+  // below) so Sean can see the whole phase roster at a glance.
   const inTestingHeroes = new Set(btActives.map(a => a.hero).filter((h): h is string => !!h));
-  const selectableHeroes = inTestingHeroes;
+  const selectableHeroes = new Set([...inTestingHeroes, ...phaseHeroes]);
   // Every hero surfaced below is actively testing, so always has a sens/DPI
   // value here. Sens supersedes DPI post-lock; DPI is the fallback for any
   // pre-lock stage still running on the old axis.
@@ -247,7 +335,15 @@ export default function Prematch() {
       {/* DPI test HUD (square) + Map Voting + Hero Advisor row — stacks on
           phone widths; three-across only once there's room for each card's
           own header (title + badge) to fit without wrapping. */}
-      <div className="flex flex-col sm:flex-row items-stretch gap-4 mb-4">
+      {/* Fixed height at sm+ (sm:h-[15.2rem], 5% under the original 16rem) so this row holds steady regardless of
+          card content, with Map Voting and Hero Advisor matching DPI-HUD's
+          card size instead of growing past it — their variable content
+          (vote recommendation, hero coaching, etc.) scrolls internally past
+          this fixed height rather than pushing it. DPI-HUD stays
+          self-stretch + aspect-square so its width is always derived from
+          this SAME shared height (square, deterministic) rather than a
+          separate guessed width — all three cards size off one number. */}
+      <div className="flex flex-col sm:flex-row items-stretch gap-4 mb-4 sm:h-[15.2rem]">
 
         {/* DPI stage-test HUD — a dropdown picks which "In Testing" hero you're
             about to play (several can be active at once, but the mouse can
@@ -345,11 +441,29 @@ export default function Prematch() {
         </div>
 
         {/* Map Voting */}
-        <div className="card flex-1 min-w-0 flex flex-col" data-inspect-id="prematch-map-voting-card">
-          <div className="flex items-center justify-between mb-4">
+        <div className="card flex-1 min-w-0 flex flex-col overflow-hidden" data-inspect-id="prematch-map-voting-card">
+          <div className="flex items-center justify-between mb-4 min-h-8">
             <div className="flex items-center gap-2">
               <h2 className="text-sm heading-display text-[var(--ink)] whitespace-nowrap">Map Voting</h2>
               <span className="text-xs text-[var(--faint)] bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">tap up to 3</span>
+            </div>
+            <div className="flex gap-2" data-inspect-id="prematch-role-pick-toggle">
+              {(['DPS', 'Support'] as const).map(r => {
+                const active = testRole === r;
+                const activeBorder = r === 'DPS' ? 'border-teal-400 dark:border-teal-500' : 'border-pink-400 dark:border-pink-500';
+                return (
+                  <button
+                    key={r}
+                    onClick={() => setTestRole(r)}
+                    className={`px-3 py-1 rounded-lg border-2 text-xs font-semibold transition-all ${
+                      active ? `${ROLE_COLORS[r]} ${activeBorder}` : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)]'
+                    }`}
+                    data-inspect-id={`prematch-role-pick-${r.toLowerCase()}-button`}
+                  >
+                    {r}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -387,6 +501,12 @@ export default function Prematch() {
               </div>
             )}
           </div>
+
+          {/* Scroll region for everything below the pinned search input —
+              this is what actually grows (idle list, selected chips, vote
+              recommendation), so it scrolls internally rather than pushing
+              the card's (and thus the whole row's) height. */}
+          <div className="flex-1 min-h-0 overflow-y-auto">
 
           {/* Idle: best & worst maps by win rate — tap one to add it to your
               picks (which swaps this block for the chips + vote below). */}
@@ -452,10 +572,44 @@ export default function Prematch() {
             </div>
           )}
 
-          {/* Vote recommendation */}
-          {ranked.length > 0 && (
+          {/* Vote recommendation — driven by testPick (the cross product of
+              candidate maps x current-phase roster for the Role Pick role)
+              when that data is available, since a hero-informed win rate is
+              more useful than a map-only blended score for actually deciding
+              which map to vote for. Falls back to the old map-only
+              blended_score ranking when testPick has nothing (no phase
+              heroes yet, or zero games logged for any of them) so the
+              section still works before a testing phase exists. Replaces
+              the former separate "Top Picks" list below this — folded in
+              per "new feature does not equate to new elements" rather than
+              keeping two side-by-side recommendations. */}
+          {selected.length > 0 && (testPick?.available ? testPick.picks.length > 0 : ranked.length > 0) && (
             <div className="pt-4 mt-4">
-              {ranked.length === 1 ? (
+              {testPick?.available && testPick.picks.length > 0 ? (
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="text-xs text-[var(--faint)] uppercase tracking-wider">Vote for</div>
+                      <span className={`pill ${ROLE_COLORS[testRole]}`}>{testRole}</span>
+                    </div>
+                    <button onClick={() => setMap(testPick.picks[0].map)} className="text-xl map-name text-emerald-600 hover:text-emerald-700 transition-colors text-left" data-inspect-id="prematch-vote-for-button">
+                      {withMapCount(testPick.picks[0].map, mapCounts)}
+                    </button>
+                    <div className="text-xs text-[var(--faint)] mt-0.5">
+                      <span className="hero-name">{testPick.picks[0].hero}</span> · <b className="font-bold text-emerald-500">{testPick.picks[0].win_rate}</b>%
+                      {testPick.picks[0].sample_size === 'thin' && <span className="text-amber-500"> · thin</span>}
+                      {' · '}<b className="font-bold">{testPick.picks[0].games}</b>g played
+                    </div>
+                  </div>
+                  <div className="text-right space-y-1">
+                    {testPick.picks.slice(1).map(p => (
+                      <div key={`${p.map}|${p.hero}`} className="text-[10px] text-[var(--faint)]">
+                        <span className="map-name">{withMapCount(p.map, mapCounts)}</span> · <span className="hero-name">{p.hero}</span> · <b className="font-bold">{p.win_rate}</b>%
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : ranked.length === 1 ? (
                 <div className="text-sm text-[var(--muted)]">Select more maps to compare.</div>
               ) : (
                 <div className="flex items-center gap-4">
@@ -472,7 +626,7 @@ export default function Prematch() {
                   </div>
                   <div className="text-right space-y-1">
                     {ranked.slice(1).map(m => (
-                      <div key={m} className="text-sm text-[var(--faint)]">
+                      <div key={m} className="text-[10px] text-[var(--faint)]">
                         <span className="map-name">{withMapCount(m, mapCounts)}</span>{scoreMap[m] ? <> · <b className="font-bold">{scoreMap[m].blended_score}</b>%</> : ' · no data'}
                       </div>
                     ))}
@@ -481,11 +635,12 @@ export default function Prematch() {
               )}
             </div>
           )}
+          </div>
         </div>
 
         {/* Hero Advisor — Map selector */}
-        <div className="card flex-1 min-w-0 flex flex-col" data-inspect-id="prematch-hero-advisor-card">
-          <div className="flex items-center justify-between mb-4">
+        <div className="card flex-1 min-w-0 flex flex-col overflow-hidden" data-inspect-id="prematch-hero-advisor-card">
+          <div className="flex items-center justify-between mb-4 min-h-8">
             <div className="flex items-center gap-2">
               <h2 className="text-sm heading-display text-[var(--ink)] whitespace-nowrap">Hero Advisor</h2>
               <span className="text-xs text-[var(--faint)] bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">pick a map</span>
@@ -512,6 +667,12 @@ export default function Prematch() {
             </select>
           </div>
           {mapType && <span className={`pill ${TYPE_COLORS[mapType] ?? ''}`} data-inspect-id="prematch-map-type-badge">{mapType}</span>}
+
+          {/* Scroll region for everything below the pinned map selector —
+              same treatment as Map Voting's scroll wrapper, so the row's
+              fixed height holds regardless of how tall the hero
+              recommendation/coaching content below gets. */}
+          <div className="flex-1 min-h-0 overflow-y-auto">
 
           {/* Idle: session & timing snapshot — how you're doing right now.
               The panel is deliberately roomier than its content strictly
@@ -580,11 +741,9 @@ export default function Prematch() {
                   )}
                 </div>
               </div>
-              <div className="text-xs text-[var(--faint-2)] text-center">
-                Select a map above for hero recommendations and coaching tailored to it.
-              </div>
             </div>
           )}
+          </div>
         </div>
 
       </div>
@@ -720,23 +879,41 @@ export default function Prematch() {
                 <div key={role}>
                   <div className={`text-xs font-bold uppercase tracking-widest mb-2 ${ROLE_COLORS[role].split(' ')[1]}`}>{role}</div>
                   <div className="flex flex-col gap-1.5">
-                    {heroes.map(h => (
+                    {heroes.map(h => {
+                      const clickIndex = clickedHeroes.indexOf(h.hero);
+                      const isClicked = clickIndex !== -1;
+                      return (
                       <button
                         key={h.hero}
-                        onClick={() => { setSelectedHero(h.hero); setPendingHero(h.hero); }}
+                        onClick={() => toggleHeroClick(h.hero)}
                         data-inspect-id="prematch-hero-picker-button"
-                        aria-pressed={selectedHero === h.hero}
+                        aria-pressed={isClicked}
                         className={`relative flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-lg border active:scale-[0.98] transition-all group ${
-                          selectedHero === h.hero
+                          isClicked
                             ? 'border-ow-accent bg-ow-accent/15'
                             : 'border-ow-border bg-ow-darker hover:border-ow-accent/70 hover:bg-ow-accent/10'
                         }`}
                       >
+                        {isClicked && (
+                          // Click order (1st/2nd/3rd) — feeds Log Match's
+                          // form.hero + 2 switch-hero slots in this same order.
+                          // Colored by the hero's own role (ROLE_PILL_CLASS —
+                          // the same DPS/Tank/Support convention used for role
+                          // badges/pills elsewhere) rather than a generic accent
+                          // color, so the badge reads as "this role's Nth pick."
+                          <span
+                            className={`absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full text-white text-[9px] font-bold flex items-center justify-center pointer-events-none z-10 ${ROLE_PILL_CLASS[role]}`}
+                            title={`Pick #${clickIndex + 1} this match`}
+                            data-inspect-id="prematch-hero-picker-order-badge"
+                          >
+                            {clickIndex + 1}
+                          </span>
+                        )}
                         <span className={`text-sm ${h.win_rate >= 50 ? 'text-emerald-700' : 'text-red-500'}`}>{h.win_rate >= 50 ? '↑' : '↓'}</span>
-                        <span className={`flex-1 text-xs hero-name transition-colors ${selectedHero === h.hero ? 'text-ow-accent' : 'text-[var(--ink)] group-hover:text-ow-accent'}`}>
+                        <span className={`flex-1 text-xs hero-name transition-colors ${isClicked ? 'text-ow-accent' : 'text-[var(--ink)] group-hover:text-ow-accent'}`}>
                           {withHeroCount(h.hero, heroCounts)}{testValueFor(h.hero) && ` @ ${testValueFor(h.hero)}`}
                         </span>
-                        {testGaugeFor(h.hero) != null && (
+                        {testGaugeFor(h.hero) != null ? (
                           <span
                             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-0.5 pointer-events-none"
                             title={`${testGaugeFor(h.hero)}/${GAUGE_SEGMENTS} games left at current sens`}
@@ -753,11 +930,24 @@ export default function Prematch() {
                               />
                             ))}
                           </span>
+                        ) : doneThisPhase.has(h.hero) && (
+                          // No active test right now, but this hero belongs to the
+                          // current phase's roster and has already finished it —
+                          // shown so Sean can see the whole phase at a glance,
+                          // not just whichever hero is still running.
+                          <span
+                            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 pointer-events-none whitespace-nowrap"
+                            title="Already tested this phase"
+                            data-inspect-id="prematch-hero-picker-done-badge"
+                          >
+                            ✓ Done
+                          </span>
                         )}
                         <span className={`text-sm font-bold ${h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
                         <span className="text-xs text-[var(--faint-2)] w-7 text-right font-bold">{h.games}g</span>
                       </button>
-                    ))}
+                      );
+                    })}
                     {heroes.length === 0 && (
                       <div className="py-2 text-xs text-[var(--faint-2)]">No games yet</div>
                     )}

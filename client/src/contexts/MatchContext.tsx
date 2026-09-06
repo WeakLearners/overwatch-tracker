@@ -7,6 +7,10 @@ import { MAPS, QUEUE_MODES, QueueMode, Recommendation, DeathRecord, DeathAxisKey
 export type AdvisorByRole = Record<'DPS' | 'Support', Recommendation | null>;
 
 const QUEUE_MODE_KEY = 'ow-last-queue-mode';
+// Role Pick's chosen role — lifted here (from a Prematch-local state) so both
+// Prematch (the toggle + recommendation) and Log Match (the hero-dropdown
+// role filter) read the same value instead of drifting independently.
+const TEST_ROLE_KEY = 'ow-test-role';
 // Last sensitivity used, carried across matches so it only changes when Sean
 // deliberately changes it (the crux of the sens study). Shared here because the
 // input lives in the Pre-Match row while the log form reads it on submit.
@@ -43,8 +47,12 @@ function pickLeastSampledAxis(t: AxisTally): DeathAxisKey {
 
 // The shared "current match" intent for the single-page Dashboard: one queue
 // mode, one selected map, one advisor recommendation, consumed by both the
-// Pre-Match and Log Match sections. `pendingHero` lets the Pre-Match hero list
-// pre-fill the Log Match form without a page navigation.
+// Pre-Match and Log Match sections. `pendingHeroes` lets the Pre-Match hero
+// picker pre-fill the Log Match form's hero slots (in click order) without a
+// page navigation — index 0 is the starting hero, 1/2 are mid-match switches,
+// mirroring Log Match's own form.hero + switchHeroes[2] shape exactly (was a
+// single `pendingHero: string | null` before Select Your Hero supported
+// ordered multi-hero picks).
 interface MatchContextValue {
   queueMode: QueueMode;
   setQueueMode: (q: QueueMode) => void;
@@ -54,6 +62,11 @@ interface MatchContextValue {
   // In-game sensitivity for the next logged match (kept as the raw input string).
   sens: string;
   setSens: (s: string) => void;
+  // Role Pick's chosen role (DPS/Support) — set in Prematch's Role Pick
+  // toggle, read there for the map+hero recommendation and in Log Match to
+  // scope the hero dropdowns to heroes being tested in that role.
+  testRole: 'DPS' | 'Support';
+  setTestRole: (r: 'DPS' | 'Support') => void;
   rec: AdvisorByRole | null;
   recLoading: boolean;
   recError: string | null;
@@ -61,8 +74,8 @@ interface MatchContextValue {
   // Re-fetch the advisor without forcing an LLM regen (cheap) — used after a
   // match is logged so the death-axis breakdown reflects the new data.
   revalidateRec: () => void;
-  pendingHero: string | null;
-  setPendingHero: (h: string | null) => void;
+  pendingHeroes: string[] | null;
+  setPendingHeroes: (h: string[] | null) => void;
   // Bumped each time a match is logged, so sections can reset (e.g. Map Voting).
   matchLoggedSignal: number;
   // The most recent logged result, used to play the win/loss flash on the
@@ -95,7 +108,13 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     try { return localStorage.getItem(SENS_KEY) ?? '2.5'; } catch { return '2.5'; }
   });
   useEffect(() => { if (sens) localStorage.setItem(SENS_KEY, sens); }, [sens]);
-  const [pendingHero, setPendingHero] = useState<string | null>(null);
+  const [testRole, setTestRole] = useState<'DPS' | 'Support'>(() => {
+    try { return localStorage.getItem(TEST_ROLE_KEY) === 'Support' ? 'Support' : 'DPS'; } catch { return 'DPS'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(TEST_ROLE_KEY, testRole); } catch { /* ignore */ }
+  }, [testRole]);
+  const [pendingHeroes, setPendingHeroes] = useState<string[] | null>(null);
   const [matchLoggedSignal, setMatchLoggedSignal] = useState(0);
   const [lastLog, setLastLog] = useState<{ mode: QueueMode; win: boolean; seq: number } | null>(null);
 
@@ -167,11 +186,12 @@ export function MatchProvider({ children }: { children: ReactNode }) {
       queueMode, setQueueMode,
       map, setMap,
       sens, setSens,
+      testRole, setTestRole,
       mapType: map ? MAPS[map] : '',
       rec, recLoading, recError,
       refreshRec: () => fetchRec(true),
       revalidateRec: () => fetchRec(false),
-      pendingHero, setPendingHero,
+      pendingHeroes, setPendingHeroes,
       matchLoggedSignal,
       lastLog,
       deathBuffer, addDeathToBuffer, removeDeathFromBuffer, clearDeathBuffer, nextDeathAxis,

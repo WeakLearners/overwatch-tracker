@@ -658,4 +658,102 @@ function ALL_HEROES_BY_ROLE(roles: string[]): string[] {
   return roles.flatMap(r => HEROES_BY_ROLE[r] ?? []);
 }
 
+interface TestPickCombo { map: string; hero: string; games: number; win_rate: number; sample_size: 'strong' | 'thin' }
+
+// ── Test Pick: top 3 (map, hero) combos ranked by win rate, across the cross
+// product of the specific maps the in-game vote screen offered Sean this
+// match × every hero CURRENTLY ACTIVE in testing for the selected role —
+// feeds a recommendation panel that only appears once maps are entered (map
+// voting is a vote among 3 fixed candidates, so a single "best map overall"
+// pick doesn't help him vote differently; a hero-choice layer ranked across
+// all 3 candidates does). The caller passes those maps (up to 3, however
+// many have been entered so far) via `maps`, reusing whatever the existing
+// Map Voting card's picker already captured. The role roster here is
+// getInTestingHeroes ONLY (active=1) — deliberately narrower than the full
+// current-phase roster (active AND already-finished heroes, which is what
+// the client's /api/blind/sets-backed Select Your Hero "Done" badges use).
+// Once every hero in a phase finishes and none are active, roleHeroes is
+// empty and this falls through to 'no_phase_heroes', which the client reads
+// as "no test data" and falls back to the plain map-only blended-score
+// recommendation —
+// i.e. testing-phase-aware picks only during an active phase; a generic
+// recommendation at the end of one, by design.
+//
+// Ranking (sparse-data handling applied PER combo, not as one global
+// cascade): only combos with at least 1 logged game are ranked at all — a
+// combo with zero games has no win rate to rank by, so it's left out rather
+// than padded in as filler. Sort key: games >= MIN_GAMES_FOR_PICK (3) first
+// ("strong" beats "thin" regardless of win rate — a fluky 1-game 100% combo
+// shouldn't outrank an established 8/10), then win_rate desc, then games
+// desc, then map name asc, then hero name asc as the final tie-break. Top 3
+// after that sort are returned, each tagged with its own sample_size.
+//
+// available: false cases: reason 'no_maps_selected' (maps param empty),
+// 'no_phase_heroes' (no hero currently active in testing for this role —
+// e.g. the phase is finished, or none has ever started), 'no_data' (every
+// candidate combo across the active hero pool has zero games logged).
+router.get('/test-pick', (req: Request, res: Response) => {
+  const db = getDb();
+  const roleParam = req.query.role as string | undefined;
+  if (!roleParam || !ADVISOR_ROLES.includes(roleParam as AdvisorRole)) {
+    res.status(400).json({ error: `role must be one of ${ADVISOR_ROLES.join(', ')}` });
+    return;
+  }
+  const role = roleParam as AdvisorRole;
+
+  const mapsParam = (req.query.maps as string | undefined) ?? '';
+  const candidateMaps = [...new Set(mapsParam.split(',').map(m => m.trim()).filter(Boolean))].slice(0, 3);
+  if (candidateMaps.length === 0) {
+    res.json({ role, available: false, reason: 'no_maps_selected', picks: [] });
+    return;
+  }
+
+  const inTesting = getInTestingHeroes(db);
+  const roleHeroes = ALL_HEROES_BY_ROLE([role]).filter(h => inTesting.has(h));
+  if (roleHeroes.length === 0) {
+    res.json({ role, available: false, reason: 'no_phase_heroes', picks: [] });
+    return;
+  }
+  const heroPlaceholders = roleHeroes.map(() => '?').join(',');
+  const mapPlaceholders = candidateMaps.map(() => '?').join(',');
+
+  const rows = db.prepare(`
+    SELECT map, hero, COUNT(*) games, ROUND(AVG(win) * 100, 1) win_rate
+    FROM matches_by_hero
+    WHERE hero IN (${heroPlaceholders}) AND map IN (${mapPlaceholders})
+    GROUP BY map, hero
+  `).all(...roleHeroes, ...candidateMaps) as unknown as { map: string; hero: string; games: number; win_rate: number }[];
+  const statsByKey = new Map(rows.map(r => [`${r.map}|${r.hero}`, r]));
+
+  // Cross product: every (candidate map) x (role's currently-active testing
+  // hero), keeping only ones with real games to rank. Bounded by however
+  // many heroes are active right now (usually 1, up to the role's phase
+  // size), not a fixed 5 — see getInTestingHeroes above.
+  const scored: TestPickCombo[] = [];
+  for (const map of candidateMaps) {
+    for (const hero of roleHeroes) {
+      const stat = statsByKey.get(`${map}|${hero}`);
+      if (!stat || stat.games === 0) continue;
+      scored.push({ map, hero, games: stat.games, win_rate: stat.win_rate, sample_size: stat.games >= MIN_GAMES_FOR_PICK ? 'strong' : 'thin' });
+    }
+  }
+
+  if (scored.length === 0) {
+    res.json({ role, available: false, reason: 'no_data', picks: [] });
+    return;
+  }
+
+  scored.sort((a, b) => {
+    const tierA = a.sample_size === 'strong' ? 0 : 1;
+    const tierB = b.sample_size === 'strong' ? 0 : 1;
+    if (tierA !== tierB) return tierA - tierB;
+    if (b.win_rate !== a.win_rate) return b.win_rate - a.win_rate;
+    if (b.games !== a.games) return b.games - a.games;
+    if (a.map !== b.map) return a.map < b.map ? -1 : 1;
+    return a.hero < b.hero ? -1 : 1;
+  });
+
+  res.json({ role, available: true, picks: scored.slice(0, 3) });
+});
+
 export default router;
