@@ -901,7 +901,7 @@ export default function Prematch() {
           </div>
         )}
 
-        {/* Coaching — LLM tactical read + death patterns, only once a map is set.
+        {/* Coaching — LLM tactical read (AdvisorCard), only once a map is set.
             Two columns, DPS and Support, each its own independent primary +
             stretch pick — a role with no in-testing hero just shows empty
             rather than an error, since the other column may still have one. */}

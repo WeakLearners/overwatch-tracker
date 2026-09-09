@@ -534,7 +534,6 @@ router.get('/hero-detail/:hero', (req: Request, res: Response) => {
     bestType:  types[0] ?? null,
     worstType: types[types.length - 1] ?? null,
     recent10,
-    deaths: deathInsights(db, 'AND hero = :hero', { hero }, 'matches_by_hero'),
   });
 });
 
@@ -575,224 +574,8 @@ router.get('/map-detail/:map', (req: Request, res: Response) => {
     WHERE map = :map ORDER BY date DESC, id DESC LIMIT 10
   `).all({ map }) as any[];
 
-  res.json({ overall, momentum, heroes, recent5, deaths: deathInsights(db, 'AND map = :map', { map }) });
+  res.json({ overall, momentum, heroes, recent5 });
 });
-
-// Death insights for an arbitrary slice of matches (by hero, by map, or all).
-// `where`/`params` are appended to the base "deaths IS NOT NULL" filter.
-// Powers the hero/map drawers and the Trends comparison view from one place.
-//   - breakdown:  reason -> % of tagged deaths (sum of reason counts)
-//   - reasons:    per-reason loss correlation (how much more it shows up in losses)
-//   - deaths/game: avg total deaths in wins vs losses (does losing = dying more?)
-interface DeathInsights {
-  tagged_games: number;
-  win_games: number;
-  loss_games: number;
-  total_deaths: number;
-  breakdown: { reason: string; count: number; pct: number }[];
-  reasons: { reason: string; in_wins: number; in_losses: number; win_per_match: number; loss_per_match: number; loss_multiplier: number | null }[];
-  deaths_per_win: number | null;
-  deaths_per_loss: number | null;
-  has_outcome_split: boolean;
-}
-
-// `table` picks the attribution source: 'matches' (default) for a slice that
-// isn't hero-scoped, where each match must count once; 'matches_by_hero' for
-// a hero-scoped slice, where a match counts once per hero it filters against
-// — safe there since the `where` fragment always pins to a single hero.
-function deathInsights(
-  db: ReturnType<typeof getDb>, where: string, params: Record<string, string>, table: 'matches' | 'matches_by_hero' = 'matches',
-): DeathInsights {
-  const rows = (db.prepare(
-    `SELECT deaths, win FROM ${table} WHERE deaths IS NOT NULL ${where}`
-  ).all(params) as { deaths: string; win: number }[])
-    // Legacy reason-format rows only. New factual-axis (v2) rows are excluded —
-    // this view shows the frozen historical death data, not the new tagging.
-    .filter(r => { try { return !!JSON.parse(r.deaths)?.reasons; } catch { return false; } });
-
-  const tally: Record<string, { total: number; wins: number; losses: number }> = {};
-  let totalDeaths = 0, winGames = 0, lossGames = 0, deathsInWins = 0, deathsInLosses = 0;
-
-  for (const r of rows) {
-    let d: any;
-    try { d = JSON.parse(r.deaths); } catch { continue; }
-    const isWin = r.win === 1;
-    if (isWin) winGames++; else lossGames++;
-    const gameTotal = typeof d.total === 'number' ? d.total : 0;
-    if (isWin) deathsInWins += gameTotal; else deathsInLosses += gameTotal;
-    for (const [reason, count] of Object.entries(d.reasons ?? {}) as [string, number][]) {
-      if (count <= 0) continue;
-      if (!tally[reason]) tally[reason] = { total: 0, wins: 0, losses: 0 };
-      tally[reason].total += count;
-      tally[reason][isWin ? 'wins' : 'losses'] += count;
-      totalDeaths += count;
-    }
-  }
-
-  const breakdown = Object.entries(tally)
-    .sort((a, b) => b[1].total - a[1].total)
-    .map(([reason, t]) => ({ reason, count: t.total, pct: totalDeaths ? Math.round((t.total / totalDeaths) * 100) : 0 }));
-
-  const reasons = Object.entries(tally).map(([reason, t]) => {
-    const winPer  = winGames  > 0 ? +(t.wins   / winGames).toFixed(2)  : 0;
-    const lossPer = lossGames > 0 ? +(t.losses / lossGames).toFixed(2) : 0;
-    const multiplier = winPer > 0 ? +(lossPer / winPer).toFixed(2) : null;
-    return { reason, in_wins: t.wins, in_losses: t.losses, win_per_match: winPer, loss_per_match: lossPer, loss_multiplier: multiplier };
-  }).sort((a, b) => (b.loss_multiplier ?? 0) - (a.loss_multiplier ?? 0));
-
-  return {
-    tagged_games: rows.length,
-    win_games: winGames,
-    loss_games: lossGames,
-    total_deaths: totalDeaths,
-    breakdown,
-    reasons,
-    deaths_per_win:  winGames  > 0 ? +(deathsInWins  / winGames).toFixed(1)  : null,
-    deaths_per_loss: lossGames > 0 ? +(deathsInLosses / lossGames).toFixed(1) : null,
-    has_outcome_split: winGames >= 2 && lossGames >= 2,
-  };
-}
-
-router.get('/death-trends', (_req: Request, res: Response) => {
-  const db = getDb();
-  const rows = (db.prepare('SELECT deaths, win FROM matches WHERE deaths IS NOT NULL').all({}) as any[])
-    // Legacy reason-format rows only — new factual-axis (v2) rows have no `reasons`.
-    .filter(r => { try { return !!JSON.parse(r.deaths)?.reasons; } catch { return false; } });
-
-  if (rows.length === 0) { res.json(null); return; }
-
-  const winMatches  = rows.filter(r => r.win === 1).length;
-  const lossMatches = rows.filter(r => r.win === 0).length;
-  const totals: Record<string, { total: number; wins: number; losses: number }> = {};
-
-  for (const row of rows) {
-    const d = JSON.parse(row.deaths);
-    const outcome = row.win === 1 ? 'wins' : 'losses';
-    for (const [reason, count] of Object.entries(d.reasons) as [string, number][]) {
-      if (!totals[reason]) totals[reason] = { total: 0, wins: 0, losses: 0 };
-      totals[reason].total  += count;
-      totals[reason][outcome] += count;
-    }
-  }
-
-  const reasons = Object.entries(totals).map(([reason, t]) => {
-    const winRate  = winMatches  > 0 ? +(t.wins  / winMatches).toFixed(2)  : 0;
-    const lossRate = lossMatches > 0 ? +(t.losses / lossMatches).toFixed(2) : 0;
-    const multiplier = winRate > 0 ? +(lossRate / winRate).toFixed(2) : null;
-    return { reason, total: t.total, in_wins: t.wins, in_losses: t.losses, win_per_match: winRate, loss_per_match: lossRate, loss_multiplier: multiplier };
-  }).sort((a, b) => (b.loss_multiplier ?? 0) - (a.loss_multiplier ?? 0));
-
-  res.json({ total_matches: rows.length, win_matches: winMatches, loss_matches: lossMatches, reasons });
-});
-
-// ── Death-axis vs. outcome ──────────────────────────────────────────────────
-// The factual death axes (v2/v3 logging) only ever render as an aggregate mean
-// elsewhere (AdvisorCard's spectrum bars) — never cross-tabbed against whether
-// the match was actually won. This finds, per axis, whether leaning toward one
-// pole in a match correlates with winning or losing that match.
-type DeathAxisKey = 'trade' | 'timing' | 'grouping' | 'awareness';
-const DEATH_AXIS_KEYS: DeathAxisKey[] = ['trade', 'timing', 'grouping', 'awareness'];
-const DEATH_AXIS_META: Record<DeathAxisKey, { label: string; low: string; high: string }> = {
-  trade:     { label: 'Trade',     low: 'Wasted',     high: 'Got value' },
-  timing:    { label: 'Timing',    low: 'Died first', high: 'Died last' },
-  grouping:  { label: 'Grouping',  low: 'Alone',       high: 'Grouped' },
-  awareness: { label: 'Awareness', low: 'Caught out',  high: 'Read it' },
-};
-// Each bucket (low-pole games, high-pole games) needs this many matches before
-// its win rate is trusted enough to report.
-const DEATH_OUTCOME_MIN_GAMES = 5;
-
-// Per-match mean value (0–1) for each axis, from whichever deaths that match
-// logged. Reads both v3 (one axis per death) and v2 (full record, decomposed) —
-// mirrors advisor.ts's axisStats, but per-match instead of aggregated across
-// matches, since here we need to pair each match's lean with its own win/loss.
-function matchAxisMeans(deathsJson: string): Partial<Record<DeathAxisKey, number>> {
-  let d: any;
-  try { d = JSON.parse(deathsJson); } catch { return {}; }
-  if (!Array.isArray(d?.deaths)) return {};
-
-  const sums: Partial<Record<DeathAxisKey, number>> = {};
-  const counts: Partial<Record<DeathAxisKey, number>> = {};
-  const add = (k: DeathAxisKey, v: number) => {
-    sums[k] = (sums[k] ?? 0) + v;
-    counts[k] = (counts[k] ?? 0) + 1;
-  };
-
-  if (d.v === 3) {
-    for (const rec of d.deaths) {
-      if (!rec || !DEATH_AXIS_KEYS.includes(rec.axis) || typeof rec.value !== 'number') continue;
-      add(rec.axis, rec.value);
-    }
-  } else if (d.v === 2) {
-    for (const rec of d.deaths) {
-      if (!rec) continue;
-      const samples: Partial<Record<DeathAxisKey, number>> = {
-        trade: rec.trade === 'free' ? 0 : rec.trade === 'traded' ? 1 : undefined,
-        timing: rec.timing === 'first' ? 0 : rec.timing === 'last' ? 1 : rec.timing === 'middle' ? 0.5 : undefined,
-        grouping: rec.grouping === 'alone' ? 0 : rec.grouping === 'grouped' ? 1 : undefined,
-        awareness: rec.awareness === 'caught' ? 0 : rec.awareness === 'saw' ? 1 : undefined,
-      };
-      for (const k of DEATH_AXIS_KEYS) {
-        const v = samples[k];
-        if (v !== undefined) add(k, v);
-      }
-    }
-  } else {
-    return {}; // legacy {reasons} rows carry no axis data
-  }
-
-  const means: Partial<Record<DeathAxisKey, number>> = {};
-  for (const k of DEATH_AXIS_KEYS) {
-    const c = counts[k];
-    if (c) means[k] = sums[k]! / c;
-  }
-  return means;
-}
-
-function computeDeathOutcome(db: ReturnType<typeof getDb>) {
-  const rows = db.prepare('SELECT deaths, win FROM matches WHERE deaths IS NOT NULL').all({}) as { deaths: string; win: number }[];
-
-  const buckets: Record<DeathAxisKey, { lowGames: number; lowWins: number; highGames: number; highWins: number }> = {
-    trade:     { lowGames: 0, lowWins: 0, highGames: 0, highWins: 0 },
-    timing:    { lowGames: 0, lowWins: 0, highGames: 0, highWins: 0 },
-    grouping:  { lowGames: 0, lowWins: 0, highGames: 0, highWins: 0 },
-    awareness: { lowGames: 0, lowWins: 0, highGames: 0, highWins: 0 },
-  };
-
-  for (const row of rows) {
-    const means = matchAxisMeans(row.deaths);
-    for (const k of DEATH_AXIS_KEYS) {
-      const m = means[k];
-      if (m === undefined || m === 0.5) continue; // exact-tie matches don't lean either way
-      const b = buckets[k];
-      if (m < 0.5) { b.lowGames++; if (row.win) b.lowWins++; }
-      else { b.highGames++; if (row.win) b.highWins++; }
-    }
-  }
-
-  const axes = DEATH_AXIS_KEYS.map(k => {
-    const b = buckets[k];
-    const lowWinRate  = b.lowGames  > 0 ? Math.round((b.lowWins  / b.lowGames)  * 1000) / 10 : null;
-    const highWinRate = b.highGames > 0 ? Math.round((b.highWins / b.highGames) * 1000) / 10 : null;
-    const reliable = b.lowGames >= DEATH_OUTCOME_MIN_GAMES && b.highGames >= DEATH_OUTCOME_MIN_GAMES;
-    const gap = reliable && lowWinRate !== null && highWinRate !== null
-      ? Math.round((highWinRate - lowWinRate) * 10) / 10
-      : null;
-    return {
-      key: k, ...DEATH_AXIS_META[k],
-      lowGames: b.lowGames, lowWinRate,
-      highGames: b.highGames, highWinRate,
-      reliable, gap,
-    };
-  });
-
-  // The single most striking, trustworthy split — leads the card.
-  const headline = axes
-    .filter(a => a.reliable && a.gap !== null)
-    .sort((a, b) => Math.abs(b.gap!) - Math.abs(a.gap!))[0] ?? null;
-
-  return { axes, headline };
-}
 
 // ── Hot hand ─────────────────────────────────────────────────────────────────
 // Does winning actually predict winning your next game, beyond what a coin
@@ -1028,7 +811,6 @@ function computeDayHourWindow(db: ReturnType<typeof getDb>) {
 // distinct factoids from whatever the pool has on every page load.
 router.get('/insights', (_req: Request, res: Response) => {
   const db = getDb();
-  const deathOutcome = computeDeathOutcome(db);
   const hotHand = computeHotHand(db);
   const perf = computePerformanceOutcome(db);
   const queueSwitch = computeQueueSwitchTax(db);
@@ -1044,23 +826,6 @@ router.get('/insights', (_req: Request, res: Response) => {
   const t = (text: string): Part => ({ text });
   const c = (text: string, color: Color): Part => ({ text, color });
   const factoids: { id: string; category: string; parts: Part[] }[] = [];
-
-  for (const a of deathOutcome.axes) {
-    if (!a.reliable || a.gap === null) continue;
-    const betterIsHigh = (a.highWinRate ?? 0) >= (a.lowWinRate ?? 0);
-    const better = betterIsHigh ? a.high : a.low;
-    const worse = betterIsHigh ? a.low : a.high;
-    const betterWr = betterIsHigh ? a.highWinRate : a.lowWinRate;
-    const worseWr = betterIsHigh ? a.lowWinRate : a.highWinRate;
-    factoids.push({
-      id: `death-${a.key}`,
-      category: `Death Pattern · ${a.label}`,
-      parts: [
-        t(`Deaths tagged "${better}" win `), c(`${betterWr}%`, 'good'),
-        t(` of matches — "${worse}" wins just `), c(`${worseWr}%`, 'bad'), t('.'),
-      ],
-    });
-  }
 
   if (hotHand.reliable && hotHand.gap !== null) {
     if (Math.abs(hotHand.gap) < 3) {
@@ -1183,40 +948,6 @@ router.get('/insights', (_req: Request, res: Response) => {
   }
 
   res.json({ factoids });
-});
-
-// Heroes and maps that have enough tagged-death data to analyze, each with its
-// full death-insight payload. Powers the Trends comparison dropdowns.
-const SEGMENT_MIN_TAGGED = 4;
-router.get('/death-segments', (_req: Request, res: Response) => {
-  const db = getDb();
-
-  const heroRows = db.prepare(`
-    SELECT hero, role, COUNT(*) AS n FROM matches_by_hero WHERE deaths IS NOT NULL
-    GROUP BY hero HAVING n >= ${SEGMENT_MIN_TAGGED} ORDER BY n DESC
-  `).all({}) as { hero: string; role: string }[];
-  // Re-filter on legacy tagged_games: the SQL count includes new factual-axis
-  // rows, but deathInsights only counts legacy reason rows, so a segment can fall
-  // below the threshold once v2 rows are excluded.
-  const heroes = heroRows
-    .map(h => ({
-      key: h.hero, label: h.hero, role: h.role,
-      insights: deathInsights(db, 'AND hero = :hero', { hero: h.hero }, 'matches_by_hero'),
-    }))
-    .filter(h => h.insights.tagged_games >= SEGMENT_MIN_TAGGED);
-
-  const mapRows = db.prepare(`
-    SELECT map, game_type, COUNT(*) AS n FROM matches WHERE deaths IS NOT NULL
-    GROUP BY map HAVING n >= ${SEGMENT_MIN_TAGGED} ORDER BY n DESC
-  `).all({}) as { map: string; game_type: string }[];
-  const maps = mapRows
-    .map(m => ({
-      key: m.map, label: m.map, game_type: m.game_type,
-      insights: deathInsights(db, 'AND map = :map', { map: m.map }),
-    }))
-    .filter(m => m.insights.tagged_games >= SEGMENT_MIN_TAGGED);
-
-  res.json({ heroes, maps });
 });
 
 // Per-queue-mode summary for the side-by-side mode comparison.

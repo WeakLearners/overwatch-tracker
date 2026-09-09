@@ -2,8 +2,7 @@ import { useMapDrawer } from '../contexts/MapDrawerContext';
 import { useApi } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
-import { MAPS, TYPE_COLORS, ROLE_COLORS, DeathInsights as DeathInsightsData } from '../types';
-import DeathInsights from './DeathInsights';
+import { MAPS, TYPE_COLORS, ROLE_COLORS } from '../types';
 
 interface HeroRow { hero: string; role: string; games: number; win_rate: number }
 interface MapDetail {
@@ -11,7 +10,6 @@ interface MapDetail {
   momentum: { recent_wr: number | null; prev_wr: number | null; recent_games: number; prev_games: number };
   heroes:   { DPS: HeroRow[]; Tank: HeroRow[]; Support: HeroRow[] };
   recent5:  { win: number; hero: string; date: string }[];
-  deaths:   DeathInsightsData;
 }
 
 function WR({ rate }: { rate: number }) {
@@ -88,9 +86,6 @@ function DrawerContent({ map }: { map: string }) {
           </div>
         );
       })}
-
-      {/* Death patterns */}
-      <DeathInsights dataInspectId="mapDrawer-death-insights" data={data.deaths} label={withMapCount(map, mapCounts)} />
 
       {/* Last 5 */}
       {data.recent5.length > 0 && (
