@@ -298,6 +298,59 @@ function initSchema(db: DatabaseSync) {
     `);
   }
 
+  // match_quality: 'stomp' | 'close' — a fact about how decisive the score
+  // was, not a judgment call. Nullable with NO default (see result_driver
+  // below for why a default would be actively harmful here) — untouched
+  // stays null forever rather than silently reading as a false answer.
+  if (!cols.find(c => c.name === 'match_quality')) {
+    db.exec(`ALTER TABLE matches ADD COLUMN match_quality TEXT`);
+  }
+
+  // result_driver: 'me' | 'team' — whether the match's result was driven by
+  // Sean's own individual play or by the team's collective play. "Team"
+  // includes Sean himself here — this is collective-effort vs.
+  // individually-decided, NOT a rating of teammates. That distinction is the
+  // whole point of the field and is easy to lose without this comment.
+  // Nullable, no default — same design rule as match_deaths below: this
+  // replaces the per-death axis sliders (matches.deaths) that decayed
+  // because they demanded a judgment call at every death. A once-per-match
+  // judgment call is cheap enough to survive, but only if skipping it is a
+  // real option — a default here would poison the data exactly the way the
+  // old death axes did.
+  //
+  // Planned (not yet built) calibration check, once enough result_driver
+  // data accumulates: does result_driver='me' correlate with
+  // worse-than-baseline personal aim_stats (deaths/10min, damage) on losses,
+  // and better-than-baseline on wins? An asymmetry there — claiming credit
+  // on wins, deflecting blame on losses — would indicate self-serving bias
+  // in how this field gets answered. Do not implement until there's enough
+  // data to check against; recorded here so the intent isn't lost.
+  if (!cols.find(c => c.name === 'result_driver')) {
+    db.exec(`ALTER TABLE matches ADD COLUMN result_driver TEXT`);
+  }
+
+  // match_deaths: one row per death, FACT only — who killed Sean and whether
+  // it was an ult. Replaces the old matches.deaths JSON column's per-death
+  // capture (that column stays frozen, untouched, as historical v1/v2/v3
+  // data — see its own comment above). The lesson that produced this table:
+  // per-event judgment calls (the old trade/timing/grouping/awareness axis
+  // sliders) decayed because they were slow and subjective; team_rating, a
+  // once-per-match rating, sits at 100% coverage. So per-death capture has
+  // to be pure objective fact and fast enough for a ~10-second respawn
+  // window — see the client capture UI in DeathLogger.tsx/LogMatch.tsx.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS match_deaths (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      match_id    INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+      seq         INTEGER NOT NULL,
+      killer      TEXT    NOT NULL,
+      killer_role TEXT    NOT NULL,
+      ult         INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS idx_match_deaths_match  ON match_deaths(match_id);
+    CREATE INDEX IF NOT EXISTS idx_match_deaths_killer ON match_deaths(killer);
+  `);
+
   // match_heroes: which hero(es) were actually played during a match, in
   // order (slot 1 = the hero the match started on, 2/3 = switches made
   // mid-match). matches.hero/role stay the column of record for slot 1 (every

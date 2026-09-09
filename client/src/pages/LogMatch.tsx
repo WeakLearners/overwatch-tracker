@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { HEROES, MAPS, ROLE_COLORS, ROLE_PILL_CLASS, ROLE_PILL_CLASS_DARK, TYPE_COLORS, DEATH_AXES, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, MODE_WASH_CLASS, MODE_COMPACT, OLDEST_DASH_FADE_STYLE } from '../types';
+import { HEROES, MAPS, ROLE_COLORS, ROLE_PILL_CLASS, ROLE_PILL_CLASS_DARK, TYPE_COLORS, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, MODE_WASH_CLASS, MODE_COMPACT, OLDEST_DASH_FADE_STYLE } from '../types';
 import { useMatch } from '../contexts/MatchContext';
 import EmptyState from '../components/EmptyState';
 import ModeWatermark from '../components/ModeWatermark';
@@ -302,7 +302,7 @@ interface BlindSetSummary {
 export default function LogMatch() {
   // Map + queue mode are shared with the Pre-Match section via context; this
   // section only owns date/time/hero/win plus the death tags.
-  const { queueMode, setQueueMode, map, setMap, mapType, sens, testRole, pendingHeroes, setPendingHeroes, revalidateRec, notifyMatchLogged, deathBuffer, removeDeathFromBuffer, clearDeathBuffer } = useMatch();
+  const { queueMode, setQueueMode, map, setMap, mapType, sens, testRole, pendingHeroes, setPendingHeroes, revalidateRec, notifyMatchLogged, deathBuffer, removeDeathFromBuffer, toggleDeathUlt, clearDeathBuffer } = useMatch();
   const { data: dpiState } = useApi<DpiTestState>('/api/blind/state');
   const { data: blindSets } = useApi<{ sets: BlindSetSummary[] }>('/api/blind/sets');
   const mapCounts = useTodayMapCounts();
@@ -315,6 +315,10 @@ export default function LogMatch() {
   const feelFor = (h: string) => feelByHero[h] ?? FEEL_MID;
   const setFeelFor = (h: string, v: number) => setFeelByHero(prev => ({ ...prev, [h]: v }));
   const [teamRating, setTeamRating] = useState(0);
+  // Both start unselected and stay null if untouched — no pre-selection, and
+  // clicking the already-selected option deselects it back to null.
+  const [matchQuality, setMatchQuality] = useState<'stomp' | 'close' | null>(null);
+  const [resultDriver, setResultDriver] = useState<'me' | 'team' | null>(null);
   const [form, setForm] = useState<FormState>(() => {
     const n = new Date();
     let pending: { hero?: string } = {};
@@ -613,11 +617,13 @@ export default function LogMatch() {
           map,
           game_type: mapType,
           win: form.win === '1',
-          deaths: deathBuffer.length > 0 ? { v: 3, deaths: deathBuffer } : null,
+          match_deaths: deathBuffer,
           queue_mode: queueMode,
           sens: displaySens,
           feel: feelFor(form.hero),
           team_rating: teamRating,
+          match_quality: matchQuality,
+          result_driver: resultDriver,
           notes: form.notes.trim() || null,
         }),
       });
@@ -628,6 +634,8 @@ export default function LogMatch() {
       clearDeathBuffer();
       setFeelByHero({});
       setTeamRating(0);
+      setMatchQuality(null);
+      setResultDriver(null);
       dateTouched.current = false;
       timeTouched.current = false;
       setForm(f => ({ ...f, hero: '', win: '', notes: '', date: datePart, time: format(new Date(), 'HH:mm') }));
@@ -684,28 +692,35 @@ export default function LogMatch() {
           </p>
         ) : (
           <div className="space-y-1.5" data-inspect-id="logmatch-death-buffer-list">
-            {deathBuffer.map((d, i) => {
-              const axis = DEATH_AXES.find(a => a.key === d.axis);
-              // Word the spectrum position toward the nearer pole (or neutral).
-              const lean = !axis ? '' : d.value < 0.4 ? axis.low : d.value > 0.6 ? axis.high : 'Neutral';
-              return (
-                <div key={i} className="flex items-center justify-between gap-2 py-2 px-3 rounded-lg bg-ow-darker border border-ow-border">
-                  <div>
-                    <span className="text-xs text-[var(--faint-2)] mr-2 font-bold">{i + 1}</span>
-                    <span className="text-sm text-[var(--ink)]">{axis?.label ?? 'Death'}</span>
-                    {axis && <span className="text-xs text-[var(--faint)] ml-2">{lean}</span>}
-                  </div>
+            {deathBuffer.map((d, i) => (
+              <div key={i} className="flex items-center justify-between gap-2 py-2 px-3 rounded-lg bg-ow-darker border border-ow-border">
+                <div>
+                  <span className="text-xs text-[var(--faint-2)] mr-2 font-bold">{i + 1}</span>
+                  <span className="text-sm text-[var(--ink)]">{d.killer}</span>
+                  <span className="text-xs text-[var(--faint)] ml-2">{d.killer_role}</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => toggleDeathUlt(i)}
+                    data-inspect-id="logmatch-death-ult-toggle"
+                    aria-label={d.ult ? 'Ult kill — tap to unmark' : 'Mark as ult kill'}
+                    aria-pressed={d.ult}
+                    className={`text-base leading-none transition-opacity ${d.ult ? 'opacity-100' : 'opacity-30 hover:opacity-70'}`}
+                  >
+                    ⚡
+                  </button>
                   <button
                     type="button"
                     onClick={() => removeDeathFromBuffer(i)}
-                    className="text-[var(--faint)] hover:text-red-500 transition-colors text-base leading-none px-1 shrink-0"
+                    className="text-[var(--faint)] hover:text-red-500 transition-colors text-base leading-none px-1"
                     aria-label="Remove"
                   >
                     ×
                   </button>
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -724,6 +739,8 @@ export default function LogMatch() {
                   setMap('');
                   setFeelByHero({});
                   setTeamRating(0);
+                  setMatchQuality(null);
+                  setResultDriver(null);
                   clearDeathBuffer();
                   notifyMatchLogged();
                   // Wait a paint cycle so the layout has settled from the resets above
@@ -745,7 +762,7 @@ export default function LogMatch() {
               </button>
               <button
                 type="button"
-                onClick={() => { setForm(f => ({ ...f, hero: '', notes: '' })); setSwitchHeroes(['', '']); setMap(''); setFeelByHero({}); setTeamRating(0); }}
+                onClick={() => { setForm(f => ({ ...f, hero: '', notes: '' })); setSwitchHeroes(['', '']); setMap(''); setFeelByHero({}); setTeamRating(0); setMatchQuality(null); setResultDriver(null); }}
                 disabled={!form.hero && !map}
                 data-inspect-id="logmatch-reset-button"
                 className="text-xs text-[var(--faint)] hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--faint)]"
@@ -1002,6 +1019,51 @@ export default function LogMatch() {
             <div>
               <label className="block text-xs text-[var(--muted)] mb-1.5">Team <span className="text-[var(--faint-2)]">— how was the team this match?</span></label>
               <StarRating value={teamRating} onChange={setTeamRating} dataInspectId="logmatch-team-rating-stars" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-[var(--muted)] mb-1.5">Match quality</label>
+                <div className="grid grid-cols-2 gap-2" data-inspect-id="logmatch-match-quality-toggle">
+                  {(['stomp', 'close'] as const).map(v => (
+                    <button
+                      key={v}
+                      type="button"
+                      data-inspect-id="logmatch-match-quality-option"
+                      onClick={() => setMatchQuality(prev => (prev === v ? null : v))}
+                      aria-pressed={matchQuality === v}
+                      className={`text-xs font-semibold py-2 rounded-lg border capitalize transition-colors ${
+                        matchQuality === v
+                          ? 'bg-ow-accent/20 border-ow-accent/60 text-[var(--ink)]'
+                          : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
+                      }`}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-[var(--muted)] mb-1.5">Result driver</label>
+                <div className="grid grid-cols-2 gap-2" data-inspect-id="logmatch-result-driver-toggle">
+                  {(['me', 'team'] as const).map(v => (
+                    <button
+                      key={v}
+                      type="button"
+                      data-inspect-id="logmatch-result-driver-option"
+                      onClick={() => setResultDriver(prev => (prev === v ? null : v))}
+                      aria-pressed={resultDriver === v}
+                      className={`text-xs font-semibold py-2 rounded-lg border capitalize transition-colors ${
+                        resultDriver === v
+                          ? 'bg-ow-accent/20 border-ow-accent/60 text-[var(--ink)]'
+                          : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
+                      }`}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <button

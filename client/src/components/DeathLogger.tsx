@@ -1,39 +1,44 @@
 import { useState } from 'react';
-import { DEATH_AXES, DeathAxis, DeathAxisKey, DeathRecord } from '../types';
+import { HEROES } from '../types';
 import { useMatch } from '../contexts/MatchContext';
 
-const AXIS_BY_KEY: Record<DeathAxisKey, DeathAxis> =
-  Object.fromEntries(DEATH_AXES.map(a => [a.key, a])) as Record<DeathAxisKey, DeathAxis>;
+type Role = 'Tank' | 'DPS' | 'Support';
+const ROLES: Role[] = ['Tank', 'DPS', 'Support'];
 
-// Worded lean for a buffer entry: which pole the value leans toward, or neutral.
-function leanLabel(axis: DeathAxisKey, value: number): string {
-  const a = AXIS_BY_KEY[axis];
-  if (value < 0.4) return a.lowShort;
-  if (value > 0.6) return a.highShort;
-  return 'Neutral';
-}
+const HEROES_BY_ROLE: Record<Role, string[]> = { Tank: [], DPS: [], Support: [] };
+Object.entries(HEROES).forEach(([hero, role]) => {
+  HEROES_BY_ROLE[role as Role]?.push(hero);
+});
+(Object.keys(HEROES_BY_ROLE) as Role[]).forEach(r => HEROES_BY_ROLE[r].sort());
 
+// Fact-only death capture, built for a ~10-second respawn window — one tap
+// in the common case. Two paths to the same log call:
+//   1. "This match" MRU row — every distinct killer already logged this
+//      match, most-recent-first. Covers most deaths after the first 2-3.
+//   2. Role tab (sticky — stays on the last role used) -> hero grid, for a
+//      killer not seen yet this match.
+// Either path appends immediately with ult: false — no confirm step. The
+// ult flag is only ever set after the fact, via the ⚡ toggle on a buffered
+// row below (here, or in LogMatch's own Deaths card).
 export default function DeathLogger() {
-  const { deathBuffer, addDeathToBuffer, removeDeathFromBuffer, nextDeathAxis } = useMatch();
+  const { deathBuffer, addDeathToBuffer, removeDeathFromBuffer, toggleDeathUlt } = useMatch();
   const [open, setOpen] = useState(false);
-  const [axis, setAxis] = useState<DeathAxisKey>('trade');
-  const [pos, setPos] = useState(50); // slider position 0–100 (→ value 0.0–1.0)
+  const [role, setRole] = useState<Role>('DPS');
   const [showBuffer, setShowBuffer] = useState(false);
 
   function openLogger() {
-    setAxis(nextDeathAxis());
-    setPos(50); // start centred / neutral
     setShowBuffer(false);
     setOpen(true);
   }
 
-  function confirm() {
-    addDeathToBuffer({ axis, value: +(pos / 100).toFixed(2) });
+  function logKill(hero: string) {
+    addDeathToBuffer({ killer: hero, killer_role: HEROES[hero] ?? role, ult: false });
     setOpen(false);
   }
 
   const count = deathBuffer.length;
-  const spec = AXIS_BY_KEY[axis];
+  // Most-recent-first distinct killers already logged this match.
+  const mru = [...new Set([...deathBuffer].reverse().map(d => d.killer))];
 
   return (
     // Anchor point — everything positions relative to this fixed corner
@@ -48,7 +53,7 @@ export default function DeathLogger() {
           <div data-inspect-id="deathLogger-loggingPopover" className="w-72 bg-ow-card border border-ow-border rounded-lg shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between px-4 pt-3 pb-2">
               <span data-inspect-id="deathLogger-popoverTitle" className="text-xs font-semibold text-[var(--faint)] uppercase tracking-widest">
-                Death <b className="font-bold">{count + 1}</b> · {spec.label}
+                Death <b className="font-bold">{count + 1}</b> — who got you?
               </span>
               <button
                 data-inspect-id="deathLogger-popoverCancelButton"
@@ -62,40 +67,59 @@ export default function DeathLogger() {
             </div>
 
             <div className="px-4 pb-3">
-              {/* Slider: drag between the two poles of this one axis */}
-              <input
-                data-inspect-id="deathLogger-axisSlider"
-                type="range"
-                min={0}
-                max={100}
-                value={pos}
-                onChange={e => setPos(Number(e.target.value))}
-                className="w-full accent-ow-accent cursor-pointer"
-                aria-label={`${spec.label}: ${spec.low} to ${spec.high}`}
-              />
-              <div className="flex justify-between gap-3 mt-1.5">
-                <span className="text-xs text-[var(--faint)] leading-snug max-w-[45%]">{spec.low}</span>
-                <span className="text-xs text-[var(--faint)] leading-snug max-w-[45%] text-right">{spec.high}</span>
+              {mru.length > 0 && (
+                <div className="mb-2.5">
+                  <p className="text-[10px] text-[var(--faint-2)] uppercase tracking-wide mb-1">This match</p>
+                  <div data-inspect-id="deathLogger-mruRow" className="flex flex-wrap gap-1.5">
+                    {mru.map(hero => (
+                      <button
+                        key={hero}
+                        type="button"
+                        data-inspect-id="deathLogger-mruChip"
+                        onClick={() => logKill(hero)}
+                        className="px-2.5 py-1 rounded-full bg-ow-accent/15 border border-ow-accent/50 text-xs font-semibold text-[var(--ink)] hover:bg-ow-accent/25 active:scale-95 transition-all"
+                      >
+                        {hero}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Sticky role tab — stays on the last role used across deaths. */}
+              <div className="flex gap-1 mb-1.5" data-inspect-id="deathLogger-roleTabs">
+                {ROLES.map(r => (
+                  <button
+                    key={r}
+                    type="button"
+                    data-inspect-id="deathLogger-roleTab"
+                    onClick={() => setRole(r)}
+                    aria-pressed={role === r}
+                    className={`flex-1 text-xs font-semibold py-1 rounded-lg border transition-colors ${
+                      role === r
+                        ? 'bg-ow-accent/20 border-ow-accent/60 text-[var(--ink)]'
+                        : 'bg-transparent border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
+                    }`}
+                  >
+                    {r}
+                  </button>
+                ))}
               </div>
 
-              <button
-                data-inspect-id="deathLogger-logItButton"
-                type="button"
-                onClick={confirm}
-                className="w-full mt-3 rounded-lg bg-ow-accent/15 border border-ow-accent/50 text-[var(--ink)] text-sm font-semibold py-2.5 hover:bg-ow-accent/25 active:scale-[0.98] transition-all"
-              >
-                Log it
-              </button>
+              <div className="grid grid-cols-4 gap-1">
+                {HEROES_BY_ROLE[role].map(hero => (
+                  <button
+                    key={hero}
+                    type="button"
+                    data-inspect-id="deathLogger-heroGridButton"
+                    onClick={() => logKill(hero)}
+                    className="px-1 py-1 rounded-md bg-ow-darker border border-ow-border text-[10px] leading-tight text-[var(--ink-2)] hover:text-[var(--ink)] hover:border-ow-accent/50 active:scale-95 transition-all truncate"
+                  >
+                    {hero}
+                  </button>
+                ))}
+              </div>
             </div>
-
-            <button
-              data-inspect-id="deathLogger-skipButton"
-              type="button"
-              onClick={() => setOpen(false)}
-              className="w-full py-2 text-xs text-[var(--faint)] hover:text-[var(--ink)] transition-colors border-t border-ow-border"
-            >
-              Skip
-            </button>
           </div>
         </>
       )}
@@ -108,17 +132,29 @@ export default function DeathLogger() {
             {deathBuffer.map((d, i) => (
               <div key={i} className="flex items-center justify-between gap-2 py-1 px-2 rounded-lg bg-ow-darker">
                 <span className="text-xs text-[var(--ink)] truncate">
-                  <b className="font-bold">{i + 1}</b>. {AXIS_BY_KEY[d.axis].label} · {leanLabel(d.axis, d.value)}
+                  <b className="font-bold">{i + 1}</b>. {d.killer}
                 </span>
-                <button
-                  data-inspect-id="deathLogger-removeBufferedDeathButton"
-                  type="button"
-                  onClick={() => removeDeathFromBuffer(i)}
-                  className="text-[var(--faint)] hover:text-red-500 transition-colors shrink-0 text-sm leading-none"
-                  aria-label="Remove"
-                >
-                  ×
-                </button>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    data-inspect-id="deathLogger-bufferUltToggle"
+                    onClick={() => toggleDeathUlt(i)}
+                    aria-label={d.ult ? 'Ult kill — tap to unmark' : 'Mark as ult kill'}
+                    aria-pressed={d.ult}
+                    className={`text-sm leading-none transition-opacity ${d.ult ? 'opacity-100' : 'opacity-30 hover:opacity-70'}`}
+                  >
+                    ⚡
+                  </button>
+                  <button
+                    data-inspect-id="deathLogger-removeBufferedDeathButton"
+                    type="button"
+                    onClick={() => removeDeathFromBuffer(i)}
+                    className="text-[var(--faint)] hover:text-red-500 transition-colors shrink-0 text-sm leading-none"
+                    aria-label="Remove"
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
             ))}
           </div>

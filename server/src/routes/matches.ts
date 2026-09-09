@@ -90,14 +90,17 @@ function findStageForRecredit(
 
 router.post('/', (req: Request, res: Response) => {
   const db = getDb();
-  const { date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, feel, team_rating, notes, heroes, curve_enabled } = req.body;
+  const { date, time, day_of_week, hour, hero, role, map, game_type, win, queue_mode, sens, feel, team_rating, notes, heroes, curve_enabled, match_deaths, match_quality, result_driver } = req.body;
 
   if (!date || !hero || !role || !map || !game_type || win === undefined) {
     res.status(400).json({ error: 'Missing required fields' });
     return;
   }
 
-  const deathsJson = deaths ? JSON.stringify(deaths) : null;
+  // matches.deaths is frozen historical data (v1/v2/v3 axis records) — new
+  // matches always write NULL there. Per-death facts now live in
+  // match_deaths, inserted below, inside the same transaction as the match row.
+  const deathsJson = null;
 
   // The Match Tracker is a dumb logger — it sends no DPI/sens and no set
   // flag. The server alone decides: if a stage-test set is running for this
@@ -168,11 +171,33 @@ router.post('/', (req: Request, res: Response) => {
     // as null, not a false 0/default like sens=null already does for dpi.
     const curveParams = finalCurveEnabled ? getCurveParams(db) : null;
     const result = db.prepare(`
-      INSERT INTO matches (date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, dpi, blind_trial, blind_set_id, stage_index, feel, team_rating, notes, curve_enabled, curve_growth_rate, curve_midpoint, curve_motivity)
-      VALUES (:date, :time, :day_of_week, :hour, :hero, :role, :map, :game_type, :win, :deaths, :queue_mode, :sens, :dpi, :blind_trial, :blind_set_id, :stage_index, :feel, :team_rating, :notes, :curve_enabled, :curve_growth_rate, :curve_midpoint, :curve_motivity)
-    `).run({ date, time: time ?? null, day_of_week: day_of_week ?? null, hour: hour ?? null, hero, role, map, game_type, win: win ? 1 : 0, deaths: deathsJson, queue_mode: queue_mode ?? 'comp_role', sens: finalSens, dpi: finalDpi, blind_trial: isStudy, blind_set_id: setId, stage_index: stageIdx, feel: feel ?? null, team_rating: team_rating ?? null, notes: notes?.trim() || null, curve_enabled: finalCurveEnabled ? 1 : 0, curve_growth_rate: curveParams?.smooth ?? null, curve_midpoint: curveParams?.input ?? null, curve_motivity: curveParams?.output ?? null });
+      INSERT INTO matches (date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, dpi, blind_trial, blind_set_id, stage_index, feel, team_rating, notes, curve_enabled, curve_growth_rate, curve_midpoint, curve_motivity, match_quality, result_driver)
+      VALUES (:date, :time, :day_of_week, :hour, :hero, :role, :map, :game_type, :win, :deaths, :queue_mode, :sens, :dpi, :blind_trial, :blind_set_id, :stage_index, :feel, :team_rating, :notes, :curve_enabled, :curve_growth_rate, :curve_midpoint, :curve_motivity, :match_quality, :result_driver)
+    `).run({ date, time: time ?? null, day_of_week: day_of_week ?? null, hour: hour ?? null, hero, role, map, game_type, win: win ? 1 : 0, deaths: deathsJson, queue_mode: queue_mode ?? 'comp_role', sens: finalSens, dpi: finalDpi, blind_trial: isStudy, blind_set_id: setId, stage_index: stageIdx, feel: feel ?? null, team_rating: team_rating ?? null, notes: notes?.trim() || null, curve_enabled: finalCurveEnabled ? 1 : 0, curve_growth_rate: curveParams?.smooth ?? null, curve_midpoint: curveParams?.input ?? null, curve_motivity: curveParams?.output ?? null, match_quality: match_quality ?? null, result_driver: result_driver ?? null });
 
     matchId = result.lastInsertRowid as number;
+
+    // Per-death facts (who killed Sean, whether it was an ult) — seq is
+    // 1-based in the order the client buffered them, matching the order
+    // deaths actually happened in the match.
+    const insertDeath = db.prepare(
+      'INSERT INTO match_deaths (match_id, seq, killer, killer_role, ult) VALUES (:match_id, :seq, :killer, :killer_role, :ult)'
+    );
+    const deathRows = Array.isArray(match_deaths) ? match_deaths : [];
+    let skippedDeaths = 0;
+    deathRows.forEach((d: any, i: number) => {
+      if (!d?.killer || !d?.killer_role) { skippedDeaths++; return; }
+      insertDeath.run({ match_id: matchId, seq: i + 1, killer: d.killer, killer_role: d.killer_role, ult: d.ult ? 1 : 0 });
+    });
+    // The client always builds entries from the HEROES map, so a malformed one
+    // means the payload shape has drifted — say so loudly. Dropping deaths
+    // silently is how the old `matches.deaths` column rotted unnoticed: the
+    // save still looked like it succeeded while the data went nowhere.
+    if (skippedDeaths > 0) {
+      console.error(
+        `[matches] match ${matchId}: dropped ${skippedDeaths}/${deathRows.length} death rows — missing killer/killer_role. Client payload shape has likely changed.`
+      );
+    }
 
     // Slot 1 is always the hero/role already written to the match row above.
     // `heroes` carries any additional heroes switched to mid-match (slots 2/3),
