@@ -448,8 +448,18 @@
           "kind": "list",
           "description": "Row of chips, one per currently selected voting map, with the recommended winner highlighted green. Clicking the chip body sets that map as the active match map (drives the Hero Advisor below); a separate, more prominent circular \u00d7 button removes it from the voting picks.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:548",
+            "path": "client/src/pages/Prematch.tsx:591",
             "grep": "grep -n -F -- 'prematch-selected-map-chips' client/src/pages/Prematch.tsx"
+          }
+        },
+        {
+          "id": "prematch-selected-map-chip-history",
+          "label": "Selected map chip history strip",
+          "kind": "indicator",
+          "description": "Row of up to five win/loss-colored dashes under each selected map chip, showing the last 5 matches played on that map (newest leftmost, oldest dash faded). Same treatment as the map history strip on Today's Matches rows, but keyed on map name via /api/matches/map-history?maps= since no match exists yet. Hovering a dash names the result and queue mode.",
+          "locate": {
+            "path": "client/src/pages/Prematch.tsx:623",
+            "grep": "grep -n -F -- 'prematch-selected-map-chip-history' client/src/pages/Prematch.tsx"
           }
         },
         {
@@ -458,7 +468,7 @@
           "kind": "button",
           "description": "Clears all currently selected map-voting picks. Rendered as a muted pill at the tail end of the selected-map chips row (not a map itself) so it's easy to hit when the game rolls a 'Random' map that isn't one of the offered picks.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:577",
+            "path": "client/src/pages/Prematch.tsx:639",
             "grep": "grep -n -F -- 'advisorSelectRef.current?.focus()' client/src/pages/Prematch.tsx"
           }
         },

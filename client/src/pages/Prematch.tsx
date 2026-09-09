@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { useApi } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
-import { MAPS, QUEUE_MODES, ROLE_COLORS, ROLE_PILL_CLASS, TYPE_COLORS, HEROES, MapVotingRow, Streaks } from '../types';
+import { MAPS, QUEUE_MODES, ROLE_COLORS, ROLE_PILL_CLASS, TYPE_COLORS, HEROES, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, MapVotingRow, QueueMode, Streaks } from '../types';
 import AdvisorCard from '../components/AdvisorCard';
 import EmptyState from '../components/EmptyState';
 import { useMapDrawer } from '../contexts/MapDrawerContext';
@@ -149,6 +149,15 @@ export default function Prematch() {
   const { data: streaksData } = useApi<Streaks>('/api/stats/streaks');
   const { data: byHour } = useApi<{ hour: number; games: number; wins: number; win_rate: number; qp_games: number; qp_win_rate: number | null; comp_games: number; comp_win_rate: number | null }[]>('/api/stats/by-hour');
   const [selected, setSelected] = useState<string[]>([]);
+
+  // Last 5 results on each currently-selected voting map, for the win/loss
+  // dash strip under each chip. Same treatment as Today's Matches' map
+  // history, but keyed on map name — no match exists yet to hang it off. The
+  // URL carries the picks, so useApi refetches whenever they change; an empty
+  // selection returns an empty byMap rather than needing a conditional hook.
+  const { data: mapHistory } = useApi<{ byMap: Record<string, { win: 0 | 1; queue_mode: QueueMode }[]> }>(
+    `/api/matches/map-history?maps=${encodeURIComponent(selected.join(','))}`
+  );
 
   // Test Pick — top 3 (map, hero) combos ranked by win rate, once maps are
   // entered. Reuses Map Voting's own `selected` picks — the same up-to-3
@@ -579,11 +588,11 @@ export default function Prematch() {
               instead of rounded-full, so the two clipped-corner shapes in
               the app are consistent rather than mixing pill styles. */}
           {selected.length > 0 && (
-            <div className="flex gap-2" data-inspect-id="prematch-selected-map-chips">
+            <div className="flex items-start gap-2" data-inspect-id="prematch-selected-map-chips">
               {selected.map(m => (
+                <div key={m} className="flex-1 min-w-0 flex flex-col gap-1">
                 <span
-                  key={m}
-                  className={`flex-1 min-w-0 flex items-center justify-center gap-1 pl-2 pr-1 py-1 text-[10px] map-name transition-colors ${
+                  className={`w-full min-w-0 flex items-center justify-center gap-1 pl-2 pr-1 py-1 text-[10px] map-name transition-colors ${
                     m === winner
                       ? 'bg-emerald-500/20 text-emerald-700'
                       : 'bg-ow-accent/15 text-ow-accent'
@@ -606,6 +615,25 @@ export default function Prematch() {
                     ×
                   </button>
                 </span>
+                {/* Last 5 matches on this map (byMap from
+                    /api/matches/map-history?maps=) — same win/loss-colored dash
+                    treatment as the map history strip on Today's Matches rows,
+                    newest leftmost with the oldest dash faded. Sized to the
+                    chip's own column so it tracks the pill above it. */}
+                <div className="flex items-center gap-1 px-0.5" data-inspect-id="prematch-selected-map-chip-history">
+                  {(() => {
+                    const hist = [...(mapHistory?.byMap?.[m] ?? [])].reverse();
+                    return hist.map((h, i) => (
+                      <span
+                        key={i}
+                        style={i === hist.length - 1 ? OLDEST_DASH_FADE_STYLE : undefined}
+                        className={`flex-1 h-[3px] rounded-full ${h.win ? 'bg-emerald-500' : 'bg-red-500'}`}
+                        title={`${h.win ? 'Win' : 'Loss'} · ${MODE_COMPACT[h.queue_mode]?.top ?? h.queue_mode} ${MODE_COMPACT[h.queue_mode]?.bot ?? ''}`.trim()}
+                      />
+                    ));
+                  })()}
+                </div>
+                </div>
               ))}
               <button
                 onClick={() => { setSelected([]); advisorSelectRef.current?.focus(); }}

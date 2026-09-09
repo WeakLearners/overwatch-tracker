@@ -370,6 +370,27 @@ router.get('/:id/map-history', (req: Request, res: Response) => {
   res.json({ rows: rows.reverse() });
 });
 
+// Same last-5 map history as /:id/map-history, but keyed on map NAME instead
+// of an existing match — Prematch's voting chips need the strip before any
+// match has been logged, so there's no id to hang it off. Batched
+// (?maps=A,B,C) so a full set of voting picks costs one request, not three.
+// Rows come back oldest-first to match the by-id route's shape.
+router.get('/map-history', (req: Request, res: Response) => {
+  const db = getDb();
+  const maps = String(req.query.maps ?? '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 10);
+
+  const stmt = db.prepare(`
+    SELECT win, queue_mode FROM matches
+    WHERE map = :map
+    ORDER BY id DESC LIMIT 5
+  `);
+  const byMap: Record<string, { win: 0 | 1; queue_mode: string }[]> = {};
+  for (const map of maps) {
+    byMap[map] = (stmt.all({ map }) as { win: 0 | 1; queue_mode: string }[]).reverse();
+  }
+  res.json({ byMap });
+});
+
 router.put('/:id', (req: Request, res: Response) => {
   const db = getDb();
   const fields = EDITABLE.filter(k => k in req.body);
