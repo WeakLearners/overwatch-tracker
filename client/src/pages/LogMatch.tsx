@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { HEROES, MAPS, ROLE_COLORS, ROLE_PILL_CLASS, ROLE_PILL_CLASS_DARK, TYPE_COLORS, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, MODE_WASH_CLASS, MODE_COMPACT, OLDEST_DASH_FADE_STYLE } from '../types';
 import { useMatch } from '../contexts/MatchContext';
+import DeathLogger from '../components/DeathLogger';
 import EmptyState from '../components/EmptyState';
 import ModeWatermark from '../components/ModeWatermark';
 import StarRating from '../components/StarRating';
@@ -257,10 +258,11 @@ function getDayOfWeek(dateStr: string) {
   return days[new Date(dateStr + 'T12:00:00').getDay()];
 }
 
-// Smooth-scroll so a single element sits centred in the viewport. Map pick
-// and hero pick each centre a different landmark (Coaching, then Match
-// Details) rather than one shared midpoint — falls back to Match Details if
-// the requested id isn't rendered yet.
+// Smooth-scroll so a single element sits centred in the viewport. Map pick is
+// the only caller left — hero pick used to centre Match Details as well, but
+// that auto-scroll was removed 2026-09-10: it moved the page out from under a
+// hero list still being clicked. Falls back to Match Details if the requested
+// id isn't rendered yet.
 // Note: scrollTo is called directly — wrapping it in requestAnimationFrame gets
 // swallowed here, so callers handle any "wait for layout" delay themselves.
 function centerOnElement(id: string) {
@@ -444,14 +446,14 @@ export default function LogMatch() {
   // badges exactly. Sent as the FULL current click list on every click (not
   // a delta), so this always fully re-derives all 3 slots from whatever's
   // currently clicked — including clearing a slot back out when a hero is
-  // toggled off there. Then we centre Match Details so the auto-fill is visible.
+  // toggled off there. No scroll follows — the page stays where it is so
+  // successive hero clicks land on a list that hasn't moved.
   useEffect(() => {
     if (pendingHeroes) {
       const [h1, h2, h3] = pendingHeroes;
       setForm(f => ({ ...f, hero: h1 ?? '' }));
       setSwitchHeroes([h2 ?? '', h3 ?? '']);
       setPendingHeroes(null);
-      centerOnElement('match-details');
     }
   }, [pendingHeroes, setPendingHeroes]);
 
@@ -670,7 +672,10 @@ export default function LogMatch() {
 
   return (
     <div className="mt-6">
-      {/* Deaths buffered via the floating 💀 button during the match */}
+      {/* Capture (DeathLogger, inline below the header) and the buffer it
+          fills live in the same card — one place for "log a death" and "what
+          I've logged", rather than a corner FAB whose popover was too narrow
+          to read at a glance mid-respawn. */}
       <div id="notable-deaths" className="card mb-6 scroll-mt-24" data-inspect-id="logmatch-deaths-card">
         <div className="flex items-center justify-between mb-1">
           <h2 className="text-sm heading-display text-[var(--ink)]">Deaths</h2>
@@ -686,9 +691,13 @@ export default function LogMatch() {
           )}
         </div>
 
+        <div className="mt-2 mb-3">
+          <DeathLogger />
+        </div>
+
         {deathBuffer.length === 0 ? (
           <p className="text-xs text-[var(--faint)]">
-            Tap 💀 during the match to log each death as it happens.
+            Log each death as it happens — one tap per death.
           </p>
         ) : (
           <div className="space-y-1.5" data-inspect-id="logmatch-death-buffer-list">

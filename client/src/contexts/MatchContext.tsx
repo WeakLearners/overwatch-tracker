@@ -58,9 +58,9 @@ interface MatchContextValue {
   // matching mode tile. `seq` rises each log so a repeat result re-triggers.
   lastLog: { mode: QueueMode; win: boolean; seq: number } | null;
   notifyMatchLogged: (info?: { mode: QueueMode; win: boolean }) => void;
-  // In-match death buffer: accumulated via the floating DeathLogger during a
-  // match (one tap = one death, fact-only), then flushed to the match record
-  // on submit.
+  // In-match death buffer: accumulated via the DeathLogger inside LogMatch's
+  // Deaths card during a match (one tap = one death, fact-only), then flushed
+  // to the match record on submit.
   deathBuffer: MatchDeathEntry[];
   addDeathToBuffer: (r: MatchDeathEntry) => void;
   removeDeathFromBuffer: (i: number) => void;

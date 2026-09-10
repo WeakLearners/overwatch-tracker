@@ -10,7 +10,6 @@ import HeroDrawer from './components/HeroDrawer';
 import { MatchProvider } from './contexts/MatchContext';
 import { MatchEditDrawerProvider } from './contexts/MatchEditDrawerContext';
 import MatchEditDrawer from './components/MatchEditDrawer';
-import DeathLogger from './components/DeathLogger';
 import InspectorOverlay from './debug/InspectorOverlay';
 
 /**
@@ -89,7 +88,6 @@ export default function App() {
         </main>
       </div>
     </BrowserRouter>
-    <DeathLogger />
     <MapDrawer />
     <HeroDrawer />
     <MatchEditDrawer />
