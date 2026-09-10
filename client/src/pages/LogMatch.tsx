@@ -672,12 +672,15 @@ export default function LogMatch() {
 
   return (
     <div className="mt-6">
-      {/* Capture (DeathLogger, inline below the header) and the buffer it
-          fills live in the same card — one place for "log a death" and "what
-          I've logged", rather than a corner FAB whose popover was too narrow
-          to read at a glance mid-respawn. */}
+      {/* Capture (DeathLogger) and the buffer it fills live in the same card —
+          one place for "log a death" and "what I've logged", rather than a
+          corner FAB whose popover was too narrow to read at a glance mid-
+          respawn. Two columns from lg up: logged history left, picker right,
+          so a growing list never pushes the capture control down the screen
+          mid-match. Below lg they stack, history first and picker last, which
+          keeps that same "new deaths appear above the picker" reading. */}
       <div id="notable-deaths" className="card mb-6 scroll-mt-24" data-inspect-id="logmatch-deaths-card">
-        <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm heading-display text-[var(--ink)]">Deaths</h2>
           {deathBuffer.length > 0 && (
             <button
@@ -691,47 +694,51 @@ export default function LogMatch() {
           )}
         </div>
 
-        <div className="mt-2 mb-3">
-          <DeathLogger />
-        </div>
-
-        {deathBuffer.length === 0 ? (
-          <p className="text-xs text-[var(--faint)]">
-            Log each death as it happens — one tap per death.
-          </p>
-        ) : (
-          <div className="space-y-1.5" data-inspect-id="logmatch-death-buffer-list">
-            {deathBuffer.map((d, i) => (
-              <div key={i} className="flex items-center justify-between gap-2 py-2 px-3 rounded-lg bg-ow-darker border border-ow-border">
-                <div>
-                  <span className="text-xs text-[var(--faint-2)] mr-2 font-bold">{i + 1}</span>
-                  <span className="text-sm text-[var(--ink)]">{d.killer}</span>
-                  <span className="text-xs text-[var(--faint)] ml-2">{d.killer_role}</span>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+          <div data-inspect-id="logmatch-death-history-column">
+          {deathBuffer.length === 0 ? (
+            <p className="text-xs text-[var(--faint)]">
+              Log each death as it happens — one tap per death.
+            </p>
+          ) : (
+            <div className="space-y-1.5" data-inspect-id="logmatch-death-buffer-list">
+              {deathBuffer.map((d, i) => (
+                <div key={i} className="flex items-center justify-between gap-2 py-2 px-3 rounded-lg bg-ow-darker border border-ow-border">
+                  <div>
+                    <span className="text-xs text-[var(--faint-2)] mr-2 font-bold">{i + 1}</span>
+                    <span className="text-sm text-[var(--ink)]">{d.killer}</span>
+                    <span className="text-xs text-[var(--faint)] ml-2">{d.killer_role}</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => toggleDeathUlt(i)}
+                      data-inspect-id="logmatch-death-ult-toggle"
+                      aria-label={d.ult ? 'Ult kill — tap to unmark' : 'Mark as ult kill'}
+                      aria-pressed={d.ult}
+                      className={`text-base leading-none transition-opacity ${d.ult ? 'opacity-100' : 'opacity-30 hover:opacity-70'}`}
+                    >
+                      ⚡
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeDeathFromBuffer(i)}
+                      className="text-[var(--faint)] hover:text-red-500 transition-colors text-base leading-none px-1"
+                      aria-label="Remove"
+                    >
+                      ×
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => toggleDeathUlt(i)}
-                    data-inspect-id="logmatch-death-ult-toggle"
-                    aria-label={d.ult ? 'Ult kill — tap to unmark' : 'Mark as ult kill'}
-                    aria-pressed={d.ult}
-                    className={`text-base leading-none transition-opacity ${d.ult ? 'opacity-100' : 'opacity-30 hover:opacity-70'}`}
-                  >
-                    ⚡
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => removeDeathFromBuffer(i)}
-                    className="text-[var(--faint)] hover:text-red-500 transition-colors text-base leading-none px-1"
-                    aria-label="Remove"
-                  >
-                    ×
-                  </button>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
+          )}
           </div>
-        )}
+
+          <div data-inspect-id="logmatch-death-capture-column" className="lg:sticky lg:top-24">
+            <DeathLogger />
+          </div>
+        </div>
       </div>
 
       <div id="match-details" className="grid grid-cols-1 lg:grid-cols-2 gap-6">

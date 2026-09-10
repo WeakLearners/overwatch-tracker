@@ -21,8 +21,13 @@ Object.entries(HEROES).forEach(([hero, role]) => {
 // ult flag is only ever set after the fact, via the ⚡ toggle on a buffered
 // row in LogMatch's Deaths card.
 //
-// Lives inline inside that same Deaths card (2026-09-10 on) — it was a fixed
-// bottom-right FAB with a floating popover until then. Capture and the list
+// Lives inline in that same Deaths card (2026-09-10 on) — it was a fixed
+// bottom-right FAB with a floating popover until then. The card is two
+// columns from lg up: logged history left, this picker right (stacked
+// history-then-picker below lg), so a growing buffer never pushes the
+// capture control down the screen mid-match. The expanded panel stays
+// deliberately compact (dense grid, small type) since it now lives in a
+// half-width column — hence the grid stepping back to 3-4 columns at lg. Capture and the list
 // of what's been captured are one thing, so they read as one thing; the
 // popover's cramped 288px width was also what forced the tiny type the
 // respawn window can't afford. Consequences of the move: the picker stays
@@ -49,11 +54,11 @@ export default function DeathLogger() {
         onClick={() => setOpen(true)}
         aria-label="Log a death"
         data-inspect-id="deathLogger-logDeathButton"
-        className="w-full h-14 rounded-xl bg-ow-darker border border-ow-border grid place-items-center hover:border-ow-accent/50 active:scale-[0.99] transition-all"
+        className="w-full py-2 px-3 rounded-lg bg-ow-darker border border-ow-border flex items-center justify-center hover:border-ow-accent/50 active:scale-[0.99] transition-all"
       >
-        <span className="flex items-center gap-2.5">
-          <span className="text-2xl select-none" role="img" aria-hidden>💀</span>
-          <span className="text-sm font-semibold text-[var(--ink-2)]">Log a death</span>
+        <span className="flex items-center gap-2">
+          <span className="text-base leading-5 select-none" role="img" aria-hidden>💀</span>
+          <span className="text-sm leading-5 font-semibold text-[var(--ink-2)]">Log a death</span>
         </span>
       </button>
     );
@@ -61,33 +66,33 @@ export default function DeathLogger() {
 
   return (
     <div data-inspect-id="deathLogger-loggingPopover" className="rounded-xl bg-ow-darker border border-ow-accent/40 overflow-hidden">
-      <div className="flex items-center justify-between px-3 pt-3 pb-2">
-        <span data-inspect-id="deathLogger-popoverTitle" className="text-sm font-semibold text-[var(--ink-2)] uppercase tracking-wide">
+      <div className="flex items-center justify-between px-2 pt-2 pb-1">
+        <span data-inspect-id="deathLogger-popoverTitle" className="text-xs font-semibold text-[var(--ink-2)] uppercase tracking-wide">
           Death <b className="font-bold text-[var(--ink)]">{count + 1}</b> — who got you?
         </span>
         <button
           data-inspect-id="deathLogger-popoverCancelButton"
           type="button"
           onClick={() => setOpen(false)}
-          className="text-[var(--faint)] hover:text-[var(--ink)] text-2xl leading-none px-1 transition-colors"
+          className="text-[var(--faint)] hover:text-[var(--ink)] text-lg leading-none px-1 transition-colors"
           aria-label="Cancel"
         >
           ×
         </button>
       </div>
 
-      <div className="px-3 pb-3">
+      <div className="px-2 pb-2">
         {mru.length > 0 && (
-          <div className="mb-3">
-            <p className="text-xs text-[var(--faint-2)] uppercase tracking-wide mb-1.5">This match</p>
-            <div data-inspect-id="deathLogger-mruRow" className="flex flex-wrap gap-2">
+          <div className="mb-1.5">
+            <p className="text-[10px] text-[var(--faint-2)] uppercase tracking-wide mb-1">This match</p>
+            <div data-inspect-id="deathLogger-mruRow" className="flex flex-wrap gap-1">
               {mru.map(hero => (
                 <button
                   key={hero}
                   type="button"
                   data-inspect-id="deathLogger-mruChip"
                   onClick={() => logKill(hero)}
-                  className="px-4 py-2 rounded-full bg-ow-accent/15 border border-ow-accent/50 text-sm font-semibold text-[var(--ink)] hover:bg-ow-accent/25 active:scale-95 transition-all"
+                  className="px-2.5 py-1 rounded-full bg-ow-accent/15 border border-ow-accent/50 text-xs font-semibold text-[var(--ink)] hover:bg-ow-accent/25 active:scale-95 transition-all"
                 >
                   {hero}
                 </button>
@@ -97,7 +102,7 @@ export default function DeathLogger() {
         )}
 
         {/* Sticky role tab — stays on the last role used across deaths. */}
-        <div className="flex gap-1.5 mb-2" data-inspect-id="deathLogger-roleTabs">
+        <div className="flex gap-1 mb-1.5" data-inspect-id="deathLogger-roleTabs">
           {ROLES.map(r => (
             <button
               key={r}
@@ -105,7 +110,7 @@ export default function DeathLogger() {
               data-inspect-id="deathLogger-roleTab"
               onClick={() => setRole(r)}
               aria-pressed={role === r}
-              className={`flex-1 text-sm font-semibold py-2 rounded-lg border transition-colors ${
+              className={`flex-1 text-xs font-semibold py-1 rounded-md border transition-colors ${
                 role === r
                   ? 'bg-ow-accent/20 border-ow-accent/60 text-[var(--ink)]'
                   : 'bg-transparent border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
@@ -116,14 +121,14 @@ export default function DeathLogger() {
           ))}
         </div>
 
-        <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
+        <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-3 xl:grid-cols-4 gap-1">
           {HEROES_BY_ROLE[role].map(hero => (
             <button
               key={hero}
               type="button"
               data-inspect-id="deathLogger-heroGridButton"
               onClick={() => logKill(hero)}
-              className="px-1.5 py-2.5 rounded-lg bg-ow-card border border-ow-border text-sm leading-tight font-medium text-[var(--ink-2)] hover:text-[var(--ink)] hover:border-ow-accent/50 active:scale-95 transition-all truncate"
+              className="px-1 py-1.5 rounded-md bg-ow-card border border-ow-border text-[11px] leading-tight font-medium text-[var(--ink-2)] hover:text-[var(--ink)] hover:border-ow-accent/50 active:scale-95 transition-all truncate"
             >
               {hero}
             </button>
