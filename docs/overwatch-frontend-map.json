@@ -722,7 +722,7 @@
           "kind": "card",
           "description": "Card that owns the whole in-match death flow: the inline DeathLogger capture control (a 'Log a death' button that expands the MRU/role-tab/hero-grid picker in place \u2014 it was a fixed bottom-right skull FAB until 2026-09-10) sits directly under the header, above the list of deaths buffered so far \u2014 killer hero, killer role, and an inline \u26a1 ult toggle per row \u2014 with a Clear all action and per-death remove. The buffer flushes to match_deaths on submit.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:677",
+            "path": "client/src/pages/LogMatch.tsx:679",
             "grep": "grep -n -F -- 'id=\"notable-deaths\" className=\"card mb-6 scroll-mt-24\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -732,7 +732,7 @@
           "kind": "button",
           "description": "Button shown only when deaths are buffered; clears the entire in-progress death buffer for the current match.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:684",
+            "path": "client/src/pages/LogMatch.tsx:687",
             "grep": "grep -n -F -- 'hover:text-red-600 transition-colors\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -742,7 +742,7 @@
           "kind": "list",
           "description": "List of deaths logged so far this match (fact-only capture, 2026-09-09 on) \u2014 each row shows the killer hero and role, an inline \u26a1 toggle to mark/unmark the death as an ult kill, and an x button to remove that entry from the buffer.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:701",
+            "path": "client/src/pages/LogMatch.tsx:703",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-death-buffer-list\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -752,7 +752,7 @@
           "kind": "button",
           "description": "Per-row toggle in the Deaths card buffer list that flips a buffered death's ult flag after the fact \u2014 never part of the tap-to-log path itself, since the ~10s respawn window only allows one tap for who killed you.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:713",
+            "path": "client/src/pages/LogMatch.tsx:715",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-death-ult-toggle\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2416,7 +2416,7 @@
           "kind": "icon-button",
           "description": "\u00d7 button that collapses the death picker back to the 'Log a death' button without logging anything.",
           "locate": {
-            "path": "client/src/components/DeathLogger.tsx:69",
+            "path": "client/src/components/DeathLogger.tsx:73",
             "grep": "grep -n -F -- 'aria-label=\"Cancel\"' client/src/components/DeathLogger.tsx"
           }
         },
