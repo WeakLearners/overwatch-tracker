@@ -720,9 +720,9 @@
           "id": "logmatch-deaths-card",
           "label": "Deaths card",
           "kind": "card",
-          "description": "Card that owns the whole in-match death flow: the inline DeathLogger capture control (a 'Log a death' button that expands the MRU/role-tab/hero-grid picker in place \u2014 it was a fixed bottom-right skull FAB until 2026-09-10) sits directly under the header, above the list of deaths buffered so far \u2014 killer hero, killer role, and an inline \u26a1 ult toggle per row \u2014 with a Clear all action and per-death remove. The buffer flushes to match_deaths on submit.",
+          "description": "Card that owns the whole in-match death flow: two columns from lg up \u2014 the list of deaths buffered so far on the left, the inline DeathLogger capture control on the right (a 'Log a death' button that expands a compact MRU/role-tab/hero-grid picker in place; it was a fixed bottom-right skull FAB until 2026-09-10), stacked history-then-picker below lg, so a growing list never pushes the capture control down the screen \u2014 killer hero, killer role, and an inline \u26a1 ult toggle per row \u2014 with a Clear all action and per-death remove. The buffer flushes to match_deaths on submit.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:679",
+            "path": "client/src/pages/LogMatch.tsx:682",
             "grep": "grep -n -F -- 'id=\"notable-deaths\" className=\"card mb-6 scroll-mt-24\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -732,8 +732,28 @@
           "kind": "button",
           "description": "Button shown only when deaths are buffered; clears the entire in-progress death buffer for the current match.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:687",
+            "path": "client/src/pages/LogMatch.tsx:690",
             "grep": "grep -n -F -- 'hover:text-red-600 transition-colors\"' client/src/pages/LogMatch.tsx"
+          }
+        },
+        {
+          "id": "logmatch-death-history-column",
+          "label": "Deaths card \u2014 history column",
+          "kind": "container",
+          "description": "Left column of the Deaths card (full width when stacked below lg): holds the buffered death list, or the 'log each death as it happens' empty state.",
+          "locate": {
+            "path": "client/src/pages/LogMatch.tsx:698",
+            "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-death-history-column\"' client/src/pages/LogMatch.tsx"
+          }
+        },
+        {
+          "id": "logmatch-death-capture-column",
+          "label": "Deaths card \u2014 capture column",
+          "kind": "container",
+          "description": "Right column of the Deaths card (stacks below the history column under lg): holds the DeathLogger picker, sticky from lg up so it stays in view as the death list grows.",
+          "locate": {
+            "path": "client/src/pages/LogMatch.tsx:738",
+            "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-death-capture-column\"' client/src/pages/LogMatch.tsx"
           }
         },
         {
@@ -742,7 +762,7 @@
           "kind": "list",
           "description": "List of deaths logged so far this match (fact-only capture, 2026-09-09 on) \u2014 each row shows the killer hero and role, an inline \u26a1 toggle to mark/unmark the death as an ult kill, and an x button to remove that entry from the buffer.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:703",
+            "path": "client/src/pages/LogMatch.tsx:704",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-death-buffer-list\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -752,7 +772,7 @@
           "kind": "button",
           "description": "Per-row toggle in the Deaths card buffer list that flips a buffered death's ult flag after the fact \u2014 never part of the tap-to-log path itself, since the ~10s respawn window only allows one tap for who killed you.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:715",
+            "path": "client/src/pages/LogMatch.tsx:716",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-death-ult-toggle\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -972,7 +992,7 @@
           "kind": "toggle",
           "description": "iOS-style switch (blue \"Q\"/red \"C\" flanking labels) inside a Today's Matches row's inline edit form. Clicking it PUTs a queue_mode flip (qp_role \u2194 comp_role) to /api/matches/:id and calls revalidateAll. Comp -> QP prompts a window.confirm first \u2014 that direction rolls back the match's DPI-test stage credit (drops its blind_credits row server-side) and removes it from the Sens page's Awaiting Stats list. Moved here from an overlay on the collapsed row's watermark, now that the row expands into a full edit form instead.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:135",
+            "path": "client/src/pages/LogMatch.tsx:136",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-inline-edit-mode-toggle\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1032,7 +1052,7 @@
           "kind": "select",
           "description": "1st hero select inside a Today's Matches row's inline edit form, grouped by role like the main Log Match form's hero select.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:150",
+            "path": "client/src/pages/LogMatch.tsx:151",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-inline-edit-hero-select\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1042,7 +1062,7 @@
           "kind": "select",
           "description": "Optional 2nd hero slot in the inline edit form's Hero section, for correcting a mid-match switch after the fact. Excludes whichever hero the other slot already holds.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:170",
+            "path": "client/src/pages/LogMatch.tsx:171",
             "grep": "grep -n -F -- 'logmatch-inline-edit-hero-switch-select-${i + 2}' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1052,7 +1072,7 @@
           "kind": "select",
           "description": "Optional 3rd hero slot in the inline edit form's Hero section. (Rendered by the same map as logmatch-inline-edit-hero-switch-select-2 \u2014 locate command matches both.)",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:170",
+            "path": "client/src/pages/LogMatch.tsx:171",
             "grep": "grep -n -F -- 'logmatch-inline-edit-hero-switch-select-${i + 2}' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1062,7 +1082,7 @@
           "kind": "select",
           "description": "Map select inside a Today's Matches row's inline edit form, with a map-type pill shown once a map is picked.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:191",
+            "path": "client/src/pages/LogMatch.tsx:192",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-inline-edit-map-select\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1072,7 +1092,7 @@
           "kind": "button",
           "description": "Win/Loss result buttons inside a Today's Matches row's inline edit form. (Locate command matches both Win and Loss buttons.)",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:208",
+            "path": "client/src/pages/LogMatch.tsx:209",
             "grep": "grep -n -F -- 'logmatch-inline-edit-result-${label.toLowerCase()}' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1082,7 +1102,7 @@
           "kind": "button",
           "description": "Win/Loss result buttons inside a Today's Matches row's inline edit form. (Rendered by the same map as logmatch-inline-edit-result-win \u2014 locate command matches both.)",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:208",
+            "path": "client/src/pages/LogMatch.tsx:209",
             "grep": "grep -n -F -- 'logmatch-inline-edit-result-${label.toLowerCase()}' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1092,7 +1112,7 @@
           "kind": "button",
           "description": "Saves hero/map/result/mid-match-switch-hero edits for this match via PUT /api/matches/:id, then calls revalidateAll and collapses the row. Disabled while saving or if hero/map is unset.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:222",
+            "path": "client/src/pages/LogMatch.tsx:223",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-inline-edit-save-button\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1102,7 +1122,7 @@
           "kind": "button",
           "description": "Starts the delete flow for this match; requires a second tap on logmatch-inline-edit-confirm-delete-button to actually DELETE /api/matches/:id.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:239",
+            "path": "client/src/pages/LogMatch.tsx:240",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-inline-edit-delete-button\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1112,7 +1132,7 @@
           "kind": "button",
           "description": "Shown after tapping Delete this match; confirms the DELETE /api/matches/:id call.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:231",
+            "path": "client/src/pages/LogMatch.tsx:232",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-inline-edit-confirm-delete-button\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1122,7 +1142,7 @@
           "kind": "toggle",
           "description": "iOS-style switch (blue \"Q\"/red \"C\" flanking labels) inside a Today's Matches row's inline edit form. Clicking it PUTs a queue_mode flip (qp_role \u2194 comp_role) to /api/matches/:id and calls revalidateAll. Comp -> QP prompts a window.confirm first \u2014 that direction rolls back the match's DPI-test stage credit (drops its blind_credits row server-side) and removes it from the Sens page's Awaiting Stats list. Moved here from an overlay on the collapsed row's watermark, now that the row expands into a full edit form instead.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:135",
+            "path": "client/src/pages/LogMatch.tsx:136",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-inline-edit-mode-toggle\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1142,7 +1162,7 @@
           "kind": "input",
           "description": "Perceived teammate-quality rating, 0-5 stars in half-star steps, captured live at log time.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1021",
+            "path": "client/src/pages/LogMatch.tsx:1037",
             "grep": "grep -n -F -- 'dataInspectId=\"logmatch-team-rating-stars\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1152,7 +1172,7 @@
           "kind": "input",
           "description": "Stomp/Close two-option toggle \u2014 a fact about how decisive the score was, not a judgment. Starts unselected and stays null if untouched; clicking the selected option again deselects it.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1027",
+            "path": "client/src/pages/LogMatch.tsx:1043",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-match-quality-toggle\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1162,7 +1182,7 @@
           "kind": "button",
           "description": "One of the two Stomp/Close buttons inside the match-quality toggle.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1032",
+            "path": "client/src/pages/LogMatch.tsx:1048",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-match-quality-option\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1172,7 +1192,7 @@
           "kind": "input",
           "description": "Me/Team two-option toggle \u2014 collective-effort vs. individually-decided, NOT a rating of teammates ('Team' includes Sean himself). Starts unselected and stays null if untouched; clicking the selected option again deselects it.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1048",
+            "path": "client/src/pages/LogMatch.tsx:1064",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-result-driver-toggle\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1182,7 +1202,7 @@
           "kind": "button",
           "description": "One of the two Me/Team buttons inside the result-driver toggle.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1053",
+            "path": "client/src/pages/LogMatch.tsx:1069",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-result-driver-option\"' client/src/pages/LogMatch.tsx"
           }
         }
@@ -2388,15 +2408,15 @@
       "category": "client-component",
       "layer": 2,
       "file": "client/src/components/DeathLogger.tsx",
-      "description": "Inline fact-only death capture (2026-09-09 on; moved out of a fixed bottom-right skull FAB into LogMatch's Deaths card 2026-09-10), built for a ~10s respawn window. A full-width 'Log a death' button expands the picker in place: a 'This match' MRU row of killers already logged (most-recent-first, one-tap re-log) and a sticky role-tab -> hero-grid fallback for a new killer; either path appends immediately with ult:false and leaves the picker open for the next death. The buffer itself (with the per-row \u26a1 ult toggle and remove) is listed by the Deaths card directly below, not by this component.",
+      "description": "Inline fact-only death capture (2026-09-09 on; moved out of a fixed bottom-right skull FAB into LogMatch's Deaths card 2026-09-10), built for a ~10s respawn window. Sits in the card's right-hand column from lg up (below the buffer list when stacked), so a growing buffer never pushes it down the screen. A full-width 'Log a death' button expands a compact picker in place: a 'This match' MRU row of killers already logged (most-recent-first, one-tap re-log) and a sticky role-tab -> hero-grid fallback for a new killer; either path appends immediately with ult:false and leaves the picker open for the next death. The buffer itself (with the per-row \u26a1 ult toggle and remove) is listed by the Deaths card in the adjacent column, not by this component.",
       "uiElements": [
         {
           "id": "deathLogger-loggingPopover",
           "label": "Death picker panel",
           "kind": "card",
-          "description": "Inline panel that replaces the 'Log a death' button once expanded, containing the MRU killer row, the sticky role tabs, and the hero grid; collapsed again with the \u00d7.",
+          "description": "Compact inline panel that replaces the 'Log a death' button once expanded, containing the MRU killer row, the sticky role tabs, and the hero grid; collapsed again with the \u00d7. Deliberately dense (small type; hero grid runs 4/6 columns full-width, stepping back to 3-4 at lg) since it lives in the Deaths card's half-width right column.",
           "locate": {
-            "path": "client/src/components/DeathLogger.tsx:63",
+            "path": "client/src/components/DeathLogger.tsx:68",
             "grep": "grep -n -F -- 'data-inspect-id=\"deathLogger-loggingPopover\"' client/src/components/DeathLogger.tsx"
           }
         },
@@ -2406,7 +2426,7 @@
           "kind": "header",
           "description": "Label at the top of the logging popover showing the ordinal number of the death about to be logged.",
           "locate": {
-            "path": "client/src/components/DeathLogger.tsx:65",
+            "path": "client/src/components/DeathLogger.tsx:70",
             "grep": "grep -n -F -- 'deathLogger-popoverTitle' client/src/components/DeathLogger.tsx"
           }
         },
@@ -2416,7 +2436,7 @@
           "kind": "icon-button",
           "description": "\u00d7 button that collapses the death picker back to the 'Log a death' button without logging anything.",
           "locate": {
-            "path": "client/src/components/DeathLogger.tsx:73",
+            "path": "client/src/components/DeathLogger.tsx:78",
             "grep": "grep -n -F -- 'aria-label=\"Cancel\"' client/src/components/DeathLogger.tsx"
           }
         },
@@ -2426,7 +2446,7 @@
           "kind": "list",
           "description": "Chips for every distinct killer already logged this match, most-recent-first; empty at match start. The fast path \u2014 after 2-3 deaths this covers most re-logs in one tap.",
           "locate": {
-            "path": "client/src/components/DeathLogger.tsx:83",
+            "path": "client/src/components/DeathLogger.tsx:88",
             "grep": "grep -n -F -- 'data-inspect-id=\"deathLogger-mruRow\"' client/src/components/DeathLogger.tsx"
           }
         },
@@ -2436,7 +2456,7 @@
           "kind": "button",
           "description": "One hero chip in the MRU row; tapping logs another death by that hero immediately (ult:false) and closes the popover.",
           "locate": {
-            "path": "client/src/components/DeathLogger.tsx:88",
+            "path": "client/src/components/DeathLogger.tsx:93",
             "grep": "grep -n -F -- 'data-inspect-id=\"deathLogger-mruChip\"' client/src/components/DeathLogger.tsx"
           }
         },
@@ -2446,7 +2466,7 @@
           "kind": "tablist",
           "description": "Three role tabs above the hero grid; sticky \u2014 stays on the last role used across deaths, so repeat deaths to the same role skip a tap.",
           "locate": {
-            "path": "client/src/components/DeathLogger.tsx:100",
+            "path": "client/src/components/DeathLogger.tsx:105",
             "grep": "grep -n -F -- 'data-inspect-id=\"deathLogger-roleTabs\"' client/src/components/DeathLogger.tsx"
           }
         },
@@ -2456,7 +2476,7 @@
           "kind": "button",
           "description": "One of the three Tank/DPS/Support tabs; selecting it filters the hero grid below to that role and stays selected for the next death.",
           "locate": {
-            "path": "client/src/components/DeathLogger.tsx:105",
+            "path": "client/src/components/DeathLogger.tsx:110",
             "grep": "grep -n -F -- 'data-inspect-id=\"deathLogger-roleTab\"' client/src/components/DeathLogger.tsx"
           }
         },
@@ -2466,7 +2486,7 @@
           "kind": "button",
           "description": "One hero in the selected role's grid (source: HEROES in types/index.ts); tapping logs a death by that hero immediately (ult:false) and closes the popover. Fallback path for a killer not yet seen this match.",
           "locate": {
-            "path": "client/src/components/DeathLogger.tsx:124",
+            "path": "client/src/components/DeathLogger.tsx:129",
             "grep": "grep -n -F -- 'data-inspect-id=\"deathLogger-heroGridButton\"' client/src/components/DeathLogger.tsx"
           }
         },
@@ -2474,9 +2494,9 @@
           "id": "deathLogger-logDeathButton",
           "label": "Log a death button (skull)",
           "kind": "icon-button",
-          "description": "Full-width skull-emoji button inside the Deaths card that expands the death picker in place; replaced the fixed bottom-right FAB.",
+          "description": "Full-width skull-emoji button inside the Deaths card's capture column that expands the death picker in place; replaced the fixed bottom-right FAB. Built from the same box recipe as a buffered death row (py-2 px-3, rounded-lg, 1px border, text-sm/leading-5) so its collapsed height matches one row of the history column beside it.",
           "locate": {
-            "path": "client/src/components/DeathLogger.tsx:50",
+            "path": "client/src/components/DeathLogger.tsx:55",
             "grep": "grep -n -F -- 'aria-label=\"Log a death\"' client/src/components/DeathLogger.tsx"
           }
         }
