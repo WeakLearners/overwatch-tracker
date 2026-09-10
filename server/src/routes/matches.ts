@@ -270,7 +270,7 @@ router.post('/', (req: Request, res: Response) => {
 // Partial update of a logged match. Only the columns present in the body are
 // touched, so callers can fix a single field (e.g. the queue mode) without
 // resending the whole record.
-const EDITABLE = ['date', 'time', 'day_of_week', 'hour', 'hero', 'role', 'map', 'game_type', 'win', 'queue_mode', 'sens', 'feel', 'team_rating', 'notes', 'curve_enabled', 'curve_growth_rate', 'curve_midpoint', 'curve_motivity'] as const;
+const EDITABLE = ['date', 'time', 'day_of_week', 'hour', 'hero', 'role', 'map', 'game_type', 'win', 'queue_mode', 'sens', 'feel', 'team_rating', 'notes', 'curve_enabled', 'curve_growth_rate', 'curve_midpoint', 'curve_motivity', 'match_quality', 'result_driver'] as const;
 
 // Re-derives which stage-test set(s) (if any) a match's current hero roster
 // credits, after an edit changes hero/role/queue_mode/heroes. A match logged
@@ -421,7 +421,8 @@ router.put('/:id', (req: Request, res: Response) => {
   const fields = EDITABLE.filter(k => k in req.body);
   const heroesProvided = Array.isArray(req.body.heroes);
   const heroSensProvided = !!(req.body.heroSens && typeof req.body.heroSens === 'object');
-  if (fields.length === 0 && !heroesProvided && !heroSensProvided) {
+  const deathsProvided = Array.isArray(req.body.match_deaths);
+  if (fields.length === 0 && !heroesProvided && !heroSensProvided && !deathsProvided) {
     res.status(400).json({ error: 'No editable fields provided' });
     return;
   }
@@ -473,6 +474,33 @@ router.put('/:id', (req: Request, res: Response) => {
       feel: typeof h.feel === 'number' ? h.feel : null,
       sens: typeof h.sens === 'number' ? h.sens : null,
     }));
+  }
+
+  // Per-death rows are edited as a full replace, same as slots 2/3 above —
+  // the drawer always sends the complete death list, and seq is positional
+  // (1-based, in the order the deaths happened), so patching individual rows
+  // would leave gaps/duplicates in the sequence. Sending an empty array is a
+  // legitimate edit meaning "this match had no deaths recorded"; omitting
+  // match_deaths entirely leaves the existing rows untouched.
+  if (deathsProvided) {
+    db.prepare('DELETE FROM match_deaths WHERE match_id = :id').run({ id: req.params.id });
+    const insertDeath = db.prepare(
+      'INSERT INTO match_deaths (match_id, seq, killer, killer_role, ult) VALUES (:match_id, :seq, :killer, :killer_role, :ult)'
+    );
+    const deathRows = req.body.match_deaths as any[];
+    let skippedDeaths = 0;
+    deathRows.forEach((d: any, i: number) => {
+      if (!d?.killer || !d?.killer_role) { skippedDeaths++; return; }
+      insertDeath.run({ match_id: req.params.id, seq: i + 1, killer: d.killer, killer_role: d.killer_role, ult: d.ult ? 1 : 0 });
+    });
+    // Same loud failure as the POST insert path — a malformed entry means the
+    // client payload shape has drifted, and silently dropping deaths is
+    // exactly how the old `matches.deaths` column rotted unnoticed.
+    if (skippedDeaths > 0) {
+      console.error(
+        `[matches] match ${req.params.id}: dropped ${skippedDeaths}/${deathRows.length} death rows on edit — missing killer/killer_role. Client payload shape has likely changed.`
+      );
+    }
   }
 
   // Standalone per-hero sens correction, keyed by hero name rather than slot —
