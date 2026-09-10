@@ -6,6 +6,8 @@ Before searching for where a specific UI feature or API behavior lives, check `.
 
 Whenever a `data-inspect-id`/`dataInspectId` is added, removed, or renamed anywhere in `client/src/`, update `docs/overwatch-frontend-map.json` in the same change (add/remove/rename the matching entry under that file's node in `uiElements`). This file is the index the in-app element inspector (`client/src/debug/InspectorOverlay.tsx`) dynamically imports at runtime to resolve a clicked element to its label/description/locate-grep — an id missing from it silently breaks that element's inspector click (the hover highlight still works since that doesn't consult the map, which makes the failure easy to miss). Keep `locate.grep` anchored to a stable string in the element's JSX, not a line number.
 
+Then run `python3 scripts/sync-frontend-map-html.py` in the same change. `docs/overwatch-frontend-map.html` is a second copy of that same map — a self-contained browser viewer with the JSON inlined as a `const DATA = {...}` literal — and it is what Sean actually clicks through. Never hand-edit it; the script rewrites the literal from the JSON, which is the only source of truth. `--check` reports drift without writing (exit 1), so it doubles as a pre-commit verification. This rule exists because the HTML previously fell two capture-model generations behind — still listing a deleted component and a retired death-capture UI — while the JSON stayed current.
+
 ## Commands
 
 From the project root:
@@ -20,6 +22,10 @@ cd client && npx vite                                         # frontend, port 5
 
 # Rebuild SQLite DB from the Numbers spreadsheet
 python3 scripts/migrate.py
+
+# Re-inline docs/overwatch-frontend-map.json into the HTML map viewer
+# (--check verifies without writing; exits 1 on drift)
+python3 scripts/sync-frontend-map-html.py
 
 # Type-check client
 cd client && npx tsc --noEmit
