@@ -275,6 +275,7 @@ export const HEROES: Record<string, string> = {
   // 2025-2026 additions
   Shion: 'DPS', 'Jetpack Cat': 'Support', Domina: 'Tank', Sierra: 'DPS',
   Mizuki: 'Support', Emre: 'DPS', Wuyang: 'Support', Anran: 'DPS', Vendetta: 'DPS',
+  'D.Mon': 'Tank',
 };
 
 // Hanaoka and Anubis removed from active rotation indefinitely
