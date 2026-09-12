@@ -100,6 +100,27 @@ git add -A
 # Nothing staged after add means every change was gitignored — not a commit.
 if git diff --cached --quiet; then log "SKIP: all changes are gitignored"; exit 0; fi
 
+# --- Secret scan: fail closed, never auto-fix --------------------------------
+# The remote can go public under Phase 1 with no human in this loop, so a
+# staged secret must abort the commit rather than ship it.
+SECRET_PATTERNS='sk-|xox[bap]-|hooks\.slack\.com/services/|Bearer [A-Za-z0-9]{20,}|-----BEGIN .* PRIVATE KEY-----'
+SECRET_HIT=""
+if git diff --cached | grep -qE "$SECRET_PATTERNS"; then
+  SECRET_HIT="credential pattern in staged diff"
+fi
+# A staged .env (or *.env) file that isn't .env.example is also a hard stop,
+# even if its contents didn't match a pattern above.
+ENV_FILE=$(git diff --cached --name-only | grep -E '(^|/)\.env$|(^|/)[^/]*\.env$' | grep -v '\.env\.example$' | head -1)
+if [ -n "$ENV_FILE" ]; then
+  SECRET_HIT="staged env file: $ENV_FILE"
+fi
+if [ -n "$SECRET_HIT" ]; then
+  git reset --quiet
+  log "GATE FAILED (secret scan) — NOT committing. Reason: $SECRET_HIT"
+  notify_once "fail:secret-scan" ":rotating_light: *overwatch auto-commit held back* — staged changes matched a credential pattern ($SECRET_HIT). Nothing was committed; changes were unstaged, working tree untouched. Check \`$LOG\`."
+  exit 0
+fi
+
 MSG=$(printf 'chore(auto): checkpoint working tree (%s files)\n\nAutomated hourly checkpoint. The full gate passed before this was written:\nserver typecheck, client typecheck, and the test suite (%s passing).\n\nFiles:\n%s\n\nThis is a safety checkpoint, not a curated commit — squash or reword it\nfreely when you next tidy history.\n' "$FILES" "${TESTS:-?}" "$SUMMARY")
 
 if git commit --quiet -m "$MSG" 2>>"$LOG"; then

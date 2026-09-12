@@ -15,9 +15,13 @@ import customPhasesRouter from './routes/customPhases';
 const app = express();
 const PORT = 3001;
 
-// Also allow the Mac mini's Tailscale IP so the app is reachable from other
-// devices on the tailnet (e.g. the iMac), not just localhost.
-app.use(cors({ origin: ['http://localhost:5173', 'http://100.122.38.86:5173'] }));
+// Allowed origins come from ALLOWED_ORIGINS (comma-separated) so a tailnet IP
+// doesn't have to live in source. Defaults to localhost only if unset.
+const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 
 app.use('/api/matches', matchesRouter);
