@@ -1234,14 +1234,29 @@ function ActiveTestCard({ active }: { active: DpiTestActive }) {
   const [busy, setBusy] = useState(false);
   const [answer, setAnswer] = useState<AnswerStage[] | null>(null);
 
+  // The server refuses to leave a stage short of its batch (stage order only
+  // moves forward, so an abandoned stage can never refill). Confirm first and
+  // send force when that's genuinely what's wanted — a scrapped session, a
+  // stage set up wrong — same shape as restart()'s guard below.
   async function advance() {
+    const onStage = active.games_on_stage ?? 0;
+    const short = onStage < active.batch_size;
+    if (short && !window.confirm(
+      `Stage ${active.cur_stage} only has ${onStage} of ${active.batch_size} games. ` +
+      `Moving on leaves it short for good — stages never go backwards, so it can't be filled in later.\n\nAdvance anyway?`,
+    )) return;
+
     setBusy(true);
     try {
       const r = await fetch('/api/blind/advance', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ set_id: active.set_id }),
+        body: JSON.stringify({ set_id: active.set_id, ...(short ? { force: true } : {}) }),
       });
       if (r.ok) revalidateAll();
+      else {
+        const body = await r.json().catch(() => ({}));
+        alert(`Advance failed: ${body.error ?? r.statusText}`);
+      }
     } finally { setBusy(false); }
   }
 

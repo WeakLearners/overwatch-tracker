@@ -94,7 +94,9 @@ describe('POST /api/matches — who gets credited', () => {
     const cass = await makeSet({ hero: 'Cassidy', senses: [5.0, 6.0] });
     // Put Cassidy's set on stage 2 so the two sets disagree about which stage
     // "current" means — a shared/global stage pointer would show up here.
-    await h.post('/api/blind/advance', { set_id: cass });
+    // force, because stage 1 hasn't been played and the endpoint now refuses
+    // to walk away from an unfinished stage without it.
+    assert.equal((await h.post('/api/blind/advance', { set_id: cass, force: true })).status, 200);
 
     const id = await logMatch({ hero: 'Ashe', role: 'DPS', heroes: [{ hero: 'Cassidy', role: 'DPS' }] });
 

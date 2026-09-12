@@ -121,7 +121,11 @@ describe('POST /api/aim — upsert on resubmit', () => {
 });
 
 describe('POST /api/aim — removing a hero on correction', () => {
-  test('BUG: a hero dropped from the payload keeps its accuracy row forever', async () => {
+  // The payload is the whole roster, not a patch — the same reading the handler
+  // already applies to omitted FIELDS, which get cleared rather than carried
+  // forward. Before 2026-09-12 a dropped hero was the one thing that couldn't
+  // be taken back through the API at all.
+  test('a hero dropped from the payload is removed', async () => {
     const id = await logMatch({ heroes: [{ hero: 'Cassidy', role: 'DPS' }] });
     await h.post('/api/aim', {
       match_id: id,
@@ -133,19 +137,12 @@ describe('POST /api/aim — removing a hero on correction', () => {
     // alone and the full 10 minutes.
     await h.post('/api/aim', { match_id: id, heroes: [{ hero: 'Ashe', overall_acc: 41, duration_min: 10 }] });
 
-    // Ashe updates correctly...
+    assert.deepEqual(heroStats(id).map(r => r.hero), ['Ashe'], 'Cassidy is gone');
     assert.deepEqual(heroStats(id).find(r => r.hero === 'Ashe'),
       { hero: 'Ashe', overall_acc: 41, crit_acc: null, duration_min: 10 });
-    // ...and Cassidy survives the correction untouched. <-- THE BUG. The loop
-    // only ever INSERTs or UPDATEs the heroes present in the payload; nothing
-    // deletes the ones that left. Flip this to assert Cassidy is gone once the
-    // handler deletes rows absent from the submitted list.
-    assert.deepEqual(heroStats(id).find(r => r.hero === 'Cassidy'),
-      { hero: 'Cassidy', overall_acc: 50, crit_acc: null, duration_min: 4 },
-      'stale hero row survives — correcting the match cannot remove it');
   });
 
-  test('BUG: the stale row makes match duration disagree with the per-hero sum', async () => {
+  test('match duration agrees with the per-hero sum after a removal', async () => {
     const id = await logMatch({ heroes: [{ hero: 'Cassidy', role: 'DPS' }] });
     await h.post('/api/aim', {
       match_id: id,
@@ -153,17 +150,25 @@ describe('POST /api/aim — removing a hero on correction', () => {
     });
     await h.post('/api/aim', { match_id: id, heroes: [{ hero: 'Ashe', overall_acc: 41, duration_min: 10 }] });
 
-    // aim_stats.duration_min is recomputed from the payload (10), but the
-    // surviving hero rows now sum to 14. The two are documented as the same
-    // quantity, so any consumer that trusts either one is reading a different
-    // match length depending on which table it asked.
+    // aim_stats.duration_min is recomputed from the payload. When the stale
+    // hero row survived, the per-hero rows summed to 14 against a match total
+    // of 10 — the two are documented as the same quantity, so a consumer read
+    // a different match length depending on which table it asked.
     const perHeroSum = heroStats(id).reduce((s, r) => s + (r.duration_min ?? 0), 0);
     assert.equal(matchStats(id).duration_min, 10);
-    assert.equal(perHeroSum, 14);
-    assert.notEqual(matchStats(id).duration_min, perHeroSum, 'the two disagree by exactly the removed hero');
+    assert.equal(perHeroSum, 10);
   });
 
-  test('BUG: the phantom hero is still attached to a match it was never played in', async () => {
+  test('an empty hero list clears the roster rather than leaving it frozen', async () => {
+    const id = await logMatch();
+    await h.post('/api/aim', { match_id: id, heroes: [{ hero: 'Ashe', overall_acc: 40 }] });
+    await h.post('/api/aim', { match_id: id, heroes: [], elims: 12 });
+
+    assert.deepEqual(heroStats(id), [], 'the scoreboard survives; the per-hero accuracy does not');
+    assert.equal(matchStats(id).elims, 12);
+  });
+
+  test('no phantom hero survives a roster correction', async () => {
     const id = await logMatch({ heroes: [{ hero: 'Cassidy', role: 'DPS' }] });
     await h.post('/api/aim', {
       match_id: id,
@@ -176,11 +181,10 @@ describe('POST /api/aim — removing a hero on correction', () => {
     const slots = (h.db.prepare('SELECT hero FROM match_heroes WHERE match_id = ?').all(id) as unknown as any[]).map(r => r.hero);
     assert.deepEqual(slots, ['Ashe'], 'the roster edit worked — Cassidy is off the match');
 
-    // But the aim row remains, now with no slot to belong to. This is the
-    // shape the live-DB audit searched for and found zero of; it is reachable
-    // purely through the API, with no direct SQL involved.
+    // And no accuracy row outlives the slot that justified it. This is the
+    // shape the live-DB audit searched for and found zero of, though it was
+    // reachable purely through the API with no direct SQL involved.
     const orphans = heroStats(id).filter(r => !slots.includes(r.hero));
-    assert.deepEqual(orphans.map(r => r.hero), ['Cassidy'],
-      'aim_stats_heroes row outlives the roster entry that justified it');
+    assert.deepEqual(orphans, []);
   });
 });

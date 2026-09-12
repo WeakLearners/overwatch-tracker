@@ -560,6 +560,19 @@ function initSchema(db: DatabaseSync) {
     db.exec(`ALTER TABLE blind_stages ADD COLUMN sens REAL`);
   }
 
+  // abandoned: this stage was deliberately left short via the force path on
+  // POST /api/blind/advance (bad session, stage set up wrong). Completion is
+  // now per stage, so without this flag a forced short stage would make its
+  // set permanently incompletable — and since an incomplete set stays active
+  // and a hero may only have one active set, it would block that hero from
+  // ever starting another test. Marking the stage instead lets the set finish
+  // while keeping the shortfall on the record: the stage still reports its
+  // real game count everywhere, and analysis can see it was cut short rather
+  // than inferring it from a suspiciously small n.
+  if (!stageCols.find(c => c.name === 'abandoned')) {
+    db.exec(`ALTER TABLE blind_stages ADD COLUMN abandoned INTEGER NOT NULL DEFAULT 0`);
+  }
+
   // sens_low / sens_high (2026-08-31 through 2026-09-01 only): a short-lived
   // "ranged" Motivity-curve stage design — floor/ceiling instead of one flat
   // sens value. Superseded the same day by a switch to Rawaccel's Jump curve,
@@ -604,8 +617,29 @@ function initSchema(db: DatabaseSync) {
     // active set governs the match at all. Default 0 (existing sets/phases
     // predate this and were never accel-tested, except Phase 7 below).
     ['curve_enabled', `ALTER TABLE blind_stage_sets ADD COLUMN curve_enabled INTEGER NOT NULL DEFAULT 0`],
+    // legacy_closed: this set was retired under the OLD rule, which fired on
+    // the total credit count (batch_size * n_stages) rather than on every
+    // stage individually. Completion is now derived per stage and recomputed
+    // in both directions (blind.ts isSetComplete/syncSetActive), so without
+    // this marker the four historically uneven sets — 15, 16, 85 Cassidy,
+    // 86 Reaper — would spring back to active and start asking for more games.
+    // Sean chose on 2026-09-12 to grandfather them closed: they're already
+    // filtered out of bracket reads by nightlyAnalysis's MIN_GAMES_PER_STAGE,
+    // so reopening them would cost real playtime for accuracy nothing reads.
+    // isSetComplete treats a legacy_closed set as complete unconditionally,
+    // which keeps them retired, uncancellable, and labelled "completed" in
+    // the UI exactly as they are today. The new per-stage rule governs every
+    // set from here on.
+    ['legacy_closed', `ALTER TABLE blind_stage_sets ADD COLUMN legacy_closed INTEGER NOT NULL DEFAULT 0`],
   ] as const) {
     if (!setCols.find(c => c.name === col)) db.exec(ddl);
+  }
+  // Backfill, once: whatever was already retired at the moment this column
+  // landed was retired by the old total-count rule. Guarded on the column
+  // having been absent a moment ago, so a set legitimately retired by the new
+  // per-stage rule later never gets stamped as legacy and locked shut.
+  if (!setCols.find(c => c.name === 'legacy_closed')) {
+    db.exec(`UPDATE blind_stage_sets SET legacy_closed = 1 WHERE active = 0`);
   }
   // One-time retroactive fix: Phase 7 (phase key 'custom-1787763963436') was
   // genuinely played with acceleration on for its entire run (confirmed

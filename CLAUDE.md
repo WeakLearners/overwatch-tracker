@@ -60,14 +60,46 @@ Three conventions worth keeping:
 - **When a test finds a real bug, report it rather than quietly fixing it.**
   The first suite immediately surfaced a migration-ordering bug that crashed
   `initSchema()` on any fresh DB — worth seeing, not worth burying.
-- **A test that pins buggy behavior says so in its name.** Several route tests
-  start with `BUG:` and assert what the code currently does, not what it should.
+- **A test that pins buggy behavior says so in its name.** A route test that
+  starts with `BUG:` asserts what the code currently does, not what it should.
   That keeps the suite green (the auto-commit gate depends on it) while making
   the defect impossible to miss and trivial to flip once the fix is decided.
-  Known open ones: `POST /api/blind/advance` has no batch-completion guard, set
-  retirement fires on the total credit count rather than per stage and is
-  one-way, and `POST /api/aim` never removes a hero dropped from the payload.
-  All three are latent — verified absent from the live DB on 2026-09-12.
+  None are open right now — the three the Tier 3 suite found were all fixed on
+  2026-09-12 once Sean ruled on the study-design question behind them, and
+  those tests now assert the fixed behavior with the history kept in comments.
+
+### Stage-set completion (2026-09-12)
+
+Three write-path defects, found by the Tier 3 route tests and fixed together:
+
+- `POST /api/blind/advance` now refuses to leave a stage that hasn't had its
+  `batch_size` games — the same condition `/state` already returned as
+  `needSwitch`. `force` (body or `?force=1`) is the deliberate way past it and
+  the client only sends it behind a confirm. Forcing marks the stage
+  `blind_stages.abandoned`, which both records the shortfall and lets the set
+  still reach completion; without that, a forced set could never finish and
+  would block its hero from ever starting another test.
+- Completion is per stage, not on the running total (`isSetComplete` in
+  `routes/blind.ts`). A 2-and-8 split reaching `batch_size * n_stages` is not
+  the A/B the set was built to run.
+- The `active` flag is derived in both directions (`syncSetActive`), so
+  deleting a match out of a finished set reopens it. It used to be a one-way
+  UPDATE, which is how set 86 (Reaper) ended up permanently unfinishable —
+  neither advanceable nor creditable. Reopening is skipped when a newer set
+  already owns that hero, since only one active set per hero is resolvable.
+
+The 63 sets already retired under the old rule are grandfathered via
+`blind_stage_sets.legacy_closed`, which `isSetComplete` honors unconditionally
+— Sean's call, since the four uneven ones are already filtered out of bracket
+reads by `MIN_GAMES_PER_STAGE` and reopening them would cost real playtime for
+accuracy nothing reads. Dry-run against a copy of the live DB before merge:
+0 sets reopen, 0 newly retire, and all 8 in-flight sets have every stage behind
+`cur_rel` at a full 5, so nothing is stranded.
+
+`POST /api/aim` also now deletes heroes absent from the payload — the payload
+is the complete roster, matching how an omitted field already clears rather
+than carries forward. Previously a mis-entered hero could not be withdrawn
+through the API at all.
 
 ## Automation
 

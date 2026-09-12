@@ -487,6 +487,17 @@ router.post('/', (req: Request, res: Response) => {
   const durations = heroList.map(h => h.duration_min).filter((d): d is number => typeof d === 'number');
   const totalDuration = durations.length ? durations.reduce((a, b) => a + b, 0) : null;
 
+  // The payload is the complete roster for this match, not a patch — the same
+  // way an omitted FIELD on a hero clears that field rather than keeping the
+  // old value. So a hero missing from heroes[] means "this hero wasn't
+  // played," and its row goes. Without the delete there was no way at all to
+  // withdraw a mis-entered hero through the API: the row survived every
+  // correction, kept feeding per-hero accuracy for a match it was never in,
+  // and left aim_stats.duration_min disagreeing with the per-hero sum by
+  // exactly that hero's minutes. Wrapped with the writes below so a failure
+  // partway can't leave the roster half-deleted.
+  db.exec('BEGIN');
+  try {
   db.prepare(`
     INSERT INTO aim_stats (match_id, elims, deaths, damage, healing, assists, duration_min)
     VALUES (:match_id, :elims, :deaths, :damage, :healing, :assists, :duration_min)
@@ -525,6 +536,23 @@ router.post('/', (req: Request, res: Response) => {
       extra_acc: h.extra_acc ?? null, torpedo_damage: h.torpedo_damage ?? null,
       torpedo_healing: h.torpedo_healing ?? null, duration_min: h.duration_min ?? null,
     });
+  }
+
+  // Drop the heroes this submission left out. Runs after the inserts so a
+  // hero that's still present is never momentarily missing.
+  const keep = heroList.map(h => String(h.hero));
+  if (keep.length) {
+    db.prepare(
+      `DELETE FROM aim_stats_heroes WHERE match_id = :match_id
+         AND hero NOT IN (${keep.map((_, i) => `:h${i}`).join(', ')})`
+    ).run({ match_id, ...Object.fromEntries(keep.map((h, i) => [`h${i}`, h])) });
+  } else {
+    db.prepare('DELETE FROM aim_stats_heroes WHERE match_id = :match_id').run({ match_id });
+  }
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
   }
 
   res.json({ ok: true });

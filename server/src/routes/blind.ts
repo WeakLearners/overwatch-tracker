@@ -11,14 +11,14 @@ export interface SetRow {
   phase: string | null; curve_enabled: number;
 }
 export interface StageRow {
-  stage_index: number; dpi: number; sens: number | null; pct_delta: number;
+  stage_index: number; dpi: number; sens: number | null; pct_delta: number; abandoned: number;
 }
 
 export const activeSets = (db: ReturnType<typeof getDb>) =>
   db.prepare('SELECT * FROM blind_stage_sets WHERE active = 1 ORDER BY id').all() as unknown as SetRow[];
 
 export const stagesOf = (db: ReturnType<typeof getDb>, setId: number) =>
-  db.prepare('SELECT stage_index, dpi, sens, pct_delta FROM blind_stages WHERE set_id = :id ORDER BY stage_index')
+  db.prepare('SELECT stage_index, dpi, sens, pct_delta, abandoned FROM blind_stages WHERE set_id = :id ORDER BY stage_index')
     .all({ id: setId }) as unknown as StageRow[];
 
 // Total games ever logged against a set, across all its stages combined —
@@ -42,6 +42,60 @@ export const totalGamesOf = (db: ReturnType<typeof getDb>, setId: number) =>
 export const gamesOnStageOf = (db: ReturnType<typeof getDb>, setId: number, stageIndex: number) =>
   (db.prepare('SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id AND stage_index = :si')
     .get({ id: setId, si: stageIndex }) as { n: number }).n;
+
+// ── Completion, per stage ────────────────────────────────────────────────────
+// A set is finished when EVERY stage has its batch_size games — not when the
+// running total happens to reach batch_size * n_stages. Those two agree only
+// when the games landed evenly, and the whole point of a staged set is the
+// comparison between stages: a 2-stage/batch-5 set that took 2 games on stage
+// one and 8 on stage two also totals 10, and under the old total-count rule
+// reported itself finished, indistinguishable from a real 5-and-5. Nothing
+// downstream could tell them apart, because the distribution only ever lived
+// in blind_credits. Checking the stages individually is the same query the
+// HUD already runs for needSwitch, just applied to all of them at once.
+//
+// legacy_closed short-circuits this for the sets retired before the rule
+// changed — see the column's note in schema.ts.
+export function isSetComplete(db: ReturnType<typeof getDb>, setId: number): boolean {
+  const set = db.prepare('SELECT batch_size, legacy_closed FROM blind_stage_sets WHERE id = :id')
+    .get({ id: setId }) as { batch_size: number; legacy_closed: number } | undefined;
+  if (!set) return false;
+  if (set.legacy_closed) return true;
+  const stages = stagesOf(db, setId);
+  if (!stages.length) return false;
+  return stages.every(s => s.abandoned || gamesOnStageOf(db, setId, s.stage_index) >= set.batch_size);
+}
+
+// Recompute a set's active flag from its credits. Two-way on purpose:
+// retirement used to be a one-way UPDATE with no inverse, so deleting a match
+// out of a finished set left it short of its target AND permanently shut —
+// it could no longer be advanced (409, inactive) or credited (findActiveStage
+// only sees active=1), which is exactly how set 86 (Reaper) ended up stranded
+// at 5+1 of 10 with no way back. Deriving the flag instead means a deletion
+// reopens the set on its own.
+//
+// The one thing reopening must not do is break the invariant that at most one
+// active set owns a given hero (or the ad-hoc, hero-less slot) — findActiveStage
+// would have no way to choose between them. If a newer set has already taken
+// the slot, the old one stays closed.
+export function syncSetActive(db: ReturnType<typeof getDb>, setId: number) {
+  const set = db.prepare('SELECT id, hero, active FROM blind_stage_sets WHERE id = :id')
+    .get({ id: setId }) as { id: number; hero: string | null; active: number } | undefined;
+  if (!set) return;
+
+  if (isSetComplete(db, setId)) {
+    if (set.active) db.prepare('UPDATE blind_stage_sets SET active = 0 WHERE id = :id').run({ id: setId });
+    return;
+  }
+  if (set.active) return;
+
+  const rival = set.hero === null
+    ? db.prepare('SELECT id FROM blind_stage_sets WHERE active = 1 AND hero IS NULL AND id != :id').get({ id: setId })
+    : db.prepare('SELECT id FROM blind_stage_sets WHERE active = 1 AND hero = :hero AND id != :id').get({ id: setId, hero: set.hero });
+  if (rival) return;
+
+  db.prepare('UPDATE blind_stage_sets SET active = 1 WHERE id = :id').run({ id: setId });
+}
 
 // ── Create a set ─────────────────────────────────────────────────────────────
 // Stages are shown plainly — no shuffle, no scramble step. Three ways to
@@ -155,10 +209,8 @@ router.delete('/sets/:id', (req: Request, res: Response) => {
     .get({ id: req.params.id }) as { id: number; batch_size: number } | undefined;
   if (!set) { res.status(404).json({ error: 'set not found' }); return; }
 
-  const n_stages = stagesOf(db, set.id).length;
   const gameCount = totalGamesOf(db, set.id);
-  const completed = gameCount >= set.batch_size * n_stages;
-  if (completed) { res.status(409).json({ error: 'cannot cancel a completed set' }); return; }
+  if (isSetComplete(db, set.id)) { res.status(409).json({ error: 'cannot cancel a completed set' }); return; }
 
   // Safety net against an accidental cancel wiping real data: if games have been
   // logged against this set, refuse unless the caller explicitly opts in with
@@ -189,7 +241,7 @@ router.get('/sets', (_req: Request, res: Response) => {
     const totalGames = totalGamesOf(db, row.id);
     return {
       set_id: row.id, hero: row.hero, phase: row.phase, active: !!row.active,
-      completed: totalGames >= row.batch_size * stages.length,
+      completed: isSetComplete(db, row.id),
       batch_size: row.batch_size, n_stages: stages.length, totalGames, created_at: row.created_at,
       values: stages.map(s => s.sens ?? s.dpi), curveEnabled: !!row.curve_enabled,
     };
@@ -211,8 +263,7 @@ router.get('/state', (_req: Request, res: Response) => {
     const n_stages = stages.length;
     const curStage = stages.find(s => s.stage_index === set.cur_rel) ?? stages[0];
     const totalGames = totalGamesOf(db, set.id);
-    const target = set.batch_size * n_stages;
-    const completed = totalGames >= target;
+    const completed = isSetComplete(db, set.id);
     const gamesOnStage = gamesOnStageOf(db, set.id, set.cur_rel);
 
     return {
@@ -230,6 +281,15 @@ router.get('/state', (_req: Request, res: Response) => {
 // ── Advance a set to its next stage ─────────────────────────────────────────
 // Sequential — stage order is exactly the order the DPIs were entered in.
 // Takes set_id since several sets may be active at once.
+//
+// Refuses to leave a stage that hasn't had its batch_size games, because
+// cur_rel only ever moves up: findActiveStage credits cur_rel and nothing
+// walks it back, so a stage abandoned early can never refill and the set is
+// permanently lopsided. This is the same condition /state already computes as
+// needSwitch to light up the button — the endpoint simply wasn't asking.
+// ?force=1 (or force in the body) is the deliberate out for a stage worth
+// abandoning — bad session, wrong hero — and the client only sends it behind
+// a confirm, mirroring how DELETE /sets/:id guards a destructive restart.
 router.post('/advance', (req: Request, res: Response) => {
   const db = getDb();
   const set_id = Number(req.body.set_id);
@@ -239,7 +299,25 @@ router.post('/advance', (req: Request, res: Response) => {
   const n = stages.length;
   if (set.cur_rel >= n) { res.status(409).json({ error: 'already at the last stage' }); return; }
 
+  const force = req.body?.force === true || req.body?.force === 1
+    || req.query.force === '1' || req.query.force === 'true';
+  const gamesOnStage = gamesOnStageOf(db, set.id, set.cur_rel);
+  if (gamesOnStage < set.batch_size && !force) {
+    res.status(409).json({
+      error: 'stage is not finished; retry with force to confirm',
+      games_on_stage: gamesOnStage, batch_size: set.batch_size,
+    });
+    return;
+  }
+
   const next = set.cur_rel + 1;
+  // Record the shortfall rather than silently swallowing it — see the
+  // abandoned column's note in schema.ts for why the set needs this to be
+  // able to finish at all.
+  if (gamesOnStage < set.batch_size) {
+    db.prepare('UPDATE blind_stages SET abandoned = 1 WHERE set_id = :id AND stage_index = :si')
+      .run({ id: set.id, si: set.cur_rel });
+  }
   db.prepare('UPDATE blind_stage_sets SET cur_rel = :next WHERE id = :id').run({ next, id: set.id });
   const stage = stages.find(s => s.stage_index === next);
   res.json({ cur_stage: next, dpi: stage?.dpi ?? null, sens: stage?.sens ?? null, n_stages: n });

@@ -4,31 +4,33 @@
 // with only 1–3 games credited to the stage they left. Tier 2 proved the READ
 // path is innocent — blind.ts and nightlyReport.ts agree on clean fixtures and
 // the anomaly did not reproduce there. So it had to be the write path, and it
-// is. Two independent defects, both reproduced below:
+// is. Three defects were found here, all reproduced first as `BUG:` tests and
+// then fixed on 2026-09-12 once Sean ruled on the study-design question behind
+// them. The assertions below now pin the FIXED behavior; the history is kept in
+// the comments because the failure modes are subtle and worth not relearning.
 //
-//   BUG 1 — POST /api/blind/advance has no batch guard at all. It checks that
-//   the set is active and that a next stage exists, then increments cur_rel.
-//   Whether the stage being abandoned got its batch_size games is never
+//   1 — POST /api/blind/advance had no batch guard at all. It checked that the
+//   set was active and that a next stage existed, then incremented cur_rel.
+//   Whether the stage being abandoned got its batch_size games was never
 //   consulted, even though GET /api/blind/state already computes exactly that
-//   (`needSwitch`) to drive the button. The UI knows; the endpoint doesn't ask.
+//   (`needSwitch`) to drive the button. The UI knew; the endpoint didn't ask.
+//   Now it refuses, and `force` is the deliberate way through.
 //
-//   BUG 2 — retirement fires on the TOTAL credit count (batch_size * n_stages),
-//   not on every stage individually. A 2-stage/batch-5 set that took 2 games on
-//   stage 1 and 8 on stage 2 reaches 10 and is marked `completed: true`. Ten
-//   games were played, so the total is honest — but it is not the 5-vs-5
-//   comparison the set was created to run, and nothing downstream is told the
-//   difference.
+//   2 — retirement fired on the TOTAL credit count (batch_size * n_stages), not
+//   on every stage individually. A 2-stage/batch-5 set that took 2 games on
+//   stage 1 and 8 on stage 2 reached 10 and was marked `completed: true`. Ten
+//   games were played, so the total was honest — but it is not the 5-vs-5
+//   comparison the set was created to run, and nothing downstream was told the
+//   difference. Completion is per stage now (blind.ts isSetComplete).
 //
-// Together they are one failure: a set can be advanced early and then reported
-// complete, with a stage nothing will ever return to (findActiveStage only ever
-// credits cur_rel, which never moves backward).
+//   3 — retirement was a one-way UPDATE. Deleting a match out of a finished set
+//   dropped it below target and left it shut, so it could neither be advanced
+//   (409, inactive) nor credited (findActiveStage skips inactive sets). The
+//   flag is derived from the credits in both directions now (syncSetActive).
 //
-// These tests PIN CURRENT BEHAVIOR — they pass against the code as it stands,
-// and each one that encodes a defect says so in its name. Per this repo's
-// CLAUDE.md, a test that finds a real bug reports it rather than quietly fixing
-// it: how an early advance should be handled (refuse it, allow it with a
-// recorded reason, or let the analysis layer weight it) is a study-design call,
-// not a cleanup. Flip the assertion when that call is made.
+// The four historically uneven live sets — 15, 16, 85 Cassidy, 86 Reaper — are
+// grandfathered closed via blind_stage_sets.legacy_closed rather than springing
+// back to life under the new rule; see that column's note in schema.ts.
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { startHarness, type Harness } from '../test/httpHarness';
@@ -76,76 +78,111 @@ const creditsByStage = (setId: number): { stage_index: number; n: number }[] =>
     .map(r => ({ stage_index: Number(r.stage_index), n: Number(r.n) }));
 
 describe('POST /api/blind/advance — batch completion', () => {
-  test('BUG: advances with ZERO games on the current stage', async () => {
+  test('refuses to advance with ZERO games on the current stage', async () => {
     const setId = await makeSet();
     const before = await stateOf(setId);
     assert.equal(before.games_on_stage, 0);
-    assert.equal(before.needSwitch, false, 'state correctly says no switch is due');
+    assert.equal(before.needSwitch, false, 'state says no switch is due');
 
     const r = await h.post('/api/blind/advance', { set_id: setId });
-    // Current behavior: accepted. Stage 1 now has zero games and cur_rel is 2,
-    // so stage 1 is permanently empty — nothing credits a stage below cur_rel.
-    assert.equal(r.status, 200);
-    assert.equal(r.body.cur_stage, 2);
-    assert.deepEqual(creditsByStage(setId), [], 'stage 1 was left with no data at all');
+    assert.equal(r.status, 409, 'the endpoint now asks the same question the UI does');
+    assert.match(r.body.error, /not finished/);
+    assert.equal(r.body.games_on_stage, 0);
+    assert.equal(r.body.batch_size, 5);
+    assert.equal((await stateOf(setId)).cur_stage, 1, 'still on stage 1');
   });
 
-  test('BUG: advances mid-batch at 2 of 5, stranding stage 1 under-sampled', async () => {
+  test('refuses mid-batch at 2 of 5', async () => {
     const setId = await makeSet({ batch_size: 5 });
     await playGames('Ashe', 2);
 
     const before = await stateOf(setId);
     assert.equal(before.games_on_stage, 2);
-    assert.equal(before.needSwitch, false, 'the endpoint has the same information the UI does');
+    assert.equal(before.needSwitch, false);
 
     const r = await h.post('/api/blind/advance', { set_id: setId });
-    assert.equal(r.status, 200, 'no guard — needSwitch:false does not block the advance');
-    assert.equal(r.body.cur_stage, 2);
-    assert.equal(r.body.sens, 3, 'and the set is now genuinely being played at stage 2');
+    assert.equal(r.status, 409);
+    assert.equal(r.body.games_on_stage, 2);
+    assert.deepEqual(creditsByStage(setId), [{ stage_index: 1, n: 2 }], 'nothing moved');
   });
 
-  test('a stage left behind never refills — later games credit only cur_rel', async () => {
+  test('allows the advance at exactly batch_size', async () => {
+    const setId = await makeSet({ batch_size: 5 });
+    await playGames('Ashe', 5);
+    const r = await h.post('/api/blind/advance', { set_id: setId });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.cur_stage, 2);
+    assert.equal(r.body.sens, 3);
+  });
+
+  test('force bails out of a short stage, and marks it abandoned', async () => {
     const setId = await makeSet({ batch_size: 5 });
     await playGames('Ashe', 2);
-    await h.post('/api/blind/advance', { set_id: setId });
+
+    const r = await h.post('/api/blind/advance', { set_id: setId, force: true });
+    assert.equal(r.status, 200, 'the deliberate escape hatch still works');
+    assert.equal(r.body.cur_stage, 2);
+
+    const stage1 = h.db.prepare('SELECT abandoned FROM blind_stages WHERE set_id = ? AND stage_index = 1')
+      .get(setId) as { abandoned: number };
+    assert.equal(Number(stage1.abandoned), 1, 'the shortfall is on the record, not swallowed');
+  });
+
+  test('a force-abandoned stage never refills — later games credit only cur_rel', async () => {
+    const setId = await makeSet({ batch_size: 5 });
+    await playGames('Ashe', 2);
+    await h.post('/api/blind/advance', { set_id: setId, force: true });
     await playGames('Ashe', 3);
 
-    // This is the irreversibility that makes the missing guard matter. If an
-    // early advance merely deferred games, the stage would catch up later.
-    // It cannot: findActiveStage credits cur_rel and cur_rel only moves up.
+    // This irreversibility is why the guard has to be a refusal rather than a
+    // warning. If an early advance merely deferred games, the stage would catch
+    // up later. It cannot: findActiveStage credits cur_rel and cur_rel only
+    // moves up.
     assert.deepEqual(creditsByStage(setId), [
       { stage_index: 1, n: 2 },
       { stage_index: 2, n: 3 },
     ]);
   });
 
-  test('BUG: a 2/8 split retires as "completed" — the total is right, the comparison is not', async () => {
+  test('a 2/8 split is NOT complete on the total alone — every stage has to be finished', async () => {
     const setId = await makeSet({ batch_size: 5, senses: [2.0, 3.0] });
     await playGames('Ashe', 2);
-    await h.post('/api/blind/advance', { set_id: setId });
+    // Unforced, so stage 1 is short but NOT marked abandoned — this is the
+    // shape the old code produced, minus the guard, and the one the old rule
+    // called finished.
+    await h.post('/api/blind/advance', { set_id: setId, force: true });
+    h.db.prepare('UPDATE blind_stages SET abandoned = 0 WHERE set_id = ?').run(setId);
     await playGames('Ashe', 8);
-
-    // 2 + 8 = 10 = batch_size * n_stages, so the retire condition in
-    // matches.ts fires and the set drops off the active list.
-    assert.equal(await stateOf(setId), null, 'no longer active');
 
     const { body } = await h.get('/api/blind/sets');
     const set = body.sets.find((s: any) => s.set_id === setId);
-    assert.equal(set.totalGames, 10);
-    assert.equal(set.completed, true, 'reported complete');
-    assert.equal(set.active, false);
-
-    // ...while the thing it was built to measure — 5 games at 2.0 against 5
-    // games at 3.0 — never happened. Nothing in the /sets payload exposes this;
-    // `completed` is computed from totalGames alone, so a consumer reading that
-    // flag sees a finished A/B test rather than a 2-vs-8.
+    assert.equal(set.totalGames, 10, '2 + 8 = batch_size * n_stages, which used to be enough');
+    assert.equal(set.completed, false, 'but stage 1 only ever saw 2 of its 5');
+    assert.equal(set.active, true, 'so it stays open rather than reporting a result it never ran');
     assert.deepEqual(creditsByStage(setId), [
       { stage_index: 1, n: 2 },
       { stage_index: 2, n: 8 },
     ]);
   });
 
-  test('an evenly played set reaches the same "completed" state — the flag cannot tell them apart', async () => {
+  test('an abandoned stage does let the set finish — otherwise it would block the hero forever', async () => {
+    const setId = await makeSet({ batch_size: 5, senses: [2.0, 3.0] });
+    await playGames('Ashe', 2);
+    await h.post('/api/blind/advance', { set_id: setId, force: true });
+    await playGames('Ashe', 5);
+
+    const { body } = await h.get('/api/blind/sets');
+    const set = body.sets.find((s: any) => s.set_id === setId);
+    assert.equal(set.completed, true, 'stage 1 was written off on purpose; stage 2 is full');
+    assert.equal(set.active, false, 'retires, freeing Ashe for a new test');
+    // The shortfall is still legible — the count is real and the flag is set.
+    assert.deepEqual(creditsByStage(setId), [
+      { stage_index: 1, n: 2 },
+      { stage_index: 2, n: 5 },
+    ]);
+  });
+
+  test('an evenly played set completes and retires', async () => {
     const setId = await makeSet({ batch_size: 5 });
     await playGames('Ashe', 5);
     const mid = await stateOf(setId);
@@ -156,22 +193,20 @@ describe('POST /api/blind/advance — batch completion', () => {
     const { body } = await h.get('/api/blind/sets');
     const set = body.sets.find((s: any) => s.set_id === setId);
     assert.equal(set.completed, true);
+    assert.equal(set.active, false);
     assert.equal(set.totalGames, 10);
     assert.deepEqual(creditsByStage(setId), [
       { stage_index: 1, n: 5 },
       { stage_index: 2, n: 5 },
     ]);
-    // Same totalGames, same completed:true, same active:false as the 2/8 set
-    // above. Only the per-stage distribution distinguishes a real result from
-    // a spoiled one, and only blind_credits carries it.
   });
 
   test('refuses to advance past the last stage', async () => {
     const setId = await makeSet({ batch_size: 5, senses: [2.0, 3.0] });
-    assert.equal((await h.post('/api/blind/advance', { set_id: setId })).status, 200);
-    const r = await h.post('/api/blind/advance', { set_id: setId });
+    assert.equal((await h.post('/api/blind/advance', { set_id: setId, force: true })).status, 200);
+    const r = await h.post('/api/blind/advance', { set_id: setId, force: true });
     assert.equal(r.status, 409);
-    assert.match(r.body.error, /last stage/);
+    assert.match(r.body.error, /last stage/, 'the last-stage check runs before the batch check');
   });
 
   test('refuses an unknown set id', async () => {
@@ -217,28 +252,80 @@ describe('GET /api/blind/state — needSwitch boundary', () => {
   });
 });
 
-describe('set retirement is one-way', () => {
-  test('BUG: deleting a credited match drops the set below target but it stays retired', async () => {
+describe('set retirement is derived, in both directions', () => {
+  // Play a 2-stage/batch-5 set all the way through, evenly.
+  async function finishedSet() {
     const setId = await makeSet({ batch_size: 5 });
     await playGames('Ashe', 5);
     await h.post('/api/blind/advance', { set_id: setId });
     await playGames('Ashe', 5);
     assert.equal(await stateOf(setId), null, 'retired at 10');
+    return setId;
+  }
+
+  test('deleting a credited match reopens the set', async () => {
+    const setId = await finishedSet();
 
     const lastId = (h.db.prepare('SELECT MAX(id) id FROM matches').get() as { id: number }).id;
     assert.equal((await h.del(`/api/matches/${lastId}`)).status, 200);
 
-    // The credit cascade-deletes, so every count blind.ts derives goes down...
     const { body } = await h.get('/api/blind/sets');
     const set = body.sets.find((s: any) => s.set_id === setId);
     assert.equal(set.totalGames, 9);
     assert.equal(set.completed, false, 'no longer meets its own completion rule');
-    // ...but active stays 0. Retirement is a one-way UPDATE with no inverse, so
-    // the set is now permanently unfinishable: it can never be advanced (409,
-    // inactive) and can never be credited again (findActiveStage skips it).
-    // This is the most likely history behind live set 86 (Reaper, 5+1 of 10,
-    // inactive) — retired legitimately at 10, then had matches deleted.
+    // ...and the active flag follows it back. Retirement used to be a one-way
+    // UPDATE with no inverse, which left the set permanently unfinishable: it
+    // could never be advanced (409, inactive) and never be credited again
+    // (findActiveStage skips inactive sets). That is the most likely history
+    // behind live set 86 (Reaper, 5+1 of 10) — retired legitimately at 10, then
+    // had matches deleted.
+    assert.equal(set.active, true);
+    assert.equal((await stateOf(setId)).games_on_stage, 4, 'back on stage 2, one short');
+  });
+
+  test('a reopened set can be played to completion again', async () => {
+    const setId = await finishedSet();
+    const lastId = (h.db.prepare('SELECT MAX(id) id FROM matches').get() as { id: number }).id;
+    await h.del(`/api/matches/${lastId}`);
+
+    await playGames('Ashe', 1);
+    assert.equal(await stateOf(setId), null, 'closes again on its own');
+    assert.deepEqual(creditsByStage(setId), [
+      { stage_index: 1, n: 5 },
+      { stage_index: 2, n: 5 },
+    ]);
+  });
+
+  test('a set does NOT reopen if a newer set already owns the hero', async () => {
+    const oldId = await finishedSet();
+    const newId = await makeSet({ batch_size: 5 });   // only allowed because oldId retired
+
+    const lastId = (h.db.prepare('SELECT MAX(id) id FROM matches').get() as { id: number }).id;
+    await h.del(`/api/matches/${lastId}`);
+
+    // Reopening would leave two active Ashe sets and findActiveStage no way to
+    // choose between them. The newer one keeps the slot.
+    const { body } = await h.get('/api/blind/sets');
+    assert.equal(body.sets.find((s: any) => s.set_id === oldId).active, false);
+    assert.equal(body.sets.find((s: any) => s.set_id === newId).active, true);
+  });
+
+  test('a legacy_closed set stays closed no matter what its stages say', async () => {
+    // The grandfathering decision, in one assertion: the four uneven live sets
+    // (15, 16, 85 Cassidy, 86 Reaper) keep reading as completed instead of
+    // coming back to ask for games nothing downstream would read.
+    const setId = await makeSet({ batch_size: 5 });
+    await playGames('Ashe', 2);
+    h.db.prepare('UPDATE blind_stage_sets SET active = 0, legacy_closed = 1 WHERE id = ?').run(setId);
+
+    const { body } = await h.get('/api/blind/sets');
+    const set = body.sets.find((s: any) => s.set_id === setId);
+    assert.equal(set.totalGames, 2, 'nowhere near its target');
+    assert.equal(set.completed, true);
     assert.equal(set.active, false);
-    assert.equal(await stateOf(setId), null);
+
+    const lastId = (h.db.prepare('SELECT MAX(id) id FROM matches').get() as { id: number }).id;
+    await h.del(`/api/matches/${lastId}`);
+    assert.equal(await stateOf(setId), null, 'a deletion does not wake it either');
   });
 });

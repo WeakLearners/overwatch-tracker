@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
 import { getCurveParams } from '../lib/curveParams';
+import { syncSetActive } from './blind';
 
 const router = Router();
 
@@ -247,16 +248,12 @@ router.post('/', (req: Request, res: Response) => {
       if (changes === 0) continue;
       // Multiple sets can be active at once now (one per hero), so nothing else
       // retires a finished set the way the old single-active-slot model used to
-      // when a new set took over. Retire it here instead, the moment its last
-      // stage hits its game target — otherwise it would stay active forever
-      // (DELETE refuses completed sets) and permanently block this hero from
-      // starting a fresh test.
-      const set = db.prepare('SELECT batch_size FROM blind_stage_sets WHERE id = :id').get({ id: credit.setId }) as { batch_size: number };
-      const nStages = (db.prepare('SELECT COUNT(*) n FROM blind_stages WHERE set_id = :id').get({ id: credit.setId }) as { n: number }).n;
-      const totalGames = (db.prepare('SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id').get({ id: credit.setId }) as { n: number }).n;
-      if (totalGames >= set.batch_size * nStages) {
-        db.prepare('UPDATE blind_stage_sets SET active = 0 WHERE id = :id').run({ id: credit.setId });
-      }
+      // when a new set took over. Retire it here instead, the moment every
+      // stage has its games — otherwise it would stay active forever (DELETE
+      // refuses completed sets) and permanently block this hero from starting
+      // a fresh test. syncSetActive owns that decision now, per stage rather
+      // than on the running total; see blind.ts.
+      syncSetActive(db, credit.setId);
     }
     db.exec('COMMIT');
   } catch (err) {
@@ -302,6 +299,7 @@ function syncStageCredits(db: ReturnType<typeof getDb>, matchId: string, sensPro
   );
 
   let primaryStage: ReturnType<typeof findActiveStage> | undefined;
+  const touchedSets = new Set<number>(oldCredits.map(c => c.blind_set_id));
   heroSlots.forEach((slot, i) => {
     const stage = findStageForRecredit(db, slot.hero, isCompetitive, oldCreditByHero.get(slot.hero));
     if (i === 0) primaryStage = stage;
@@ -317,13 +315,16 @@ function syncStageCredits(db: ReturnType<typeof getDb>, matchId: string, sensPro
     if (!stage) return;
     const { changes } = insertCredit.run({ match_id: matchId, hero: slot.hero, blind_set_id: stage.setId, stage_index: stage.stageIdx });
     if (changes === 0) return;
-    const set = db.prepare('SELECT batch_size FROM blind_stage_sets WHERE id = :id').get({ id: stage.setId }) as { batch_size: number };
-    const nStages = (db.prepare('SELECT COUNT(*) n FROM blind_stages WHERE set_id = :id').get({ id: stage.setId }) as { n: number }).n;
-    const totalGames = (db.prepare('SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id').get({ id: stage.setId }) as { n: number }).n;
-    if (totalGames >= set.batch_size * nStages) {
-      db.prepare('UPDATE blind_stage_sets SET active = 0 WHERE id = :id').run({ id: stage.setId });
-    }
+    touchedSets.add(stage.setId);
   });
+
+  // Re-derive active for every set this edit touched, including the ones it
+  // took a credit AWAY from — correcting a hero, or flipping a match to QP,
+  // can drop a finished set back under target, and the flag has to be able to
+  // move in that direction too. Done after the loop rather than inside it so
+  // reopening one set can't change which stage a later slot resolves to
+  // mid-pass.
+  for (const setId of touchedSets) syncSetActive(db, setId);
 
   // Keep the match row's own stage bookkeeping (the "stage N" badge, and the
   // blind_set_id/stage_index the by-stage rows key off of) in sync with the
@@ -542,9 +543,18 @@ router.delete('/:id', (req: Request, res: Response) => {
   // ON DELETE CASCADE), which keeps both totalGamesOf and gamesOnStageOf
   // (COUNT(*) queries on blind_credits — blind.ts) self-healing automatically.
   // No separate counter to decrement.
+  //
+  // The active flag isn't derived at read time, though, so it needs an
+  // explicit nudge: read the affected set ids BEFORE the cascade takes the
+  // rows away, then re-derive each one after. Without this a deletion out of
+  // a finished set leaves it short of target and still retired, which is the
+  // dead end set 86 (Reaper) sat in — unadvanceable and uncreditable.
+  const affectedSets = db.prepare('SELECT DISTINCT blind_set_id FROM blind_credits WHERE match_id = :id')
+    .all({ id: matchId }) as { blind_set_id: number }[];
   db.exec('BEGIN');
   try {
     db.prepare('DELETE FROM matches WHERE id = :id').run({ id: matchId });
+    for (const { blind_set_id } of affectedSets) syncSetActive(db, blind_set_id);
     db.exec('COMMIT');
   } catch (err) {
     db.exec('ROLLBACK');
