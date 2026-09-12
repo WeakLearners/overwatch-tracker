@@ -137,6 +137,19 @@ const LEGACY_SENS_ABSORB = [2.45, 2.47, 2.48, 2.55];
 // tests without going through Express (Tier 2 DB-backed compute coverage) —
 // the route below is now a thin wrapper that just calls this with the live
 // db and returns the result as JSON. No logic changed in the extraction.
+// Minimum games at a single tested scale before that scale is allowed to be
+// selected as a hero's "best". Set to the stage batch_size the blind test
+// design already uses (5) — the study's own declared unit of evidence for
+// "we have tested this value", so reusing it keeps one definition of enough
+// rather than inventing a second.
+//
+// This lives on the SERVER deliberately. The guard used to exist only in the
+// clients, at three different thresholds (SensAnalysis 4, SensLog 3, Prematch
+// none at all) — so one hero could be simultaneously too thin to nudge toward
+// on one page and a confident recommendation on another. Selection is guarded
+// once, here; clients decide presentation, not validity.
+export const MIN_SCALE_N = 5;
+
 export function computeAnalysis(db: ReturnType<typeof getDb>) {
   // Full timeline (incl. matches without stats) drives the session + sens-run
   // derivations; they need the gaps between every match, not just logged ones.
@@ -260,6 +273,11 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
           eDPI: Math.round(mean(ps.map(p => eDPI(p.sens, p.dpi ?? MOUSE_DPI))) ?? 0),
           sens: anchor.sens,
           n: ps.length,
+          // Whether this bucket has enough games to be treated as a tested
+          // result rather than an anecdote. Buckets below the bar are still
+          // returned in full — thin data is shown, just never selected as a
+          // winner or used to recommend anything.
+          reliable: ps.length >= MIN_SCALE_N,
           avgOverall: mean(ps.map(p => p.overall_acc)),
           avgCrit: mean(ps.filter(p => p.crit_acc != null).map(p => p.crit_acc as number)),
           avgFeel: mean(ps.filter(p => p.feel != null).map(p => p.feel as number)),
@@ -358,8 +376,17 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
       .map(([hero, ps]) => {
         // Best-performing scale for this hero alone — same byScale bucketing,
         // just scoped to one hero's matches instead of the whole roster.
+        // Only scales at or above MIN_SCALE_N are eligible to win: picking the
+        // highest average across ALL buckets meant one lucky game at an
+        // otherwise-untested scale could outrank a scale with 30 games behind
+        // it — and that pick is surfaced as a sens RECOMMENDATION downstream.
+        // With no eligible scale the honest answer is "not enough data",
+        // expressed as nulls rather than a fabricated best guess.
         const scales = byScale(ps);
-        const bestScale = scales.reduce((a, b) => ((b.avgOverall ?? -Infinity) > (a.avgOverall ?? -Infinity) ? b : a));
+        const eligible = scales.filter(s => s.reliable);
+        const bestScale = eligible.length
+          ? eligible.reduce((a, b) => ((b.avgOverall ?? -Infinity) > (a.avgOverall ?? -Infinity) ? b : a))
+          : null;
         return {
           hero: hero as string,
           archetype: ps[0].archetype,
@@ -367,11 +394,14 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
           avgOverall: mean(ps.map(p => p.overall_acc)),
           avgCrit: mean(ps.filter(p => p.crit_acc != null).map(p => p.crit_acc as number)),
           winRate: mult100(mean(ps.map(p => p.win))),
-          bestScaleEDPI: bestScale.eDPI,
-          bestScaleN: bestScale.n,
-          bestScaleOverallDelta: bestScale.avgDelta,
-          bestScaleCritDelta: bestScale.avgCritDelta,
-          bestScaleWinRate: bestScale.winRate,
+          // Null when no scale clears MIN_SCALE_N — consumers must handle the
+          // "no reliable best yet" case rather than render a thin pick.
+          bestScaleReliable: bestScale != null,
+          bestScaleEDPI: bestScale?.eDPI ?? null,
+          bestScaleN: bestScale?.n ?? 0,
+          bestScaleOverallDelta: bestScale?.avgDelta ?? null,
+          bestScaleCritDelta: bestScale?.avgCritDelta ?? null,
+          bestScaleWinRate: bestScale?.winRate ?? null,
           // Full per-scale curve (not just the best one) so the analysis page
           // can trace this hero's accuracy across every sens it's actually
           // been tested at, ascending by cm/360.

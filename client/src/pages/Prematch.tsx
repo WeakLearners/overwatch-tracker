@@ -60,7 +60,7 @@ interface TestPick {
   picks: TestPickCombo[];
 }
 
-interface AimAnalysisHero { hero: string; bestScaleEDPI: number; bestScaleN: number }
+interface AimAnalysisHero { hero: string; bestScaleEDPI: number | null; bestScaleN: number; bestScaleReliable: boolean }
 
 // Last-30-days vs. prior-90-days win rate per hero, sorted trending-first —
 // see the /api/stats/momentum route for the exact windows and sort order.
@@ -333,7 +333,12 @@ export default function Prematch() {
   const sensRecFor = (hero: string | undefined): number | null => {
     if (!hero) return null;
     const h = aimAnalysis?.heroes.find(a => a.hero === hero);
-    return h && h.bestScaleN > 0 ? Math.round((h.bestScaleEDPI / MOUSE_DPI) * 100) / 100 : null;
+    // bestScaleReliable (server-side MIN_SCALE_N) rather than a local n > 0
+    // test — this line recommends a sens right before a match, so a single
+    // lucky game at an untested scale must never reach it.
+    return h?.bestScaleReliable && h.bestScaleEDPI != null
+      ? Math.round((h.bestScaleEDPI / MOUSE_DPI) * 100) / 100
+      : null;
   };
 
   const queueLabel = QUEUE_MODES.find(q => q.value === queueMode)?.label ?? '';

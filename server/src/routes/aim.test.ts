@@ -17,7 +17,7 @@ import os from 'os';
 import path from 'path';
 import { getDb, closeDb } from '../db/schema';
 import { insertMatch, insertHeroSlot, insertAimStats, insertAimStatsHero } from '../db/fixtures';
-import { computeAnalysis } from './aim';
+import { computeAnalysis, MIN_SCALE_N } from './aim';
 
 let tmpPath: string;
 let db: ReturnType<typeof getDb>;
@@ -166,5 +166,94 @@ describe('computeAnalysis', () => {
     const r = computeAnalysis(db);
     assert.equal(r.byScale.length, 1);
     assert.equal(r.byScale[0].avgDelta, null, 'a single scale bucket has no "other scales" to score against');
+  });
+});
+
+// --- MIN_SCALE_N guard (added 2026-09-12) -----------------------------------
+// bestScale used to be `scales.reduce(highest avgOverall)` with no regard for
+// sample size, so one lucky game at an otherwise-untested scale could be
+// selected as a hero's best — and that pick drives a sens recommendation on
+// the pre-match page. These tests pin the guard: thin scales are still
+// RETURNED (data isn't hidden), they're just never SELECTED.
+describe('computeAnalysis: bestScale n-guard', () => {
+  // Builds one hero with a well-tested scale and a thin outlier scale whose
+  // single game scores far higher than anything the tested scale ever did.
+  function heroWithThinOutlier(hero: string, opts: { tested: number; outlier: number }) {
+    // `tested` games at sens 2.50, all mediocre.
+    for (let i = 0; i < opts.tested; i++) {
+      insertStudyPoint(db, { date: `2026-08-${String(10 + i).padStart(2, '0')}`, hero, sens: 2.5, win: 1, overallAcc: 40 });
+    }
+    // `outlier` game(s) at sens 3.00, wildly better — the trap.
+    for (let i = 0; i < opts.outlier; i++) {
+      insertStudyPoint(db, { date: `2026-09-${String(1 + i).padStart(2, '0')}`, hero, sens: 3.0, win: 1, overallAcc: 95 });
+    }
+  }
+
+  test('a single lucky game does not become the best scale', () => {
+    heroWithThinOutlier('Sojourn', { tested: 8, outlier: 1 });
+    const h = computeAnalysis(db).heroes.find(x => x.hero === 'Sojourn')!;
+    assert.equal(h.bestScaleReliable, true);
+    assert.equal(h.bestScaleN, 8, 'should select the 8-game scale, not the 1-game one');
+    // The pre-match recommendation must point at the tested scale.
+    assert.equal(h.bestScaleEDPI, Math.round(2.5 * 1600));
+  });
+
+  test('the thin scale is still returned, just not selected', () => {
+    heroWithThinOutlier('Sojourn', { tested: 8, outlier: 1 });
+    const h = computeAnalysis(db).heroes.find(x => x.hero === 'Sojourn')!;
+    // Absorb-don't-delete: the outlier is visible in the per-scale breakdown.
+    const thin = h.scales.find(s => s.n === 1);
+    assert.ok(thin, 'thin scale should still appear in scales[]');
+    assert.equal(thin!.reliable, false);
+    assert.ok(h.scales.some(s => s.reliable), 'the tested scale should be marked reliable');
+  });
+
+  test('a hero with NO scale clearing the bar reports nulls, not a guess', () => {
+    // Three scales, two games each — nothing reaches MIN_SCALE_N.
+    for (const [i, sens] of [2.4, 2.5, 2.6].entries()) {
+      for (let g = 0; g < 2; g++) {
+        insertStudyPoint(db, { date: `2026-08-${String(10 + i * 2 + g).padStart(2, '0')}`, hero: 'Ana', role: 'Support', sens, win: 1, overallAcc: 40 + i * 10 });
+      }
+    }
+    const h = computeAnalysis(db).heroes.find(x => x.hero === 'Ana')!;
+    assert.equal(h.bestScaleReliable, false);
+    assert.equal(h.bestScaleEDPI, null);
+    assert.equal(h.bestScaleN, 0);
+    assert.equal(h.bestScaleOverallDelta, null);
+    assert.equal(h.bestScaleWinRate, null);
+    // But the hero itself is still reported with its games.
+    assert.equal(h.n, 6);
+    assert.equal(h.scales.length, 3);
+  });
+
+  test('exactly MIN_SCALE_N games qualifies (boundary is inclusive)', () => {
+    for (let i = 0; i < MIN_SCALE_N; i++) {
+      insertStudyPoint(db, { date: `2026-08-${String(10 + i).padStart(2, '0')}`, hero: 'Tracer', sens: 2.5, win: 1, overallAcc: 40 });
+    }
+    const h = computeAnalysis(db).heroes.find(x => x.hero === 'Tracer')!;
+    assert.equal(h.bestScaleReliable, true);
+    assert.equal(h.bestScaleN, MIN_SCALE_N);
+  });
+
+  test('one game below MIN_SCALE_N does not qualify', () => {
+    for (let i = 0; i < MIN_SCALE_N - 1; i++) {
+      insertStudyPoint(db, { date: `2026-08-${String(10 + i).padStart(2, '0')}`, hero: 'Tracer', sens: 2.5, win: 1, overallAcc: 40 });
+    }
+    const h = computeAnalysis(db).heroes.find(x => x.hero === 'Tracer')!;
+    assert.equal(h.bestScaleReliable, false);
+    assert.equal(h.bestScaleEDPI, null);
+  });
+
+  test('between two reliable scales, the higher accuracy still wins', () => {
+    // The guard must not change ordering among scales that both qualify.
+    for (let i = 0; i < 6; i++) {
+      insertStudyPoint(db, { date: `2026-08-${String(10 + i).padStart(2, '0')}`, hero: 'Ashe', sens: 2.5, win: 1, overallAcc: 38 });
+    }
+    for (let i = 0; i < 6; i++) {
+      insertStudyPoint(db, { date: `2026-09-${String(1 + i).padStart(2, '0')}`, hero: 'Ashe', sens: 2.8, win: 1, overallAcc: 47 });
+    }
+    const h = computeAnalysis(db).heroes.find(x => x.hero === 'Ashe')!;
+    assert.equal(h.bestScaleReliable, true);
+    assert.equal(h.bestScaleEDPI, Math.round(2.8 * 1600));
   });
 });

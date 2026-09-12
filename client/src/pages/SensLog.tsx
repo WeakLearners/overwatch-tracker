@@ -727,7 +727,7 @@ interface CurveFit {
 }
 interface CumulativeHero {
   hero: string; n: number;
-  bestScaleEDPI: number; bestScaleN: number;
+  bestScaleEDPI: number | null; bestScaleN: number; bestScaleReliable: boolean;
   curveFit: CurveFit | null;
 }
 
@@ -756,7 +756,8 @@ function suggestCenter(oldLow: number, oldHigh: number, ch: CumulativeHero | und
       : `cumulative fit r²=${cf.r2.toFixed(2)} (n=${cf.totalN}) points elsewhere — recentering, not narrowing`;
     return { center: cf.optimalSens, basis, narrow: agrees, reliable: true };
   }
-  if (ch && ch.bestScaleN >= BEST_SCALE_MIN_N) {
+  // Reliability is the server's call now (MIN_SCALE_N), not a local threshold.
+  if (ch?.bestScaleReliable && ch.bestScaleEDPI != null) {
     const bestSens = ch.bestScaleEDPI / MOUSE_DPI;
     const center = (oldCenter + bestSens) / 2;
     return { center, basis: `nudged toward best-tested point (n=${ch.bestScaleN}) — not narrowing`, narrow: false, reliable: true };

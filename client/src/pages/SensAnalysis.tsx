@@ -32,7 +32,7 @@ interface TimelinePoint {
 interface HeroRow {
   hero: string; archetype: string; n: number;
   avgOverall: number | null; avgCrit: number | null; winRate: number | null;
-  bestScaleEDPI: number; bestScaleN: number;
+  bestScaleEDPI: number | null; bestScaleN: number; bestScaleReliable: boolean;
   bestScaleOverallDelta: number | null; bestScaleCritDelta: number | null; bestScaleWinRate: number | null;
   scales: ScaleRow[];
   curveFit: CurveFit | null;
@@ -179,7 +179,10 @@ function Section({ title, hint, children, dataInspectId }: { title: string; hint
 
 const axisStyle = { fontSize: 11, fill: 'var(--faint)' };
 
-const RELIABLE_N = 4;
+// Mirrors the server's MIN_SCALE_N (routes/aim.ts). Kept equal on purpose:
+// "enough games at a scale to trust it" should mean one thing app-wide, and
+// this page previously said 4 while SensLog said 3 and Prematch said nothing.
+const RELIABLE_N = 5;
 const CONFIDENT_N = 8;
 // Distinct tested scales required before a curve fit's R² gets the confident
 // "good" tone — a 3-point quadratic has 3 free parameters, so it can hit a
@@ -462,6 +465,10 @@ function buildSensSpread(data: Analysis): SensSpread {
   }
 
   for (const h of data.heroes) {
+    // Heroes with no scale clearing MIN_SCALE_N have no trustworthy point on
+    // the sens axis — plotting them anyway put an unsupported dot on the chart
+    // at whatever scale happened to score highest.
+    if (!h.bestScaleReliable || h.bestScaleEDPI == null) continue;
     // A hero's raw peak accuracy isn't stored directly — reconstruct it from
     // the hero's own baseline (avgOverall) plus its best scale's delta.
     const raw = h.avgOverall != null && h.bestScaleOverallDelta != null ? h.avgOverall + h.bestScaleOverallDelta : null;
@@ -1004,8 +1011,10 @@ export default function SensAnalysis() {
                   <td className="py-1.5 pr-3 font-bold text-[var(--ink)]">{f1(h.winRate)}%</td>
                   <td className="py-1.5 pr-3 font-bold">{f1(h.avgOverall)}%</td>
                   <td className="py-1.5 pr-3 font-bold">{f1(h.avgCrit)}%</td>
-                  <td className={h.bestScaleN < RELIABLE_N ? 'py-1.5 pr-3 text-[var(--faint)] font-bold' : 'py-1.5 pr-3 font-bold'}>
-                    {(h.bestScaleEDPI / MOUSE_DPI).toFixed(2)} <span className="text-[10px] text-[var(--faint-2)]">(n={h.bestScaleN})</span>
+                  <td className={!h.bestScaleReliable ? 'py-1.5 pr-3 text-[var(--faint)] font-bold' : 'py-1.5 pr-3 font-bold'}>
+                    {h.bestScaleEDPI != null
+                      ? <>{(h.bestScaleEDPI / MOUSE_DPI).toFixed(2)} <span className="text-[10px] text-[var(--faint-2)]">(n={h.bestScaleN})</span></>
+                      : <span className="text-[var(--faint-2)]">— <span className="text-[10px]">(no scale with {RELIABLE_N}+ games)</span></span>}
                   </td>
                   <td className={`py-1.5 pr-3 font-bold ${deltaColor(h.bestScaleOverallDelta)}`}>{signed(h.bestScaleOverallDelta)}</td>
                   <td className={`py-1.5 font-bold ${deltaColor(h.bestScaleCritDelta)}`}>{signed(h.bestScaleCritDelta)}</td>
