@@ -2,18 +2,46 @@ import { DatabaseSync } from 'node:sqlite';
 import path from 'path';
 import fs from 'fs';
 
-const DB_PATH = path.join(__dirname, '../../../data/overwatch.db');
+// Default DB path — overridable via OVERWATCH_DB_PATH (tests point this at a
+// throwaway temp file so nothing ever touches the real, irreplaceable match
+// history). Read once at module load, same as before the override existed,
+// so production behavior when the env var is unset is unchanged.
+const DEFAULT_DB_PATH = path.join(__dirname, '../../../data/overwatch.db');
+export const DB_PATH = process.env.OVERWATCH_DB_PATH || DEFAULT_DB_PATH;
 
 let _db: DatabaseSync | null = null;
+let _dbPath: string | null = null;
 
-export function getDb(): DatabaseSync {
+// dbPath: explicit override for this call only (doesn't touch the module-level
+// default) — lets a test open a fresh temp DB without env-var juggling. Once a
+// singleton exists, later calls (with or without a path) keep returning it —
+// same as the original singleton behavior — until resetDb()/closeDb() clears it.
+export function getDb(dbPath?: string): DatabaseSync {
   if (!_db) {
-    fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
-    _db = new DatabaseSync(DB_PATH);
+    const targetPath = dbPath || DB_PATH;
+    fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+    _db = new DatabaseSync(targetPath);
+    _dbPath = targetPath;
     initSchema(_db);
   }
   return _db;
 }
+
+// Closes the current singleton connection and clears it so the next getDb()
+// call opens fresh (at whatever path it's given). Test-only in practice, but
+// harmless in production — nothing currently calls it there.
+export function closeDb(): void {
+  if (_db) {
+    _db.close();
+    _db = null;
+    _dbPath = null;
+  }
+}
+
+// Alias for closeDb() — reads more naturally at the top of a test's
+// beforeEach/afterEach when the point is "start the next test with no
+// leftover singleton," not "shut the connection down."
+export const resetDb = closeDb;
 
 function initSchema(db: DatabaseSync) {
   db.exec(`

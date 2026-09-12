@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "tsx watch --experimental-sqlite src/index.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "test": "tsx --experimental-sqlite --test 'src/**/*.test.ts'"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.2",
