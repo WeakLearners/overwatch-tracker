@@ -42,9 +42,17 @@ cd server && npm test
 Type checking on both sides plus `cd server && npm test`. The suite covers the
 pure math in `lib/` (curve fitting, session/adaptation derivation, stage
 generation), the DB-backed rollups in `routes/stats.ts` and
-`routes/aim.ts`, and the nightly report's analysis layer.
+`routes/aim.ts`, the nightly report's analysis layer, and the write path —
+`POST/PUT/DELETE /api/matches`, `POST /api/aim`, `POST /api/blind/advance` —
+exercised over real HTTP against a throwaway DB via `src/test/httpHarness.ts`.
 
-Two conventions worth keeping:
+The route tests use node:http + global fetch rather than supertest, keeping the
+zero-new-dependency posture. They exist because the compute-function tests
+proved the read path innocent of a stage-progress anomaly that was nonetheless
+real: it lived in the write path, and reproducing it needed the actual body
+parser, status codes, and BEGIN/COMMIT rather than a hand-rolled req/res stub.
+
+Three conventions worth keeping:
 
 - **Tests never touch `data/overwatch.db`.** It holds years of irreplaceable
   match data. `getDb(dbPath?)` takes an explicit path and `OVERWATCH_DB_PATH`
@@ -52,6 +60,14 @@ Two conventions worth keeping:
 - **When a test finds a real bug, report it rather than quietly fixing it.**
   The first suite immediately surfaced a migration-ordering bug that crashed
   `initSchema()` on any fresh DB — worth seeing, not worth burying.
+- **A test that pins buggy behavior says so in its name.** Several route tests
+  start with `BUG:` and assert what the code currently does, not what it should.
+  That keeps the suite green (the auto-commit gate depends on it) while making
+  the defect impossible to miss and trivial to flip once the fix is decided.
+  Known open ones: `POST /api/blind/advance` has no batch-completion guard, set
+  retirement fires on the total credit count rather than per stage and is
+  one-way, and `POST /api/aim` never removes a hero dropped from the payload.
+  All three are latent — verified absent from the live DB on 2026-09-12.
 
 ## Automation
 
