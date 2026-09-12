@@ -20,6 +20,10 @@ import path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 import { getDb } from '../db/schema';
+import {
+  stagePointsFor, readBracket, describeBracket, stageSamplesFor,
+  baselineFor, describeBaseline,
+} from './nightlyAnalysis';
 
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
 // --dry-run prints the assembled report to stdout instead of posting it, so
@@ -132,7 +136,7 @@ async function main() {
   }
   const heroCountLines = [...heroCounts.entries()]
     .sort((a, b) => b[1] - a[1])
-    .map(([hero, n]) => `• ${hero}: ${n} match${n === 1 ? '' : 'es'}`);
+    .map(([hero, n]) => `${hero} ${n}`);
 
   // 3. Stage-trial status per active set — same source of truth as
   // blind.ts's /state endpoint (blind_credits, not the stale
@@ -153,6 +157,25 @@ async function main() {
     );
   }
 
+  // 3b. Bracket reads — the analytical core. For each active set, what does
+  // the accuracy-vs-sens curve actually say? readBracket refuses to speak when
+  // the sample is thin and never reports a direction when there's no interior
+  // peak, so a quiet night reads as "unresolved", not as a finding.
+  const bracketLines = activeSets.map(set => {
+    const points = stagePointsFor(db, set.id);
+    // Raw samples per stage, so a 2-stage A/B can be tested rather than just
+    // ranked by mean.
+    const samples: Record<number, number[]> = {};
+    for (const p of points) samples[p.stage_index] = stageSamplesFor(db, set.id, p.stage_index);
+    return describeBracket(set.hero, readBracket(points, samples));
+  });
+
+  // 3c. Today against each hero's own trailing baseline, so a day's accuracy
+  // has something to mean. Only heroes actually played today.
+  const baselineLines = [...heroCounts.keys()].map(hero =>
+    describeBaseline(baselineFor(db, hero, today))
+  );
+
   // 4. Anomalies: matches logged today for a hero with an active stage-trial
   // (or any hero, really) but no accuracy row in aim_stats_heroes yet.
   const missingAccRows = db.prepare(`
@@ -169,31 +192,42 @@ async function main() {
 
   const anomalyLines = missingAccRows.map(r => `• match ${r.match_id} — ${r.hero}: no accuracy logged`);
 
-  // 5. Assemble and post.
+  // 5. Assemble and post. Ordered analysis-first: what the study is learning
+  // leads, and the raw activity/progress counts follow as supporting detail.
+  // A report that opens with "6 matches logged" buries its own point.
   const lines: string[] = [];
-  lines.push(`*Overwatch Sensitivity Study — nightly status, ${today}*`);
+  lines.push(`*Overwatch Sensitivity Study — nightly analysis, ${today}*`);
   lines.push('');
-  // Header counts DISTINCT matches; the per-hero lines below count hero slots,
-  // and a mid-match hero switch makes one match into two slots. Show both
-  // numbers whenever they disagree, otherwise the per-hero list appears to sum
-  // to more than the stated match total.
+
+  lines.push('*Bracket reads — what the curves say:*');
+  lines.push(...(bracketLines.length > 0 ? bracketLines : ['• no active sets to read.']));
+  lines.push('');
+
+  lines.push('*Today in context:*');
+  lines.push(...baselineLines);
+  lines.push('');
+
+  // Header counts DISTINCT matches; the per-hero detail counts hero slots, and
+  // a mid-match hero switch makes one match into two slots. Show both numbers
+  // whenever they disagree, otherwise the per-hero list appears to sum to more
+  // than the stated match total.
   const slotsToday = todaysHeroRows.length;
   const matchLabel = `${matchIdsToday.length} match${matchIdsToday.length === 1 ? '' : 'es'}`;
   const countLabel = slotsToday === matchIdsToday.length
     ? matchLabel
     : `${matchLabel} / ${slotsToday} hero slots`;
-  lines.push(`*New matches today (${countLabel}):*`);
-  lines.push(...heroCountLines);
+  lines.push(`*Activity:* ${countLabel} — ${heroCountLines.join(', ')}`);
   lines.push('');
+
   if (stageLines.length > 0) {
-    lines.push('*Stage-trial status (active sets):*');
+    lines.push('*Stage-trial progress:*');
     lines.push(...stageLines);
   } else {
-    lines.push('*Stage-trial status:* no active sets.');
+    lines.push('*Stage-trial progress:* no active sets.');
   }
   if (anomalyLines.length > 0) {
     lines.push('');
-    lines.push('*Anomalies:*');
+    lines.push('*Data gaps:*');
     lines.push(...anomalyLines);
   }
 
