@@ -32,9 +32,40 @@ cd client && npx tsc --noEmit
 
 # Type-check server
 cd server && npx tsc --noEmit
+
+# Run the test suite (node:test via tsx — no jest/vitest, no new deps)
+cd server && npm test
 ```
 
-There are no automated tests. Type checking is the primary correctness gate.
+## Correctness gates
+
+Type checking on both sides plus `cd server && npm test`. The suite covers the
+pure math in `lib/` (curve fitting, session/adaptation derivation, stage
+generation), the DB-backed rollups in `routes/stats.ts` and
+`routes/aim.ts`, and the nightly report's analysis layer.
+
+Two conventions worth keeping:
+
+- **Tests never touch `data/overwatch.db`.** It holds years of irreplaceable
+  match data. `getDb(dbPath?)` takes an explicit path and `OVERWATCH_DB_PATH`
+  overrides the default; every test opens its own temp file and tears it down.
+- **When a test finds a real bug, report it rather than quietly fixing it.**
+  The first suite immediately surfaced a migration-ordering bug that crashed
+  `initSchema()` on any fresh DB — worth seeing, not worth burying.
+
+## Automation
+
+Two launchd jobs run against this repo. Both log to `~/Library/Logs/`.
+
+- `com.sean.overwatch-sens-nightly-report` — 21:00 daily. Posts the
+  sensitivity study's nightly *analysis* (bracket reads, today-vs-baseline) to
+  Slack. `scripts/../server/src/scripts/nightlyReport.ts --dry-run` prints it
+  without posting.
+- `com.sean.overwatch-auto-commit` — hourly at :45, 07:00–23:00. Checkpoints
+  the working tree via `scripts/auto-commit.sh`, but ONLY when the full gate
+  passes and the tree has been quiet for 20 minutes. It never force-pushes,
+  never rewrites history, and never auto-edits code. A red tree is reported to
+  Slack and left alone.
 
 ## Architecture
 
