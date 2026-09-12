@@ -547,24 +547,6 @@ function initSchema(db: DatabaseSync) {
     WHERE blind_set_id IS NOT NULL AND stage_index IS NOT NULL
   `);
 
-  // One-time curve_enabled backfill (column added earlier, above — deferred
-  // to here since it needs blind_credits/blind_stage_sets to exist). Phase 7
-  // (2026-08-26 to 2026-08-31, phase key 'custom-1787763963436') was played
-  // with mouse acceleration genuinely on — confirmed 2026-08-31 — and is the
-  // only window it's ever been on, so its credited matches are the only rows
-  // that get curve_enabled=1; everything else defaults to 0 from the ALTER
-  // TABLE above and needs no explicit UPDATE.
-  if (needsCurveEnabledBackfill) {
-    db.exec(`
-      UPDATE matches SET curve_enabled = 1
-      WHERE id IN (
-        SELECT bc.match_id FROM blind_credits bc
-        JOIN blind_stage_sets bss ON bss.id = bc.blind_set_id
-        WHERE bss.phase = 'custom-1787763963436'
-      )
-    `);
-  }
-
   // sens: per-stage varying in-game sensitivity, added when mouse DPI was
   // locked at 1600 permanently (2026-08-08) in favor of testing finer sens
   // increments instead (the mouse config app floored DPI at 50-unit steps).
@@ -630,6 +612,27 @@ function initSchema(db: DatabaseSync) {
   // 2026-08-31 — see the curve_enabled backfill on matches above), so its
   // sets should read as accel-on too, not just the individual matches.
   db.exec(`UPDATE blind_stage_sets SET curve_enabled = 1 WHERE phase = 'custom-1787763963436' AND curve_enabled = 0`);
+
+  // One-time curve_enabled backfill on matches. Must run AFTER the
+  // blind_stage_sets ALTER loop above: it joins on bss.phase, which that loop
+  // is what adds. It used to sit further up, which worked on every DB that
+  // already had `phase` but crashed initSchema outright on a genuinely fresh
+  // one ("no such column: bss.phase") — moved down 2026-09-12. Phase 7
+  // (2026-08-26 to 2026-08-31, phase key 'custom-1787763963436') was played
+  // with mouse acceleration genuinely on — confirmed 2026-08-31 — and is the
+  // only window it's ever been on, so its credited matches are the only rows
+  // that get curve_enabled=1; everything else defaults to 0 from the ALTER
+  // TABLE and needs no explicit UPDATE.
+  if (needsCurveEnabledBackfill) {
+    db.exec(`
+      UPDATE matches SET curve_enabled = 1
+      WHERE id IN (
+        SELECT bc.match_id FROM blind_credits bc
+        JOIN blind_stage_sets bss ON bss.id = bc.blind_set_id
+        WHERE bss.phase = 'custom-1787763963436'
+      )
+    `);
+  }
 
   // Custom DPI/sens test-plan phases, built through SensLog.tsx's "+ Add new
   // phase" form. Previously persisted to browser localStorage (session-only,

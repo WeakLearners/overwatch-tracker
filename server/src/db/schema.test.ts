@@ -3,19 +3,14 @@
 // temp DB without ever touching data/overwatch.db, and (b) production's
 // default path resolution is unchanged when OVERWATCH_DB_PATH is unset.
 //
-// KNOWN FAILING (pre-existing bug, reported not fixed — see the tests below
-// and the test-suite session report): initSchema() crashes with "no such
-// column: bss.phase" on a genuinely fresh (never-before-migrated) DB file.
-// The one-time curve_enabled backfill at schema.ts ~line 557 queries
-// blind_stage_sets.phase, but that column isn't ALTERed onto the table until
-// ~line 614, later in the same function — a real ordering bug in the
-// migration chain, not something this test file's own logic introduced or
-// masked. It has never surfaced on the live DB because that file has been
-// migrated forward incrementally since before `phase` existed, so
-// needsCurveEnabledBackfill was already false by the time `phase` was added.
-// Any genuinely fresh bootstrap (a new environment, a disaster-recovery
-// restore, or this test suite) hits it. Left failing deliberately per this
-// task's instructions not to silently fix a bug a test reveals.
+// These three tests were red on arrival: initSchema() crashed with "no such
+// column: bss.phase" on a genuinely fresh DB file, because the one-time
+// curve_enabled backfill ran before the ALTER that adds that column. The live
+// DB never hit it (it migrated forward incrementally, so the backfill guard
+// was already false by the time `phase` was added) — only a from-scratch
+// bootstrap did, which is exactly what these tests do. Fixed 2026-09-12 by
+// moving the backfill below the ALTER loop; keep these green, they are the
+// regression guard for fresh-DB bootstrap.
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs';
