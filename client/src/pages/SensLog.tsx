@@ -27,7 +27,10 @@ interface PendingMatch {
 // A match that already has aim stats saved today — /api/aim/today's shape.
 // Mirrors PendingMatch (same heroes[] ordering) plus the saved combat totals
 // and per-hero accuracy needed to prefill an edit.
-interface LoggedHeroAcc { hero: string; overall_acc: number | null; crit_acc: number | null; extra_acc: number | null; duration_min: number | null }
+interface LoggedHeroAcc {
+  hero: string; overall_acc: number | null; crit_acc: number | null; extra_acc: number | null;
+  torpedo_damage: number | null; torpedo_healing: number | null; duration_min: number | null;
+}
 interface LoggedMatch extends PendingMatch {
   elims: number | null; deaths: number | null; damage: number | null; healing: number | null; assists: number | null;
   heroAcc: LoggedHeroAcc[];
@@ -61,7 +64,10 @@ interface AnswerStage {
 // match with a mid-match switch gets one row per hero here instead of a
 // single match-wide number (duration especially: a switch can leave one hero
 // on-screen for 2 minutes and another for 15).
-interface HeroAccStat { hero: string; overall_acc: string; crit_acc: string; extra_acc: string; duration_min: string }
+interface HeroAccStat {
+  hero: string; overall_acc: string; crit_acc: string; extra_acc: string;
+  torpedo_damage: string; torpedo_healing: string; duration_min: string;
+}
 // Per-hero label for the optional 4th accuracy field (undefined = hero uses
 // only the standard 3 fields).
 const EXTRA_ACC_LABEL: Record<string, string> = {
@@ -79,13 +85,28 @@ const CRIT_SLOT_LABEL: Record<string, { label: string; aria: string }> = {
   Zenyatta: { label: 'Charged Volley %', aria: 'charged volley accuracy' },
   Baptiste: { label: 'Healing %(+)', aria: 'healing accuracy' },
 };
+// Heroes with no meaningful crit stat at all — the crit slot is dropped from
+// their row entirely rather than relabelled (Juno's kit has no crit reading).
+const NO_CRIT_HEROES = new Set(['Juno']);
+// Per-hero raw-count fields (NOT percentages) — whole numbers read straight
+// off the endgame scoreboard, stored in their own columns rather than
+// squeezed into the accuracy slots, which are averaged across heroes.
+const RAW_STAT_FIELDS: Record<string, { key: 'torpedo_damage' | 'torpedo_healing'; label: string }[]> = {
+  Juno: [
+    { key: 'torpedo_damage', label: 'Torpedo Damage' },
+    { key: 'torpedo_healing', label: 'Torpedo Healing' },
+  ],
+};
 interface StatFieldsT {
   heroAcc: HeroAccStat[];
   elims: string; deaths: string; damage: string; healing: string; assists: string;
 }
 
 const emptyStats = (heroes: { hero: string }[]): StatFieldsT => ({
-  heroAcc: heroes.map(h => ({ hero: h.hero, overall_acc: '', crit_acc: '', extra_acc: '', duration_min: '' })),
+  heroAcc: heroes.map(h => ({
+    hero: h.hero, overall_acc: '', crit_acc: '', extra_acc: '',
+    torpedo_damage: '', torpedo_healing: '', duration_min: '',
+  })),
   elims: '', deaths: '', damage: '', healing: '', assists: '',
 });
 
@@ -132,6 +153,8 @@ const statsFromLogged = (m: LoggedMatch): StatFieldsT => ({
       overall_acc: a?.overall_acc != null ? String(a.overall_acc) : '',
       crit_acc: a?.crit_acc != null ? String(a.crit_acc) : '',
       extra_acc: a?.extra_acc != null ? String(a.extra_acc) : '',
+      torpedo_damage: a?.torpedo_damage != null ? String(a.torpedo_damage) : '',
+      torpedo_healing: a?.torpedo_healing != null ? String(a.torpedo_healing) : '',
       duration_min: formatDurationMin(a?.duration_min ?? null),
     };
   }),
@@ -148,7 +171,7 @@ const btnSecondary = 'border border-ow-border rounded-lg text-[var(--ink)] font-
 // ── Shared aim-stat inputs (used by both the stage-trial loop and the backfill form) ─
 function StatFields({ s, upd, updHeroAcc, showHealing, firstDurationRef, heroSens }: {
   s: StatFieldsT; upd: <K extends Exclude<keyof StatFieldsT, 'heroAcc'>>(k: K, v: StatFieldsT[K]) => void;
-  updHeroAcc: (i: number, k: 'overall_acc' | 'crit_acc' | 'extra_acc' | 'duration_min', v: string) => void;
+  updHeroAcc: (i: number, k: 'overall_acc' | 'crit_acc' | 'extra_acc' | 'torpedo_damage' | 'torpedo_healing' | 'duration_min', v: string) => void;
   showHealing: boolean;
   firstDurationRef?: React.RefObject<HTMLInputElement>;
   heroSens?: Record<string, string>;
@@ -165,7 +188,10 @@ function StatFields({ s, upd, updHeroAcc, showHealing, firstDurationRef, heroSen
       <div className="space-y-3" data-inspect-id="sl-hero-acc-inputs">
         {s.heroAcc.map((h, i) => {
           const extraLabel = EXTRA_ACC_LABEL[h.hero];
+          const showCrit = !NO_CRIT_HEROES.has(h.hero);
           const critSlot = CRIT_SLOT_LABEL[h.hero] ?? { label: 'Crit %', aria: 'crit accuracy' };
+          const rawFields = RAW_STAT_FIELDS[h.hero] ?? [];
+          const cols = 2 + (showCrit ? 1 : 0) + (extraLabel ? 1 : 0) + rawFields.length;
           return (
           <div key={h.hero}>
             <div className="flex items-baseline justify-between text-xs hero-name text-[var(--ink)] mb-1.5">
@@ -179,7 +205,7 @@ function StatFields({ s, upd, updHeroAcc, showHealing, firstDurationRef, heroSen
                 ) : null;
               })()}
             </div>
-            <div className={`grid gap-3 ${extraLabel ? 'grid-cols-4' : 'grid-cols-3'}`}>
+            <div className={`grid gap-3 ${cols === 5 ? 'grid-cols-5' : cols === 4 ? 'grid-cols-4' : cols === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
               <div>
                 <label className="block text-xs text-[var(--muted)] mb-1.5">Duration <span className="text-ow-accent">*</span></label>
                 <input
@@ -195,16 +221,24 @@ function StatFields({ s, upd, updHeroAcc, showHealing, firstDurationRef, heroSen
                 <label className="block text-xs text-[var(--muted)] mb-1.5">{h.hero === 'Ana' ? 'Scoped Accuracy %' : 'Overall %'}</label>
                 <input type="number" step="0.1" min="0" max="100" inputMode="decimal" value={h.overall_acc} onChange={e => updHeroAcc(i, 'overall_acc', e.target.value)} data-inspect-id="sl-overall-acc-input" className={field} placeholder="e.g. 41.2" aria-label={`${h.hero} ${h.hero === 'Ana' ? 'scoped accuracy' : 'overall accuracy'} %`} />
               </div>
-              <div>
-                <label className="block text-xs text-[var(--muted)] mb-1.5">{critSlot.label}</label>
-                <input type="number" step="0.1" min="0" max="100" inputMode="decimal" value={h.crit_acc} onChange={e => updHeroAcc(i, 'crit_acc', e.target.value)} data-inspect-id="sl-crit-acc-input" className={field} placeholder="e.g. 22.5" aria-label={`${h.hero} ${critSlot.aria} %`} />
-              </div>
+              {showCrit && (
+                <div>
+                  <label className="block text-xs text-[var(--muted)] mb-1.5">{critSlot.label}</label>
+                  <input type="number" step="0.1" min="0" max="100" inputMode="decimal" value={h.crit_acc} onChange={e => updHeroAcc(i, 'crit_acc', e.target.value)} data-inspect-id="sl-crit-acc-input" className={field} placeholder="e.g. 22.5" aria-label={`${h.hero} ${critSlot.aria} %`} />
+                </div>
+              )}
               {extraLabel && (
                 <div>
                   <label className="block text-xs text-[var(--muted)] mb-1.5">{extraLabel}</label>
                   <input type="number" step="0.1" min="0" max="100" inputMode="decimal" value={h.extra_acc} onChange={e => updHeroAcc(i, 'extra_acc', e.target.value)} data-inspect-id="sl-extra-acc-input" className={field} placeholder="e.g. 18.0" aria-label={`${h.hero} ${extraLabel}`} />
                 </div>
               )}
+              {rawFields.map(rf => (
+                <div key={rf.key}>
+                  <label className="block text-xs text-[var(--muted)] mb-1.5">{rf.label}</label>
+                  <input type="number" step="1" min="0" inputMode="numeric" value={h[rf.key]} onChange={e => updHeroAcc(i, rf.key, e.target.value)} data-inspect-id={`sl-${rf.key.replace('_', '-')}-input`} className={field} placeholder="e.g. 2400" aria-label={`${h.hero} ${rf.label}`} />
+                </div>
+              ))}
             </div>
           </div>
           );
@@ -229,7 +263,8 @@ const statsBody = (match_id: number, s: StatFieldsT) => ({
   match_id,
   heroes: s.heroAcc.map(h => ({
     hero: h.hero, overall_acc: num(h.overall_acc), crit_acc: num(h.crit_acc),
-    extra_acc: num(h.extra_acc), duration_min: parseDurationMin(h.duration_min),
+    extra_acc: num(h.extra_acc), torpedo_damage: num(h.torpedo_damage),
+    torpedo_healing: num(h.torpedo_healing), duration_min: parseDurationMin(h.duration_min),
   })),
   elims: num(s.elims), deaths: num(s.deaths), damage: num(s.damage), healing: num(s.healing), assists: num(s.assists),
 });

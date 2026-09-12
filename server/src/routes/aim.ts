@@ -400,7 +400,7 @@ router.get('/today', (req: Request, res: Response) => {
     ORDER BY m.id DESC
   `).all({ date }) as Record<string, unknown>[];
   const heroesStmt = db.prepare('SELECT hero, role, sens FROM match_heroes WHERE match_id = :id ORDER BY slot');
-  const heroAccStmt = db.prepare('SELECT hero, overall_acc, crit_acc, extra_acc, duration_min FROM aim_stats_heroes WHERE match_id = :id');
+  const heroAccStmt = db.prepare('SELECT hero, overall_acc, crit_acc, extra_acc, torpedo_damage, torpedo_healing, duration_min FROM aim_stats_heroes WHERE match_id = :id');
   for (const row of rows) {
     row.heroes = heroesStmt.all({ id: row.id as number });
     row.heroAcc = heroAccStmt.all({ id: row.id as number });
@@ -473,18 +473,21 @@ router.post('/', (req: Request, res: Response) => {
   });
 
   const insertHeroAcc = db.prepare(`
-    INSERT INTO aim_stats_heroes (match_id, hero, overall_acc, crit_acc, extra_acc, duration_min)
-    VALUES (:match_id, :hero, :overall_acc, :crit_acc, :extra_acc, :duration_min)
+    INSERT INTO aim_stats_heroes (match_id, hero, overall_acc, crit_acc, extra_acc, torpedo_damage, torpedo_healing, duration_min)
+    VALUES (:match_id, :hero, :overall_acc, :crit_acc, :extra_acc, :torpedo_damage, :torpedo_healing, :duration_min)
     ON CONFLICT(match_id, hero) DO UPDATE SET
-      overall_acc  = excluded.overall_acc,
-      crit_acc     = excluded.crit_acc,
-      extra_acc    = excluded.extra_acc,
-      duration_min = excluded.duration_min
+      overall_acc     = excluded.overall_acc,
+      crit_acc        = excluded.crit_acc,
+      extra_acc       = excluded.extra_acc,
+      torpedo_damage  = excluded.torpedo_damage,
+      torpedo_healing = excluded.torpedo_healing,
+      duration_min    = excluded.duration_min
   `);
   for (const h of heroList) {
     insertHeroAcc.run({
       match_id, hero: h.hero, overall_acc: h.overall_acc ?? null, crit_acc: h.crit_acc ?? null,
-      extra_acc: h.extra_acc ?? null, duration_min: h.duration_min ?? null,
+      extra_acc: h.extra_acc ?? null, torpedo_damage: h.torpedo_damage ?? null,
+      torpedo_healing: h.torpedo_healing ?? null, duration_min: h.duration_min ?? null,
     });
   }
 

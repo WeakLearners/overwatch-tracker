@@ -225,6 +225,16 @@ function initSchema(db: DatabaseSync) {
     db.exec(`ALTER TABLE aim_stats_heroes ADD COLUMN extra_acc REAL`);
   }
 
+  // torpedo_damage / torpedo_healing: Juno-specific raw scoreboard counts (not
+  // percentages), kept in their own columns rather than folded into the
+  // accuracy slots — crit_acc is averaged across heroes elsewhere, so a raw
+  // damage number living there would poison those aggregates.
+  for (const col of ['torpedo_damage', 'torpedo_healing']) {
+    if (!heroCols.find(c => c.name === col)) {
+      db.exec(`ALTER TABLE aim_stats_heroes ADD COLUMN ${col} REAL`);
+    }
+  }
+
   db.exec(`
     INSERT INTO aim_stats_heroes (match_id, hero, overall_acc, crit_acc, duration_min)
     SELECT a.match_id, m.hero, a.overall_acc, a.crit_acc, a.duration_min
