@@ -22,6 +22,9 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 import { getDb } from '../db/schema';
 
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
+// --dry-run prints the assembled report to stdout instead of posting it, so
+// the output can be eyeballed without spending a real message on the channel.
+const DRY_RUN = process.argv.includes('--dry-run');
 
 // Local calendar date (matches.date is stored as local YYYY-MM-DD, not UTC —
 // confirmed against live rows before writing this). Using UTC here would
@@ -42,6 +45,12 @@ interface ActiveSetRow {
 interface StageCountRow { n_stages: number; }
 
 async function postToSlack(text: string): Promise<void> {
+  if (DRY_RUN) {
+    console.log('--- DRY RUN (not posted) ---');
+    console.log(text);
+    console.log('--- end ---');
+    return;
+  }
   if (!SLACK_WEBHOOK_URL) {
     console.error('SLACK_WEBHOOK_URL not set in server/.env — cannot post.');
     process.exitCode = 1;
