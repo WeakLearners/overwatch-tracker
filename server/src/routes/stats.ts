@@ -585,7 +585,7 @@ router.get('/map-detail/:map', (req: Request, res: Response) => {
 // specific 2-loss pattern for a live nudge; this is the general, all-history
 // version of the same question, reported as a trend rather than a live flag.
 const HOT_HAND_MIN_GAMES = 10;
-function computeHotHand(db: ReturnType<typeof getDb>) {
+export function computeHotHand(db: ReturnType<typeof getDb>) {
   const row = db.prepare(`
     WITH numbered AS (
       SELECT win, LAG(win,1) OVER (PARTITION BY date ORDER BY time) AS prev1
@@ -630,7 +630,31 @@ const PERF_FEATURES = [
 type PerfFeatureKey = typeof PERF_FEATURES[number]['key'];
 const PERF_MIN_GAMES = 8;
 
-function computePerformanceOutcome(db: ReturnType<typeof getDb>) {
+// Explicit return type only (no logic change) — without it, TypeScript's
+// inference across this function's two differently-shaped `return`
+// statements (the early empty-DB return vs. the general-case return) was
+// producing unusable types for callers narrowing on `sample_size` before
+// reading `mismatch`/`strongest` (see stats.test.ts). Pinning the shape here
+// is a type-only annotation; the runtime values it describes are unchanged.
+export interface PerfFeatureResult {
+  key: PerfFeatureKey; label: string; baseline: number | null;
+  aboveGames: number; aboveWinRate: number | null;
+  belowGames: number; belowWinRate: number | null;
+  reliable: boolean; gap: number | null;
+}
+export interface PerfMismatch {
+  played_well_games: number; played_well_losses: number; played_well_loss_rate: number | null;
+  played_poor_games: number; played_poor_wins: number; played_poor_win_rate: number | null;
+  reliable: boolean;
+}
+export interface PerfOutcomeResult {
+  features: PerfFeatureResult[];
+  strongest: PerfFeatureResult | null;
+  mismatch: PerfMismatch | null;
+  sample_size: number;
+}
+
+export function computePerformanceOutcome(db: ReturnType<typeof getDb>): PerfOutcomeResult {
   const rows = db.prepare(`
     SELECT m.win, a.overall_acc, a.damage, a.elims, a.final_blows, a.duration_min
     FROM aim_stats a JOIN matches m ON m.id = a.match_id
@@ -705,7 +729,7 @@ function computePerformanceOutcome(db: ReturnType<typeof getDb>) {
 // mode (qp/comp/open) mid-session, vs. staying in the same mode as the prior
 // same-day game. Session openers (no prior game) are excluded from both sides.
 const QUEUE_SWITCH_MIN_GAMES = 10;
-function computeQueueSwitchTax(db: ReturnType<typeof getDb>) {
+export function computeQueueSwitchTax(db: ReturnType<typeof getDb>) {
   const row = db.prepare(`
     WITH numbered AS (
       SELECT win, queue_mode, LAG(queue_mode) OVER (PARTITION BY date ORDER BY time) AS prev_mode
@@ -735,7 +759,7 @@ function computeQueueSwitchTax(db: ReturnType<typeof getDb>) {
 // A standalone check outside the normalized-rate performance features: does
 // crit accuracy above your own average actually correlate with winning?
 const CRIT_ACC_MIN_GAMES = 10;
-function computeCritAccuracy(db: ReturnType<typeof getDb>) {
+export function computeCritAccuracy(db: ReturnType<typeof getDb>) {
   const rows = db.prepare(`
     SELECT m.win, a.crit_acc FROM aim_stats a JOIN matches m ON m.id = a.match_id
     WHERE a.crit_acc IS NOT NULL
@@ -760,7 +784,7 @@ function computeCritAccuracy(db: ReturnType<typeof getDb>) {
 // "more closing = better" going in; the ratio is just compared to your own
 // average like the other splits.
 const KILL_SECURE_MIN_GAMES = 10;
-function computeKillSecure(db: ReturnType<typeof getDb>) {
+export function computeKillSecure(db: ReturnType<typeof getDb>) {
   const rows = db.prepare(`
     SELECT m.win, a.final_blows, a.elims FROM aim_stats a JOIN matches m ON m.id = a.match_id
     WHERE a.elims IS NOT NULL AND a.elims > 0 AND a.final_blows IS NOT NULL
@@ -791,7 +815,7 @@ function formatHour(h: number): string {
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12} ${period}`;
 }
-function computeDayHourWindow(db: ReturnType<typeof getDb>) {
+export function computeDayHourWindow(db: ReturnType<typeof getDb>) {
   const rows = db.prepare(`
     SELECT day_of_week, hour, COUNT(*) AS n, ROUND(AVG(win)*100,1) AS wr
     FROM matches WHERE day_of_week IS NOT NULL AND hour IS NOT NULL

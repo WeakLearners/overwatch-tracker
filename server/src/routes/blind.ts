@@ -5,19 +5,19 @@ import { cm360, eDPI } from '../lib/aim';
 
 const router = Router();
 
-interface SetRow {
+export interface SetRow {
   id: number; in_game_sens: number; base_dpi: number; created_at: string;
   batch_size: number; cur_rel: number; games_on_stage: number; hero: string | null;
   phase: string | null; curve_enabled: number;
 }
-interface StageRow {
+export interface StageRow {
   stage_index: number; dpi: number; sens: number | null; pct_delta: number;
 }
 
-const activeSets = (db: ReturnType<typeof getDb>) =>
+export const activeSets = (db: ReturnType<typeof getDb>) =>
   db.prepare('SELECT * FROM blind_stage_sets WHERE active = 1 ORDER BY id').all() as unknown as SetRow[];
 
-const stagesOf = (db: ReturnType<typeof getDb>, setId: number) =>
+export const stagesOf = (db: ReturnType<typeof getDb>, setId: number) =>
   db.prepare('SELECT stage_index, dpi, sens, pct_delta FROM blind_stages WHERE set_id = :id ORDER BY stage_index')
     .all({ id: setId }) as unknown as StageRow[];
 
@@ -26,7 +26,7 @@ const stagesOf = (db: ReturnType<typeof getDb>, setId: number) =>
 // Reads blind_credits (one row per hero actually credited, including
 // mid-match switches into this hero), not matches.blind_set_id — that column
 // only ever reflects the match's slot-1/primary hero.
-const totalGamesOf = (db: ReturnType<typeof getDb>, setId: number) =>
+export const totalGamesOf = (db: ReturnType<typeof getDb>, setId: number) =>
   (db.prepare('SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id').get({ id: setId }) as { n: number }).n;
 
 // Games credited toward one specific stage — derived live from blind_credits
@@ -39,7 +39,7 @@ const totalGamesOf = (db: ReturnType<typeof getDb>, setId: number) =>
 // numbers on the HUD. Computing both from the same table keeps them
 // consistent by construction. The column itself is left in the schema,
 // unused, per this codebase's no-drop-columns convention.
-const gamesOnStageOf = (db: ReturnType<typeof getDb>, setId: number, stageIndex: number) =>
+export const gamesOnStageOf = (db: ReturnType<typeof getDb>, setId: number, stageIndex: number) =>
   (db.prepare('SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id AND stage_index = :si')
     .get({ id: setId, si: stageIndex }) as { n: number }).n;
 

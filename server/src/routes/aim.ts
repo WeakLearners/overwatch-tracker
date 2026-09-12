@@ -133,9 +133,11 @@ router.get('/pending', (req: Request, res: Response) => {
 // absorb it into yet.
 const LEGACY_SENS_ABSORB = [2.45, 2.47, 2.48, 2.55];
 
-router.get('/analysis', (_req: Request, res: Response) => {
-  const db = getDb();
-
+// Extracted from the /analysis route handler so it's callable directly from
+// tests without going through Express (Tier 2 DB-backed compute coverage) —
+// the route below is now a thin wrapper that just calls this with the live
+// db and returns the result as JSON. No logic changed in the extraction.
+export function computeAnalysis(db: ReturnType<typeof getDb>) {
   // Full timeline (incl. matches without stats) drives the session + sens-run
   // derivations; they need the gaps between every match, not just logged ones.
   const timeline = db.prepare('SELECT id, time, date, sens, dpi FROM matches').all() as unknown as TimelineMatch[];
@@ -318,7 +320,7 @@ router.get('/analysis', (_req: Request, res: Response) => {
     winRate: mult100(mean(items.map(p => p.win))),
   });
 
-  res.json({
+  return {
     summary: {
       n: pts.length,
       distinctScale: new Set(pts.map(p => cmBucket(p.cm360))).size,
@@ -380,7 +382,11 @@ router.get('/analysis', (_req: Request, res: Response) => {
         };
       })
       .sort((a, b) => b.n - a.n),
-  });
+  };
+}
+
+router.get('/analysis', (_req: Request, res: Response) => {
+  res.json(computeAnalysis(getDb()));
 });
 
 // Matches already logged with combat stats on a given day — the /sens app's

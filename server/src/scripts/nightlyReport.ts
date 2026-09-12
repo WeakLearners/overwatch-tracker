@@ -37,12 +37,46 @@ function todayLocal(): string {
   return `${y}-${m}-${day}`;
 }
 
-interface HeroMatchRow { match_id: number; hero: string; }
-interface ActiveSetRow {
+export interface HeroMatchRow { match_id: number; hero: string; }
+export interface ActiveSetRow {
   id: number; hero: string | null; phase: string | null;
   batch_size: number; cur_rel: number;
 }
 interface StageCountRow { n_stages: number; }
+
+export interface StageStatus {
+  hero: string | null;
+  cur_rel: number;
+  n_stages: number;
+  gamesOnStage: number;
+  totalGames: number;
+  batchSize: number;
+  completed: boolean;
+  dueToAdvance: boolean;
+}
+
+// Independently re-derives "which stage is this set on, and how many games
+// into it" from blind_credits — the same question routes/blind.ts's /state
+// endpoint answers via its own activeSets/gamesOnStageOf/totalGamesOf
+// helpers. Deliberately a second, separate query path (see the module
+// comment above) rather than importing blind.ts's helpers, so this script
+// doesn't couple to the HTTP layer. See db/schema.test.ts-adjacent
+// stage-progress-agreement test for a check that the two independent
+// implementations actually agree.
+export function computeStageStatus(db: ReturnType<typeof getDb>, set: ActiveSetRow): StageStatus {
+  const { n_stages } = db.prepare(
+    `SELECT COUNT(*) n_stages FROM blind_stages WHERE set_id = :id`
+  ).get({ id: set.id }) as unknown as StageCountRow;
+  const gamesOnStage = (db.prepare(
+    `SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id AND stage_index = :si`
+  ).get({ id: set.id, si: set.cur_rel }) as { n: number }).n;
+  const totalGames = (db.prepare(
+    `SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id`
+  ).get({ id: set.id }) as { n: number }).n;
+  const completed = totalGames >= set.batch_size * n_stages;
+  const dueToAdvance = !completed && gamesOnStage >= set.batch_size;
+  return { hero: set.hero, cur_rel: set.cur_rel, n_stages, gamesOnStage, totalGames, batchSize: set.batch_size, completed, dueToAdvance };
+}
 
 async function postToSlack(text: string): Promise<void> {
   if (DRY_RUN) {
@@ -111,21 +145,11 @@ async function main() {
 
   const stageLines: string[] = [];
   for (const set of activeSets) {
-    const { n_stages } = db.prepare(
-      `SELECT COUNT(*) n_stages FROM blind_stages WHERE set_id = :id`
-    ).get({ id: set.id }) as unknown as StageCountRow;
-    const gamesOnStage = (db.prepare(
-      `SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id AND stage_index = :si`
-    ).get({ id: set.id, si: set.cur_rel }) as { n: number }).n;
-    const totalGames = (db.prepare(
-      `SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id`
-    ).get({ id: set.id }) as { n: number }).n;
-    const completed = totalGames >= set.batch_size * n_stages;
-    const dueToAdvance = !completed && gamesOnStage >= set.batch_size;
-    const label = set.hero ?? '(ad-hoc set)';
-    const status = completed ? 'COMPLETED' : dueToAdvance ? 'DUE TO ADVANCE' : 'in progress';
+    const status = computeStageStatus(db, set);
+    const label = status.hero ?? '(ad-hoc set)';
+    const statusLabel = status.completed ? 'COMPLETED' : status.dueToAdvance ? 'DUE TO ADVANCE' : 'in progress';
     stageLines.push(
-      `• ${label}: stage ${set.cur_rel}/${n_stages}, ${gamesOnStage}/${set.batch_size} games this stage — ${status}`
+      `• ${label}: stage ${status.cur_rel}/${status.n_stages}, ${status.gamesOnStage}/${status.batchSize} games this stage — ${statusLabel}`
     );
   }
 
@@ -176,7 +200,14 @@ async function main() {
   await postToSlack(lines.join('\n'));
 }
 
-main().catch(err => {
-  console.error('Nightly report failed:', err);
-  process.exitCode = 1;
-});
+// Guarded so importing this module (e.g. from a test, to reach
+// computeStageStatus) doesn't also fire a real Slack post / DB open as a
+// side effect of the import. tsx compiles this file as CommonJS
+// (server/tsconfig.json), so require.main is the direct entrypoint check —
+// true only when this file is executed directly, not when require()'d.
+if (require.main === module) {
+  main().catch(err => {
+    console.error('Nightly report failed:', err);
+    process.exitCode = 1;
+  });
+}
