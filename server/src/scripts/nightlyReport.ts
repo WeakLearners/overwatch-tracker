@@ -149,7 +149,16 @@ async function main() {
   const lines: string[] = [];
   lines.push(`*Overwatch Sensitivity Study — nightly status, ${today}*`);
   lines.push('');
-  lines.push(`*New matches today (${matchIdsToday.length} match${matchIdsToday.length === 1 ? '' : 'es'}):*`);
+  // Header counts DISTINCT matches; the per-hero lines below count hero slots,
+  // and a mid-match hero switch makes one match into two slots. Show both
+  // numbers whenever they disagree, otherwise the per-hero list appears to sum
+  // to more than the stated match total.
+  const slotsToday = todaysHeroRows.length;
+  const matchLabel = `${matchIdsToday.length} match${matchIdsToday.length === 1 ? '' : 'es'}`;
+  const countLabel = slotsToday === matchIdsToday.length
+    ? matchLabel
+    : `${matchLabel} / ${slotsToday} hero slots`;
+  lines.push(`*New matches today (${countLabel}):*`);
   lines.push(...heroCountLines);
   lines.push('');
   if (stageLines.length > 0) {
