@@ -226,10 +226,13 @@ export default function Prematch() {
 
   const scoreMap = Object.fromEntries((votingData ?? []).map(r => [r.map, r]));
 
-  // Best & worst maps by win rate (min games), for the idle Map Voting card.
+  // Best & worst maps by win rate over the last 90 days (min games in that
+  // window), for the idle Map Voting card. Ranks on current form, not
+  // all-time rate — the min of 5 is applied to the 90-day window itself, so
+  // a map needs to actually be in current rotation to appear here.
   const rankedMaps = (votingData ?? [])
-    .filter(m => m.total_games >= 5)
-    .sort((a, b) => b.historical_rate - a.historical_rate);
+    .filter(m => m.recent_games >= 5 && m.recent_rate !== null)
+    .sort((a, b) => b.recent_rate! - a.recent_rate!);
   const bestMaps = rankedMaps.slice(0, 3);
   const worstMaps = rankedMaps.slice(-3).reverse().filter(m => !bestMaps.includes(m));
 
@@ -574,7 +577,7 @@ export default function Prematch() {
                       className="flex items-center justify-between w-full text-left py-0.5 px-1 -mx-1 rounded hover:bg-white/5 transition-colors group"
                     >
                       <span className="text-xs map-name text-[var(--ink)] truncate group-hover:text-ow-accent transition-colors">{withMapCount(m.map, mapCounts)}</span>
-                      <span className={`text-[10px] font-bold shrink-0 ml-2 ${col.pct}`}>{Math.round(m.historical_rate)}%</span>
+                      <span className={`text-[10px] font-bold shrink-0 ml-2 ${col.pct}`}>{Math.round(m.recent_rate!)}%</span>
                     </button>
                   ))}
                 </div>

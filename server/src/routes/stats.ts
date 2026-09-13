@@ -378,6 +378,11 @@ router.get('/map-voting', (req: Request, res: Response) => {
   const db = getDb();
   // "recent" = last 90 days; blended = 70% recent + 30% historical
   // Falls back to historical-only when fewer than 3 recent games on a map.
+  // The 90-day "recent" window does double duty: it feeds blended_score here
+  // and also ranks the Prematch best/worst quick-pick list, which shows
+  // current form rather than all-time rate. A separate 100-day window was
+  // tried and dropped — it covered 1166 matches against this one's 1146, a
+  // 1.7% difference, which did not justify a second near-identical CTE.
   // Grouped by map alone (not map+game_type) — a handful of matches carry a
   // mistagged game_type for their map, and splitting on it let the same map
   // show up twice (once per game_type) with two different win rates, landing
