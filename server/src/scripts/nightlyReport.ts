@@ -23,7 +23,10 @@ import { getDb } from '../db/schema';
 import {
   stagePointsFor, readBracket, describeBracket, stageSamplesFor,
   baselineFor, describeBaseline,
+  sweepFindings,
+  describeSweep,
 } from './nightlyAnalysis';
+import { computeAnalysis } from '../routes/aim';
 
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
 // --dry-run prints the assembled report to stdout instead of posting it, so
@@ -201,6 +204,13 @@ async function main() {
 
   lines.push('*Bracket reads — what the curves say:*');
   lines.push(...(bracketLines.length > 0 ? bracketLines : ['• no active sets to read.']));
+  lines.push('');
+
+  // Full-metric sweep — runs unprompted every night so a relationship in
+  // damage/healing/elims/deaths rate surfaces on its own rather than waiting
+  // for someone to think of checking it.
+  lines.push('*Metric sweep — anything tracking sens?*');
+  lines.push(...describeSweep(sweepFindings(computeAnalysis(db))));
   lines.push('');
 
   lines.push('*Today in context:*');

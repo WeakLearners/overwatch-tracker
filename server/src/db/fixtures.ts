@@ -92,6 +92,9 @@ export interface AimStatsInput {
   match_id: number;
   overall_acc?: number | null;
   crit_acc?: number | null;
+  hero_stat_label?: string | null;
+  hero_stat_value?: number | null;
+  healing?: number | null;
   elims?: number | null;
   final_blows?: number | null;
   deaths?: number | null;
@@ -101,16 +104,19 @@ export interface AimStatsInput {
 
 export function insertAimStats(db: DB, a: AimStatsInput): void {
   db.prepare(`
-    INSERT INTO aim_stats (match_id, overall_acc, crit_acc, elims, final_blows, deaths, damage, duration_min)
-    VALUES (:match_id, :overall_acc, :crit_acc, :elims, :final_blows, :deaths, :damage, :duration_min)
+    INSERT INTO aim_stats (match_id, overall_acc, crit_acc, hero_stat_label, hero_stat_value, elims, final_blows, deaths, damage, healing, duration_min)
+    VALUES (:match_id, :overall_acc, :crit_acc, :hero_stat_label, :hero_stat_value, :elims, :final_blows, :deaths, :damage, :healing, :duration_min)
   `).run({
     match_id: a.match_id,
     overall_acc: a.overall_acc ?? null,
     crit_acc: a.crit_acc ?? null,
+    hero_stat_label: a.hero_stat_label ?? null,
+    hero_stat_value: a.hero_stat_value ?? null,
     elims: a.elims ?? null,
     final_blows: a.final_blows ?? null,
     deaths: a.deaths ?? null,
     damage: a.damage ?? null,
+    healing: a.healing ?? null,
     duration_min: a.duration_min ?? null,
   });
 }
@@ -120,16 +126,20 @@ export interface AimStatsHeroInput {
   hero: string;
   overall_acc?: number | null;
   crit_acc?: number | null;
+  extra_acc?: number | null;
+  duration_min?: number | null;
 }
 
 export function insertAimStatsHero(db: DB, a: AimStatsHeroInput): void {
   db.prepare(`
-    INSERT INTO aim_stats_heroes (match_id, hero, overall_acc, crit_acc)
-    VALUES (:match_id, :hero, :overall_acc, :crit_acc)
+    INSERT INTO aim_stats_heroes (match_id, hero, overall_acc, crit_acc, extra_acc, duration_min)
+    VALUES (:match_id, :hero, :overall_acc, :crit_acc, :extra_acc, :duration_min)
   `).run({
     match_id: a.match_id, hero: a.hero,
     overall_acc: a.overall_acc ?? null,
     crit_acc: a.crit_acc ?? null,
+    extra_acc: a.extra_acc ?? null,
+    duration_min: a.duration_min ?? null,
   });
 }
 

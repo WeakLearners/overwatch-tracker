@@ -244,3 +244,66 @@ export function describeBaseline(b: BaselineRead): string {
     : ' — within normal range';
   return `• ${b.hero}: ${b.todayAcc.toFixed(1)}% today (n=${b.todayN}) vs ${(b.baseAcc as number).toFixed(1)}% baseline (n=${b.baseN}), ${sign}${delta.toFixed(1)}pt${tail}.`;
 }
+
+// ── Whole-metric sweep ──────────────────────────────────────────────────────
+// Everything above reads ONE thing: the accuracy bracket. That is the study's
+// headline question, but it is not the only question the logged data can
+// answer — damage, healing, elims and deaths per 10 minutes are recorded on
+// roughly a thousand study points and relate to sens just as legitimately.
+//
+// This sweep exists so nobody has to think to ask. It runs every metric
+// against sens for every hero on every nightly pass and reports whatever
+// clears the bar. The alternative — waiting for someone to wonder whether
+// healing rate might track sensitivity — is exactly how 618 ability readings
+// sat unanalysed for months.
+//
+// The bar is deliberately conservative. This study has already retired one
+// round of map/hour "key patterns" as small-sample noise, and a sweep across
+// many metrics x many heroes is precisely the setup that manufactures false
+// findings: test enough pairs and something always looks significant. Hence
+// all three gates below, together, and a finding is still phrased as a lead.
+export const SWEEP_MIN_R2 = 0.25;     // below this the line explains nothing
+export const SWEEP_MIN_N = 30;        // games behind the fit
+export const SWEEP_MIN_SCALES = 4;    // distinct tested sens values
+
+export interface SweepFinding {
+  hero: string; metric: string; spanDelta: number; r2: number; n: number;
+  sensMin: number; sensMax: number; lowerIsBetter: boolean;
+}
+
+// Takes the already-computed analysis object rather than a db handle, so the
+// nightly job and the analysis page can never disagree about what a finding is.
+export function sweepFindings(analysis: {
+  heroes: { hero: string; metricTrends: {
+    key: string; label: string; spanDelta: number | null; r2: number | null;
+    totalN: number; scales: number; sensMin: number | null; sensMax: number | null;
+    lowerIsBetter: boolean;
+  }[] }[];
+}): SweepFinding[] {
+  return analysis.heroes.flatMap(h =>
+    (h.metricTrends ?? [])
+      .filter(t => t.r2 != null && t.r2 >= SWEEP_MIN_R2
+        && t.totalN >= SWEEP_MIN_N && t.scales >= SWEEP_MIN_SCALES
+        && t.spanDelta != null && t.sensMin != null && t.sensMax != null)
+      .map(t => ({
+        hero: h.hero, metric: t.label,
+        spanDelta: t.spanDelta as number, r2: t.r2 as number,
+        n: t.totalN, sensMin: t.sensMin as number, sensMax: t.sensMax as number,
+        lowerIsBetter: t.lowerIsBetter,
+      })),
+  ).sort((a, b) => b.r2 - a.r2);
+}
+
+export function describeSweep(findings: SweepFinding[]): string[] {
+  if (findings.length === 0) {
+    return [`• nothing clears the bar (R²≥${SWEEP_MIN_R2}, n≥${SWEEP_MIN_N}, ${SWEEP_MIN_SCALES}+ scales). No metric is tracking sens strongly enough to act on.`];
+  }
+  return findings.map(f => {
+    const dir = f.spanDelta > 0 ? 'rises' : 'falls';
+    const good = f.lowerIsBetter ? f.spanDelta < 0 : f.spanDelta > 0;
+    const mag = Math.abs(f.spanDelta) >= 100
+      ? Math.round(Math.abs(f.spanDelta)).toLocaleString()
+      : Math.abs(f.spanDelta).toFixed(2);
+    return `• *${f.hero}* — ${f.metric} ${dir} by ${mag} from ${f.sensMin.toFixed(2)} to ${f.sensMax.toFixed(2)} sens ${good ? '✅' : '⚠️'} (R²=${f.r2.toFixed(2)}, n=${f.n}). Lead, not a verdict.`;
+  });
+}

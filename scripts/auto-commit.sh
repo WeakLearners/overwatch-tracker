@@ -1,5 +1,12 @@
 #!/bin/bash
-# Hourly working-tree checkpoint for the overwatch repo.
+# Idle-triggered working-tree checkpoint for the overwatch repo.
+#
+# Fires shortly after Sean STOPS working, not on the hour. launchd polls this
+# every 5 minutes; the quiescence check below is what actually decides. The old
+# hourly schedule looked fine and quietly did nothing: on 2026-09-15 it ran at
+# 14:45, 15:45 and 16:45 and skipped all three, because a session was in
+# progress the whole time. Two days of work sat uncommitted and the loop had no
+# way to say so.
 #
 # WHY THIS EXISTS: the standing rule is to commit at the end of a session, but
 # sessions don't always end cleanly — the failure mode already in the project's
@@ -28,9 +35,20 @@
 set -uo pipefail
 
 REPO="/Users/Sean/Code/overwatch"
-QUIET_MINUTES=20
+# How long the tree must sit untouched before this counts as "he stepped away".
+# 15 rather than 20 on Sean's request — with a 5-minute poll that means a
+# checkpoint lands within ~20 minutes of the last keystroke.
+QUIET_MINUTES=15
 LOG="$HOME/Library/Logs/overwatch-auto-commit.log"
 STATE="$HOME/Library/Logs/.overwatch-auto-commit-state"
+# Read by the Claude Code statusline (~/.claude/statusline.sh) so the terminal
+# can show when a checkpoint is mid-flight. Purely informational: the LOCK
+# below is what actually makes concurrency safe, not this.
+RUNSTATE="$HOME/Library/Logs/.overwatch-auto-commit-running"
+LOCK="$HOME/Library/Logs/.overwatch-auto-commit.lock"
+# Webhook for #hq-briefing, kept in the vault's automation env rather than
+# copied here — one file owns that URL.
+HQ_ENV="/Users/Sean/second-brain/.claude/automation/.env"
 
 log() { printf '%s  %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$LOG"; }
 
@@ -53,7 +71,61 @@ notify_once() {
     "$url" > /dev/null 2>&1
 }
 
+# ── Lock ────────────────────────────────────────────────────────────────────
+# mkdir is atomic, so this is a real mutual exclusion rather than a
+# check-then-create race. It matters for one specific collision: Sean running
+# /cpul by hand at the same moment this fires. Git would not corrupt anything —
+# it would just fail on .git/index.lock — but a half-staged commit racing a
+# manual one is confusing in a way that is trivially avoidable. A lock older
+# than 30 minutes is treated as a crashed run and cleared, so a killed process
+# can't wedge the loop shut forever.
+if [ -d "$LOCK" ] && [ -z "$(find "$LOCK" -maxdepth 0 -newermt '-30 minutes' 2>/dev/null)" ]; then
+  rm -rf "$LOCK"
+fi
+if ! mkdir "$LOCK" 2>/dev/null; then
+  exit 0   # another run (or a manual commit) holds it; silence is correct here
+fi
+cleanup() { rm -rf "$LOCK"; rm -f "$RUNSTATE"; }
+trap cleanup EXIT INT TERM
+
+# Posts a one-line summary to #hq-briefing. Separate from notify_once above:
+# that one is a state-change alarm for the overwatch channel, this is the
+# "so you're not in the dark" feed Sean asked for. Only ever called when
+# something actually HAPPENED — a commit, a gate failure, a blocked push —
+# plus one end-of-day wrap. Skips stay silent, or with a 5-minute poll the
+# channel would fill with "still editing" all day.
+hq() {
+  local url
+  url=$(grep -m1 '^SLACK_WEBHOOK_URL=' "$HQ_ENV" 2>/dev/null | cut -d= -f2-)
+  [ -z "$url" ] && return 0
+  curl -s -m 15 -X POST -H 'Content-Type: application/json' \
+    --data "$(python3 -c 'import json,sys; print(json.dumps({"text": sys.argv[1]}))' "$1")" \
+    "$url" > /dev/null 2>&1
+}
+
 cd "$REPO" || { log "FATAL: cannot cd to $REPO"; exit 1; }
+
+# ── End-of-day wrap ─────────────────────────────────────────────────────────
+# Runs before any early exit below, so it lands whether or not there is work to
+# do. Without it, silence in #hq-briefing has two meanings — "nothing needed
+# committing" and "this loop has been dead for three days" — and Sean cannot
+# tell them apart. That ambiguity is the actual complaint this whole change
+# exists to fix, so the wrap is not optional garnish.
+TODAY=$(date '+%Y-%m-%d')
+WRAP_MARK="$HOME/Library/Logs/.overwatch-auto-commit-wrap"
+HOUR=$(date '+%H')
+if [ "$HOUR" -ge 20 ] && [ "$(cat "$WRAP_MARK" 2>/dev/null)" != "$TODAY" ]; then
+  printf '%s' "$TODAY" > "$WRAP_MARK"
+  COMMITS_TODAY=$(git log --since="$TODAY 00:00" --oneline 2>/dev/null | wc -l | tr -d ' ')
+  AUTO_TODAY=$(grep -c "^$TODAY.*committed " "$LOG" 2>/dev/null || echo 0)
+  SKIPS_TODAY=$(grep -c "^$TODAY.*SKIP: files modified" "$LOG" 2>/dev/null || echo 0)
+  LAST=$(grep "^$TODAY.*committed " "$LOG" 2>/dev/null | tail -1 | cut -c12-16)
+  DIRTY=$(git status --porcelain | wc -l | tr -d ' ')
+  hq ":clipboard: *overwatch checkpoint loop — $TODAY wrap*
+• $COMMITS_TODAY commit(s) today, $AUTO_TODAY of them automatic${LAST:+ (last at $LAST)}
+• $SKIPS_TODAY poll(s) skipped because you were still editing
+• working tree right now: $([ "$DIRTY" -eq 0 ] && echo 'clean' || echo "$DIRTY uncommitted file(s)")"
+fi
 
 # --- Refuse to act on a repo that is mid-operation or in a detached state ----
 if [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ] || [ -f .git/MERGE_HEAD ] || [ -f .git/CHERRY_PICK_HEAD ]; then
@@ -79,10 +151,12 @@ if [ -n "$RECENT" ]; then
 fi
 
 # --- The gate: nothing gets committed unless all of this passes -------------
+printf 'checkpointing since %s' "$(date '+%H:%M')" > "$RUNSTATE"
 GATE_OUT=$(mktemp)
 gate_fail() {
   log "GATE FAILED ($1) — NOT committing. Tail:"
   tail -15 "$GATE_OUT" >> "$LOG"
+  hq ":warning: *overwatch checkpoint held back* — uncommitted work is failing \`$1\`. Nothing was committed and the working tree is untouched."
   notify_once "fail:$1" ":warning: *overwatch auto-commit held back* — uncommitted work is failing \`$1\`. Nothing was committed; the working tree is untouched. Check \`$LOG\`."
   rm -f "$GATE_OUT"; exit 0
 }
@@ -132,8 +206,10 @@ fi
 # --- Push: fast-forward only, never force -----------------------------------
 if git push --quiet 2>>"$LOG"; then
   log "pushed to origin/$BRANCH"
+  hq ":white_check_mark: *overwatch checkpoint saved* — $FILES file(s) committed and pushed on \`$BRANCH\` after a clean gate (${TESTS:-?} tests passing)."
   notify_once "ok" ":white_check_mark: *overwatch auto-commit resumed* — working tree is healthy again and checkpointed."
 else
   log "ERROR: push rejected (remote likely ahead). Commit is safe locally; NOT force-pushing."
+  hq ":warning: *overwatch checkpoint committed but not pushed* — $FILES file(s) are saved locally; the remote has diverged and this loop will not force-push. Needs a hand."
   notify_once "fail:push" ":warning: *overwatch auto-commit could not push* — the commit is saved locally but the remote has diverged. Resolve by hand; the loop will not force-push."
 fi

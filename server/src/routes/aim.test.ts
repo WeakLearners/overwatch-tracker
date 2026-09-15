@@ -257,3 +257,214 @@ describe('computeAnalysis: bestScale n-guard', () => {
     assert.equal(h.bestScaleEDPI, Math.round(2.8 * 1600));
   });
 });
+
+// ── Ability-level stat channels (wired into computeAnalysis 2026-09-15) ──────
+// extra_acc and hero_stat_label/value were collected by the entry form from the
+// start but never selected by this rollup, so 618 logged readings reached no
+// analysis surface. These pin the three things that wiring has to get right:
+// the values arrive per scale, the match-level signature stat is attributed to
+// the match's PRIMARY hero only, and each channel reports its own n rather than
+// borrowing the scale bucket's.
+describe('computeAnalysis — ability-level stat channels', () => {
+  // Two scales x two games, with a signature stat and an extra_acc reading on
+  // every game, so each bucket's per-channel averages are hand-checkable.
+  function insertAbilityPoint(opts: {
+    date: string; hero: string; sens: number; win: 0 | 1;
+    overallAcc: number; critAcc?: number; extraAcc?: number;
+    statLabel?: string; statValue?: number; primaryHero?: string;
+  }) {
+    const primary = opts.primaryHero ?? opts.hero;
+    const matchId = insertMatch(db, {
+      date: opts.date, hero: primary, role: 'Support', win: opts.win,
+      sens: opts.sens, dpi: 1600, blind_trial: 1,
+    });
+    insertHeroSlot(db, { match_id: matchId, slot: 1, hero: primary, role: 'Support', sens: opts.sens });
+    if (primary !== opts.hero) {
+      insertHeroSlot(db, { match_id: matchId, slot: 2, hero: opts.hero, role: 'Support', sens: opts.sens });
+    }
+    insertAimStats(db, {
+      match_id: matchId, overall_acc: opts.overallAcc, duration_min: 10,
+      hero_stat_label: opts.statLabel ?? null, hero_stat_value: opts.statValue ?? null,
+    });
+    insertAimStatsHero(db, {
+      match_id: matchId, hero: opts.hero,
+      overall_acc: opts.overallAcc, crit_acc: opts.critAcc ?? null, extra_acc: opts.extraAcc ?? null,
+    });
+    return matchId;
+  }
+
+  test('extra_acc and the signature stat surface per scale with their own averages', () => {
+    // Scale 2.00: extra 10 and 20 -> 15. Scale 3.00: extra 30 and 50 -> 40.
+    // Signature stat 4 and 6 -> 5, then 8 and 12 -> 10.
+    insertAbilityPoint({ date: '2026-01-01', hero: 'Ana', sens: 2.0, win: 1, overallAcc: 50, extraAcc: 10, statLabel: 'Sleep Darts', statValue: 4 });
+    insertAbilityPoint({ date: '2026-01-02', hero: 'Ana', sens: 2.0, win: 0, overallAcc: 50, extraAcc: 20, statLabel: 'Sleep Darts', statValue: 6 });
+    insertAbilityPoint({ date: '2026-01-03', hero: 'Ana', sens: 3.0, win: 1, overallAcc: 60, extraAcc: 30, statLabel: 'Sleep Darts', statValue: 8 });
+    insertAbilityPoint({ date: '2026-01-04', hero: 'Ana', sens: 3.0, win: 0, overallAcc: 60, extraAcc: 50, statLabel: 'Sleep Darts', statValue: 12 });
+
+    const ana = computeAnalysis(db).heroes.find(h => h.hero === 'Ana');
+    assert.ok(ana, 'Ana missing from heroes[]');
+    assert.equal(ana.scales.length, 2);
+    const [lo, hi] = ana.scales; // byScale sorts ascending by cm/360; 2.0 sens = larger cm/360
+    const low = lo.sens === 2.0 ? lo : hi;
+    const high = lo.sens === 2.0 ? hi : lo;
+
+    assert.equal(low.avgExtra, 15);
+    assert.equal(low.nExtra, 2);
+    assert.equal(low.avgHeroStat, 5);
+    assert.equal(low.nHeroStat, 2);
+    assert.equal(high.avgExtra, 40);
+    assert.equal(high.avgHeroStat, 10);
+
+    // The label is read off the stored data, not hardcoded.
+    assert.equal(ana.heroStatLabel, 'Sleep Darts');
+    assert.equal(ana.nHeroStat, 4);
+    assert.equal(ana.avgHeroStat, 7.5); // (4+6+8+12)/4
+    assert.equal(ana.nExtra, 4);
+  });
+
+  test('the match-level signature stat is credited to the primary hero only', () => {
+    // One match, Ana primary with a switch to Kiriko. hero_stat_value lives on
+    // aim_stats (per match) and describes Ana; Kiriko must not inherit it.
+    insertAbilityPoint({ date: '2026-01-01', hero: 'Ana', sens: 2.0, win: 1, overallAcc: 50, statLabel: 'Sleep Darts', statValue: 9 });
+    insertAbilityPoint({ date: '2026-01-02', hero: 'Kiriko', sens: 2.0, win: 1, overallAcc: 50, statLabel: 'Sleep Darts', statValue: 9, primaryHero: 'Ana' });
+
+    const heroes = computeAnalysis(db).heroes;
+    const ana = heroes.find(h => h.hero === 'Ana');
+    const kiriko = heroes.find(h => h.hero === 'Kiriko');
+    assert.ok(ana && kiriko);
+    assert.equal(ana.nHeroStat, 1, 'Ana should claim only her own match');
+    assert.equal(kiriko.nHeroStat, 0, 'the switched-to hero must not inherit the primary hero\'s signature stat');
+    assert.equal(kiriko.avgHeroStat, null);
+    assert.equal(kiriko.heroStatLabel, null);
+  });
+
+  test("a channel's n is independent of the scale bucket's n", () => {
+    // Three games at one scale, only one carrying an extra_acc reading. The
+    // bucket reads n=3 while the channel honestly reads n=1 — the distinction
+    // the UI needs so a single reading isn't presented as three games of evidence.
+    insertAbilityPoint({ date: '2026-01-01', hero: 'Ana', sens: 2.0, win: 1, overallAcc: 50, extraAcc: 44 });
+    insertAbilityPoint({ date: '2026-01-02', hero: 'Ana', sens: 2.0, win: 0, overallAcc: 50 });
+    insertAbilityPoint({ date: '2026-01-03', hero: 'Ana', sens: 2.0, win: 1, overallAcc: 50 });
+
+    const ana = computeAnalysis(db).heroes.find(h => h.hero === 'Ana');
+    assert.ok(ana);
+    assert.equal(ana.scales[0].n, 3);
+    assert.equal(ana.scales[0].nExtra, 1);
+    assert.equal(ana.scales[0].avgExtra, 44);
+    assert.equal(ana.scales[0].nHeroStat, 0);
+    assert.equal(ana.scales[0].avgHeroStat, null);
+  });
+
+  test('deltas for the new channels use the same leave-one-scale-out baseline as accuracy', () => {
+    // Ana at two scales. extra_acc: scale A = 10,20 (mean 15); scale B = 40,60
+    // (mean 50). A point at scale A is scored against scale B's mean only, so
+    // 10 - 50 = -40 and 20 - 50 = -30, averaging -35 for the bucket.
+    insertAbilityPoint({ date: '2026-01-01', hero: 'Ana', sens: 2.0, win: 1, overallAcc: 50, extraAcc: 10 });
+    insertAbilityPoint({ date: '2026-01-02', hero: 'Ana', sens: 2.0, win: 0, overallAcc: 50, extraAcc: 20 });
+    insertAbilityPoint({ date: '2026-01-03', hero: 'Ana', sens: 3.0, win: 1, overallAcc: 50, extraAcc: 40 });
+    insertAbilityPoint({ date: '2026-01-04', hero: 'Ana', sens: 3.0, win: 0, overallAcc: 50, extraAcc: 60 });
+
+    const ana = computeAnalysis(db).heroes.find(h => h.hero === 'Ana');
+    assert.ok(ana);
+    const low = ana.scales.find(s => s.sens === 2.0)!;
+    const high = ana.scales.find(s => s.sens === 3.0)!;
+    assert.equal(low.avgExtraDelta, -35);
+    assert.equal(high.avgExtraDelta, 35); // 40-15=25, 60-15=45 -> 35
+  });
+});
+
+// ── Output rates (damage/healing/elims/deaths per 10 min) ────────────────────
+// These are raw match totals divided by time on hero. Three things have to be
+// right or the numbers are quietly meaningless: the denominator is time on THIS
+// hero (not match length), only the primary hero claims a match-level total,
+// and a row with no usable duration contributes nothing rather than dividing
+// by zero.
+describe('computeAnalysis — output rates', () => {
+  function insertRatePoint(opts: {
+    date: string; hero: string; sens: number; win: 0 | 1; overallAcc: number;
+    damage?: number; healing?: number; elims?: number; deaths?: number;
+    matchMin?: number | null; heroMin?: number | null; primaryHero?: string;
+  }) {
+    const primary = opts.primaryHero ?? opts.hero;
+    const matchId = insertMatch(db, {
+      date: opts.date, hero: primary, role: 'Support', win: opts.win,
+      sens: opts.sens, dpi: 1600, blind_trial: 1,
+    });
+    insertHeroSlot(db, { match_id: matchId, slot: 1, hero: primary, role: 'Support', sens: opts.sens });
+    if (primary !== opts.hero) {
+      insertHeroSlot(db, { match_id: matchId, slot: 2, hero: opts.hero, role: 'Support', sens: opts.sens });
+    }
+    insertAimStats(db, {
+      match_id: matchId, overall_acc: opts.overallAcc,
+      damage: opts.damage ?? null, healing: opts.healing ?? null,
+      elims: opts.elims ?? null, deaths: opts.deaths ?? null,
+      duration_min: opts.matchMin === undefined ? 10 : opts.matchMin,
+    });
+    insertAimStatsHero(db, {
+      match_id: matchId, hero: opts.hero, overall_acc: opts.overallAcc,
+      duration_min: opts.heroMin === undefined ? 10 : opts.heroMin,
+    });
+    return matchId;
+  }
+
+  test('rates are per 10 minutes of time on hero, not per match', () => {
+    // 6000 damage in 20 minutes is 3000 per 10 — half what the raw total
+    // suggests next to a 10-minute match.
+    insertRatePoint({ date: '2026-01-01', hero: 'Ana', sens: 2.0, win: 1, overallAcc: 50, damage: 6000, elims: 20, deaths: 4, heroMin: 20 });
+    const ana = computeAnalysis(db).heroes.find(h => h.hero === 'Ana')!;
+    const sc = ana.scales[0];
+    assert.equal(sc.avgDmg10, 3000);
+    assert.equal(sc.avgElims10, 10);
+    assert.equal(sc.avgDeaths10, 2);
+    assert.equal(sc.nRate, 1);
+  });
+
+  test('time on hero beats match length when the two differ (mid-match switch)', () => {
+    // The match ran 20 minutes; this hero was on screen for 5. Using the
+    // match length would understate the rate fourfold.
+    insertRatePoint({ date: '2026-01-01', hero: 'Ana', sens: 2.0, win: 1, overallAcc: 50, damage: 5000, matchMin: 20, heroMin: 5 });
+    const ana = computeAnalysis(db).heroes.find(h => h.hero === 'Ana')!;
+    assert.equal(ana.scales[0].avgDmg10, 10000);
+  });
+
+  test('a switched-to hero claims no share of the match-level totals', () => {
+    insertRatePoint({ date: '2026-01-01', hero: 'Kiriko', sens: 2.0, win: 1, overallAcc: 50, damage: 8000, primaryHero: 'Ana' });
+    const kiriko = computeAnalysis(db).heroes.find(h => h.hero === 'Kiriko')!;
+    assert.equal(kiriko.scales[0].nRate, 0);
+    assert.equal(kiriko.scales[0].avgDmg10, null);
+  });
+
+  test('healing carries its own n, separate from damage/elims', () => {
+    // Two games; only one logged healing. Damage n = 2, healing n = 1.
+    insertRatePoint({ date: '2026-01-01', hero: 'Ana', sens: 2.0, win: 1, overallAcc: 50, damage: 1000, healing: 9000 });
+    insertRatePoint({ date: '2026-01-02', hero: 'Ana', sens: 2.0, win: 0, overallAcc: 50, damage: 3000 });
+    const sc = computeAnalysis(db).heroes.find(h => h.hero === 'Ana')!.scales[0];
+    assert.equal(sc.nRate, 2);
+    assert.equal(sc.avgDmg10, 2000);
+    assert.equal(sc.nHeal, 1);
+    assert.equal(sc.avgHeal10, 9000);
+  });
+
+  test('a row with no usable duration contributes no rate rather than dividing by zero', () => {
+    insertRatePoint({ date: '2026-01-01', hero: 'Ana', sens: 2.0, win: 1, overallAcc: 50, damage: 5000, matchMin: null, heroMin: null });
+    const sc = computeAnalysis(db).heroes.find(h => h.hero === 'Ana')!.scales[0];
+    assert.equal(sc.nRate, 0);
+    assert.equal(sc.avgDmg10, null);
+  });
+
+  test('metricTrends reports a direction and an R2 per metric', () => {
+    // Damage rising cleanly with sens across three scales.
+    for (const [i, sens] of [2.0, 2.5, 3.0].entries()) {
+      for (let g = 0; g < 3; g++) {
+        insertRatePoint({ date: `2026-01-0${i * 3 + g + 1}`, hero: 'Ana', sens, win: 1, overallAcc: 50, damage: 1000 * (i + 1), elims: 10 });
+      }
+    }
+    const ana = computeAnalysis(db).heroes.find(h => h.hero === 'Ana')!;
+    const dmg = ana.metricTrends.find(t => t.key === 'dmg10')!;
+    assert.ok(dmg.slope != null && dmg.slope > 0, 'damage should trend up with sens');
+    assert.equal(dmg.r2, 1); // perfectly linear by construction
+    assert.equal(dmg.basis, 'raw'); // per-hero trends use the raw metric
+    const deaths = ana.metricTrends.find(t => t.key === 'deaths10')!;
+    assert.equal(deaths.lowerIsBetter, true);
+  });
+});

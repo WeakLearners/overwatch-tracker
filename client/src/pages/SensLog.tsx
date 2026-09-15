@@ -2,6 +2,9 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useApi, revalidateAll } from '../hooks/useApi';
+// Per-hero stat-slot labels — shared with SensAnalysis so a label travels
+// with its data instead of living only in this form. See lib/heroStatLabels.
+import { EXTRA_ACC_LABEL, RAW_STAT_FIELDS, critSlot, overallSlot, hasCrit } from '../lib/heroStatLabels';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { eDPI, MOUSE_DPI } from '../lib/aim';
 import {
@@ -68,35 +71,6 @@ interface HeroAccStat {
   hero: string; overall_acc: string; crit_acc: string; extra_acc: string;
   torpedo_damage: string; torpedo_healing: string; duration_min: string;
 }
-// Per-hero label for the optional 4th accuracy field (undefined = hero uses
-// only the standard 3 fields).
-const EXTRA_ACC_LABEL: Record<string, string> = {
-  Sojourn: 'Charged Shot Crit %',
-  'Soldier: 76': 'Helix Rocket %',
-  Baptiste: 'Crit %',
-  Tracer: 'Pulse Bomb %',
-};
-// Per-hero override for the crit_acc slot's label/aria text — heroes whose
-// kit doesn't map cleanly onto "Crit %" repurpose the same underlying field.
-const CRIT_SLOT_LABEL: Record<string, { label: string; aria: string }> = {
-  Ana: { label: 'Sleep Dart Accuracy %', aria: 'sleep dart accuracy' },
-  Sojourn: { label: 'Charged Shot %', aria: 'charged shot accuracy' },
-  Pharah: { label: 'Direct Hit %', aria: 'direct hit accuracy' },
-  Zenyatta: { label: 'Charged Volley %', aria: 'charged volley accuracy' },
-  Baptiste: { label: 'Healing %(+)', aria: 'healing accuracy' },
-};
-// Heroes with no meaningful crit stat at all — the crit slot is dropped from
-// their row entirely rather than relabelled (Juno's kit has no crit reading).
-const NO_CRIT_HEROES = new Set(['Juno']);
-// Per-hero raw-count fields (NOT percentages) — whole numbers read straight
-// off the endgame scoreboard, stored in their own columns rather than
-// squeezed into the accuracy slots, which are averaged across heroes.
-const RAW_STAT_FIELDS: Record<string, { key: 'torpedo_damage' | 'torpedo_healing'; label: string }[]> = {
-  Juno: [
-    { key: 'torpedo_damage', label: 'Torpedo Damage' },
-    { key: 'torpedo_healing', label: 'Torpedo Healing' },
-  ],
-};
 interface StatFieldsT {
   heroAcc: HeroAccStat[];
   elims: string; deaths: string; damage: string; healing: string; assists: string;
@@ -188,8 +162,8 @@ function StatFields({ s, upd, updHeroAcc, showHealing, firstDurationRef, heroSen
       <div className="space-y-3" data-inspect-id="sl-hero-acc-inputs">
         {s.heroAcc.map((h, i) => {
           const extraLabel = EXTRA_ACC_LABEL[h.hero];
-          const showCrit = !NO_CRIT_HEROES.has(h.hero);
-          const critSlot = CRIT_SLOT_LABEL[h.hero] ?? { label: 'Crit %', aria: 'crit accuracy' };
+          const showCrit = hasCrit(h.hero);
+          const critLabels = critSlot(h.hero);
           const rawFields = RAW_STAT_FIELDS[h.hero] ?? [];
           const cols = 2 + (showCrit ? 1 : 0) + (extraLabel ? 1 : 0) + rawFields.length;
           return (
@@ -218,13 +192,13 @@ function StatFields({ s, upd, updHeroAcc, showHealing, firstDurationRef, heroSen
                 />
               </div>
               <div>
-                <label className="block text-xs text-[var(--muted)] mb-1.5">{h.hero === 'Ana' ? 'Scoped Accuracy %' : 'Overall %'}</label>
-                <input type="number" step="0.1" min="0" max="100" inputMode="decimal" value={h.overall_acc} onChange={e => updHeroAcc(i, 'overall_acc', e.target.value)} data-inspect-id="sl-overall-acc-input" className={field} placeholder="e.g. 41.2" aria-label={`${h.hero} ${h.hero === 'Ana' ? 'scoped accuracy' : 'overall accuracy'} %`} />
+                <label className="block text-xs text-[var(--muted)] mb-1.5">{overallSlot(h.hero).label}</label>
+                <input type="number" step="0.1" min="0" max="100" inputMode="decimal" value={h.overall_acc} onChange={e => updHeroAcc(i, 'overall_acc', e.target.value)} data-inspect-id="sl-overall-acc-input" className={field} placeholder="e.g. 41.2" aria-label={`${h.hero} ${overallSlot(h.hero).aria} %`} />
               </div>
               {showCrit && (
                 <div>
-                  <label className="block text-xs text-[var(--muted)] mb-1.5">{critSlot.label}</label>
-                  <input type="number" step="0.1" min="0" max="100" inputMode="decimal" value={h.crit_acc} onChange={e => updHeroAcc(i, 'crit_acc', e.target.value)} data-inspect-id="sl-crit-acc-input" className={field} placeholder="e.g. 22.5" aria-label={`${h.hero} ${critSlot.aria} %`} />
+                  <label className="block text-xs text-[var(--muted)] mb-1.5">{critLabels.label}</label>
+                  <input type="number" step="0.1" min="0" max="100" inputMode="decimal" value={h.crit_acc} onChange={e => updHeroAcc(i, 'crit_acc', e.target.value)} data-inspect-id="sl-crit-acc-input" className={field} placeholder="e.g. 22.5" aria-label={`${h.hero} ${critLabels.aria} %`} />
                 </div>
               )}
               {extraLabel && (
@@ -637,11 +611,20 @@ function spreadSens(low: number, high: number, stages: number): number[] {
 // what was actually found.
 const NARROW_RATIO = 2 / 3;
 
-// Heroes Sean has stopped playing (2026-08-31) — dropped from the "+ Add new
-// phase" roster carry-over so new phases stop re-testing sens on heroes that
-// will never accumulate more games. Historical PHASE2-5/custom-phase records
-// that already include them are left untouched.
-const RETIRED_HEROES = new Set(['Cassidy', 'Emre', 'Reaper']);
+// Heroes Sean has stopped playing — dropped from the "+ Add new phase" roster
+// carry-over so new phases stop re-testing sens on heroes that will never
+// accumulate more games. Historical PHASE2-5/custom-phase records that already
+// include them are left untouched: retiring a hero ends their future, not
+// their past.
+//
+// Cassidy, Emre, Reaper retired 2026-08-31.
+// Baptiste retired 2026-09-15 — Sean doesn't enjoy playing him. The stated
+// reason is a roster signal worth keeping: he gravitates to heroes with real
+// movement in the kit, and Baptiste has none. Ana is the deliberate exception
+// — also low-mobility, but her kit is fun enough to outweigh it. If a future
+// phase ever needs a judgement call on whether to add a support, that's the
+// bar. His Phase 5-9 data stays fully intact and still feeds the analysis.
+const RETIRED_HEROES = new Set(['Cassidy', 'Emre', 'Reaper', 'Baptiste']);
 
 type HeroTestStatus = 'none' | 'testing' | 'completed';
 

@@ -201,3 +201,66 @@ export function deriveSensAdaptation(matches: TimelineMatch[]): Map<number, numb
   }
   return out;
 }
+
+// ── Linear trend ─────────────────────────────────────────────────────────────
+// Weighted least-squares straight line through already-bucketed scales, used
+// to answer one blunt question the quadratic fit above cannot: does this
+// metric MOVE with sensitivity at all, and in which direction?
+//
+// fitQuadraticPeak exists to find an optimum — a peak somewhere in the middle
+// of the tested range. That's the right tool for accuracy, which plausibly has
+// a sweet spot. It is the wrong tool for asking "does damage per 10 minutes
+// rise or fall as sens goes up", where the honest answer is usually a
+// direction and a strength, not a vertex. A quadratic asked that question will
+// happily invent a peak out of noise, because with three free parameters it
+// can bend through almost anything.
+//
+// Weighted by n for the same reason every other aggregate here is: a scale
+// with 30 games should pull harder than one with 4.
+//
+// r2 ("R squared") is the share of the metric's variation the line accounts
+// for, 0 to 1. Near 0 means the points scatter and the line explains nothing;
+// near 1 means they sit close to it. A slope with a low r2 is a direction
+// nobody should act on.
+export interface LinearTrend {
+  slope: number;       // change in the metric per +1.00 sens
+  intercept: number;
+  r2: number;
+  points: number;      // distinct scales behind the fit
+  totalN: number;      // games behind those scales
+  xMin: number; xMax: number;
+  spanDelta: number;   // slope * (xMax - xMin): predicted change across the tested range
+}
+
+export function fitLinearTrend(pts: CurvePoint[]): LinearTrend | null {
+  // Two points define a line exactly, so r2 is meaninglessly 1 — demand 3+ so
+  // the fit is actually being tested against something.
+  if (pts.length < 3) return null;
+  let Sw = 0, Swx = 0, Swy = 0, Swxy = 0, Swx2 = 0;
+  for (const { x, y, w } of pts) {
+    Sw += w; Swx += w * x; Swy += w * y; Swxy += w * x * y; Swx2 += w * x * x;
+  }
+  const denom = Sw * Swx2 - Swx * Swx;
+  if (!Number.isFinite(denom) || Math.abs(denom) < 1e-12) return null; // every point at one x
+  const slope = (Sw * Swxy - Swx * Swy) / denom;
+  const intercept = (Swy - slope * Swx) / Sw;
+
+  const yMean = Swy / Sw;
+  let ssRes = 0, ssTot = 0;
+  for (const { x, y, w } of pts) {
+    const yhat = slope * x + intercept;
+    ssRes += w * (y - yhat) ** 2;
+    ssTot += w * (y - yMean) ** 2;
+  }
+  const r2 = ssTot > 0 ? 1 - ssRes / ssTot : 0;
+  const xs = pts.map(p => p.x);
+  const xMin = Math.min(...xs), xMax = Math.max(...xs);
+  return {
+    slope, intercept,
+    r2: Math.max(0, r2),
+    points: pts.length,
+    totalN: pts.reduce((s, p) => s + p.w, 0),
+    xMin, xMax,
+    spanDelta: slope * (xMax - xMin),
+  };
+}

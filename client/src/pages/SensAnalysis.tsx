@@ -7,10 +7,25 @@ import { useApi } from '../hooks/useApi';
 import SensNav from '../components/SensNav';
 import { MOUSE_DPI } from '../lib/aim';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
+// Per-hero stat-slot names, shared with the SensLog entry form. Without these
+// this page printed Ana's sleep dart hit rate under a column headed "Crit".
+import { critSlotShort, extraSlotShort, hasCrit } from '../lib/heroStatLabels';
 
 interface ScaleRow {
   cm360: number; eDPI: number; sens: number; n: number;
   avgOverall: number | null; avgCrit: number | null;
+  // Ability-level stats at this scale. Each carries its own n because it's
+  // far sparser than the bucket's overall-accuracy n — a bucket of 10 games
+  // may hold only 3 readings of the signature stat.
+  nExtra: number; avgExtra: number | null; avgExtraDelta: number | null;
+  nHeroStat: number; avgHeroStat: number | null; avgHeroStatDelta: number | null;
+  // Output rates (per 10 minutes on hero). nRate covers damage/elims/deaths;
+  // healing carries its own n because only supports log it.
+  nRate: number; nHeal: number;
+  avgDmg10: number | null; avgDmg10Delta: number | null;
+  avgHeal10: number | null; avgHeal10Delta: number | null;
+  avgElims10: number | null; avgElims10Delta: number | null;
+  avgDeaths10: number | null; avgDeaths10Delta: number | null;
   avgFeel: number | null; avgDelta: number | null; winRate: number | null;
   min: number | null; q1: number | null; median: number | null; q3: number | null; max: number | null;
   absorbedN: number; distinctDates: number; dateSpanDays: number;
@@ -26,6 +41,18 @@ interface CurveFit {
   testedSensMin: number; testedSensMax: number;
   a: number; b: number; c: number;
 }
+// One metric's relationship with sens: the direction it moves, how much it
+// moves across the whole tested range, and how tightly the points actually
+// follow that line (r2, 0-1). A big spanDelta with a low r2 is scatter, not a
+// finding — which is why the two are always reported together.
+interface MetricTrend {
+  key: string; label: string; unit: string;
+  basis: 'raw' | 'normalized';
+  lowerIsBetter: boolean;
+  scales: number; totalN: number;
+  slope: number | null; spanDelta: number | null; r2: number | null;
+  sensMin: number | null; sensMax: number | null;
+}
 interface TimelinePoint {
   date: string; hero: string; win: 0 | 1; eDPI: number; cm360: number; delta: number;
 }
@@ -34,6 +61,12 @@ interface HeroRow {
   avgOverall: number | null; avgCrit: number | null; winRate: number | null;
   bestScaleEDPI: number | null; bestScaleN: number; bestScaleReliable: boolean;
   bestScaleOverallDelta: number | null; bestScaleCritDelta: number | null; bestScaleWinRate: number | null;
+  bestScaleExtraDelta: number | null; bestScaleHeroStatDelta: number | null;
+  // Signature stat (aim_stats.hero_stat_value). Its label is stored per match
+  // rather than hardcoded client-side, so it arrives from the API.
+  heroStatLabel: string | null; nHeroStat: number; avgHeroStat: number | null;
+  nExtra: number; avgExtra: number | null;
+  metricTrends: MetricTrend[];
   scales: ScaleRow[];
   curveFit: CurveFit | null;
 }
@@ -42,6 +75,7 @@ interface Analysis {
   timeline: TimelinePoint[];
   byScale: ScaleRow[];
   overallCurveFit: CurveFit | null;
+  metricTrends: MetricTrend[];
   byArchetype: { hitscan: ScaleRow[]; projectile: ScaleRow[] };
   coldWarm: Bucket[];
   adaptation: Bucket[];
@@ -992,14 +1026,14 @@ export default function SensAnalysis() {
       </Section>
 
       {/* By hero */}
-      <Section title="By Hero" hint={`Games logged per hero — a small number here isn't trustworthy yet. Best Sens is the sens (@${MOUSE_DPI} DPI) where that hero's own accuracy is highest, with the game count in parens — treat it as unreliable below ${RELIABLE_N} games. "vs. Avg" columns compare that scale's accuracy to how the hero usually does.`} dataInspectId="sensAnalysis-by-hero-table">
+      <Section title="By Hero" hint={`Games logged per hero — a small number here isn't trustworthy yet. Best Sens is the sens (@${MOUSE_DPI} DPI) where that hero's own accuracy is highest, with the game count in parens — treat it as unreliable below ${RELIABLE_N} games. "vs. Avg" columns compare that scale's accuracy to how the hero usually does. Signature Stat is a DIFFERENT stat per hero (Ana's is sleep dart accuracy, Sojourn's charged shot) — each cell names its own; see Ability Stats by Sens below for the per-sens breakdown.`} dataInspectId="sensAnalysis-by-hero-table">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
                 <th className="py-1.5 pr-3">Hero</th><th className="py-1.5 pr-3">Type</th><th className="py-1.5 pr-3">n</th>
-                <th className="py-1.5 pr-3">Win %</th><th className="py-1.5 pr-3">Overall</th><th className="py-1.5 pr-3">Crit</th><th className="py-1.5 pr-3">Best Sens</th>
-                <th className="py-1.5 pr-3">Overall vs. Avg</th><th className="py-1.5">Crit vs. Avg</th>
+                <th className="py-1.5 pr-3">Win %</th><th className="py-1.5 pr-3">Overall</th><th className="py-1.5 pr-3">Signature Stat</th><th className="py-1.5 pr-3">Best Sens</th>
+                <th className="py-1.5 pr-3">Overall vs. Avg</th><th className="py-1.5">Signature vs. Avg</th>
               </tr>
             </thead>
             <tbody>
@@ -1010,20 +1044,244 @@ export default function SensAnalysis() {
                   <td className="py-1.5 pr-3 font-bold">{h.n}</td>
                   <td className="py-1.5 pr-3 font-bold text-[var(--ink)]">{f1(h.winRate)}%</td>
                   <td className="py-1.5 pr-3 font-bold">{f1(h.avgOverall)}%</td>
-                  <td className="py-1.5 pr-3 font-bold">{f1(h.avgCrit)}%</td>
+                  {/* The crit_acc column is a different stat per hero — Ana's
+                      is sleep dart, Sojourn's charged shot — so the cell names
+                      itself rather than inheriting a header that is wrong for
+                      most rows. Heroes with no crit reading at all (Juno) say
+                      so instead of printing a hyphen that looks like missing
+                      data. */}
+                  <td className="py-1.5 pr-3 font-bold">
+                    {hasCrit(h.hero) ? (
+                      <>
+                        {f1(h.avgCrit)}%
+                        <span className="ml-1.5 text-[10px] font-normal text-[var(--faint-2)]">{critSlotShort(h.hero)}</span>
+                      </>
+                    ) : (
+                      <span className="text-[var(--faint-2)] text-[10px] font-normal">no crit stat</span>
+                    )}
+                  </td>
                   <td className={!h.bestScaleReliable ? 'py-1.5 pr-3 text-[var(--faint)] font-bold' : 'py-1.5 pr-3 font-bold'}>
                     {h.bestScaleEDPI != null
                       ? <>{(h.bestScaleEDPI / MOUSE_DPI).toFixed(2)} <span className="text-[10px] text-[var(--faint-2)]">(n={h.bestScaleN})</span></>
                       : <span className="text-[var(--faint-2)]">— <span className="text-[10px]">(no scale with {RELIABLE_N}+ games)</span></span>}
                   </td>
                   <td className={`py-1.5 pr-3 font-bold ${deltaColor(h.bestScaleOverallDelta)}`}>{signed(h.bestScaleOverallDelta)}</td>
-                  <td className={`py-1.5 font-bold ${deltaColor(h.bestScaleCritDelta)}`}>{signed(h.bestScaleCritDelta)}</td>
+                  <td className={`py-1.5 font-bold ${deltaColor(h.bestScaleCritDelta)}`}>{hasCrit(h.hero) ? signed(h.bestScaleCritDelta) : <span className="text-[var(--faint-2)]">—</span>}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </Section>
+
+      {/* Does sens move anything? — the page's one proactive section. Every
+          other view reports numbers and leaves the reader to spot a pattern,
+          which is exactly how the retired map/hour "key patterns" happened:
+          eyeball eight buckets, the highest always looks like something. This
+          asks the question numerically, for every metric rather than accuracy
+          alone, and says plainly when the answer is "nothing here". */}
+      {(() => {
+        const trends: MetricTrend[] = data.metricTrends ?? [];
+        if (!trends.length) return null;
+
+        // Bars a trend must clear to be called a finding rather than scatter.
+        // R2_REAL is deliberately modest — this is noisy human performance
+        // data, not a physics experiment — but it is a bar, and the section
+        // says so out loud rather than presenting every slope as a result.
+        const R2_REAL = 0.25;
+        const MIN_N = 30;
+        const MIN_SCALES = 4;
+
+        const fmtVal = (v: number, unit: string) =>
+          `${v > 0 ? '+' : ''}${Math.abs(v) >= 100 ? Math.round(v).toLocaleString() : v.toFixed(2)}${unit}`;
+
+        // A finding is good or bad depending on the metric — more deaths is
+        // not an improvement. lowerIsBetter comes from the server so this
+        // can't drift from the definition the numbers were computed under.
+        const toneOf = (t: MetricTrend) => {
+          if (t.spanDelta == null || t.r2 == null || t.r2 < R2_REAL) return '';
+          const good = t.lowerIsBetter ? t.spanDelta < 0 : t.spanDelta > 0;
+          return good ? 'text-emerald-700 dark:text-emerald-500' : 'text-red-700 dark:text-red-400';
+        };
+
+        const heroFindings = heroes.flatMap(h =>
+          (h.metricTrends ?? [])
+            .filter(t => t.r2 != null && t.r2 >= R2_REAL && t.totalN >= MIN_N && t.scales >= MIN_SCALES)
+            .map(t => ({ hero: h.hero, t })),
+        ).sort((a, b) => (b.t.r2 ?? 0) - (a.t.r2 ?? 0));
+
+        const rosterFindings = trends.filter(t => t.r2 != null && t.r2 >= R2_REAL && t.totalN >= MIN_N);
+
+        return (
+          <Section
+            title="Does Sens Move Anything?"
+            hint={`Every metric fitted against sens with a weighted straight line. "Across range" is how much the line predicts the metric changes from your lowest tested sens to your highest; R² is how closely the points actually follow that line, 0 to 1. A large change with a low R² is scatter, not a result — both are shown together for that reason. Roster-wide rows are normalized against each hero's own baseline first, otherwise the comparison would mostly measure which heroes were tested where. Nothing below R²=${R2_REAL} is treated as a finding.`}
+            dataInspectId="sensAnalysis-metric-trends"
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
+                    <th className="py-1.5 pr-3">Metric</th>
+                    <th className="py-1.5 pr-3">Games</th>
+                    <th className="py-1.5 pr-3">Scales</th>
+                    <th className="py-1.5 pr-3">Across range</th>
+                    <th className="py-1.5">R²</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {trends.map(t => (
+                    <tr key={t.key} className="border-t border-ow-border text-[var(--ink-2)]">
+                      <td className="py-1.5 pr-3 text-[var(--ink)]">
+                        {t.label}
+                        {t.lowerIsBetter && <span className="ml-1.5 text-[10px] text-[var(--faint-2)]">(lower is better)</span>}
+                      </td>
+                      <td className="py-1.5 pr-3 font-bold">{t.totalN}</td>
+                      <td className="py-1.5 pr-3">{t.scales}</td>
+                      <td className={`py-1.5 pr-3 font-bold ${toneOf(t)}`}>
+                        {t.spanDelta != null ? fmtVal(t.spanDelta, t.unit) : '—'}
+                      </td>
+                      <td className={`py-1.5 font-bold ${t.r2 != null && t.r2 >= R2_REAL ? '' : 'text-[var(--faint-2)]'}`}>
+                        {t.r2 != null ? t.r2.toFixed(3) : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-ow-border/60">
+              {rosterFindings.length === 0 && (
+                <p className="text-xs text-[var(--faint)] mb-2">
+                  <span className="font-bold text-[var(--ink)]">Roster-wide: nothing clears the bar.</span>{' '}
+                  Across every hero pooled, no metric tracks sensitivity strongly enough to act on. That is a
+                  real answer, not missing data — it means whatever sens is doing, it is doing per hero rather
+                  than to you overall.
+                </p>
+              )}
+              {heroFindings.length === 0 ? (
+                <p className="text-xs text-[var(--faint)]">
+                  No individual hero clears R²={R2_REAL} with at least {MIN_N} games over {MIN_SCALES}+ tested
+                  scales either. Keep logging — the bar exists so a thin run of luck can't read as a discovery.
+                </p>
+              ) : (
+                <>
+                  <p className="text-xs text-[var(--faint)] mb-2">
+                    <span className="font-bold text-[var(--ink)]">Per-hero findings</span> — cleared R²={R2_REAL},
+                    {' '}{MIN_N}+ games, {MIN_SCALES}+ tested scales. Still worth reading as leads, not verdicts.
+                  </p>
+                  <ul className="space-y-1">
+                    {heroFindings.map(({ hero, t }) => (
+                      <li key={`${hero}-${t.key}`} className="text-xs text-[var(--ink-2)]" data-inspect-id="sensAnalysis-metric-trend-finding">
+                        <span className="hero-name text-[var(--ink)]">{hero}</span>
+                        {' — '}{t.label}{' '}
+                        <span className={`font-bold ${toneOf(t)}`}>
+                          {t.spanDelta != null ? fmtVal(t.spanDelta, t.unit) : '—'}
+                        </span>
+                        {' '}from {t.sensMin?.toFixed(2)} to {t.sensMax?.toFixed(2)} sens
+                        <span className="text-[var(--faint-2)]"> (R²={t.r2?.toFixed(2)}, n={t.totalN})</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+          </Section>
+        );
+      })()}
+
+      {/* Ability-level stats per tested sens — the question the By Hero table
+          above can't answer, because it collapses each hero to one best-scale
+          summary. Three channels feed it, and they are NOT interchangeable:
+            - the crit_acc slot, whose meaning is per hero (Ana = sleep dart),
+            - extra_acc, an optional 4th accuracy reading (4 heroes),
+            - hero_stat_value, the signature stat, whose label is stored with
+              the data and can be a COUNT rather than a percentage.
+          All three were collected from the start and read by nothing until
+          2026-09-15 — extra_acc and hero_stat_value weren't even selected by
+          computeAnalysis. */}
+      {(() => {
+        const CHANNEL_MIN_N = 3; // below this a cell is shown but greyed
+        const abilityHeroes = heroes
+          .map(h => {
+            const critName = hasCrit(h.hero) ? critSlotShort(h.hero) : null;
+            const extraName = extraSlotShort(h.hero);
+            const hasCritData = critName != null && h.scales.some(s => s.avgCrit != null);
+            const hasExtraData = extraName != null && h.scales.some(s => s.nExtra > 0);
+            const hasStatData = h.nHeroStat > 0;
+            return { h, critName, extraName, hasCritData, hasExtraData, hasStatData };
+          })
+          .filter(r => r.hasCritData || r.hasExtraData || r.hasStatData);
+
+        if (abilityHeroes.length === 0) return null;
+
+        // A signature stat that is a raw count (Shion's "Execution kills")
+        // rather than a percentage can't be compared across match lengths the
+        // way an accuracy can. Flagged rather than silently normalized.
+        const anyCountStat = abilityHeroes.some(r =>
+          r.hasStatData && r.h.heroStatLabel != null && !/%/.test(r.h.heroStatLabel));
+
+        return (
+          <Section
+            title="Ability Stats by Sens"
+            hint={`For each hero, how its own ability-level stats came out at every sens actually tested (@${MOUSE_DPI} DPI). Each cell shows the average with that stat's own game count in parens — a stat is often logged for fewer games than the sens bucket itself, so read the small n, not the bucket's. Cells below ${CHANNEL_MIN_N} readings are greyed out.${anyCountStat ? ' Signature stats that are counts rather than percentages are per match, so a longer match inflates them — compare those cautiously.' : ''}`}
+            dataInspectId="sensAnalysis-ability-stats-by-sens"
+          >
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {abilityHeroes.map(({ h, critName, extraName, hasCritData, hasExtraData, hasStatData }) => {
+                const cell = (value: number | null, n: number, pct: boolean) => {
+                  if (value == null || n === 0) return <span className="text-[var(--faint-2)]">—</span>;
+                  return (
+                    <span className={n < CHANNEL_MIN_N ? 'text-[var(--faint-2)]' : 'font-bold'}>
+                      {value.toFixed(1)}{pct ? '%' : ''}
+                      <span className="ml-1 text-[10px] font-normal text-[var(--faint-2)]">({n})</span>
+                    </span>
+                  );
+                };
+                return (
+                  <div key={h.hero} className="border border-ow-border rounded-lg p-3" data-inspect-id="sensAnalysis-ability-stat-hero-card">
+                    <div className="flex items-baseline justify-between mb-2">
+                      <span className="text-xs hero-name text-[var(--ink)]">{withHeroCount(h.hero, heroCounts)}</span>
+                      <span className="text-[10px] text-[var(--faint-2)]">{h.n} games</span>
+                    </div>
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-[10px] text-[var(--muted)] uppercase tracking-wider text-left">
+                          <th className="py-1 pr-2">Sens</th>
+                          <th className="py-1 pr-2">Overall</th>
+                          {hasCritData && <th className="py-1 pr-2">{critName}</th>}
+                          {hasExtraData && <th className="py-1 pr-2">{extraName}</th>}
+                          {hasStatData && <th className="py-1">{h.heroStatLabel ?? 'Signature'}</th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {h.scales.map(sc => (
+                          <tr key={sc.cm360} className="border-t border-ow-border text-[var(--ink-2)]">
+                            <td className="py-1 pr-2 font-bold text-[var(--ink)]">
+                              {(sc.eDPI / MOUSE_DPI).toFixed(2)}
+                              <span className="ml-1 text-[10px] font-normal text-[var(--faint-2)]">({sc.n})</span>
+                            </td>
+                            <td className={`py-1 pr-2 ${sc.n < CHANNEL_MIN_N ? 'text-[var(--faint-2)]' : 'font-bold'}`}>
+                              {sc.avgOverall != null ? `${sc.avgOverall.toFixed(1)}%` : '—'}
+                            </td>
+                            {hasCritData && <td className="py-1 pr-2">{cell(sc.avgCrit, sc.n, true)}</td>}
+                            {hasExtraData && <td className="py-1 pr-2">{cell(sc.avgExtra, sc.nExtra, true)}</td>}
+                            {hasStatData && (
+                              <td className="py-1">
+                                {cell(sc.avgHeroStat, sc.nHeroStat, /%/.test(h.heroStatLabel ?? ''))}
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })}
+            </div>
+          </Section>
+        );
+      })()}
 
       {/* Curve fit — a quadratic (a*x^2 + b*x + c) fit across each hero's
           tested scales (avgDelta vs. sens, weighted by n), naming a

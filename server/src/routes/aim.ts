@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
 import {
   cm360, eDPI, archetypeOf, deriveSessionPosition, deriveSensAdaptation, TimelineMatch, MOUSE_DPI,
-  fitQuadraticPeak, CurvePoint,
+  fitQuadraticPeak, fitLinearTrend, CurvePoint,
 } from '../lib/aim';
 import { getCurveParams, setCurveParams } from '../lib/curveParams';
 
@@ -168,8 +168,29 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
   // of historical switch-hero rows whose true sens couldn't be reconstructed
   // (scripts/backfill-hero-sens.py) instead of silently misattributing them
   // to the primary hero's sens.
+  // extra_acc and hero_stat_label/value join the projection here (2026-09-15).
+  // Both were write-only before: the entry form collected them and the
+  // backlog/day GETs read them back so the form could be edited, but
+  // computeAnalysis selected overall_acc/crit_acc alone, so 618 logged
+  // ability-level readings never reached any analysis surface.
+  //
+  // The two live at different grains, which is why they're handled
+  // differently below. extra_acc is on aim_stats_heroes — per hero actually
+  // played, so it lines up with this query's row directly. hero_stat_value is
+  // on aim_stats — one row per MATCH, describing the match's primary hero
+  // only. m.hero comes along as primary_hero so it can be attributed to that
+  // hero and nulled on every other hero in the same match; without that guard
+  // a mid-match switch would credit the primary hero's signature stat to
+  // whoever was switched to.
   const rows = db.prepare(`
-    SELECT m.id, ah.hero, mh.sens, m.dpi, m.win, m.date, mh.feel, m.blind_trial, ah.overall_acc, ah.crit_acc, a.created_at
+    SELECT m.id, ah.hero, mh.sens, m.dpi, m.win, m.date, mh.feel, m.blind_trial,
+           ah.overall_acc, ah.crit_acc, ah.extra_acc, ah.duration_min AS hero_duration_min,
+           a.hero_stat_label, a.hero_stat_value, m.hero AS primary_hero, a.created_at,
+           -- Output stats. All live on aim_stats, which is one row per MATCH,
+           -- so like hero_stat_value they describe the primary hero and are
+           -- attributed below rather than shared across a switched match.
+           a.damage, a.healing, a.elims, a.deaths, a.assists, a.final_blows,
+           a.duration_min AS match_duration_min
     FROM aim_stats_heroes ah
     JOIN aim_stats a ON a.match_id = ah.match_id
     JOIN matches m ON m.id = ah.match_id
@@ -177,7 +198,12 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
     WHERE mh.sens IS NOT NULL AND ah.overall_acc IS NOT NULL
   `).all() as unknown as {
     id: number; hero: string; sens: number; dpi: number | null; win: 0 | 1; blind_trial: 0 | 1 | null;
-    overall_acc: number; crit_acc: number | null; feel: number | null; created_at: string; date: string;
+    overall_acc: number; crit_acc: number | null; extra_acc: number | null;
+    hero_stat_label: string | null; hero_stat_value: number | null; primary_hero: string;
+    damage: number | null; healing: number | null; elims: number | null;
+    deaths: number | null; assists: number | null; final_blows: number | null;
+    hero_duration_min: number | null; match_duration_min: number | null;
+    feel: number | null; created_at: string; date: string;
   }[];
 
   // Most recent aim_stats write among the rows actually feeding this analysis.
@@ -193,12 +219,53 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
   // real cm/360 instead of collapsing into one sens bucket.
   const cmBucket = (v: number) => Math.round(v * 10) / 10;
 
+  // Per-10-minute rates for one row, or nulls when the row can't support them
+  // (no duration, or this hero wasn't the match's primary).
+  const rate10 = (r: typeof rows[number]) => {
+    const mins = (r.hero_duration_min && r.hero_duration_min > 0)
+      ? r.hero_duration_min
+      : (r.match_duration_min && r.match_duration_min > 0 ? r.match_duration_min : null);
+    const own = r.hero === r.primary_hero;
+    const per10 = (v: number | null) => (mins == null || !own || v == null ? null : (v * 10) / mins);
+    return {
+      durationMin: own ? mins : null,
+      dmg10: per10(r.damage),
+      heal10: per10(r.healing),
+      elims10: per10(r.elims),
+      deaths10: per10(r.deaths),
+      assists10: per10(r.assists),
+      fb10: per10(r.final_blows),
+    };
+  };
+
   const ptsRaw = rows.map(r => ({
     ...r,
     cm360: cm360(r.sens, r.dpi ?? MOUSE_DPI),
     archetype: archetypeOf(r.hero),
     cold: (posById.get(r.id) ?? 1) === 1,
     fresh: (sinceById.get(r.id) ?? 0) <= 2,
+    // Match-level signature stat, claimed only by the match's primary hero
+    // (see the query's note). Every other hero in a switched match reads null
+    // here rather than inheriting a number that isn't about them.
+    heroStat: r.hero === r.primary_hero ? r.hero_stat_value : null,
+    heroStatLabel: r.hero === r.primary_hero ? r.hero_stat_label : null,
+    // ── Output rates ─────────────────────────────────────────────────────
+    // Damage, healing, elims, deaths and assists are raw totals for a whole
+    // match, so comparing them directly is comparing match lengths as much as
+    // performance: a 17-minute grind out-damages a 6-minute stomp no matter
+    // how anyone aimed. Dividing by time on hero removes that, giving a rate
+    // that is comparable across matches — which is what makes these usable
+    // against sens at all.
+    //
+    // Denominator is aim_stats_heroes.duration_min (time on THIS hero) with
+    // the match-level duration as fallback. On a switched match those differ,
+    // and using the match's length for a hero who played four minutes of it
+    // would understate their rate by a factor of three.
+    //
+    // Like hero_stat_value these totals live on the match row, so only the
+    // primary hero claims them; a hero switched to mid-match gets null rather
+    // than credit for someone else's damage.
+    ...rate10(r),
   }));
 
   // Absorb legacy near-2.5 sens points into the closest blind-trial cm/360
@@ -231,30 +298,67 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
   // delta by construction rather than reflecting real performance. A hero
   // with fewer than 2 distinct scale buckets has nothing to compare against
   // yet, so its points get a null delta rather than a fabricated one.
+  // One leave-one-scale-out pass over an arbitrary stat, so overall accuracy,
+  // the crit slot, extra_acc and the signature stat all get their delta the
+  // same way rather than each re-deriving it. Points where the stat is null
+  // simply don't contribute to any bucket and get a null delta back.
+  const losoDeltas = <T extends { scaleBucket: number }>(
+    hrows: T[], valueOf: (p: T) => number | null,
+  ): Map<T, number | null> => {
+    const byBucket = new Map<number, { sum: number; n: number }>();
+    for (const p of hrows) {
+      const v = valueOf(p);
+      if (v == null) continue;
+      const cur = byBucket.get(p.scaleBucket) ?? { sum: 0, n: 0 };
+      byBucket.set(p.scaleBucket, { sum: cur.sum + v, n: cur.n + 1 });
+    }
+    const total = [...byBucket.values()].reduce((a, v) => ({ sum: a.sum + v.sum, n: a.n + v.n }), { sum: 0, n: 0 });
+    const out = new Map<T, number | null>();
+    for (const p of hrows) {
+      const v = valueOf(p);
+      if (v == null) { out.set(p, null); continue; }
+      const own = byBucket.get(p.scaleBucket)!;
+      const otherN = total.n - own.n;
+      out.set(p, otherN > 0 ? v - (total.sum - own.sum) / otherN : null);
+    }
+    return out;
+  };
+
   const pts = (() => {
-    const out: (typeof ptsAbsorbed[number] & { delta: number | null; critDelta: number | null })[] = [];
+    type Pt = typeof ptsAbsorbed[number];
+    const out: (Pt & {
+      delta: number | null; critDelta: number | null;
+      extraDelta: number | null; heroStatDelta: number | null;
+      dmg10Delta: number | null; heal10Delta: number | null;
+      elims10Delta: number | null; deaths10Delta: number | null;
+    })[] = [];
     for (const [, hrows] of groupBy(ptsAbsorbed, p => p.hero)) {
-      const byBucket = groupBy(hrows, p => p.scaleBucket);
-      const overallByBucket = new Map<number, { sum: number; n: number }>();
-      const critByBucket = new Map<number, { sum: number; n: number }>();
-      for (const [b, bpts] of byBucket) {
-        overallByBucket.set(b as number, { sum: bpts.reduce((s, p) => s + p.overall_acc, 0), n: bpts.length });
-        const c = bpts.filter(p => p.crit_acc != null);
-        critByBucket.set(b as number, { sum: c.reduce((s, p) => s + (p.crit_acc as number), 0), n: c.length });
-      }
-      const totalOverall = [...overallByBucket.values()].reduce((a, v) => ({ sum: a.sum + v.sum, n: a.n + v.n }), { sum: 0, n: 0 });
-      const totalCrit = [...critByBucket.values()].reduce((a, v) => ({ sum: a.sum + v.sum, n: a.n + v.n }), { sum: 0, n: 0 });
+      const overall = losoDeltas(hrows, p => p.overall_acc);
+      const crit = losoDeltas(hrows, p => p.crit_acc);
+      const extra = losoDeltas(hrows, p => p.extra_acc);
+      // Only normalized against itself when the stat is a percentage. A raw
+      // count (Shion's "Execution kills", Reaper's "Death Blossom Kills")
+      // still gets a delta, and it's still a like-for-like comparison of this
+      // hero against itself across scales — but see the nHeroStat/label
+      // caveat surfaced to the client: counts are per match and therefore
+      // confounded by match length, which percentages aren't.
+      const heroStat = losoDeltas(hrows, p => p.heroStat);
+      const dmg = losoDeltas(hrows, p => p.dmg10);
+      const heal = losoDeltas(hrows, p => p.heal10);
+      const elim = losoDeltas(hrows, p => p.elims10);
+      const death = losoDeltas(hrows, p => p.deaths10);
       for (const p of hrows) {
-        const own = overallByBucket.get(p.scaleBucket)!;
-        const otherN = totalOverall.n - own.n;
-        const delta = otherN > 0 ? p.overall_acc - (totalOverall.sum - own.sum) / otherN : null;
-        let critDelta: number | null = null;
-        if (p.crit_acc != null) {
-          const ownC = critByBucket.get(p.scaleBucket)!;
-          const otherCn = totalCrit.n - ownC.n;
-          critDelta = otherCn > 0 ? p.crit_acc - (totalCrit.sum - ownC.sum) / otherCn : null;
-        }
-        out.push({ ...p, delta, critDelta });
+        out.push({
+          ...p,
+          delta: overall.get(p) ?? null,
+          critDelta: crit.get(p) ?? null,
+          extraDelta: extra.get(p) ?? null,
+          heroStatDelta: heroStat.get(p) ?? null,
+          dmg10Delta: dmg.get(p) ?? null,
+          heal10Delta: heal.get(p) ?? null,
+          elims10Delta: elim.get(p) ?? null,
+          deaths10Delta: death.get(p) ?? null,
+        });
       }
     }
     return out;
@@ -283,6 +387,29 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
           avgFeel: mean(ps.filter(p => p.feel != null).map(p => p.feel as number)),
           avgDelta: mean(ps.filter(p => p.delta != null).map(p => p.delta as number)),
           avgCritDelta: mean(ps.filter(p => p.critDelta != null).map(p => p.critDelta as number)),
+          // Ability-level stats at this scale. Each carries its own n because
+          // it is almost always sparser than the bucket's overall-accuracy n —
+          // extra_acc exists for 4 heroes, the signature stat for 7 — and a
+          // reader who sees only the bucket's n would badly overrate them.
+          nExtra: ps.filter(p => p.extra_acc != null).length,
+          avgExtra: mean(ps.filter(p => p.extra_acc != null).map(p => p.extra_acc as number)),
+          avgExtraDelta: mean(ps.filter(p => p.extraDelta != null).map(p => p.extraDelta as number)),
+          nHeroStat: ps.filter(p => p.heroStat != null).length,
+          avgHeroStat: mean(ps.filter(p => p.heroStat != null).map(p => p.heroStat as number)),
+          avgHeroStatDelta: mean(ps.filter(p => p.heroStatDelta != null).map(p => p.heroStatDelta as number)),
+          // Output rates at this scale, each with its own n. Damage/elims are
+          // logged on essentially every study point; healing only on supports,
+          // which is why its n is separate rather than assumed.
+          nRate: ps.filter(p => p.dmg10 != null).length,
+          avgDmg10: mean(ps.filter(p => p.dmg10 != null).map(p => p.dmg10 as number)),
+          avgDmg10Delta: mean(ps.filter(p => p.dmg10Delta != null).map(p => p.dmg10Delta as number)),
+          nHeal: ps.filter(p => p.heal10 != null).length,
+          avgHeal10: mean(ps.filter(p => p.heal10 != null).map(p => p.heal10 as number)),
+          avgHeal10Delta: mean(ps.filter(p => p.heal10Delta != null).map(p => p.heal10Delta as number)),
+          avgElims10: mean(ps.filter(p => p.elims10 != null).map(p => p.elims10 as number)),
+          avgElims10Delta: mean(ps.filter(p => p.elims10Delta != null).map(p => p.elims10Delta as number)),
+          avgDeaths10: mean(ps.filter(p => p.deaths10 != null).map(p => p.deaths10 as number)),
+          avgDeaths10Delta: mean(ps.filter(p => p.deaths10Delta != null).map(p => p.deaths10Delta as number)),
           // Win rate, not just accuracy — accuracy is a proxy for the scale
           // that actually matters: which sens wins more.
           winRate: mult100(mean(ps.map(p => p.win))),
@@ -329,6 +456,68 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
     };
   };
 
+  // ── Does this metric actually move with sens? ────────────────────────────
+  // The rest of this rollup reports values per scale and leaves the reader to
+  // eyeball whether a pattern exists. Eyeballing is exactly how the retired
+  // map/hour "key patterns" happened: pick the highest bucket out of eight and
+  // it will always look like something. This asks the question numerically
+  // instead, for EVERY metric rather than accuracy alone.
+  //
+  // A weighted straight line is fitted through the scales (see fitLinearTrend)
+  // and reported with three things the reader needs together: which direction
+  // it points, how much it predicts across the whole tested range, and how
+  // well the line actually matches the points (r2). A steep slope with a
+  // scattered r2 is not a finding, and reporting the slope alone would hide
+  // that. Nothing here is a verdict — it's the evidence, stated honestly.
+  //
+  // Two bases, and picking the wrong one is the difference between a finding
+  // and a mirage. `raw` is the metric itself — right when the trend is scoped
+  // to ONE hero, where the hero is held constant by construction. `normalized`
+  // is the same metric expressed as that hero's own leave-one-scale-out delta,
+  // and it's mandatory when pooling the whole roster: Pharah averages ~13,500
+  // damage per 10 minutes and Ana ~4,700, so a pooled raw trend across scales
+  // mostly measures WHICH HEROES happened to be tested where, not sens. Same
+  // reason the existing curve fit uses avgDelta rather than avgOverall.
+  const METRICS = [
+    { key: 'overall', label: 'Overall accuracy', unit: '%', pick: (sc: any) => sc.avgOverall, norm: (sc: any) => sc.avgDelta, n: (sc: any) => sc.n },
+    { key: 'crit', label: 'Signature/crit stat', unit: '%', pick: (sc: any) => sc.avgCrit, norm: (sc: any) => sc.avgCritDelta, n: (sc: any) => sc.n },
+    { key: 'dmg10', label: 'Damage per 10 min', unit: '', pick: (sc: any) => sc.avgDmg10, norm: (sc: any) => sc.avgDmg10Delta, n: (sc: any) => sc.nRate },
+    { key: 'heal10', label: 'Healing per 10 min', unit: '', pick: (sc: any) => sc.avgHeal10, norm: (sc: any) => sc.avgHeal10Delta, n: (sc: any) => sc.nHeal },
+    { key: 'elims10', label: 'Elims per 10 min', unit: '', pick: (sc: any) => sc.avgElims10, norm: (sc: any) => sc.avgElims10Delta, n: (sc: any) => sc.nRate },
+    { key: 'deaths10', label: 'Deaths per 10 min', unit: '', pick: (sc: any) => sc.avgDeaths10, norm: (sc: any) => sc.avgDeaths10Delta, n: (sc: any) => sc.nRate },
+    { key: 'winRate', label: 'Win rate', unit: '%', pick: (sc: any) => sc.winRate, norm: (sc: any) => sc.winRate, n: (sc: any) => sc.n },
+  ] as const;
+
+  // Deaths are the one metric here where DOWN is good. Stated as data rather
+  // than left to the reader, so a client can't accidentally paint a rising
+  // death rate green just because every other metric rises in the good
+  // direction.
+  const LOWER_IS_BETTER = new Set(['deaths10']);
+
+  const trendsOf = (scales: ReturnType<typeof byScale>, basis: 'raw' | 'normalized' = 'raw') =>
+    METRICS.map(m => {
+      const valueOf = basis === 'normalized' ? m.norm : m.pick;
+      const cpts: CurvePoint[] = scales
+        .map(sc => ({ x: sc.eDPI / MOUSE_DPI, y: valueOf(sc as any), w: m.n(sc as any) }))
+        .filter((pt): pt is CurvePoint => pt.y != null && pt.w > 0)
+        .map(pt => ({ x: pt.x, y: pt.y as number, w: pt.w }));
+      const fit = fitLinearTrend(cpts);
+      return {
+        key: m.key,
+        label: m.label,
+        unit: m.unit,
+        basis,
+        lowerIsBetter: LOWER_IS_BETTER.has(m.key),
+        scales: cpts.length,
+        totalN: fit?.totalN ?? cpts.reduce((a, b) => a + b.w, 0),
+        slope: fit ? Math.round(fit.slope * 1000) / 1000 : null,
+        spanDelta: fit ? Math.round(fit.spanDelta * 100) / 100 : null,
+        r2: fit ? Math.round(fit.r2 * 1000) / 1000 : null,
+        sensMin: fit ? Math.round(fit.xMin * 100) / 100 : null,
+        sensMax: fit ? Math.round(fit.xMax * 100) / 100 : null,
+      };
+    });
+
   const bucket = (items: typeof pts, label: string) => ({
     bucket: label,
     n: items.length,
@@ -360,6 +549,8 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
       })),
     byScale: byScale(pts),
     overallCurveFit: curveFitOf(byScale(pts)),
+    // Every metric's relationship with sens across the whole roster.
+    metricTrends: trendsOf(byScale(pts), 'normalized'),
     byArchetype: {
       hitscan: byScale(pts.filter(p => p.archetype === 'hitscan')),
       projectile: byScale(pts.filter(p => p.archetype === 'projectile')),
@@ -393,6 +584,16 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
           n: ps.length,
           avgOverall: mean(ps.map(p => p.overall_acc)),
           avgCrit: mean(ps.filter(p => p.crit_acc != null).map(p => p.crit_acc as number)),
+          // The signature stat's own name, read off the data rather than
+          // hardcoded — hero_stat_label is stored per match, so the server can
+          // say "Charged Shot Accuracy %" instead of leaving the client to
+          // guess what hero_stat_value means. Most recent non-null label wins
+          // if a hero's label was ever renamed mid-study.
+          heroStatLabel: [...ps].reverse().find(p => p.heroStatLabel != null)?.heroStatLabel ?? null,
+          nHeroStat: ps.filter(p => p.heroStat != null).length,
+          avgHeroStat: mean(ps.filter(p => p.heroStat != null).map(p => p.heroStat as number)),
+          nExtra: ps.filter(p => p.extra_acc != null).length,
+          avgExtra: mean(ps.filter(p => p.extra_acc != null).map(p => p.extra_acc as number)),
           winRate: mult100(mean(ps.map(p => p.win))),
           // Null when no scale clears MIN_SCALE_N — consumers must handle the
           // "no reliable best yet" case rather than render a thin pick.
@@ -401,6 +602,8 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
           bestScaleN: bestScale?.n ?? 0,
           bestScaleOverallDelta: bestScale?.avgDelta ?? null,
           bestScaleCritDelta: bestScale?.avgCritDelta ?? null,
+          bestScaleExtraDelta: bestScale?.avgExtraDelta ?? null,
+          bestScaleHeroStatDelta: bestScale?.avgHeroStatDelta ?? null,
           bestScaleWinRate: bestScale?.winRate ?? null,
           // Full per-scale curve (not just the best one) so the analysis page
           // can trace this hero's accuracy across every sens it's actually
@@ -409,6 +612,8 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
           // Quadratic best-fit across those scales — null until a hero has
           // 3+ distinct tested scales (see fitQuadraticPeak).
           curveFit: curveFitOf(scales),
+          // Same trend question asked for this hero alone.
+          metricTrends: trendsOf(scales),
         };
       })
       .sort((a, b) => b.n - a.n),

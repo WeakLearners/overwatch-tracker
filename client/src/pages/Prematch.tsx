@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { format } from 'date-fns';
-import { useApi } from '../hooks/useApi';
+import { useApi, revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { MAPS, QUEUE_MODES, ROLE_COLORS, ROLE_PILL_CLASS, TYPE_COLORS, HEROES, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, MapVotingRow, QueueMode, Streaks } from '../types';
@@ -41,6 +41,24 @@ interface BlindSetSummary {
   phase: string | null;
   active: boolean;
   completed: boolean;
+}
+
+// /api/custom-phases — the phase *plans* (brackets per hero), which are
+// separate from the sets those plans get turned into. A plan existing is what
+// makes "there's a next phase to move on to" true; a set existing for
+// (hero, phase) is what makes that hero already started on it. Shape mirrors
+// SensLog's PlanTab/PlanHero, narrowed to the fields needed to create a set.
+interface PhasePlanHero {
+  hero: string;
+  gamesPerSlot: number;
+  senses?: number[];
+  dpis?: number[];
+}
+interface PhasePlan {
+  key: string;
+  label: string;
+  plan: PhasePlanHero[];
+  curveEnabled: boolean;
 }
 
 // /api/advisor/test-pick response — top 3 (map, hero) combos ranked by win
@@ -88,7 +106,7 @@ interface PrematchData {
 export default function Prematch() {
   // Shared, single-instance match state (queue mode, map, advisor) lives here
   // and is consumed by the Log Match section too.
-  const { queueMode, map, setMap, mapType, rec, recLoading, recError, refreshRec, testRole, setTestRole, setPendingHeroes, matchLoggedSignal } = useMatch();
+  const { queueMode, map, setMap, mapType, rec, recLoading, recError, refreshRec, revalidateRec, testRole, setTestRole, setPendingHeroes, matchLoggedSignal } = useMatch();
   const { data: dpiHud } = useApi<DpiTestHud>('/api/blind/state');
   const btActives = dpiHud?.actives ?? [];
   // Several heroes can be "In Testing" at once, but the mouse can only be set
@@ -132,6 +150,66 @@ export default function Prematch() {
   const phaseRoster = currentPhase ? allSets.filter(s => s.phase === currentPhase) : [];
   const phaseHeroes = new Set(phaseRoster.map(s => s.hero).filter((h): h is string => !!h));
   const doneThisPhase = new Set(phaseRoster.filter(s => s.completed && s.hero).map(s => s.hero!));
+
+  // ── "Start next phase", per hero ──────────────────────────────────────────
+  // The newest phase *plan* is the one to move on to. Deliberately not keyed
+  // off currentPhase/doneThisPhase above: those derive from the newest set, so
+  // the instant the first hero is moved onto the next phase, currentPhase
+  // flips to it and every hero still awaiting the move would read as "not in
+  // this phase, not done" and lose both its badge and its button mid-migration.
+  // A hero's own latest set is the stable signal instead.
+  const { data: customPhasesData } = useApi<{ phases: PhasePlan[] }>('/api/custom-phases');
+  const phasePlans = customPhasesData?.phases ?? [];
+  const nextPhase = phasePlans.length ? phasePlans[phasePlans.length - 1] : null;
+  const latestSetOf = (hero: string) =>
+    allSets.filter(s => s.hero === hero).sort((a, b) => b.set_id - a.set_id)[0] ?? null;
+  // The plan entry for this hero in the next phase, or null if the phase's
+  // roster doesn't include them (a hero can be dropped between phases) or
+  // they're already on it.
+  const nextPhaseRowFor = (hero: string): PhasePlanHero | null => {
+    if (!nextPhase) return null;
+    if (allSets.some(s => s.hero === hero && s.phase === nextPhase.key)) return null;
+    return nextPhase.plan.find(p => p.hero === hero) ?? null;
+  };
+  // Three disabled reasons, each with its own tooltip — the button is always
+  // shown (so the next step is visible from the row, not just discoverable on
+  // SensLog) and only lights up when the move is actually available.
+  const nextPhaseStateFor = (hero: string): { enabled: boolean; title: string } => {
+    const row = nextPhaseRowFor(hero);
+    if (!row) return { enabled: false, title: 'No further test phase for this hero — build one on the Sens Log page' };
+    const latest = latestSetOf(hero);
+    if (!latest) return { enabled: false, title: 'No test set for this hero yet — start one on the Sens Log page' };
+    if (!latest.completed) return { enabled: false, title: 'Games still left in this hero’s current phase' };
+    return { enabled: true, title: `Start ${nextPhase!.label} for ${hero}` };
+  };
+  const [startingPhase, setStartingPhase] = useState<string | null>(null);
+  // Same POST body SensLog's "Create test set" builds — sens path when the
+  // plan specifies sens values (the post-DPI-lock convention), legacy DPI path
+  // otherwise.
+  async function startNextPhase(hero: string) {
+    const row = nextPhaseRowFor(hero);
+    if (!row || !nextPhase) return;
+    setStartingPhase(hero);
+    try {
+      await fetch('/api/blind/sets', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(row.senses
+          ? { senses: row.senses, batch_size: row.gamesPerSlot, hero, phase: nextPhase.key, curve_enabled: nextPhase.curveEnabled }
+          : { in_game_sens: 2.5, dpis: row.dpis, batch_size: row.gamesPerSlot, hero, phase: nextPhase.key, curve_enabled: nextPhase.curveEnabled }),
+      });
+      revalidateAll();
+      // revalidateAll() only refreshes useApi hooks, and the Advisor card
+      // sitting directly above this picker isn't one — it's MatchContext's
+      // `rec`, a plain fetch + useState. It matters here because
+      // /api/advisor/recommend scopes its whole pool to heroes with an ACTIVE
+      // set (advisor.ts getInTestingHeroes), so creating one changes its
+      // answer. Deliberately revalidateRec (no refresh=1) rather than
+      // refreshRec: the route recomputes the primary/stretch picks live on
+      // every request and only the LLM insight text is cached, so this picks
+      // up the new hero without burning an LLM call.
+      revalidateRec();
+    } finally { setStartingPhase(null); }
+  }
 
   const params = new URLSearchParams();
   if (map) params.set('map', map);
@@ -275,7 +353,12 @@ export default function Prematch() {
   // now it stays visible with a "Done" badge instead (see the button render
   // below) so Sean can see the whole phase roster at a glance.
   const inTestingHeroes = new Set(btActives.map(a => a.hero).filter((h): h is string => !!h));
-  const selectableHeroes = new Set([...inTestingHeroes, ...phaseHeroes]);
+  // The next phase's roster joins the union too, so a hero waiting to be moved
+  // onto it doesn't drop out of the picker (and out of reach of its own "start
+  // next phase" button) the moment some other hero is moved first and
+  // currentPhase flips. No-op while the newest plan is also the live phase.
+  const nextPhaseHeroes = nextPhase ? nextPhase.plan.map(p => p.hero) : [];
+  const selectableHeroes = new Set([...inTestingHeroes, ...phaseHeroes, ...nextPhaseHeroes]);
   // Every hero surfaced below is actively testing, so always has a sens/DPI
   // value here. Sens supersedes DPI post-lock; DPI is the fallback for any
   // pre-lock stage still running on the old axis.
@@ -962,12 +1045,23 @@ export default function Prematch() {
                       const clickIndex = clickedHeroes.indexOf(h.hero);
                       const isClicked = clickIndex !== -1;
                       return (
-                      <button
+                      // role="button" rather than a real <button> because the
+                      // row now nests its own "start next phase" button, and a
+                      // button inside a button is invalid HTML (browsers drop
+                      // the inner one out of the outer, breaking both). Keeps
+                      // the whole row clickable and keyboard-operable exactly
+                      // as before.
+                      <div
                         key={h.hero}
+                        role="button"
+                        tabIndex={0}
                         onClick={() => toggleHeroClick(h.hero)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleHeroClick(h.hero); }
+                        }}
                         data-inspect-id="prematch-hero-picker-button"
                         aria-pressed={isClicked}
-                        className={`relative flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-lg border active:scale-[0.98] transition-all group ${
+                        className={`relative flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-lg border cursor-pointer active:scale-[0.98] transition-all group ${
                           isClicked
                             ? 'border-ow-accent bg-ow-accent/15'
                             : 'border-ow-border bg-ow-darker hover:border-ow-accent/70 hover:bg-ow-accent/10'
@@ -1022,9 +1116,45 @@ export default function Prematch() {
                             ✓ Done
                           </span>
                         )}
-                        <span className={`text-sm font-bold ${h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
+                        {/* Start this hero's set in the next phase plan —
+                            creates it in place (same POST as SensLog's
+                            "Create test set") instead of making Sean leave
+                            Prematch for it. Always rendered so the next step
+                            is visible from the row; greyed out unless this
+                            hero has finished its current phase AND the newest
+                            phase plan still has a bracket waiting for it.
+                            stopPropagation so it doesn't also toggle the row's
+                            hero pick. */}
+                        {(() => {
+                          const ph = nextPhaseStateFor(h.hero);
+                          const busy = startingPhase === h.hero;
+                          return (
+                            <button
+                              type="button"
+                              onClick={e => { e.stopPropagation(); startNextPhase(h.hero); }}
+                              disabled={!ph.enabled || busy}
+                              title={ph.title}
+                              aria-label={ph.title}
+                              data-inspect-id="prematch-hero-picker-next-phase-button"
+                              className={`shrink-0 relative right-[10%] w-12 text-center text-[9px] font-bold uppercase tracking-wide py-0.5 rounded border transition-colors ${
+                                ph.enabled && !busy
+                                  ? 'border-ow-accent/70 text-ow-accent hover:bg-ow-accent/15'
+                                  : 'border-ow-border text-[var(--faint-2)] opacity-50 cursor-not-allowed'
+                              }`}
+                            >
+                              {busy ? '…' : 'Next'}
+                            </button>
+                          );
+                        })()}
+                        {/* Fixed width + right-aligned so the win rate can't
+                            change the column's width — "0%" and "100%" occupy
+                            the same box, which is what keeps the Next button to
+                            its left pinned in place instead of sliding row to
+                            row. Same reason the button itself is w-12: its "…"
+                            busy label is narrower than "Next". */}
+                        <span className={`shrink-0 w-11 text-right text-sm font-bold ${h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
                         <span className="text-xs text-[var(--faint-2)] w-7 text-right font-bold">{h.games}g</span>
-                      </button>
+                      </div>
                       );
                     })}
                     {heroes.length === 0 && (

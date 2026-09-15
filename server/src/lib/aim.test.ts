@@ -14,6 +14,7 @@ import {
   archetypeOf,
   SESSION_GAP_MIN,
   TimelineMatch,
+  fitLinearTrend,
 } from './aim';
 
 describe('fitQuadraticPeak', () => {
@@ -199,5 +200,69 @@ describe('eDPI / cm360 / archetypeOf', () => {
     assert.equal(archetypeOf('Reinhardt'), 'other');
     assert.equal(archetypeOf('Ana'), 'other');
     assert.equal(archetypeOf('Not A Real Hero'), 'other');
+  });
+});
+
+// ── fitLinearTrend ──────────────────────────────────────────────────────────
+// Hand-verified against lines whose slope and R² are known by construction, so
+// a regression shows up as a wrong number rather than a plausible-looking one.
+describe('fitLinearTrend', () => {
+  test('a perfect line returns its exact slope and R2 = 1', () => {
+    const fit = fitLinearTrend([
+      { x: 1, y: 10, w: 1 }, { x: 2, y: 20, w: 1 }, { x: 3, y: 30, w: 1 },
+    ]);
+    assert.ok(fit);
+    assert.equal(Math.round(fit.slope * 1e9) / 1e9, 10);
+    assert.equal(Math.round(fit.r2 * 1e9) / 1e9, 1);
+    assert.equal(fit.points, 3);
+    assert.equal(fit.totalN, 3);
+    // spanDelta: slope * (xMax - xMin) = 10 * 2
+    assert.equal(Math.round(fit.spanDelta * 1e9) / 1e9, 20);
+  });
+
+  test('a descending line reports a negative slope', () => {
+    const fit = fitLinearTrend([
+      { x: 2.0, y: 50, w: 1 }, { x: 2.5, y: 40, w: 1 }, { x: 3.0, y: 30, w: 1 },
+    ]);
+    assert.ok(fit);
+    assert.equal(Math.round(fit.slope * 1e6) / 1e6, -20);
+    assert.equal(Math.round(fit.spanDelta * 1e6) / 1e6, -20);
+  });
+
+  test('scatter with no correlation to x gives slope 0 and R2 0', () => {
+    // Symmetric about the mean x, so the x-y covariance is exactly zero: the
+    // points vary a lot, but none of that variation is explained by x.
+    // (A 10,0,10,0 zigzag would NOT do — over ascending x that has a real
+    // slope of -2 and R2 of 0.2, which is the kind of accident this fit needs
+    // to keep reporting honestly rather than rounding away.)
+    const fit = fitLinearTrend([
+      { x: 1, y: 0, w: 1 }, { x: 2, y: 10, w: 1 }, { x: 3, y: 10, w: 1 }, { x: 4, y: 0, w: 1 },
+    ]);
+    assert.ok(fit);
+    assert.equal(Math.round(fit.slope * 1e9) / 1e9, 0);
+    assert.equal(Math.round(fit.r2 * 1e9) / 1e9, 0);
+  });
+
+  test('weights pull the line toward the better-sampled points', () => {
+    // Three points; the outlier at x=3 carries 1 game, the others 50 each.
+    const light = fitLinearTrend([
+      { x: 1, y: 10, w: 1 }, { x: 2, y: 20, w: 1 }, { x: 3, y: 100, w: 1 },
+    ])!;
+    const heavy = fitLinearTrend([
+      { x: 1, y: 10, w: 50 }, { x: 2, y: 20, w: 50 }, { x: 3, y: 100, w: 1 },
+    ])!;
+    assert.ok(heavy.slope < light.slope,
+      `down-weighting the outlier must flatten the slope (light ${light.slope}, heavy ${heavy.slope})`);
+  });
+
+  test('fewer than 3 points returns null (2 points fit any line exactly)', () => {
+    assert.equal(fitLinearTrend([{ x: 1, y: 1, w: 1 }, { x: 2, y: 2, w: 1 }]), null);
+    assert.equal(fitLinearTrend([]), null);
+  });
+
+  test('all points at one x returns null rather than an infinite slope', () => {
+    assert.equal(fitLinearTrend([
+      { x: 2.5, y: 10, w: 1 }, { x: 2.5, y: 20, w: 1 }, { x: 2.5, y: 30, w: 1 },
+    ]), null);
   });
 });
