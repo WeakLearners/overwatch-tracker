@@ -698,8 +698,18 @@
           "kind": "button",
           "description": "Selects a hero from the Select Your Hero list (in-testing ∪ current-phase-roster, filtered to whichever role Role Pick's toggle selected). Click order fills Log Match's hero slots 1st/2nd/3rd (up to 3, silently ignored past that); clicking an already-picked hero toggles it back off and clears its slot.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:898",
+            "path": "client/src/pages/Prematch.tsx:1124",
             "grep": "grep -n -F -- 'prematch-hero-picker-button' client/src/pages/Prematch.tsx"
+          }
+        },
+        {
+          "id": "prematch-hero-picker-next-phase-button",
+          "label": "Hero row next-move button",
+          "kind": "button",
+          "description": "Moves one hero forward in its sens test, from inside the Select Your Hero row. Two moves, tried in that order: the next STAGE within the current set (POST /api/blind/advance) when that stage has its full batch of games, otherwise the next PHASE (POST /api/blind/sets with the newest plan's bracket) once every stage is done. Label names which move it will make — \"Next stage →\" or \"Next phase →\" — and the disabled states carry the same noun so a greyed-out button says which move is being waited on. Advancing a stage short of its batch is deliberately not offered here; that abandons the stage permanently and stays on Sens Log behind its confirm.",
+          "locate": {
+            "path": "client/src/pages/Prematch.tsx:1200",
+            "grep": "grep -n -F -- 'prematch-hero-picker-next-phase-button' client/src/pages/Prematch.tsx"
           }
         }
       ]
