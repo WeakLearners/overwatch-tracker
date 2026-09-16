@@ -26,6 +26,11 @@ interface DpiTestHud {
 const ALL_MAPS = Object.keys(MAPS).sort();
 const DPI_TEST_HERO_KEY = 'ow-dpi-test-hero';
 const AD_HOC_KEY = '__adhoc__';
+// Hero-picker "next" button labels. Worded to match SensLog's own advance
+// control ("Get next stage →") so the two read as the same action in two
+// places, rather than two different features.
+const STAGE_LABEL = 'Next stage →';
+const PHASE_LABEL = 'Next phase →';
 
 interface HeroRow { hero: string; role: string; games: number; wins: number; win_rate: number }
 
@@ -171,21 +176,78 @@ export default function Prematch() {
     if (allSets.some(s => s.hero === hero && s.phase === nextPhase.key)) return null;
     return nextPhase.plan.find(p => p.hero === hero) ?? null;
   };
-  // Three disabled reasons, each with its own tooltip — the button is always
-  // shown (so the next step is visible from the row, not just discoverable on
-  // SensLog) and only lights up when the move is actually available.
-  const nextPhaseStateFor = (hero: string): { enabled: boolean; title: string } => {
+  // "Next" means "move this hero forward", and forward has two sizes. The
+  // small step is the next STAGE inside the current set (2.61 -> 2.68) — that
+  // is a manual POST /api/blind/advance, not something logging a game does on
+  // its own, so a hero whose stage is full just sits there until this is
+  // clicked. The big step is the next PHASE, which only exists once every
+  // stage in the set is done. Stage first, phase as the fallback: a set that
+  // still has stages left can never be the phase case.
+  //
+  // Advancing short of batch_size is deliberately NOT offered here. The server
+  // allows it with force, but abandons the stage permanently in exchange, so
+  // that out stays on SensLog behind its confirm.
+  type NextAction =
+    | { kind: 'advance'; setId: number }
+    | { kind: 'phase' }
+    | null;
+  // `label` names the move the click will actually perform, because "stage"
+  // and "phase" are two different things in this app and every other control
+  // says which one it means ("Get next stage →" on SensLog, "Create phase" in
+  // its builder). A bare "Next" here was the one control that dropped the
+  // noun, and that is exactly what made it read as the stage move when it was
+  // wired to the phase one. The disabled states carry the same noun, so the
+  // greyed-out button still says which move is being waited on.
+  const nextStateFor = (hero: string): { enabled: boolean; title: string; action: NextAction; label: string } => {
+    const act = btActives.find(a => a.hero === hero);
+    if (act && act.cur_stage < act.n_stages) {
+      const left = act.batch_size - act.games_on_stage;
+      if (left > 0) {
+        return {
+          enabled: false,
+          action: null,
+          label: STAGE_LABEL,
+          title: `${left} more game${left === 1 ? '' : 's'} on stage ${act.cur_stage} of ${act.n_stages} before ${hero} can move to the next stage`,
+        };
+      }
+      return {
+        enabled: true,
+        action: { kind: 'advance', setId: act.set_id },
+        label: STAGE_LABEL,
+        title: `Move ${hero} to stage ${act.cur_stage + 1} of ${act.n_stages}`,
+      };
+    }
     const row = nextPhaseRowFor(hero);
-    if (!row) return { enabled: false, title: 'No further test phase for this hero — build one on the Sens Log page' };
+    if (!row) return { enabled: false, action: null, label: PHASE_LABEL, title: 'No further test phase for this hero — build one on the Sens Log page' };
     const latest = latestSetOf(hero);
-    if (!latest) return { enabled: false, title: 'No test set for this hero yet — start one on the Sens Log page' };
-    if (!latest.completed) return { enabled: false, title: 'Games still left in this hero’s current phase' };
-    return { enabled: true, title: `Start ${nextPhase!.label} for ${hero}` };
+    if (!latest) return { enabled: false, action: null, label: PHASE_LABEL, title: 'No test set for this hero yet — start one on the Sens Log page' };
+    if (!latest.completed) return { enabled: false, action: null, label: PHASE_LABEL, title: 'Games still left in this hero’s current phase' };
+    return { enabled: true, action: { kind: 'phase' }, label: PHASE_LABEL, title: `Start ${nextPhase!.label} for ${hero}` };
   };
   const [startingPhase, setStartingPhase] = useState<string | null>(null);
   // Same POST body SensLog's "Create test set" builds — sens path when the
   // plan specifies sens values (the post-DPI-lock convention), legacy DPI path
   // otherwise.
+  // Dispatches whichever move nextStateFor decided on. Both paths end in
+  // revalidateAll(), so the button re-evaluates itself from fresh server state.
+  async function startNext(hero: string) {
+    const { enabled, action } = nextStateFor(hero);
+    if (!enabled || !action) return;
+    if (action.kind === 'phase') { await startNextPhase(hero); return; }
+    setStartingPhase(hero);
+    try {
+      const r = await fetch('/api/blind/advance', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ set_id: action.setId }),
+      });
+      if (r.ok) revalidateAll();
+      else {
+        const body = await r.json().catch(() => ({}));
+        alert(`Advance failed: ${body.error ?? r.statusText}`);
+      }
+    } finally { setStartingPhase(null); }
+  }
+
   async function startNextPhase(hero: string) {
     const row = nextPhaseRowFor(hero);
     if (!row || !nextPhase) return;
@@ -1116,33 +1178,33 @@ export default function Prematch() {
                             ✓ Done
                           </span>
                         )}
-                        {/* Start this hero's set in the next phase plan —
-                            creates it in place (same POST as SensLog's
-                            "Create test set") instead of making Sean leave
-                            Prematch for it. Always rendered so the next step
-                            is visible from the row; greyed out unless this
-                            hero has finished its current phase AND the newest
-                            phase plan still has a bracket waiting for it.
+                        {/* Move this hero forward — to the next stage inside
+                            the current set, or, once every stage is done, into
+                            the newest phase plan (same POST as SensLog's
+                            "Create test set"). Either way it happens in place
+                            instead of making Sean leave Prematch. Always
+                            rendered so the next step is visible from the row;
+                            greyed out when neither move is available yet.
                             stopPropagation so it doesn't also toggle the row's
                             hero pick. */}
                         {(() => {
-                          const ph = nextPhaseStateFor(h.hero);
+                          const ph = nextStateFor(h.hero);
                           const busy = startingPhase === h.hero;
                           return (
                             <button
                               type="button"
-                              onClick={e => { e.stopPropagation(); startNextPhase(h.hero); }}
+                              onClick={e => { e.stopPropagation(); startNext(h.hero); }}
                               disabled={!ph.enabled || busy}
                               title={ph.title}
                               aria-label={ph.title}
                               data-inspect-id="prematch-hero-picker-next-phase-button"
-                              className={`shrink-0 relative right-[10%] w-12 text-center text-[9px] font-bold uppercase tracking-wide py-0.5 rounded border transition-colors ${
+                              className={`shrink-0 relative right-[10%] w-[4.25rem] whitespace-nowrap text-center text-[9px] font-bold tracking-tight py-0.5 rounded border transition-colors ${
                                 ph.enabled && !busy
                                   ? 'border-ow-accent/70 text-ow-accent hover:bg-ow-accent/15'
                                   : 'border-ow-border text-[var(--faint-2)] opacity-50 cursor-not-allowed'
                               }`}
                             >
-                              {busy ? '…' : 'Next'}
+                              {busy ? '…' : ph.label}
                             </button>
                           );
                         })()}
