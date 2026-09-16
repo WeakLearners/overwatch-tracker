@@ -66,6 +66,69 @@ interface PhasePlan {
   curveEnabled: boolean;
 }
 
+// "Next" means "move this hero forward", and forward has two sizes. The small
+// step is the next STAGE inside the current set (2.61 -> 2.68) — that is a
+// manual POST /api/blind/advance, not something logging a game does on its
+// own, so a hero whose stage is full just sits there until this is clicked.
+// The big step is the next PHASE, which only exists once every stage in the
+// set is done. Stage first, phase as the fallback: a set that still has
+// stages left can never be the phase case.
+//
+// Advancing short of batch_size is deliberately NOT offered here. The server
+// allows it with force, but abandons the stage permanently in exchange, so
+// that stays on SensLog behind its confirm.
+export type NextAction =
+  | { kind: 'advance'; setId: number }
+  | { kind: 'phase' }
+  | null;
+export interface NextState { enabled: boolean; title: string; action: NextAction; label: string }
+
+// Pure — takes every input it reads as an explicit argument instead of
+// closing over Prematch's component state, so it can be unit-tested without
+// mounting the page. `label` names the move the click will actually perform,
+// because "stage" and "phase" are two different things in this app and every
+// other control says which one it means ("Get next stage →" on SensLog,
+// "Create phase" in its builder). A bare "Next" here was the one control that
+// dropped the noun, and that is exactly what made it read as the stage move
+// when it was wired to the phase one. The disabled states carry the same
+// noun, so the greyed-out button still says which move is being waited on.
+export function nextStateFor(
+  activeSets: DpiTestHud['actives'],
+  allSets: BlindSetSummary[],
+  nextPhase: PhasePlan | null,
+  hero: string,
+): NextState {
+  const act = activeSets.find(a => a.hero === hero);
+  if (act && act.cur_stage < act.n_stages) {
+    const left = act.batch_size - act.games_on_stage;
+    if (left > 0) {
+      return {
+        enabled: false,
+        action: null,
+        label: STAGE_LABEL,
+        title: `${left} more game${left === 1 ? '' : 's'} on stage ${act.cur_stage} of ${act.n_stages} before ${hero} can move to the next stage`,
+      };
+    }
+    return {
+      enabled: true,
+      action: { kind: 'advance', setId: act.set_id },
+      label: STAGE_LABEL,
+      title: `Move ${hero} to stage ${act.cur_stage + 1} of ${act.n_stages}`,
+    };
+  }
+  // The plan entry for this hero in the next phase, or null if the phase's
+  // roster doesn't include them (a hero can be dropped between phases) or
+  // they're already on it.
+  const row = nextPhase && !allSets.some(s => s.hero === hero && s.phase === nextPhase.key)
+    ? nextPhase.plan.find(p => p.hero === hero) ?? null
+    : null;
+  if (!row) return { enabled: false, action: null, label: PHASE_LABEL, title: 'No further test phase for this hero — build one on the Sens Log page' };
+  const latest = allSets.filter(s => s.hero === hero).sort((a, b) => b.set_id - a.set_id)[0] ?? null;
+  if (!latest) return { enabled: false, action: null, label: PHASE_LABEL, title: 'No test set for this hero yet — start one on the Sens Log page' };
+  if (!latest.completed) return { enabled: false, action: null, label: PHASE_LABEL, title: 'Games still left in this hero’s current phase' };
+  return { enabled: true, action: { kind: 'phase' }, label: PHASE_LABEL, title: `Start ${nextPhase!.label} for ${hero}` };
+}
+
 // /api/advisor/test-pick response — top 3 (map, hero) combos ranked by win
 // rate across (candidate maps) x (current phase roster for the selected
 // role). See that route for the ranking/sparse-data rules.
@@ -176,62 +239,15 @@ export default function Prematch() {
     if (allSets.some(s => s.hero === hero && s.phase === nextPhase.key)) return null;
     return nextPhase.plan.find(p => p.hero === hero) ?? null;
   };
-  // "Next" means "move this hero forward", and forward has two sizes. The
-  // small step is the next STAGE inside the current set (2.61 -> 2.68) — that
-  // is a manual POST /api/blind/advance, not something logging a game does on
-  // its own, so a hero whose stage is full just sits there until this is
-  // clicked. The big step is the next PHASE, which only exists once every
-  // stage in the set is done. Stage first, phase as the fallback: a set that
-  // still has stages left can never be the phase case.
-  //
-  // Advancing short of batch_size is deliberately NOT offered here. The server
-  // allows it with force, but abandons the stage permanently in exchange, so
-  // that out stays on SensLog behind its confirm.
-  type NextAction =
-    | { kind: 'advance'; setId: number }
-    | { kind: 'phase' }
-    | null;
-  // `label` names the move the click will actually perform, because "stage"
-  // and "phase" are two different things in this app and every other control
-  // says which one it means ("Get next stage →" on SensLog, "Create phase" in
-  // its builder). A bare "Next" here was the one control that dropped the
-  // noun, and that is exactly what made it read as the stage move when it was
-  // wired to the phase one. The disabled states carry the same noun, so the
-  // greyed-out button still says which move is being waited on.
-  const nextStateFor = (hero: string): { enabled: boolean; title: string; action: NextAction; label: string } => {
-    const act = btActives.find(a => a.hero === hero);
-    if (act && act.cur_stage < act.n_stages) {
-      const left = act.batch_size - act.games_on_stage;
-      if (left > 0) {
-        return {
-          enabled: false,
-          action: null,
-          label: STAGE_LABEL,
-          title: `${left} more game${left === 1 ? '' : 's'} on stage ${act.cur_stage} of ${act.n_stages} before ${hero} can move to the next stage`,
-        };
-      }
-      return {
-        enabled: true,
-        action: { kind: 'advance', setId: act.set_id },
-        label: STAGE_LABEL,
-        title: `Move ${hero} to stage ${act.cur_stage + 1} of ${act.n_stages}`,
-      };
-    }
-    const row = nextPhaseRowFor(hero);
-    if (!row) return { enabled: false, action: null, label: PHASE_LABEL, title: 'No further test phase for this hero — build one on the Sens Log page' };
-    const latest = latestSetOf(hero);
-    if (!latest) return { enabled: false, action: null, label: PHASE_LABEL, title: 'No test set for this hero yet — start one on the Sens Log page' };
-    if (!latest.completed) return { enabled: false, action: null, label: PHASE_LABEL, title: 'Games still left in this hero’s current phase' };
-    return { enabled: true, action: { kind: 'phase' }, label: PHASE_LABEL, title: `Start ${nextPhase!.label} for ${hero}` };
-  };
   const [startingPhase, setStartingPhase] = useState<string | null>(null);
   // Same POST body SensLog's "Create test set" builds — sens path when the
   // plan specifies sens values (the post-DPI-lock convention), legacy DPI path
   // otherwise.
-  // Dispatches whichever move nextStateFor decided on. Both paths end in
-  // revalidateAll(), so the button re-evaluates itself from fresh server state.
+  // Dispatches whichever move the module-level nextStateFor decided on. Both
+  // paths end in revalidateAll(), so the button re-evaluates itself from
+  // fresh server state.
   async function startNext(hero: string) {
-    const { enabled, action } = nextStateFor(hero);
+    const { enabled, action } = nextStateFor(btActives, allSets, nextPhase, hero);
     if (!enabled || !action) return;
     if (action.kind === 'phase') { await startNextPhase(hero); return; }
     setStartingPhase(hero);
@@ -1188,7 +1204,7 @@ export default function Prematch() {
                             stopPropagation so it doesn't also toggle the row's
                             hero pick. */}
                         {(() => {
-                          const ph = nextStateFor(h.hero);
+                          const ph = nextStateFor(btActives, allSets, nextPhase, h.hero);
                           const busy = startingPhase === h.hero;
                           return (
                             <button

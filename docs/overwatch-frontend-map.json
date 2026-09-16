@@ -997,16 +997,6 @@
           }
         },
         {
-          "id": "logmatch-inline-edit-mode-toggle",
-          "label": "Queue mode toggle (inline edit form)",
-          "kind": "toggle",
-          "description": "iOS-style switch (blue \"Q\"/red \"C\" flanking labels) inside a Today's Matches row's inline edit form. Clicking it PUTs a queue_mode flip (qp_role ↔ comp_role) to /api/matches/:id and calls revalidateAll. Comp -> QP prompts a window.confirm first — that direction rolls back the match's DPI-test stage credit (drops its blind_credits row server-side) and removes it from the Sens page's Awaiting Stats list. Moved here from an overlay on the collapsed row's watermark, now that the row expands into a full edit form instead.",
-          "locate": {
-            "path": "client/src/pages/LogMatch.tsx:136",
-            "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-inline-edit-mode-toggle\"' client/src/pages/LogMatch.tsx"
-          }
-        },
-        {
           "id": "logmatch-todays-matches-card-row",
           "label": "Today's Match row (click to expand)",
           "kind": "list-item",

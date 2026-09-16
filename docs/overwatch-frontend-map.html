@@ -1192,8 +1192,18 @@ const DATA = {
           "kind": "button",
           "description": "Selects a hero from the Select Your Hero list (in-testing \u222a current-phase-roster, filtered to whichever role Role Pick's toggle selected). Click order fills Log Match's hero slots 1st/2nd/3rd (up to 3, silently ignored past that); clicking an already-picked hero toggles it back off and clears its slot.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:898",
+            "path": "client/src/pages/Prematch.tsx:1124",
             "grep": "grep -n -F -- 'prematch-hero-picker-button' client/src/pages/Prematch.tsx"
+          }
+        },
+        {
+          "id": "prematch-hero-picker-next-phase-button",
+          "label": "Hero row next-move button",
+          "kind": "button",
+          "description": "Moves one hero forward in its sens test, from inside the Select Your Hero row. Two moves, tried in that order: the next STAGE within the current set (POST /api/blind/advance) when that stage has its full batch of games, otherwise the next PHASE (POST /api/blind/sets with the newest plan's bracket) once every stage is done. Label names which move it will make \u2014 \"Next stage \u2192\" or \"Next phase \u2192\" \u2014 and the disabled states carry the same noun so a greyed-out button says which move is being waited on. Advancing a stage short of its batch is deliberately not offered here; that abandons the stage permanently and stays on Sens Log behind its confirm.",
+          "locate": {
+            "path": "client/src/pages/Prematch.tsx:1200",
+            "grep": "grep -n -F -- 'prematch-hero-picker-next-phase-button' client/src/pages/Prematch.tsx"
           }
         }
       ]
@@ -1478,16 +1488,6 @@ const DATA = {
           "locate": {
             "path": "client/src/pages/LogMatch.tsx:1003",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-recently-logged-list\"' client/src/pages/LogMatch.tsx"
-          }
-        },
-        {
-          "id": "logmatch-inline-edit-mode-toggle",
-          "label": "Queue mode toggle (inline edit form)",
-          "kind": "toggle",
-          "description": "iOS-style switch (blue \"Q\"/red \"C\" flanking labels) inside a Today's Matches row's inline edit form. Clicking it PUTs a queue_mode flip (qp_role \u2194 comp_role) to /api/matches/:id and calls revalidateAll. Comp -> QP prompts a window.confirm first \u2014 that direction rolls back the match's DPI-test stage credit (drops its blind_credits row server-side) and removes it from the Sens page's Awaiting Stats list. Moved here from an overlay on the collapsed row's watermark, now that the row expands into a full edit form instead.",
-          "locate": {
-            "path": "client/src/pages/LogMatch.tsx:136",
-            "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-inline-edit-mode-toggle\"' client/src/pages/LogMatch.tsx"
           }
         },
         {
@@ -4048,6 +4048,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 
