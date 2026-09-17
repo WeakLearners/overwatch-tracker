@@ -53,7 +53,7 @@ interface Bucket {
   bucket: string; n: number;
   avgOverall: number | null; avgDelta: number | null; avgFeel: number | null; winRate: number | null;
 }
-interface CurveFit {
+export interface CurveFit {
   points: number; totalN: number; r2: number;
   optimalSens: number | null; predictedDelta: number | null;
   hasInteriorPeak: boolean; inRange: boolean;
@@ -345,15 +345,53 @@ const CONFIDENT_SCALES = 5;
 // noise — shared between the Recommendation card's "clearly worse" call and
 // the Insights "weakest reliable scale" callout so both use the same bar.
 const MEANINGFUL_DELTA_GAP = 1.5;
-// Below this R², a curve fit's vertex is not trustworthy regardless of how
+// Below this R², a fit's slope/vertex is not trustworthy regardless of how
 // many games or scales back it (2026-09-17, Sean's correction: "make the page
 // enforce that rather than leaving it as a comment" — the comment being
-// curveFitOf's own "scattered r2 is not a finding"). A quadratic ALWAYS has a
-// vertex; a low R² means the points don't actually follow that shape, so the
-// vertex is an artifact of the algebra, not a result. Same bar the roster
-// "Does Sens Move Anything?" section already uses for "is this a trend at
-// all" (R2_REAL there), reused here for the same reason.
-const WEAK_FIT_R2 = 0.25;
+// curveFitOf's own "scattered r2 is not a finding"). ONE shared constant for
+// both the quadratic curve-fit gate below and the linear metric-trend gate in
+// "Does Sens Move Anything?" — they used to be two independently-declared
+// 0.25s (a local R2_REAL in "Does Sens Move Anything?" plus a separate
+// WEAK_FIT_R2 here), the same failure shape as the duplicated rank logic in
+// aim.ts/SensAnalysis.tsx. Same number, same meaning ("is this fit real or
+// scatter"), so one name now, not two that happen to agree until someone
+// changes only one.
+export const R2_TRUST_BAR = 0.25;
+// A quadratic curve fit has 3 coefficients (a, b, c). At exactly 3 tested
+// points it has ZERO degrees of freedom — the parabola is forced through all
+// three exactly, so R²=1.000 by construction for ANY three points, including
+// pure noise. Found live (2026-09-17): Reaper (3 points) and Cassidy
+// (3 points) both showed a perfect R²=1.0 and passed the R2_TRUST_BAR gate,
+// while Sojourn's real 171-match, 11-scale fit (R²=0.173) was correctly
+// suppressed — the gate was doing the OPPOSITE of its job on the two
+// least-informative fits on the page. 5 gives 2 points of headroom past the
+// 3 coefficients (df=2) before a fit is allowed to claim anything at all.
+export const MIN_FIT_POINTS = 5;
+
+// Whether a curve fit's R² is even meaningful, and — critically — WHY not
+// when it isn't. Checked in this order because R² isn't meaningful at all
+// without enough points to constrain it: a 3-point fit reporting R²=1.0 is
+// not "a good fit that happens to be thin," it's a fit with no information
+// content, and the page needs to say exactly that rather than a generic
+// "not enough data."
+export function curveFitReliability(fit: CurveFit): { trustworthy: boolean; reason: string | null } {
+  if (fit.points < MIN_FIT_POINTS) {
+    const df = fit.points - 3;
+    return {
+      trustworthy: false,
+      reason: df <= 0
+        ? `${fit.points} point${fit.points === 1 ? '' : 's'}, 3 coefficients — this fit is exact by construction (R²=1.00 no matter what the points actually show).`
+        : `${fit.points} points against 3 coefficients (only ${df} degree${df === 1 ? '' : 's'} of freedom) — too little headroom for R² to mean anything yet.`,
+    };
+  }
+  if (fit.r2 < R2_TRUST_BAR) {
+    return {
+      trustworthy: false,
+      reason: `R²=${fit.r2.toFixed(2)} — the tested points don't follow a curve well enough to trust any estimated peak, no matter how many games are behind it.`,
+    };
+  }
+  return { trustworthy: true, reason: null };
+}
 
 // One color per hero, assigned by a stable hash of the hero's name (not
 // array position, so a hero keeps its color across reloads) via a
@@ -423,7 +461,7 @@ const heroStatChannelValueOf = (channel: 'crit' | 'extra' | 'heroStat' | null): 
 // "make the fitted accuracy/sens curve a first-class object... for the roster
 // fit and per hero" — both accuracy and hero-stat curves, all legible, not
 // just the roster accuracy curve as one big chart with everything else
-// reduced to a table row). A weak fit (R² < WEAK_FIT_R2) is drawn as a faint
+// reduced to a table row). A weak fit (see curveFitReliability) is drawn as a faint
 // dashed line and says plainly that its peak isn't trustworthy, no matter how
 // many games sit behind it — enforcing "scattered r2 is not a finding" in the
 // UI instead of leaving it as a code comment.
@@ -436,7 +474,8 @@ function MiniCurveChart({ fit, points, label }: { fit: CurveFit | null; points: 
       </div>
     );
   }
-  const weak = fit.r2 < WEAK_FIT_R2;
+  const rel = curveFitReliability(fit);
+  const weak = !rel.trustworthy;
   const line = buildCurveLine(fit);
   const r2Class = weak ? 'text-red-600 dark:text-red-400' : fit.r2 >= 0.5 ? 'text-emerald-700 dark:text-emerald-500' : 'text-[var(--faint-2)]';
   return (
@@ -454,9 +493,9 @@ function MiniCurveChart({ fit, points, label }: { fit: CurveFit | null; points: 
           <Scatter data={points} dataKey="y" fill="var(--ink)" />
         </ComposedChart>
       </ResponsiveContainer>
-      <div className="text-[10px] text-[var(--faint-2)] mt-1">
+      <div className="text-[10px] text-[var(--faint-2)] mt-1" title={rel.reason ?? undefined}>
         {fit.points} scales · {fit.totalN} games
-        {weak && ' · too scattered to trust a peak'}
+        {weak && ` · ${rel.reason}`}
         {!weak && fit.hasInteriorPeak && fit.inRange && ` · peak ≈ ${fit.optimalSens?.toFixed(2)}`}
         {!weak && !fit.hasInteriorPeak && ' · still climbing, no interior peak'}
         {!weak && fit.hasInteriorPeak && !fit.inRange && ' · peak estimated outside tested range'}
@@ -1472,10 +1511,12 @@ export default function SensAnalysis() {
         if (!trends.length) return null;
 
         // Bars a trend must clear to be called a finding rather than scatter.
-        // R2_REAL is deliberately modest — this is noisy human performance
-        // data, not a physics experiment — but it is a bar, and the section
-        // says so out loud rather than presenting every slope as a result.
-        const R2_REAL = 0.25;
+        // R2_TRUST_BAR is deliberately modest — this is noisy human
+        // performance data, not a physics experiment — but it is a bar, and
+        // the section says so out loud rather than presenting every slope as
+        // a result. Shared with the quadratic curve-fit gate below (one
+        // constant, not two 0.25s declared independently — see its own
+        // comment for why that used to be a bug waiting to happen).
         const MIN_N = 30;
         const MIN_SCALES = 4;
 
@@ -1486,23 +1527,23 @@ export default function SensAnalysis() {
         // not an improvement. lowerIsBetter comes from the server so this
         // can't drift from the definition the numbers were computed under.
         const toneOf = (t: MetricTrend) => {
-          if (t.spanDelta == null || t.r2 == null || t.r2 < R2_REAL) return '';
+          if (t.spanDelta == null || t.r2 == null || t.r2 < R2_TRUST_BAR) return '';
           const good = t.lowerIsBetter ? t.spanDelta < 0 : t.spanDelta > 0;
           return good ? 'text-emerald-700 dark:text-emerald-500' : 'text-red-700 dark:text-red-400';
         };
 
         const heroFindings = heroes.flatMap(h =>
           (h.metricTrends ?? [])
-            .filter(t => t.r2 != null && t.r2 >= R2_REAL && t.totalN >= MIN_N && t.scales >= MIN_SCALES)
+            .filter(t => t.r2 != null && t.r2 >= R2_TRUST_BAR && t.totalN >= MIN_N && t.scales >= MIN_SCALES)
             .map(t => ({ hero: h.hero, t })),
         ).sort((a, b) => (b.t.r2 ?? 0) - (a.t.r2 ?? 0));
 
-        const rosterFindings = trends.filter(t => t.r2 != null && t.r2 >= R2_REAL && t.totalN >= MIN_N);
+        const rosterFindings = trends.filter(t => t.r2 != null && t.r2 >= R2_TRUST_BAR && t.totalN >= MIN_N);
 
         return (
           <Section
             title="Does Sens Move Anything?"
-            hint={`Every metric fitted against sens with a weighted straight line. "Across range" is how much the line predicts the metric changes from your lowest tested sens to your highest; R² is how closely the points actually follow that line, 0 to 1. A large change with a low R² is scatter, not a result — both are shown together for that reason. Roster-wide rows are normalized against each hero's own baseline first, otherwise the comparison would mostly measure which heroes were tested where. Nothing below R²=${R2_REAL} is treated as a finding.`}
+            hint={`Every metric fitted against sens with a weighted straight line. "Across range" is how much the line predicts the metric changes from your lowest tested sens to your highest; R² is how closely the points actually follow that line, 0 to 1. A large change with a low R² is scatter, not a result — both are shown together for that reason. Roster-wide rows are normalized against each hero's own baseline first, otherwise the comparison would mostly measure which heroes were tested where. Nothing below R²=${R2_TRUST_BAR} is treated as a finding.`}
             dataInspectId="sensAnalysis-metric-trends"
           >
             <div className="overflow-x-auto">
@@ -1528,7 +1569,7 @@ export default function SensAnalysis() {
                       <td className={`py-1.5 pr-3 font-bold ${toneOf(t)}`}>
                         {t.spanDelta != null ? fmtVal(t.spanDelta, t.unit) : '—'}
                       </td>
-                      <td className={`py-1.5 font-bold ${t.r2 != null && t.r2 >= R2_REAL ? '' : 'text-[var(--faint-2)]'}`}>
+                      <td className={`py-1.5 font-bold ${t.r2 != null && t.r2 >= R2_TRUST_BAR ? '' : 'text-[var(--faint-2)]'}`}>
                         {t.r2 != null ? t.r2.toFixed(3) : '—'}
                       </td>
                     </tr>
@@ -1548,13 +1589,13 @@ export default function SensAnalysis() {
               )}
               {heroFindings.length === 0 ? (
                 <p className="text-xs text-[var(--faint)]">
-                  No individual hero clears R²={R2_REAL} with at least {MIN_N} games over {MIN_SCALES}+ tested
+                  No individual hero clears R²={R2_TRUST_BAR} with at least {MIN_N} games over {MIN_SCALES}+ tested
                   scales either. Keep logging — the bar exists so a thin run of luck can't read as a discovery.
                 </p>
               ) : (
                 <>
                   <p className="text-xs text-[var(--faint)] mb-2">
-                    <span className="font-bold text-[var(--ink)]">Per-hero findings</span> — cleared R²={R2_REAL},
+                    <span className="font-bold text-[var(--ink)]">Per-hero findings</span> — cleared R²={R2_TRUST_BAR},
                     {' '}{MIN_N}+ games, {MIN_SCALES}+ tested scales. Still worth reading as leads, not verdicts.
                   </p>
                   <ul className="space-y-1">
@@ -1611,8 +1652,9 @@ export default function SensAnalysis() {
         // best-sens/result on it too — a weak fit shows no number at all,
         // not a confident one wrapped in a caveat.
         const fitNote = (fit: CurveFit, subject: string): { text: string; tone: 'good' | 'warn' | 'bad' | 'neutral' } => {
-          if (fit.r2 < WEAK_FIT_R2) {
-            return { text: `R²=${fit.r2.toFixed(2)} — the tested points don't follow a curve well enough to trust any estimated peak, no matter how many games are behind it. Treat this as no finding, not a rough guess.`, tone: 'bad' };
+          const rel = curveFitReliability(fit);
+          if (!rel.trustworthy) {
+            return { text: `${rel.reason} Treat this as no finding, not a rough guess.`, tone: 'bad' };
           }
           if (!fit.hasInteriorPeak) {
             return { text: `${subject} is still climbing toward one edge of what you’ve tested, not leveling off in the middle — try testing further past that edge.`, tone: 'warn' };
@@ -1628,7 +1670,7 @@ export default function SensAnalysis() {
         return (
           <Section
             title="Estimated Sweet Spot"
-            hint={`Draws a smooth curve through each category's tested scales to guess where the peak actually is, instead of just picking whichever tested scale happened to score best. Two curves, equal standing: accuracy, and each hero's own crit/extra/signature stat. A quadratic ALWAYS has a vertex — R² below ${WEAK_FIT_R2} means the points don't actually follow that shape, so any row (or mini-chart) below that bar shows no estimated sens or result, on purpose, instead of a confident-looking number built on scatter. Needs at least 3 reliable tested scales to draw a curve at all.`}
+            hint={`Draws a smooth curve through each category's tested scales to guess where the peak actually is, instead of just picking whichever tested scale happened to score best. Two curves, equal standing: accuracy, and each hero's own crit/extra/signature stat. A quadratic ALWAYS has a vertex — at fewer than ${MIN_FIT_POINTS} tested scales it doesn't have enough degrees of freedom for R² to mean anything (3 scales = 3 coefficients = an exact, meaningless R²=1.00), and below R²=${R2_TRUST_BAR} the points just don't follow that shape. Either way, the row (or mini-chart) shows no estimated sens or result, on purpose, instead of a confident-looking number built on scatter or an exact fit with no information in it.`}
             dataInspectId="sensAnalysis-curve-fit-card"
           >
             {curveLine && curveTestedPts.length >= 3 && (
@@ -1695,7 +1737,7 @@ export default function SensAnalysis() {
                         );
                       }
                       const note = fitNote(r.fit, 'Accuracy');
-                      const weak = r.fit.r2 < WEAK_FIT_R2;
+                      const weak = !curveFitReliability(r.fit).trustworthy;
                       const toneClass = note.tone === 'good' ? 'text-emerald-700 dark:text-emerald-500' : note.tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : note.tone === 'bad' ? 'text-red-600 dark:text-red-400' : 'text-[var(--faint)]';
                       return (
                         <tr key={r.label} className="border-t border-ow-border text-[var(--ink-2)] align-top">
@@ -1757,7 +1799,7 @@ export default function SensAnalysis() {
                         );
                       }
                       const note = fitNote(r.fit, 'This stat');
-                      const weak = r.fit.r2 < WEAK_FIT_R2;
+                      const weak = !curveFitReliability(r.fit).trustworthy;
                       const toneClass = note.tone === 'good' ? 'text-emerald-700 dark:text-emerald-500' : note.tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : note.tone === 'bad' ? 'text-red-600 dark:text-red-400' : 'text-[var(--faint)]';
                       return (
                         <tr key={r.label} className="border-t border-ow-border text-[var(--ink-2)] align-top">

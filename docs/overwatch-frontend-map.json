@@ -1937,7 +1937,7 @@
           "kind": "nav-item",
           "description": "Sub-navigation bar rendered at the top of the page, letting the user switch to other pages in the sensitivity-testing section.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:577",
+            "path": "client/src/pages/SensAnalysis.tsx:905",
             "grep": "grep -n -F -- '<SensNav dataInspectId=\"sensAnalysis-sensnav\" />' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -1947,7 +1947,7 @@
           "kind": "header",
           "description": "Page title and subtitle explaining the page's purpose, rendered above all sensitivity analysis content.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:579",
+            "path": "client/src/pages/SensAnalysis.tsx:907",
             "grep": "grep -n -F -- 'Sensitivity Analysis</h1>' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -1957,7 +1957,7 @@
           "kind": "header",
           "description": "Main page heading 'Sensitivity Analysis' with a one-line subtitle describing what the page shows.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:579",
+            "path": "client/src/pages/SensAnalysis.tsx:907",
             "grep": "grep -n -F -- 'Sensitivity Analysis</h1>' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -1967,7 +1967,7 @@
           "kind": "banner",
           "description": "Empty-state card shown when no aim data has been logged yet, prompting the user to log matches and record stats on the Enter Stats tab before this page's charts populate.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:593",
+            "path": "client/src/pages/SensAnalysis.tsx:921",
             "grep": "grep -n -F -- 'No aim data yet.' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -1977,7 +1977,7 @@
           "kind": "banner",
           "description": "Empty-state card shown when no aim data has been logged yet, instructing the user to log matches and record stats on the Enter Stats tab.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:593",
+            "path": "client/src/pages/SensAnalysis.tsx:921",
             "grep": "grep -n -F -- 'No aim data yet.' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -1987,7 +1987,7 @@
           "kind": "banner",
           "description": "Text line reporting total logged matches and count of distinct sens scales tested, plus a last-updated timestamp that refreshes whenever a study match's stats are submitted on the Enter Stats tab.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:654",
+            "path": "client/src/pages/SensAnalysis.tsx:1023",
             "grep": "grep -n -F -- 'logged matches across' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2017,7 +2017,7 @@
           "kind": "card",
           "description": "Card that gives a DPI recommendation and a verdict on whether to keep exploring or start converging, recomputed from the by-scale data below.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:673",
+            "path": "client/src/pages/SensAnalysis.tsx:1068",
             "grep": "grep -n -F -- 'title=\"Recommendation\"' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2027,7 +2027,7 @@
           "kind": "badge",
           "description": "Badge reading 'Narrow focus' or 'Continue testing' depending on whether the leading scale is unbracketed, thin, or close to a runner-up.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:678",
+            "path": "client/src/pages/SensAnalysis.tsx:1073",
             "grep": "grep -n -F -- 'text-[11px] font-semibold ${recommendation.verdict === '\"'\"'narrow'\"'\"'' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2037,7 +2037,7 @@
           "kind": "badge",
           "description": "Pill reading 'Narrow focus' or 'Continue testing' inside the Recommendation card, indicating whether the data supports converging on a scale.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:679",
+            "path": "client/src/pages/SensAnalysis.tsx:1074",
             "grep": "grep -n -F -- ''\"'\"'Narrow focus'\"'\"' : '\"'\"'Continue testing'\"'\"'' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2047,7 +2047,7 @@
           "kind": "list",
           "description": "Bulleted list of supporting reasoning points backing the DPI recommendation's verdict.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:684",
+            "path": "client/src/pages/SensAnalysis.tsx:1079",
             "grep": "grep -n -F -- 'sensAnalysis-recommendation-points-list' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2057,7 +2057,7 @@
           "kind": "card",
           "description": "Card presenting an auto-generated plain-language summary of what the charts below show, recomputed every time a match is logged.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:692",
+            "path": "client/src/pages/SensAnalysis.tsx:1087",
             "grep": "grep -n -F -- 'title=\"What the Data Shows\"' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2067,7 +2067,7 @@
           "kind": "list",
           "description": "Bulleted list of auto-generated insight sentences (best scale by accuracy, win-rate agreement, cold vs warm, adaptation, etc.) inside the What the Data Shows card.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:697",
+            "path": "client/src/pages/SensAnalysis.tsx:1092",
             "grep": "grep -n -F -- 'space-y-2.5 text-sm text-[var(--ink-2)] list-disc' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2077,7 +2077,7 @@
           "kind": "card",
           "description": "Card containing the Feel vs. Data quadrant chart comparing how fast a scale felt against how it actually performed.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:708",
+            "path": "client/src/pages/SensAnalysis.tsx:1103",
             "grep": "grep -n -F -- 'title=\"Feel vs. Data\"' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2087,7 +2087,7 @@
           "kind": "chart",
           "description": "Scatter chart plotting each tested sens scale by felt speed (x) vs accuracy delta (y), with crosshair reference lines at the user's own averages splitting the view into four quadrants; hovering a point shows the QuadrantTooltip.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:719",
+            "path": "client/src/pages/SensAnalysis.tsx:1114",
             "grep": "grep -n -F -- 'ScatterChart data={feelPts}' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2097,7 +2097,7 @@
           "kind": "chart",
           "description": "Scatter chart plotting one point per category (Overall, Hitscan, Projectile, each hero) at that category's own best-performing sens scale vs. raw accuracy, with a shaded band and reference lines marking scales close to the Overall baseline; hovering a point shows category, sens, accuracy, and delta.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:742",
+            "path": "client/src/pages/SensAnalysis.tsx:1137",
             "grep": "grep -n -F -- 'title=\"Peak Sens by Category\"' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2107,7 +2107,7 @@
           "kind": "card",
           "description": "Card containing the Peak Sens by Category chart showing where each category (Overall, Hitscan, Projectile, each hero) peaks in accuracy.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:742",
+            "path": "client/src/pages/SensAnalysis.tsx:1137",
             "grep": "grep -n -F -- 'title=\"Peak Sens by Category\"' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2117,7 +2117,7 @@
           "kind": "badge",
           "description": "Badge reading 'Split may help', 'One sens fits all', or 'Not enough data' depending on whether tested categories' peak sens values cluster together or scatter apart.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:747",
+            "path": "client/src/pages/SensAnalysis.tsx:1142",
             "grep": "grep -n -F -- 'text-[11px] font-semibold ${spread.verdict === '\"'\"'scattered'\"'\"'' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2127,7 +2127,7 @@
           "kind": "badge",
           "description": "Pill reading 'Split may help', 'One sens fits all', or 'Not enough data', summarizing whether tested categories' peak sens values cluster together.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:748",
+            "path": "client/src/pages/SensAnalysis.tsx:1143",
             "grep": "grep -n -F -- ''\"'\"'Split may help'\"'\"' : spread.verdict === '\"'\"'grouped'\"'\"'' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2137,7 +2137,7 @@
           "kind": "chart",
           "description": "Scatter chart plotting each category's peak-accuracy sens value with labeled points, a shaded 'close enough to Overall' band, and a baseline mean-accuracy reference line; hovering a point shows the SpreadTooltip.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:755",
+            "path": "client/src/pages/SensAnalysis.tsx:1150",
             "grep": "grep -n -F -- 'ScatterChart data={spread.points}' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2147,7 +2147,7 @@
           "kind": "chart",
           "description": "Chronological (not scale-aggregated) scatter of every logged point's accuracy delta, colored by which scale was active, with a trailing 8-game rolling-average line \u2014 surfaces a practice-effect drift that the rest of the page's scale-aggregated views can't show, since they lose time order entirely.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:876",
+            "path": "client/src/pages/SensAnalysis.tsx:1219",
             "grep": "grep -n -F -- 'dataInspectId=\"sensAnalysis-accuracy-over-time-chart\"' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2157,7 +2157,7 @@
           "kind": "card",
           "description": "Card comparing performance on the first game of a session against later ones, to see whether a sens performs well from the start or only once warmed up.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:820",
+            "path": "client/src/pages/SensAnalysis.tsx:1261",
             "grep": "grep -n -F -- 'title=\"Cold vs. Warm\"' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2167,7 +2167,7 @@
           "kind": "stat-tile",
           "description": "Grid of stat tiles, one per cold/warm bucket, showing average accuracy, accuracy delta, felt speed, and sample size.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:822",
+            "path": "client/src/pages/SensAnalysis.tsx:1263",
             "grep": "grep -n -F -- '{coldWarm.map(b => (' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2177,7 +2177,7 @@
           "kind": "stat-tile",
           "description": "Two stat tiles (Cold, Warm) each showing overall accuracy, accuracy delta vs. baseline, felt speed, and sample size for that bucket.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:822",
+            "path": "client/src/pages/SensAnalysis.tsx:1263",
             "grep": "grep -n -F -- 'coldWarm.map(b => (' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2187,7 +2187,7 @@
           "kind": "card",
           "description": "Card comparing performance just after a sens change versus once settled in, to separate a genuinely worse sens from one not yet adjusted to.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:832",
+            "path": "client/src/pages/SensAnalysis.tsx:1273",
             "grep": "grep -n -F -- 'title=\"Adaptation\"' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2197,7 +2197,7 @@
           "kind": "stat-tile",
           "description": "Grid of stat tiles, one per fresh/settled bucket, showing average accuracy, accuracy delta, felt speed, and sample size.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:834",
+            "path": "client/src/pages/SensAnalysis.tsx:1275",
             "grep": "grep -n -F -- '{adaptation.map(b => (' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2207,7 +2207,7 @@
           "kind": "stat-tile",
           "description": "Two stat tiles (fresh-off-a-change, settled) each showing overall accuracy, accuracy delta vs. baseline, felt speed, and sample size for that bucket.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:834",
+            "path": "client/src/pages/SensAnalysis.tsx:1275",
             "grep": "grep -n -F -- 'adaptation.map(b => (' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2217,7 +2217,7 @@
           "kind": "table",
           "description": "Table listing every tested sens scale with eDPI, raw sens, sample size, win rate, overall/crit accuracy, felt speed, and accuracy delta vs baseline.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:846",
+            "path": "client/src/pages/SensAnalysis.tsx:1287",
             "grep": "grep -n -F -- 'By Scale (sens @${MOUSE_DPI} DPI)' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2227,7 +2227,7 @@
           "kind": "table",
           "description": "Table listing each tested hero with archetype, sample size, win rate, accuracy, and its optimal sens scale with accuracy deltas.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:875",
+            "path": "client/src/pages/SensAnalysis.tsx:1344",
             "grep": "grep -n -F -- 'title=\"By Hero\" hint={' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2237,7 +2237,7 @@
           "kind": "card",
           "description": "Fits a weighted quadratic (accuracy delta vs. sens, weighted by games logged) through each category's (Overall + per-hero) tested scales, solved for its vertex \u2014 a continuous best-guess optimal sens rather than just whichever tested point scored best. Includes a plotted curve chart (sensAnalysis-curve-fit-chart) for Overall showing the fitted line and actual tested points, above a table with the same read per category. Needs 3+ distinct tested scales per category to fit; each row is annotated good/warn/neutral in plain language depending on fit quality, sample size, whether the fit has an interior peak, and whether that peak falls inside the tested range.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:1045",
+            "path": "client/src/pages/SensAnalysis.tsx:1674",
             "grep": "grep -n -F -- 'dataInspectId=\"sensAnalysis-curve-fit-card\"' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2247,7 +2247,7 @@
           "kind": "chart",
           "description": "Plots the fitted quadratic curve (Overall only) sampled across the tested sens range, with the actual tested (sens, accuracy delta) points overlaid as dots and the fitted peak marked with a reference line \u2014 the curve fit's vertex, previously reported only as a table row, made visible as an actual curve.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:1048",
+            "path": "client/src/pages/SensAnalysis.tsx:1677",
             "grep": "grep -n -F -- 'data-inspect-id=\"sensAnalysis-curve-fit-chart\"' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2257,7 +2257,7 @@
           "kind": "chart",
           "description": "Grouped box-plot chart showing accuracy distribution (min/Q1/median/Q3/max) per hero at each tested sens scale, with a hero color-key legend below it.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:1135",
+            "path": "client/src/pages/SensAnalysis.tsx:1841",
             "grep": "grep -n -F -- 'Accuracy by Sens \u2014 Per Hero' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2267,7 +2267,7 @@
           "kind": "card",
           "description": "Secondary panel (demoted 2026-09-17 per Sean's own correction \u2014 he'd meant the fitted accuracy/sens curve, not the Rawaccel accel curve). Shows the app-recorded live Jump-curve params, notes the LUT-vs-Jump mechanism mismatch with Sean's actual Rawaccel setup, and breaks down every distinct curve setting found in the study data (curve off is its own row) \u2014 surfaces the finding that curve_enabled=1 pools three different curve settings.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:1865",
+            "path": "client/src/pages/SensAnalysis.tsx:1907",
             "grep": "grep -n -F -- 'dataInspectId=\"sensAnalysis-curve-confound\"' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2277,7 +2277,7 @@
           "kind": "banner",
           "description": "Amber warning shown only when more than one distinct 'curve on' setting exists in the data, stating explicitly that curve-on-vs-off reads elsewhere on the page pool all of them together.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:1876",
+            "path": "client/src/pages/SensAnalysis.tsx:1918",
             "grep": "grep -n -F -- 'data-inspect-id=\"sensAnalysis-curve-confound-warning\"' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2287,7 +2287,7 @@
           "kind": "card",
           "description": "Lists any active blind stage-test sets (hero, stage X of Y, games on stage, total games, curve-on/complete flags) via GET /api/blind/state \u2014 the same feed the Testing page's HUD reads, surfaced here (2026-09-17) so findings can be read alongside how far along the underlying test actually is. Rendered only when at least one set is active.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:1008",
+            "path": "client/src/pages/SensAnalysis.tsx:1047",
             "grep": "grep -n -F -- 'dataInspectId=\"sensAnalysis-study-progress\"' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2297,7 +2297,7 @@
           "kind": "card",
           "description": "One tile per active stage-test set inside the Study Progress card \u2014 hero, stage progress, games-on-stage/total, curve-on and completed flags.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:1012",
+            "path": "client/src/pages/SensAnalysis.tsx:1051",
             "grep": "grep -n -F -- 'data-inspect-id=\"sensAnalysis-study-progress-set\"' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2307,7 +2307,7 @@
           "kind": "card",
           "description": "Table of every hero's crit/extra/signature-stat coverage, flagging heroes (e.g. Zenyatta, whose heroStatLabel is null) that have no hero-stat channel at all and so fall back to an accuracy-only pick in every co-primary selection on the page \u2014 added 2026-09-17 so that gap is visible instead of silent.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:1935",
+            "path": "client/src/pages/SensAnalysis.tsx:1977",
             "grep": "grep -n -F -- 'dataInspectId=\"sensAnalysis-hero-stat-coverage\"' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2317,7 +2317,7 @@
           "kind": "card",
           "description": "Per-hero and roster-wide count of tested scales that clear vs. fall below MIN_SCALE_N/RELIABLE_N (5 games) \u2014 added 2026-09-17 so a hero's total game count can't hide that most of it is scattered across thin, excluded scale buckets.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:1978",
+            "path": "client/src/pages/SensAnalysis.tsx:2020",
             "grep": "grep -n -F -- 'dataInspectId=\"sensAnalysis-min-n-coverage\"' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2327,7 +2327,7 @@
           "kind": "card",
           "description": "Small-multiples grid: one compact curve-fit chart per category (Overall + every hero) fit against accuracy, each showing its own R\u00b2, tested points, and a plain 'too scattered to trust a peak' note when R\u00b2 is below WEAK_FIT_R2 \u2014 added 2026-09-17 per Sean's correction that the fitted curve (not the mouse-accel curve) needed to be a first-class, legible object for the roster AND per hero.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:1666",
+            "path": "client/src/pages/SensAnalysis.tsx:1708",
             "grep": "grep -n -F -- 'data-inspect-id=\"sensAnalysis-mini-curve-grid-accuracy\"' client/src/pages/SensAnalysis.tsx"
           }
         },
@@ -2337,7 +2337,7 @@
           "kind": "card",
           "description": "Same mini-chart treatment as the accuracy grid, run against each hero's own richest hero-stat channel (crit/extra/signature) instead of accuracy \u2014 equal standing with the accuracy curves per Sean's 2026-09-17 co-primary call.",
           "locate": {
-            "path": "client/src/pages/SensAnalysis.tsx:1728",
+            "path": "client/src/pages/SensAnalysis.tsx:1770",
             "grep": "grep -n -F -- 'data-inspect-id=\"sensAnalysis-mini-curve-grid-hero-stat\"' client/src/pages/SensAnalysis.tsx"
           }
         }
