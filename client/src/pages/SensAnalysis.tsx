@@ -14,6 +14,10 @@ import { critSlotShort, extraSlotShort, hasCrit } from '../lib/heroStatLabels';
 interface ScaleRow {
   cm360: number; eDPI: number; sens: number; n: number;
   avgOverall: number | null; avgCrit: number | null;
+  // avgCritDelta was computed and sent by the server all along but never
+  // declared here — nothing on this page could read it. Declaring it now so
+  // it can feed the co-primary "best scale" pick below (2026-09-17).
+  avgCritDelta: number | null;
   // Ability-level stats at this scale. Each carries its own n because it's
   // far sparser than the bucket's overall-accuracy n — a bucket of 10 games
   // may hold only 3 readings of the signature stat.
@@ -29,6 +33,10 @@ interface ScaleRow {
   avgFeel: number | null; avgDelta: number | null; winRate: number | null;
   min: number | null; q1: number | null; median: number | null; q3: number | null; max: number | null;
   absorbedN: number; distinctDates: number; dateSpanDays: number;
+  // n >= MIN_SCALE_N (5) on the server. A bucket below this is still
+  // returned and shown — never hidden — but must not be picked as a "best"
+  // scale or feed a curve fit / finding / recommendation. See RELIABLE_N.
+  reliable: boolean;
 }
 interface Bucket {
   bucket: string; n: number;
@@ -69,12 +77,24 @@ interface HeroRow {
   metricTrends: MetricTrend[];
   scales: ScaleRow[];
   curveFit: CurveFit | null;
+  // Co-primary companion to curveFit (2026-09-17) — same quadratic fit, run
+  // against this hero's own richest crit/extra/signature-stat channel
+  // instead of accuracy. heroStatCurveChannel names which channel that was,
+  // so the client can label the chart honestly rather than call it "Crit"
+  // for a hero whose curve is actually its raw kill count.
+  heroStatCurveFit: CurveFit | null;
+  heroStatCurveChannel: 'crit' | 'extra' | 'heroStat' | null;
 }
 interface Analysis {
   summary: { n: number; distinctScale: number; lastUpdated: string | null };
   timeline: TimelinePoint[];
   byScale: ScaleRow[];
   overallCurveFit: CurveFit | null;
+  // Co-primary companion to overallCurveFit — same fit, run against
+  // avgCritDelta pooled across the whole roster. See aim.ts's comment on why
+  // crit specifically (the one hero-specific channel already pooled
+  // roster-wide elsewhere).
+  heroStatCurveFit: CurveFit | null;
   metricTrends: MetricTrend[];
   byArchetype: { hitscan: ScaleRow[]; projectile: ScaleRow[] };
   coldWarm: Bucket[];
@@ -217,6 +237,52 @@ const axisStyle = { fontSize: 11, fill: 'var(--faint)' };
 // "enough games at a scale to trust it" should mean one thing app-wide, and
 // this page previously said 4 while SensLog said 3 and Prematch said nothing.
 const RELIABLE_N = 5;
+
+// ── Co-primary "best scale" selection ───────────────────────────────────────
+// Sean's call, 2026-09-17: "hero stats should be co-primary, weight them
+// equally." Combines by RANK, not raw magnitude — accuracy deltas are
+// percentage points, a signature stat can be a raw per-match count, and
+// averaging raw deltas would just let whichever channel has bigger numbers
+// win. Ranking each channel among the candidates first makes "equal weight"
+// hold regardless of units. Mirrors the identical helper in aim.ts — kept as
+// two copies (server/client have no shared module) rather than one, but the
+// logic must stay in step; if you change one, change the other.
+function rankOf<T>(items: T[], valueOf: (t: T) => number | null): Map<T, number> {
+  const withVal = items
+    .map(it => ({ it, v: valueOf(it) }))
+    .filter((x): x is { it: T; v: number } => x.v != null)
+    .sort((a, b) => b.v - a.v); // descending: higher value = better = rank 1
+  const ranks = new Map<T, number>();
+  withVal.forEach((x, i) => ranks.set(x.it, i + 1));
+  return ranks;
+}
+
+function coPrimaryBest<T>(
+  items: T[],
+  accuracyOf: (t: T) => number | null,
+  heroStatChannels: ((t: T) => number | null)[],
+): T | null {
+  if (!items.length) return null;
+  const accRank = rankOf(items, accuracyOf);
+  const channelRanks = heroStatChannels.map(ch => rankOf(items, ch));
+  let best: T | null = null;
+  let bestScore = Infinity;
+  for (const it of items) {
+    const a = accRank.get(it) ?? null;
+    const subRanks = channelRanks.map(r => r.get(it)).filter((r): r is number => r != null);
+    const h = subRanks.length ? subRanks.reduce((s, r) => s + r, 0) / subRanks.length : null;
+    const score = a != null && h != null ? (a + h) / 2 : (a ?? h);
+    if (score != null && score < bestScore) { bestScore = score; best = it; }
+  }
+  return best ?? items[0];
+}
+
+// The three hero-specific channels available at ScaleRow grain (crit,
+// extra_acc, and the pooled signature-stat delta) — passed to coPrimaryBest
+// wherever a ScaleRow-shaped "best" pick needs to weigh hero stats equally.
+const HERO_STAT_CHANNELS: ((r: ScaleRow) => number | null)[] = [
+  r => r.avgCritDelta, r => r.avgExtraDelta, r => r.avgHeroStatDelta,
+];
 const CONFIDENT_N = 8;
 // Distinct tested scales required before a curve fit's R² gets the confident
 // "good" tone — a 3-point quadratic has 3 free parameters, so it can hit a
@@ -362,7 +428,10 @@ interface Recommendation {
 // CONFIDENT_N), or is only narrowly ahead of a runner-up. "Narrow" only fires
 // once a scale is beaten on both sides by worse-but-reliable neighbors.
 function buildRecommendation(data: Analysis, spread: SensSpread): Recommendation {
-  const reliable = bySpeed(data.byScale.filter(r => r.n >= RELIABLE_N)); // ascending: slowest -> fastest
+  // .reliable is the server's MIN_SCALE_N (5) guard — a below-threshold
+  // scale is never dropped from the payload (see the By Scale table, where
+  // it's shown greyed out), but it must not be eligible to win a pick here.
+  const reliable = bySpeed(data.byScale.filter(r => r.reliable)); // ascending: slowest -> fastest
 
   if (reliable.length < 3) {
     return {
@@ -374,13 +443,26 @@ function buildRecommendation(data: Analysis, spread: SensSpread): Recommendation
     };
   }
 
-  const best = reliable.reduce((a, b) => ((b.avgDelta ?? -Infinity) > (a.avgDelta ?? -Infinity) ? b : a));
+  // Co-primary pick (2026-09-17, Sean's call): accuracy and hero stats
+  // weighted equally, not accuracy alone. See coPrimaryBest above.
+  const best = coPrimaryBest(reliable, r => r.avgDelta, HERO_STAT_CHANNELS)!;
   const bestIdx = reliable.indexOf(best);
   const isSlowEdge = bestIdx === 0;
   const isFastEdge = bestIdx === reliable.length - 1;
   const dpi = Math.round(best.eDPI / best.sens);
 
   const points: string[] = [];
+
+  // State the co-primary basis plainly rather than leaving it implicit in
+  // the ranking math — whichever hero-stat channel has a reading at the
+  // chosen scale gets its own line, with equal billing to the accuracy
+  // figure in the headline below.
+  const heroStatAtBest = best.avgCritDelta ?? best.avgExtraDelta ?? best.avgHeroStatDelta;
+  if (heroStatAtBest != null) {
+    points.push(
+      `Hero-specific stats at that scale: ${signed(heroStatAtBest)}% vs. each hero's own average — weighed equally with accuracy in this pick, not just a supporting detail.`,
+    );
+  }
 
   if (isSlowEdge || isFastEdge) {
     points.push(
@@ -392,18 +474,22 @@ function buildRecommendation(data: Analysis, spread: SensSpread): Recommendation
     points.push(`Only ${best.n} games on it so far — enough to take seriously, but still thin. A few more would help confirm it.`);
   }
 
+  // These two caveats are specifically about the ACCURACY reading at nearby
+  // scales, not a re-ranking — the pick above already weighed hero stats in;
+  // this is a secondary confidence check on one of its two inputs, labeled
+  // as such rather than implied to be the ranking criterion.
   const runnerUp = [...reliable].filter(r => r !== best).sort((a, b) => (b.avgDelta ?? -Infinity) - (a.avgDelta ?? -Infinity))[0];
   const gap = runnerUp ? (best.avgDelta ?? 0) - (runnerUp.avgDelta ?? 0) : Infinity;
   if (runnerUp && gap < 2) {
     points.push(
-      `${fmtScale(runnerUp)} is close behind at ${signed(runnerUp.avgDelta)}% (${runnerUp.n} games) — not clearly worse yet, worth keeping in the rotation.`,
+      `By accuracy alone, ${fmtScale(runnerUp)} is close behind at ${signed(runnerUp.avgDelta)}% (${runnerUp.n} games) — not clearly worse yet, worth keeping in the rotation.`,
     );
   }
 
   const clearlyWorse = reliable.filter(r => r !== best && r !== runnerUp && (r.avgDelta ?? 0) < -MEANINGFUL_DELTA_GAP && r.n >= CONFIDENT_N);
   if (clearlyWorse.length > 0) {
     points.push(
-      `${clearlyWorse.map(r => fmtScale(r)).join(', ')} ${clearlyWorse.length === 1 ? 'has' : 'have'} enough reps to call ${clearlyWorse.length === 1 ? 'it' : 'them'} clearly worse (${clearlyWorse.map(r => signed(r.avgDelta)).join(', ')}) — safe to drop from the rotation.`,
+      `By accuracy alone, ${clearlyWorse.map(r => fmtScale(r)).join(', ')} ${clearlyWorse.length === 1 ? 'has' : 'have'} enough reps to call ${clearlyWorse.length === 1 ? 'it' : 'them'} clearly worse (${clearlyWorse.map(r => signed(r.avgDelta)).join(', ')}) — safe to drop from the rotation.`,
     );
   }
 
@@ -417,7 +503,7 @@ function buildRecommendation(data: Analysis, spread: SensSpread): Recommendation
     );
     return {
       verdict: 'continue',
-      headline: `No single best DPI yet — heroes are peaking at different scales. Overall best guess is ${fmtScale(best)} (${signed(best.avgDelta)}%, ${best.n} games), but treat it as provisional.`,
+      headline: `No single best DPI yet — heroes are peaking at different scales. Overall best guess (accuracy and hero stats weighed equally) is ${fmtScale(best)} (${signed(best.avgDelta)}% accuracy, ${best.n} games), but treat it as provisional.`,
       points,
     };
   }
@@ -431,7 +517,7 @@ function buildRecommendation(data: Analysis, spread: SensSpread): Recommendation
 
   return {
     verdict,
-    headline: `Best guess right now: ${fmtScale(best)} (tested at DPI ${dpi}) — ${signed(best.avgDelta)}% vs. your average, over ${best.n} games.`,
+    headline: `Best guess right now (accuracy and hero stats weighed equally): ${fmtScale(best)} (tested at DPI ${dpi}) — ${signed(best.avgDelta)}% accuracy vs. your average, over ${best.n} games.`,
     points,
   };
 }
@@ -477,24 +563,28 @@ function grandMeanAccuracy(heroes: HeroRow[]): number | null {
 // plotted/labeled value is the RAW accuracy at that peak scale, so the chart
 // reads in real percentages instead of an abstract delta.
 function buildSensSpread(data: Analysis): SensSpread {
-  const allOverall = bySpeed(data.byScale);
+  // Below-threshold scales stay visible everywhere else on the page but
+  // can't win a "peak" pick — same MIN_SCALE_N guard as buildRecommendation.
+  const allOverall = bySpeed(data.byScale.filter(r => r.reliable));
   const threshold = sensGapThreshold(allOverall);
   const points: SpreadPoint[] = [];
 
+  // Co-primary pick (2026-09-17): accuracy and hero stats weighted equally,
+  // not accuracy alone — see coPrimaryBest above.
   if (allOverall.length > 0) {
-    const best = allOverall.reduce((a, b) => ((b.avgDelta ?? -Infinity) > (a.avgDelta ?? -Infinity) ? b : a));
+    const best = coPrimaryBest(allOverall, r => r.avgDelta, HERO_STAT_CHANNELS)!;
     points.push({ label: 'Overall', kind: 'overall', sens: best.sensAt1600, raw: best.avgOverall, delta: best.avgDelta, n: best.n });
   }
 
-  const hit = bySpeed(data.byArchetype.hitscan);
+  const hit = bySpeed(data.byArchetype.hitscan.filter(r => r.reliable));
   if (hit.length > 0) {
-    const best = hit.reduce((a, b) => ((b.avgDelta ?? -Infinity) > (a.avgDelta ?? -Infinity) ? b : a));
+    const best = coPrimaryBest(hit, r => r.avgDelta, HERO_STAT_CHANNELS)!;
     points.push({ label: 'Hitscan', kind: 'hitscan', sens: best.sensAt1600, raw: best.avgOverall, delta: best.avgDelta, n: best.n });
   }
 
-  const proj = bySpeed(data.byArchetype.projectile);
+  const proj = bySpeed(data.byArchetype.projectile.filter(r => r.reliable));
   if (proj.length > 0) {
-    const best = proj.reduce((a, b) => ((b.avgDelta ?? -Infinity) > (a.avgDelta ?? -Infinity) ? b : a));
+    const best = coPrimaryBest(proj, r => r.avgDelta, HERO_STAT_CHANNELS)!;
     points.push({ label: 'Projectile', kind: 'projectile', sens: best.sensAt1600, raw: best.avgOverall, delta: best.avgDelta, n: best.n });
   }
 
@@ -548,7 +638,7 @@ function buildInsights(data: Analysis, heroCounts: Record<string, number>): stri
   const { byScale, byArchetype, coldWarm, adaptation, heroes } = data;
   const notes: string[] = [];
 
-  const reliable = byScale.filter(r => r.n >= RELIABLE_N);
+  const reliable = byScale.filter(r => r.reliable);
   const thin = byScale.length - reliable.length;
 
   if (reliable.length >= 2) {
@@ -615,7 +705,7 @@ function buildInsights(data: Analysis, heroCounts: Record<string, number>): stri
     }
   }
 
-  const projReliable = byArchetype.projectile.filter(r => r.n >= RELIABLE_N).length;
+  const projReliable = byArchetype.projectile.filter(r => r.reliable).length;
   if (byArchetype.projectile.length > 0 && projReliable === 0) {
     const projHero = heroes.find(h => h.archetype === 'projectile');
     const projGames = byArchetype.projectile.reduce((s, r) => s + r.n, 0);
@@ -988,16 +1078,23 @@ export default function SensAnalysis() {
             </thead>
             <tbody className="font-bold">
               {byScaleSpeed.map(r => (
-                <tr key={r.cm360} className="border-t border-ow-border text-[var(--ink-2)]">
+                <tr
+                  key={r.cm360}
+                  className={`border-t border-ow-border ${r.reliable ? 'text-[var(--ink-2)]' : 'text-[var(--faint-2)] opacity-60'}`}
+                  title={r.reliable ? undefined : `Below ${RELIABLE_N} games — shown for visibility, excluded from every pick, curve fit, and finding on this page`}
+                >
                   <td className="py-1.5 pr-3 text-[var(--ink)]">{r.sensAt1600.toFixed(2)}</td>
                   <td className="py-1.5 pr-3">{r.eDPI}</td>
                   <td className="py-1.5 pr-3">{r.sens}</td>
                   <td className="py-1.5 pr-3">
                     {r.n}
+                    {!r.reliable && (
+                      <span className="text-[10px] font-normal ml-1">thin — not used in picks/fits</span>
+                    )}
                     {r.absorbedN > 0 && (
                       <span className="text-[10px] font-normal text-[var(--faint-2)] ml-1">({r.absorbedN} absorbed)</span>
                     )}
-                    {r.n >= RELIABLE_N && r.dateSpanDays < 3 && (
+                    {r.reliable && r.dateSpanDays < 3 && (
                       <span
                         className="text-[10px] font-normal text-amber-600 dark:text-amber-400 ml-1"
                         title="Tested mostly in one short window — may reflect that session more than a stable read"
@@ -1010,7 +1107,7 @@ export default function SensAnalysis() {
                   <td className="py-1.5 pr-3">{f1(r.avgOverall)}%</td>
                   <td className="py-1.5 pr-3">{f1(r.avgCrit)}%</td>
                   <td className="py-1.5 pr-3">{f1(r.avgFeel)}/100</td>
-                  <td className={`py-1.5 ${deltaColor(r.avgDelta)}`}>{signed(r.avgDelta)}</td>
+                  <td className={`py-1.5 ${r.reliable ? deltaColor(r.avgDelta) : ''}`}>{signed(r.avgDelta)}</td>
                 </tr>
               ))}
             </tbody>
@@ -1066,6 +1163,99 @@ export default function SensAnalysis() {
           </table>
         </div>
       </Section>
+
+      {/* Ability-level stats per tested sens — the question the By Hero table
+          above can't answer, because it collapses each hero to one best-scale
+          summary. Three channels feed it, and they are NOT interchangeable:
+            - the crit_acc slot, whose meaning is per hero (Ana = sleep dart),
+            - extra_acc, an optional 4th accuracy reading (4 heroes),
+            - hero_stat_value, the signature stat, whose label is stored with
+              the data and can be a COUNT rather than a percentage.
+          All three were collected from the start and read by nothing until
+          2026-09-15 — extra_acc and hero_stat_value weren't even selected by
+          computeAnalysis. */}
+      {(() => {
+        const CHANNEL_MIN_N = 3; // below this a cell is shown but greyed
+        const abilityHeroes = heroes
+          .map(h => {
+            const critName = hasCrit(h.hero) ? critSlotShort(h.hero) : null;
+            const extraName = extraSlotShort(h.hero);
+            const hasCritData = critName != null && h.scales.some(s => s.avgCrit != null);
+            const hasExtraData = extraName != null && h.scales.some(s => s.nExtra > 0);
+            const hasStatData = h.nHeroStat > 0;
+            return { h, critName, extraName, hasCritData, hasExtraData, hasStatData };
+          })
+          .filter(r => r.hasCritData || r.hasExtraData || r.hasStatData);
+
+        if (abilityHeroes.length === 0) return null;
+
+        // A signature stat that is a raw count (Shion's "Execution kills")
+        // rather than a percentage can't be compared across match lengths the
+        // way an accuracy can. Flagged rather than silently normalized.
+        const anyCountStat = abilityHeroes.some(r =>
+          r.hasStatData && r.h.heroStatLabel != null && !/%/.test(r.h.heroStatLabel));
+
+        return (
+          <Section
+            title="Ability Stats by Sens"
+            hint={`For each hero, how its own ability-level stats came out at every sens actually tested (@${MOUSE_DPI} DPI). Each cell shows the average with that stat's own game count in parens — a stat is often logged for fewer games than the sens bucket itself, so read the small n, not the bucket's. Cells below ${CHANNEL_MIN_N} readings are greyed out.${anyCountStat ? ' Signature stats that are counts rather than percentages are per match, so a longer match inflates them — compare those cautiously.' : ''}`}
+            dataInspectId="sensAnalysis-ability-stats-by-sens"
+          >
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {abilityHeroes.map(({ h, critName, extraName, hasCritData, hasExtraData, hasStatData }) => {
+                const cell = (value: number | null, n: number, pct: boolean) => {
+                  if (value == null || n === 0) return <span className="text-[var(--faint-2)]">—</span>;
+                  return (
+                    <span className={n < CHANNEL_MIN_N ? 'text-[var(--faint-2)]' : 'font-bold'}>
+                      {value.toFixed(1)}{pct ? '%' : ''}
+                      <span className="ml-1 text-[10px] font-normal text-[var(--faint-2)]">({n})</span>
+                    </span>
+                  );
+                };
+                return (
+                  <div key={h.hero} className="border border-ow-border rounded-lg p-3" data-inspect-id="sensAnalysis-ability-stat-hero-card">
+                    <div className="flex items-baseline justify-between mb-2">
+                      <span className="text-xs hero-name text-[var(--ink)]">{withHeroCount(h.hero, heroCounts)}</span>
+                      <span className="text-[10px] text-[var(--faint-2)]">{h.n} games</span>
+                    </div>
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-[10px] text-[var(--muted)] uppercase tracking-wider text-left">
+                          <th className="py-1 pr-2">Sens</th>
+                          <th className="py-1 pr-2">Overall</th>
+                          {hasCritData && <th className="py-1 pr-2">{critName}</th>}
+                          {hasExtraData && <th className="py-1 pr-2">{extraName}</th>}
+                          {hasStatData && <th className="py-1">{h.heroStatLabel ?? 'Signature'}</th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {h.scales.map(sc => (
+                          <tr key={sc.cm360} className="border-t border-ow-border text-[var(--ink-2)]">
+                            <td className="py-1 pr-2 font-bold text-[var(--ink)]">
+                              {(sc.eDPI / MOUSE_DPI).toFixed(2)}
+                              <span className="ml-1 text-[10px] font-normal text-[var(--faint-2)]">({sc.n})</span>
+                            </td>
+                            <td className={`py-1 pr-2 ${sc.n < CHANNEL_MIN_N ? 'text-[var(--faint-2)]' : 'font-bold'}`}>
+                              {sc.avgOverall != null ? `${sc.avgOverall.toFixed(1)}%` : '—'}
+                            </td>
+                            {hasCritData && <td className="py-1 pr-2">{cell(sc.avgCrit, sc.n, true)}</td>}
+                            {hasExtraData && <td className="py-1 pr-2">{cell(sc.avgExtra, sc.nExtra, true)}</td>}
+                            {hasStatData && (
+                              <td className="py-1">
+                                {cell(sc.avgHeroStat, sc.nHeroStat, /%/.test(h.heroStatLabel ?? ''))}
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })}
+            </div>
+          </Section>
+        );
+      })()}
 
       {/* Does sens move anything? — the page's one proactive section. Every
           other view reports numbers and leaves the reader to spot a pattern,
@@ -1183,99 +1373,6 @@ export default function SensAnalysis() {
         );
       })()}
 
-      {/* Ability-level stats per tested sens — the question the By Hero table
-          above can't answer, because it collapses each hero to one best-scale
-          summary. Three channels feed it, and they are NOT interchangeable:
-            - the crit_acc slot, whose meaning is per hero (Ana = sleep dart),
-            - extra_acc, an optional 4th accuracy reading (4 heroes),
-            - hero_stat_value, the signature stat, whose label is stored with
-              the data and can be a COUNT rather than a percentage.
-          All three were collected from the start and read by nothing until
-          2026-09-15 — extra_acc and hero_stat_value weren't even selected by
-          computeAnalysis. */}
-      {(() => {
-        const CHANNEL_MIN_N = 3; // below this a cell is shown but greyed
-        const abilityHeroes = heroes
-          .map(h => {
-            const critName = hasCrit(h.hero) ? critSlotShort(h.hero) : null;
-            const extraName = extraSlotShort(h.hero);
-            const hasCritData = critName != null && h.scales.some(s => s.avgCrit != null);
-            const hasExtraData = extraName != null && h.scales.some(s => s.nExtra > 0);
-            const hasStatData = h.nHeroStat > 0;
-            return { h, critName, extraName, hasCritData, hasExtraData, hasStatData };
-          })
-          .filter(r => r.hasCritData || r.hasExtraData || r.hasStatData);
-
-        if (abilityHeroes.length === 0) return null;
-
-        // A signature stat that is a raw count (Shion's "Execution kills")
-        // rather than a percentage can't be compared across match lengths the
-        // way an accuracy can. Flagged rather than silently normalized.
-        const anyCountStat = abilityHeroes.some(r =>
-          r.hasStatData && r.h.heroStatLabel != null && !/%/.test(r.h.heroStatLabel));
-
-        return (
-          <Section
-            title="Ability Stats by Sens"
-            hint={`For each hero, how its own ability-level stats came out at every sens actually tested (@${MOUSE_DPI} DPI). Each cell shows the average with that stat's own game count in parens — a stat is often logged for fewer games than the sens bucket itself, so read the small n, not the bucket's. Cells below ${CHANNEL_MIN_N} readings are greyed out.${anyCountStat ? ' Signature stats that are counts rather than percentages are per match, so a longer match inflates them — compare those cautiously.' : ''}`}
-            dataInspectId="sensAnalysis-ability-stats-by-sens"
-          >
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {abilityHeroes.map(({ h, critName, extraName, hasCritData, hasExtraData, hasStatData }) => {
-                const cell = (value: number | null, n: number, pct: boolean) => {
-                  if (value == null || n === 0) return <span className="text-[var(--faint-2)]">—</span>;
-                  return (
-                    <span className={n < CHANNEL_MIN_N ? 'text-[var(--faint-2)]' : 'font-bold'}>
-                      {value.toFixed(1)}{pct ? '%' : ''}
-                      <span className="ml-1 text-[10px] font-normal text-[var(--faint-2)]">({n})</span>
-                    </span>
-                  );
-                };
-                return (
-                  <div key={h.hero} className="border border-ow-border rounded-lg p-3" data-inspect-id="sensAnalysis-ability-stat-hero-card">
-                    <div className="flex items-baseline justify-between mb-2">
-                      <span className="text-xs hero-name text-[var(--ink)]">{withHeroCount(h.hero, heroCounts)}</span>
-                      <span className="text-[10px] text-[var(--faint-2)]">{h.n} games</span>
-                    </div>
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-[10px] text-[var(--muted)] uppercase tracking-wider text-left">
-                          <th className="py-1 pr-2">Sens</th>
-                          <th className="py-1 pr-2">Overall</th>
-                          {hasCritData && <th className="py-1 pr-2">{critName}</th>}
-                          {hasExtraData && <th className="py-1 pr-2">{extraName}</th>}
-                          {hasStatData && <th className="py-1">{h.heroStatLabel ?? 'Signature'}</th>}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {h.scales.map(sc => (
-                          <tr key={sc.cm360} className="border-t border-ow-border text-[var(--ink-2)]">
-                            <td className="py-1 pr-2 font-bold text-[var(--ink)]">
-                              {(sc.eDPI / MOUSE_DPI).toFixed(2)}
-                              <span className="ml-1 text-[10px] font-normal text-[var(--faint-2)]">({sc.n})</span>
-                            </td>
-                            <td className={`py-1 pr-2 ${sc.n < CHANNEL_MIN_N ? 'text-[var(--faint-2)]' : 'font-bold'}`}>
-                              {sc.avgOverall != null ? `${sc.avgOverall.toFixed(1)}%` : '—'}
-                            </td>
-                            {hasCritData && <td className="py-1 pr-2">{cell(sc.avgCrit, sc.n, true)}</td>}
-                            {hasExtraData && <td className="py-1 pr-2">{cell(sc.avgExtra, sc.nExtra, true)}</td>}
-                            {hasStatData && (
-                              <td className="py-1">
-                                {cell(sc.avgHeroStat, sc.nHeroStat, /%/.test(h.heroStatLabel ?? ''))}
-                              </td>
-                            )}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                );
-              })}
-            </div>
-          </Section>
-        );
-      })()}
-
       {/* Curve fit — a quadratic (a*x^2 + b*x + c) fit across each hero's
           tested scales (avgDelta vs. sens, weighted by n), naming a
           continuous best-guess optimal sens rather than just whichever
@@ -1286,9 +1383,25 @@ export default function SensAnalysis() {
           ...heroes.map(h => ({ label: h.hero, fit: h.curveFit })),
         ];
         const withFit = rows.filter(r => r.fit != null);
-        const fitNote = (fit: CurveFit): { text: string; tone: 'good' | 'warn' | 'neutral' } => {
+        // Co-primary companion rows (2026-09-17): the SAME kind of curve,
+        // fit against hero-specific stats instead of accuracy — equal
+        // standing, not a footnote. Each hero's own richest channel
+        // (heroStatCurveChannel) names itself rather than being called
+        // "Crit" for a hero whose curve is actually a raw kill count.
+        const heroStatChannelLabel = (h: HeroRow): string => {
+          if (h.heroStatCurveChannel === 'crit') return hasCrit(h.hero) ? critSlotShort(h.hero) : 'crit stat';
+          if (h.heroStatCurveChannel === 'extra') return extraSlotShort(h.hero) ?? 'extra accuracy';
+          if (h.heroStatCurveChannel === 'heroStat') return h.heroStatLabel ?? 'signature stat';
+          return 'hero stat';
+        };
+        const heroStatRows: { label: string; fit: CurveFit | null }[] = [
+          { label: 'Overall (crit, pooled)', fit: data.heroStatCurveFit },
+          ...heroes.map(h => ({ label: `${h.hero} (${heroStatChannelLabel(h)})`, fit: h.heroStatCurveFit })),
+        ];
+        const heroStatWithFit = heroStatRows.filter(r => r.fit != null);
+        const fitNote = (fit: CurveFit, subject: string): { text: string; tone: 'good' | 'warn' | 'neutral' } => {
           if (!fit.hasInteriorPeak) {
-            return { text: 'Accuracy is still climbing toward one edge of what you’ve tested, not leveling off in the middle — try testing further past that edge.', tone: 'warn' };
+            return { text: `${subject} is still climbing toward one edge of what you’ve tested, not leveling off in the middle — try testing further past that edge.`, tone: 'warn' };
           }
           if (!fit.inRange) {
             return { text: `The estimated best sens falls outside what you’ve actually tested (${fit.testedSensMin.toFixed(2)}–${fit.testedSensMax.toFixed(2)}) — it’s a guess based on the trend, not something you’ve tried. Treat it as a direction to test toward, not a final answer.`, tone: 'warn' };
@@ -1301,7 +1414,7 @@ export default function SensAnalysis() {
         return (
           <Section
             title="Estimated Sweet Spot"
-            hint="Draws a smooth curve through each category's tested scales to guess where accuracy actually peaks, instead of just picking whichever tested scale happened to score best. Needs at least 3 different tested scales to draw a curve at all."
+            hint="Draws a smooth curve through each category's tested scales to guess where the peak actually is, instead of just picking whichever tested scale happened to score best. Two curves, equal standing: accuracy, and each hero's own crit/extra/signature stat — see Sean's 2026-09-17 call. Needs at least 3 reliable tested scales to draw a curve at all."
             dataInspectId="sensAnalysis-curve-fit-card"
           >
             {curveLine && curveTestedPts.length >= 3 && (
@@ -1335,8 +1448,9 @@ export default function SensAnalysis() {
                 <p className="text-[10px] text-[var(--faint-2)] mt-1">Orange line: the estimated curve. Dark dots: your actual tested scales it's based on (Overall only).</p>
               </div>
             )}
+            <h3 className="text-xs font-bold text-[var(--ink)] mb-2">By Accuracy</h3>
             {withFit.length ? (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto mb-6">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
@@ -1350,11 +1464,11 @@ export default function SensAnalysis() {
                         return (
                           <tr key={r.label} className="border-t border-ow-border text-[var(--faint)]">
                             <td className="py-1.5 pr-3 hero-name text-[var(--ink)]">{r.label === 'Overall' ? r.label : withHeroCount(r.label, heroCounts)}</td>
-                            <td className="py-1.5 pr-3" colSpan={4}>Needs at least 3 different tested scales to draw a curve.</td>
+                            <td className="py-1.5 pr-3" colSpan={4}>Needs at least 3 reliable tested scales to draw a curve.</td>
                           </tr>
                         );
                       }
-                      const note = fitNote(r.fit);
+                      const note = fitNote(r.fit, 'Accuracy');
                       const toneClass = note.tone === 'good' ? 'text-emerald-700 dark:text-emerald-500' : note.tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--faint)]';
                       return (
                         <tr key={r.label} className="border-t border-ow-border text-[var(--ink-2)] align-top">
@@ -1373,7 +1487,55 @@ export default function SensAnalysis() {
                 </table>
               </div>
             ) : (
-              <p className="text-xs text-[var(--faint)]">No category has 3+ different tested scales yet — keep spreading games across scales.</p>
+              <p className="text-xs text-[var(--faint)] mb-6">No category has 3+ reliable tested scales yet — keep spreading games across scales.</p>
+            )}
+
+            {/* Co-primary companion (2026-09-17): same kind of curve, same
+                table shape, same section — hero-specific stats get equal
+                standing, not a scroll below. Units vary per hero (a
+                percentage for crit/extra, sometimes a raw per-match count
+                for a signature stat) — read each row against its own name,
+                not against the accuracy table above it. */}
+            <h3 className="text-xs font-bold text-[var(--ink)] mb-2">By Hero-Specific Stat</h3>
+            {heroStatWithFit.length ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
+                      <th className="py-1.5 pr-3">Category (channel)</th><th className="py-1.5 pr-3">Scales Tested</th><th className="py-1.5 pr-3">Games Logged</th>
+                      <th className="py-1.5 pr-3">Estimated Best Sens</th><th className="py-1.5 pr-3">Estimated Result</th><th className="py-1.5">Read</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {heroStatRows.map(r => {
+                      if (!r.fit) {
+                        return (
+                          <tr key={r.label} className="border-t border-ow-border text-[var(--faint)]">
+                            <td className="py-1.5 pr-3 hero-name text-[var(--ink)]">{r.label}</td>
+                            <td className="py-1.5 pr-3" colSpan={4}>Needs at least 3 reliable tested scales, or no crit/extra/signature stat logged for this hero yet.</td>
+                          </tr>
+                        );
+                      }
+                      const note = fitNote(r.fit, 'This stat');
+                      const toneClass = note.tone === 'good' ? 'text-emerald-700 dark:text-emerald-500' : note.tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--faint)]';
+                      return (
+                        <tr key={r.label} className="border-t border-ow-border text-[var(--ink-2)] align-top">
+                          <td className="py-1.5 pr-3 hero-name text-[var(--ink)] font-bold whitespace-nowrap">{r.label}</td>
+                          <td className="py-1.5 pr-3 font-bold">{r.fit.points}</td>
+                          <td className="py-1.5 pr-3 font-bold">{r.fit.totalN}</td>
+                          <td className="py-1.5 pr-3 font-bold text-[var(--ink)] whitespace-nowrap">
+                            {r.fit.hasInteriorPeak ? r.fit.optimalSens?.toFixed(2) : '—'}
+                          </td>
+                          <td className={`py-1.5 pr-3 font-bold ${deltaColor(r.fit.predictedDelta)}`}>{r.fit.hasInteriorPeak ? signed(r.fit.predictedDelta) : '—'}</td>
+                          <td className={`py-1.5 text-xs ${toneClass}`}>{note.text}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-xs text-[var(--faint)]">No category has 3+ reliable tested scales on a hero-specific stat yet.</p>
             )}
           </Section>
         );

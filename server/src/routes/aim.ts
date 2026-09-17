@@ -441,15 +441,24 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
       })
       .sort((a, b) => a.cm360 - b.cm360);
 
-  // Fits a quadratic across a set of already-bucketed scales (avgDelta vs.
+  // Fits a quadratic across a set of already-bucketed scales (some value vs.
   // sens @MOUSE_DPI, weighted by n) and locates its vertex — the best-guess
   // "true" optimal sens, as opposed to just whichever tested scale happened
-  // to score best. avgDelta (not avgOverall) so heroes still mix fairly, same
-  // reasoning as the rest of this page's normalization.
-  const curveFitOf = (scales: ReturnType<typeof byScale>) => {
+  // to score best. Defaults to avgDelta (accuracy, not avgOverall, so heroes
+  // still mix fairly — same reasoning as the rest of this page's
+  // normalization) but takes valueOf so the identical fit can be run against
+  // a hero-specific channel instead (see heroStatCurveFit below) — the
+  // accuracy curve and the hero-stat curve are two separate, unit-consistent
+  // fits shown with equal standing, not one blended line (blending percentage
+  // deltas with a raw per-match count like Shion's "Execution kills" would
+  // make the y-axis mean nothing).
+  const curveFitOf = (
+    scales: ReturnType<typeof byScale>,
+    valueOf: (s: ReturnType<typeof byScale>[number]) => number | null = s => s.avgDelta,
+  ) => {
     const cpts: CurvePoint[] = scales
-      .filter(s => s.avgDelta != null)
-      .map(s => ({ x: s.eDPI / MOUSE_DPI, y: s.avgDelta as number, w: s.n }));
+      .filter(s => valueOf(s) != null)
+      .map(s => ({ x: s.eDPI / MOUSE_DPI, y: valueOf(s) as number, w: s.n }));
     const fit = fitQuadraticPeak(cpts);
     if (!fit) return null;
     return {
@@ -463,6 +472,56 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
       a: fit.a, b: fit.b, c: fit.c,
     };
   };
+
+  // ── Co-primary "best scale" selection ─────────────────────────────────────
+  // Sean's call, 2026-09-17: "hero stats should be co-primary, weight them
+  // equally." Every place that picks a single "best" scale — a hero's own
+  // best sens, the roster-wide recommendation — used to rank by accuracy
+  // alone. This ranks by RANK, not raw magnitude: accuracy deltas are
+  // percentage points, but a signature stat can be a raw per-match count, so
+  // averaging raw deltas would just let whichever channel has bigger numbers
+  // win. Ranking each channel among the candidates first, then averaging the
+  // ranks, makes "equal weight" hold regardless of units — a hero-stat
+  // channel that's merely SECOND-best still pulls the combined score exactly
+  // as hard as accuracy being second-best would.
+  function rankOf<T>(items: T[], valueOf: (t: T) => number | null): Map<T, number> {
+    const withVal = items
+      .map(it => ({ it, v: valueOf(it) }))
+      .filter((x): x is { it: T; v: number } => x.v != null)
+      .sort((a, b) => b.v - a.v); // descending: higher value = better = rank 1
+    const ranks = new Map<T, number>();
+    withVal.forEach((x, i) => ranks.set(x.it, i + 1));
+    return ranks;
+  }
+
+  // accuracyOf is the one always-available channel; heroStatChannels are
+  // whichever hero-specific deltas exist for these items (crit/extra/
+  // signature stat) — they're pooled into ONE "hero stats" rank by averaging
+  // their own ranks first, so the hero-stat coalition counts once against
+  // accuracy, not three times just because three channels happen to exist.
+  // Falls back to whichever single arm has data when the other is entirely
+  // absent (e.g. a hero with no crit/extra/signature stat logged at all), and
+  // falls back to the first item when NEITHER arm has data for anything —
+  // same "always return something" contract a plain reduce() has.
+  function coPrimaryBest<T>(
+    items: T[],
+    accuracyOf: (t: T) => number | null,
+    heroStatChannels: ((t: T) => number | null)[],
+  ): T | null {
+    if (!items.length) return null;
+    const accRank = rankOf(items, accuracyOf);
+    const channelRanks = heroStatChannels.map(ch => rankOf(items, ch));
+    let best: T | null = null;
+    let bestScore = Infinity;
+    for (const it of items) {
+      const a = accRank.get(it) ?? null;
+      const subRanks = channelRanks.map(r => r.get(it)).filter((r): r is number => r != null);
+      const h = subRanks.length ? subRanks.reduce((s, r) => s + r, 0) / subRanks.length : null;
+      const score = a != null && h != null ? (a + h) / 2 : (a ?? h);
+      if (score != null && score < bestScore) { bestScore = score; best = it; }
+    }
+    return best ?? items[0];
+  }
 
   // ── Does this metric actually move with sens? ────────────────────────────
   // The rest of this rollup reports values per scale and leaves the reader to
@@ -542,6 +601,10 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
     winRate: mult100(mean(items.map(p => p.win))),
   });
 
+  // MIN_SCALE_N guard applied at roster scope (2026-09-17, Sean's call) — a
+  // below-threshold bucket must not feed a curve fit, finding, or pick.
+  const reliableRosterScales = byScale(pts).filter(s => s.reliable);
+
   return {
     summary: {
       n: pts.length,
@@ -562,10 +625,24 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
         eDPI: eDPI(p.sens, p.dpi ?? MOUSE_DPI),
         cm360: p.scaleBucket, delta: p.delta,
       })),
+    // byScale itself stays UNFILTERED — every scale is shown, including thin
+    // ones (the client greys them out and labels them). Only the curve fits
+    // and metricTrends below, which each pick/estimate a result, are scoped
+    // to reliableRosterScales — visible and excluded, not visible and
+    // counted (2026-09-17, Sean's minimum-n call).
     byScale: byScale(pts),
-    overallCurveFit: curveFitOf(byScale(pts)),
+    overallCurveFit: curveFitOf(reliableRosterScales),
+    // Co-primary companion to overallCurveFit (2026-09-17, Sean's call) — the
+    // same quadratic fit run against avgCritDelta instead of avgDelta. Crit
+    // is the roster-level channel this uses (not extra_acc or the signature
+    // stat) because it's the one hero-specific channel already pooled across
+    // the whole roster elsewhere (metricTrends' 'crit' key) — extra_acc only
+    // exists for 4 heroes and hero_stat_value mixes percentages with raw
+    // per-match counts across different heroes, neither of which fit cleanly
+    // into one roster-wide curve.
+    heroStatCurveFit: curveFitOf(reliableRosterScales, s => s.avgCritDelta),
     // Every metric's relationship with sens across the whole roster.
-    metricTrends: trendsOf(byScale(pts), 'normalized'),
+    metricTrends: trendsOf(reliableRosterScales, 'normalized'),
     byArchetype: {
       hitscan: byScale(pts.filter(p => p.archetype === 'hitscan')),
       projectile: byScale(pts.filter(p => p.archetype === 'projectile')),
@@ -590,9 +667,34 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
         // expressed as nulls rather than a fabricated best guess.
         const scales = byScale(ps);
         const eligible = scales.filter(s => s.reliable);
-        const bestScale = eligible.length
-          ? eligible.reduce((a, b) => ((b.avgOverall ?? -Infinity) > (a.avgOverall ?? -Infinity) ? b : a))
-          : null;
+        // Co-primary pick (2026-09-17, Sean's call): used to rank by
+        // avgOverall (accuracy) alone. Now ranks accuracy and this hero's own
+        // crit/extra/signature-stat channels equally — see coPrimaryBest
+        // above. Raw per-scale values, not deltas: every candidate here is
+        // already the SAME hero, so there's no cross-hero baseline to correct
+        // for, and raw values stay defined even for a hero with only one
+        // eligible scale (where a LOSO delta would be null).
+        const bestScale = coPrimaryBest(
+          eligible,
+          s => s.avgOverall,
+          [s => s.avgCrit, s => s.avgExtra, s => s.avgHeroStat],
+        );
+        // Richest available hero-stat channel for THIS hero, by how many
+        // readings back it — used for heroStatCurveFit below so the fit runs
+        // on one unit-consistent channel rather than blending percentages
+        // with a raw per-match count.
+        const nCrit = ps.filter(p => p.crit_acc != null).length;
+        const nExtra = ps.filter(p => p.extra_acc != null).length;
+        const nHeroStatReadings = ps.filter(p => p.heroStat != null).length;
+        const heroStatChannel: 'crit' | 'extra' | 'heroStat' | null =
+          nCrit === 0 && nExtra === 0 && nHeroStatReadings === 0 ? null
+            : nCrit >= nExtra && nCrit >= nHeroStatReadings ? 'crit'
+            : nExtra >= nHeroStatReadings ? 'extra' : 'heroStat';
+        const heroStatValueOf: ((s: ReturnType<typeof byScale>[number]) => number | null) | null =
+          heroStatChannel === 'crit' ? (s => s.avgCritDelta)
+            : heroStatChannel === 'extra' ? (s => s.avgExtraDelta)
+            : heroStatChannel === 'heroStat' ? (s => s.avgHeroStatDelta)
+            : null;
         return {
           hero: hero as string,
           archetype: ps[0].archetype,
@@ -622,13 +724,26 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
           bestScaleWinRate: bestScale?.winRate ?? null,
           // Full per-scale curve (not just the best one) so the analysis page
           // can trace this hero's accuracy across every sens it's actually
-          // been tested at, ascending by cm/360.
+          // been tested at, ascending by cm/360 — UNFILTERED, thin scales
+          // included (visible, greyed out client-side). `eligible` (n>=
+          // MIN_SCALE_N) is what feeds curveFit/heroStatCurveFit/metricTrends
+          // below, same "visible and excluded, not visible and counted" rule
+          // as the roster level.
           scales,
           // Quadratic best-fit across those scales — null until a hero has
-          // 3+ distinct tested scales (see fitQuadraticPeak).
-          curveFit: curveFitOf(scales),
+          // 3+ RELIABLE tested scales (see fitQuadraticPeak). Accuracy-based.
+          curveFit: curveFitOf(eligible),
+          // Co-primary companion to curveFit (2026-09-17, Sean's call) — the
+          // SAME quadratic fit, run against this hero's own richest
+          // hero-specific channel instead of accuracy, so the page can show
+          // "where accuracy peaks" and "where this hero's own stat peaks"
+          // with equal standing rather than only ever fitting a curve to
+          // accuracy. null when the hero has no crit/extra/signature-stat
+          // readings at all (heroStatChannel null) — nothing to fit.
+          heroStatCurveFit: heroStatValueOf ? curveFitOf(eligible, heroStatValueOf) : null,
+          heroStatCurveChannel: heroStatChannel,
           // Same trend question asked for this hero alone.
-          metricTrends: trendsOf(scales),
+          metricTrends: trendsOf(eligible),
         };
       })
       .sort((a, b) => b.n - a.n),

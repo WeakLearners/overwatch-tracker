@@ -80,7 +80,7 @@ describe('computeAnalysis', () => {
     assert.equal(r.summary.n, 0, 'the null-sens row must not surface as a data point');
   });
 
-  test('two blind-trial scales for one hero: hand-computed leave-one-scale-out deltas, win rates, and no minimum-n guard', () => {
+  test('two blind-trial scales for one hero: hand-computed leave-one-scale-out deltas, win rates, thin buckets still shown in byScale', () => {
     // Bucket A: sens=2.0 @1600dpi -> cm360 = 914.4/(0.0066*2.0*1600) = 43.2955 -> rounds to 43.3.
     // Bucket B: sens=3.0 @1600dpi -> cm360 = 914.4/(0.0066*3.0*1600) = 28.8636 -> rounds to 28.9.
     // Bucket A: overall_acc 40,44,48 (mean 44), all losses (win=0).
@@ -101,11 +101,14 @@ describe('computeAnalysis', () => {
     assert.ok(bucketA, 'expected a 43.3 cm/360 bucket');
     assert.ok(bucketB, 'expected a 28.9 cm/360 bucket');
 
-    // No minimum-n guard on byScale (unlike every function in stats.test.ts)
-    // — a 3-game bucket is reported the same as a 300-game one. Flagged in
-    // the report rather than added here per the task's own instruction.
+    // byScale itself is never gated (2026-09-17: "visible and excluded, not
+    // visible and counted") — a 3-game bucket (below MIN_SCALE_N=5) is still
+    // returned here, just flagged unreliable and excluded from curve
+    // fits/findings/picks (see the minimum-n guard tests below).
     assert.equal(bucketA.n, 3);
     assert.equal(bucketB.n, 3);
+    assert.equal(bucketA.reliable, false);
+    assert.equal(bucketB.reliable, false);
     assert.equal(bucketA.avgOverall, 44);
     assert.equal(bucketB.avgOverall, 56);
     assert.equal(bucketA.avgDelta, -12);
@@ -453,10 +456,13 @@ describe('computeAnalysis — output rates', () => {
   });
 
   test('metricTrends reports a direction and an R2 per metric', () => {
-    // Damage rising cleanly with sens across three scales.
+    // Damage rising cleanly with sens across three scales. 5 games per scale
+    // (not 3) — below MIN_SCALE_N (5), the 2026-09-17 minimum-n guard now
+    // excludes a bucket from metricTrends entirely, so this fixture needs to
+    // clear that bar to keep testing the trend-fitting logic itself.
     for (const [i, sens] of [2.0, 2.5, 3.0].entries()) {
-      for (let g = 0; g < 3; g++) {
-        insertRatePoint({ date: `2026-01-0${i * 3 + g + 1}`, hero: 'Ana', sens, win: 1, overallAcc: 50, damage: 1000 * (i + 1), elims: 10 });
+      for (let g = 0; g < 5; g++) {
+        insertRatePoint({ date: `2026-01-${String(i * 5 + g + 1).padStart(2, '0')}`, hero: 'Ana', sens, win: 1, overallAcc: 50, damage: 1000 * (i + 1), elims: 10 });
       }
     }
     const ana = computeAnalysis(db).heroes.find(h => h.hero === 'Ana')!;
@@ -486,5 +492,134 @@ describe('computeAnalysis — output rates', () => {
     // Still present as a plain readout on both byScale and heroes rows.
     assert.equal(typeof r.byScale[0].winRate, 'number');
     assert.equal(typeof ana.winRate, 'number');
+  });
+});
+
+// ── Minimum-n guard on curve fits / trends / co-primary picks (2026-09-17) ──
+// bestScale eligibility was already guarded (see "bestScale n-guard" above).
+// This block covers what wasn't: curveFit, heroStatCurveFit and metricTrends
+// — both roster-wide and per-hero — used to pull in EVERY scale regardless
+// of n, including a 1-game bucket. Sean's instruction: visible everywhere
+// (byScale/scales[] stay unfiltered), but excluded from anything that picks,
+// fits, or recommends.
+describe('computeAnalysis: minimum-n guard on curve fits and trends', () => {
+  function insertPoint(opts: { date: string; hero: string; sens: number; overallAcc: number; critAcc?: number }) {
+    const matchId = insertMatch(db, {
+      date: opts.date, hero: opts.hero, role: 'DPS', win: 1,
+      sens: opts.sens, dpi: 1600, blind_trial: 1,
+    });
+    insertHeroSlot(db, { match_id: matchId, slot: 1, hero: opts.hero, role: 'DPS', sens: opts.sens });
+    insertAimStats(db, { match_id: matchId, overall_acc: opts.overallAcc, duration_min: 10 });
+    insertAimStatsHero(db, { match_id: matchId, hero: opts.hero, overall_acc: opts.overallAcc, crit_acc: opts.critAcc ?? null });
+  }
+
+  // Three reliable (5-game) scales with accuracy climbing linearly, so a
+  // clean quadratic/linear fit exists to compare against.
+  function threeReliableScales(hero: string) {
+    for (const [i, sens] of [2.0, 2.5, 3.0].entries()) {
+      for (let g = 0; g < MIN_SCALE_N; g++) {
+        insertPoint({ date: `2026-02-${String(i * MIN_SCALE_N + g + 1).padStart(2, '0')}`, hero, sens, overallAcc: 40 + i * 5, critAcc: 30 + i * 5 });
+      }
+    }
+  }
+
+  test('a below-threshold scale (n=4) does not feed the per-hero curve fit or metricTrends', () => {
+    threeReliableScales('Ashe');
+    for (let g = 0; g < MIN_SCALE_N - 1; g++) {
+      // Sens 3.5 scores wildly higher — if this thin bucket fed the fit it
+      // would visibly bend the curve/trend toward it.
+      insertPoint({ date: `2026-03-${String(g + 1).padStart(2, '0')}`, hero: 'Ashe', sens: 3.5, overallAcc: 99, critAcc: 99 });
+    }
+    const h = computeAnalysis(db).heroes.find(x => x.hero === 'Ashe')!;
+    assert.equal(h.scales.length, 4, 'the thin scale is still visible in scales[]');
+    assert.equal(h.scales.find(s => s.n === 4)!.reliable, false);
+    assert.equal(h.curveFit!.points, 3, 'only the 3 reliable scales fed the accuracy curve fit');
+    assert.equal(h.heroStatCurveFit!.points, 3, 'only the 3 reliable scales fed the hero-stat curve fit');
+    const overallTrend = h.metricTrends.find(t => t.key === 'overall')!;
+    assert.equal(overallTrend.scales, 3, 'only the 3 reliable scales fed metricTrends');
+  });
+
+  test('boundary: raising that same scale to n=5 includes it in the fit', () => {
+    threeReliableScales('Ashe');
+    for (let g = 0; g < MIN_SCALE_N; g++) {
+      insertPoint({ date: `2026-03-${String(g + 1).padStart(2, '0')}`, hero: 'Ashe', sens: 3.5, overallAcc: 99, critAcc: 99 });
+    }
+    const h = computeAnalysis(db).heroes.find(x => x.hero === 'Ashe')!;
+    assert.equal(h.scales.length, 4);
+    assert.equal(h.scales.filter(s => s.reliable).length, 4, 'all 4 scales are now at/above MIN_SCALE_N');
+    assert.equal(h.curveFit!.points, 4, 'the now-reliable 4th scale joins the fit');
+    assert.equal(h.heroStatCurveFit!.points, 4);
+    const overallTrend = h.metricTrends.find(t => t.key === 'overall')!;
+    assert.equal(overallTrend.scales, 4);
+  });
+
+  test('same guard applies roster-wide: a thin scale does not feed overallCurveFit, heroStatCurveFit, or roster metricTrends', () => {
+    // Three reliable scales across two heroes (5 games each scale-hero pair
+    // is overkill; 5 total per scale is what matters at roster grain).
+    for (const [i, sens] of [2.0, 2.5, 3.0].entries()) {
+      for (let g = 0; g < MIN_SCALE_N; g++) {
+        insertPoint({ date: `2026-04-${String(i * MIN_SCALE_N + g + 1).padStart(2, '0')}`, hero: 'Ashe', sens, overallAcc: 40 + i * 5, critAcc: 30 + i * 5 });
+      }
+    }
+    // One thin roster-level scale (3 games) at a distinct sens.
+    for (let g = 0; g < 3; g++) {
+      insertPoint({ date: `2026-05-0${g + 1}`, hero: 'Ashe', sens: 3.5, overallAcc: 99, critAcc: 99 });
+    }
+    const r = computeAnalysis(db);
+    assert.equal(r.byScale.length, 4, 'the thin scale is still visible in byScale');
+    assert.equal(r.byScale.find(s => s.n === 3)!.reliable, false);
+    assert.equal(r.overallCurveFit!.points, 3);
+    assert.equal(r.heroStatCurveFit!.points, 3);
+    const overallTrend = r.metricTrends.find(t => t.key === 'overall')!;
+    assert.equal(overallTrend.scales, 3);
+  });
+});
+
+// ── Co-primary "best scale" selection (2026-09-17, Sean's call) ─────────────
+// "hero stats should be co-primary, weight them equally" — a scale that is
+// SECOND on accuracy but FIRST on the hero's own crit stat must be able to
+// win the pick, not just place a footnote next to the accuracy leader.
+describe('computeAnalysis: co-primary best-scale selection weighs hero stats equally', () => {
+  function insertPoint(opts: { date: string; hero: string; sens: number; overallAcc: number; critAcc: number }) {
+    const matchId = insertMatch(db, {
+      date: opts.date, hero: opts.hero, role: 'DPS', win: 1,
+      sens: opts.sens, dpi: 1600, blind_trial: 1,
+    });
+    insertHeroSlot(db, { match_id: matchId, slot: 1, hero: opts.hero, role: 'DPS', sens: opts.sens });
+    insertAimStats(db, { match_id: matchId, overall_acc: opts.overallAcc, duration_min: 10 });
+    insertAimStatsHero(db, { match_id: matchId, hero: opts.hero, overall_acc: opts.overallAcc, crit_acc: opts.critAcc });
+  }
+
+  test("a scale that's #1 on accuracy but worst on crit loses to a scale that's #2/#1", () => {
+    // Scale A (sens 2.0): best accuracy (60), worst crit (30) -> ranks (1,3) -> avg 2.0
+    // Scale B (sens 2.5): 2nd accuracy (55), best crit (50)    -> ranks (2,1) -> avg 1.5  <- wins
+    // Scale C (sens 3.0): worst accuracy (50), 2nd crit (40)   -> ranks (3,2) -> avg 2.5
+    const scales: [number, number, number][] = [[2.0, 60, 30], [2.5, 55, 50], [3.0, 50, 40]];
+    for (const [i, [sens, overallAcc, critAcc]] of scales.entries()) {
+      for (let g = 0; g < MIN_SCALE_N; g++) {
+        insertPoint({ date: `2026-06-${String(i * MIN_SCALE_N + g + 1).padStart(2, '0')}`, hero: 'Widowmaker', sens, overallAcc, critAcc });
+      }
+    }
+    const h = computeAnalysis(db).heroes.find(x => x.hero === 'Widowmaker')!;
+    assert.equal(h.bestScaleReliable, true);
+    // Pure accuracy-only ranking (the old behavior) would have picked sens
+    // 2.0 (60% accuracy, the highest). Co-primary ranking picks 2.5 instead,
+    // because it's #1 on crit and only narrowly #2 on accuracy.
+    assert.equal(h.bestScaleEDPI, Math.round(2.5 * 1600), 'hero stats must be able to outweigh a pure-accuracy leader');
+  });
+
+  test('with no crit/extra/signature stat logged at all, the pick falls back to accuracy alone', () => {
+    for (const [i, [sens, overallAcc]] of ([[2.0, 60], [2.5, 55], [3.0, 50]] as [number, number][]).entries()) {
+      for (let g = 0; g < MIN_SCALE_N; g++) {
+        insertPoint({ date: `2026-07-${String(i * MIN_SCALE_N + g + 1).padStart(2, '0')}`, hero: 'Reinhardt', sens, overallAcc, critAcc: 0 });
+      }
+    }
+    // Overwrite crit_acc to null directly — insertPoint always writes a
+    // number, and this test needs a hero with NO hero-stat channel at all
+    // (extra_acc/hero_stat_value are null by construction, never set here).
+    db.prepare("UPDATE aim_stats_heroes SET crit_acc = NULL WHERE hero = 'Reinhardt'").run();
+    const h = computeAnalysis(db).heroes.find(x => x.hero === 'Reinhardt')!;
+    assert.equal(h.bestScaleReliable, true);
+    assert.equal(h.bestScaleEDPI, Math.round(2.0 * 1600), 'no hero-stat signal at all -> falls back to the accuracy leader');
   });
 });
