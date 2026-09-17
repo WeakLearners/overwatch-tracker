@@ -467,4 +467,24 @@ describe('computeAnalysis — output rates', () => {
     const deaths = ana.metricTrends.find(t => t.key === 'deaths10')!;
     assert.equal(deaths.lowerIsBetter, true);
   });
+
+  // 2026-09-17, Sean's call: win rate no longer factors into the curve or any
+  // "does sens move anything" finding — a match outcome is decided by four
+  // other people, a map, and a comp, not by sens. winRate must stay OFF the
+  // metricTrends list (both roster-wide and per-hero) while remaining a
+  // plain, readable field on byScale/heroes rows (checked separately above).
+  test('winRate is excluded from metricTrends (roster-wide and per-hero) but still present as a plain field', () => {
+    insertRatePoint({ date: '2026-01-01', hero: 'Ana', sens: 2.0, win: 1, overallAcc: 50, damage: 1000, elims: 10 });
+    insertRatePoint({ date: '2026-01-02', hero: 'Ana', sens: 2.5, win: 0, overallAcc: 55, damage: 1200, elims: 12 });
+    const r = computeAnalysis(db);
+    const ana = r.heroes.find(h => h.hero === 'Ana')!;
+    // Cast to string: the METRICS key union itself no longer contains
+    // 'winRate' at the type level, which is the compiler independently
+    // confirming the same fact this test checks at runtime.
+    assert.equal(r.metricTrends.some(t => (t.key as string) === 'winRate'), false, 'winRate must not appear in roster-wide metricTrends');
+    assert.equal(ana.metricTrends.some(t => (t.key as string) === 'winRate'), false, 'winRate must not appear in per-hero metricTrends');
+    // Still present as a plain readout on both byScale and heroes rows.
+    assert.equal(typeof r.byScale[0].winRate, 'number');
+    assert.equal(typeof ana.winRate, 'number');
+  });
 });

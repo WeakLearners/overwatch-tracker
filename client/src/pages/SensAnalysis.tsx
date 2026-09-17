@@ -555,22 +555,6 @@ function buildInsights(data: Analysis, heroCounts: Record<string, number>): stri
     const bestByData = reliable.reduce((a, b) => ((b.avgDelta ?? -Infinity) > (a.avgDelta ?? -Infinity) ? b : a));
     const fastestFeel = reliable.reduce((a, b) => ((b.avgFeel ?? -Infinity) > (a.avgFeel ?? -Infinity) ? b : a));
     const worst = reliable.reduce((a, b) => ((b.avgDelta ?? Infinity) < (a.avgDelta ?? Infinity) ? b : a));
-    const bestByWin = reliable.reduce((a, b) => ((b.winRate ?? -Infinity) > (a.winRate ?? -Infinity) ? b : a));
-
-    // Win rate leads — it's the outcome that actually matters, not a proxy for
-    // it like accuracy is. Called out on its own, then checked against the
-    // accuracy-best scale so a disagreement between them doesn't get buried.
-    if (bestByWin.winRate != null) {
-      notes.push(
-        `Your highest win rate is at ${fmtScale(bestByWin)} — ${f1(bestByWin.winRate)}% (${bestByWin.n} games).`,
-      );
-      if (bestByWin.cm360 !== bestByData.cm360) {
-        notes.push(
-          `That's a different scale than your top performer by accuracy (${fmtScale(bestByData)}, ${signed(bestByData.avgDelta)}% vs. your average) — win rate and accuracy aren't pointing the same way yet, so treat both as provisional until more games narrow it down.`,
-        );
-      }
-    }
-
     // Lead with the best performer on its own terms — it's the "just right"
     // scale, not necessarily the fastest- or slowest-feeling one tested. Only
     // call out the fastest-feeling scale when it's a DIFFERENT scale, and frame
@@ -582,6 +566,15 @@ function buildInsights(data: Analysis, heroCounts: Record<string, number>): stri
     if (fastestFeel.cm360 !== bestByData.cm360 && fastestFeel.avgFeel != null) {
       notes.push(
         `${fmtScale(fastestFeel)} felt fastest to you (${f1(fastestFeel.avgFeel)}/100), but it isn't your top performer (${signed(fastestFeel.avgDelta)}% vs. your average, ${fastestFeel.n} games) — feeling fast doesn't mean it's the right sens.`,
+      );
+    }
+    // Win rate is shown, never ranked on — a match outcome is decided by four
+    // other people, a map, and a comp, not by sens (Sean's call, 2026-09-17).
+    // Reported here purely as a readout at the scale accuracy already picked,
+    // not as a competing pick of its own.
+    if (bestByData.winRate != null) {
+      notes.push(
+        `For reference, win rate at that same scale was ${f1(bestByData.winRate)}% (${bestByData.n} games) — not a factor in the pick above, just too noisy a signal on its own (five teammates, five opponents, map, and comp all outweigh sens).`,
       );
     }
 
@@ -984,13 +977,13 @@ export default function SensAnalysis() {
       </div>
 
       {/* Per-scale table */}
-      <Section title={`By Scale (sens @${MOUSE_DPI} DPI)`} hint={`Every scale you've tested, shown as in-game sens at ${MOUSE_DPI} DPI, with its eDPI and averages. Win % is your actual win rate at that scale — what really matters, vs. accuracy which is just a stand-in for it. "vs. Avg" is accuracy compared to how you usually do. "Sens" is the raw in-game value used during testing (it stayed fixed while DPI changed between test stages).`} dataInspectId="sensAnalysis-by-scale-table">
+      <Section title={`By Scale (sens @${MOUSE_DPI} DPI)`} hint={`Every scale you've tested, shown as in-game sens at ${MOUSE_DPI} DPI, with its eDPI and averages. Win % is shown for reference only — it is NOT a factor in any pick or recommendation on this page, because a match outcome is decided by four other people, a map, and a comp, not by sens. Accuracy is what sens actually moves, so accuracy (and each hero's own signature/crit stat) drives everything below. "vs. Avg" is accuracy compared to how you usually do. "Sens" is the raw in-game value used during testing (it stayed fixed while DPI changed between test stages).`} dataInspectId="sensAnalysis-by-scale-table">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
                 <th className="py-1.5 pr-3">{`Sens @${MOUSE_DPI}`}</th><th className="py-1.5 pr-3">eDPI</th><th className="py-1.5 pr-3">Sens</th><th className="py-1.5 pr-3">n</th>
-                <th className="py-1.5 pr-3">Win %</th><th className="py-1.5 pr-3">Overall</th><th className="py-1.5 pr-3">Crit</th><th className="py-1.5 pr-3">Felt speed</th><th className="py-1.5">vs. Avg</th>
+                <th className="py-1.5 pr-3" title="Reference only — not a factor in any pick or recommendation on this page">Win % <span className="text-[9px] font-normal text-[var(--faint-2)]">(info only)</span></th><th className="py-1.5 pr-3">Overall</th><th className="py-1.5 pr-3">Crit</th><th className="py-1.5 pr-3">Felt speed</th><th className="py-1.5">vs. Avg</th>
               </tr>
             </thead>
             <tbody className="font-bold">
@@ -1013,7 +1006,7 @@ export default function SensAnalysis() {
                       </span>
                     )}
                   </td>
-                  <td className="py-1.5 pr-3 text-[var(--ink)]">{f1(r.winRate)}%</td>
+                  <td className="py-1.5 pr-3 font-normal text-[var(--faint-2)]">{f1(r.winRate)}%</td>
                   <td className="py-1.5 pr-3">{f1(r.avgOverall)}%</td>
                   <td className="py-1.5 pr-3">{f1(r.avgCrit)}%</td>
                   <td className="py-1.5 pr-3">{f1(r.avgFeel)}/100</td>
@@ -1026,13 +1019,13 @@ export default function SensAnalysis() {
       </Section>
 
       {/* By hero */}
-      <Section title="By Hero" hint={`Games logged per hero — a small number here isn't trustworthy yet. Best Sens is the sens (@${MOUSE_DPI} DPI) where that hero's own accuracy is highest, with the game count in parens — treat it as unreliable below ${RELIABLE_N} games. "vs. Avg" columns compare that scale's accuracy to how the hero usually does. Signature Stat is a DIFFERENT stat per hero (Ana's is sleep dart accuracy, Sojourn's charged shot) — each cell names its own; see Ability Stats by Sens below for the per-sens breakdown.`} dataInspectId="sensAnalysis-by-hero-table">
+      <Section title="By Hero" hint={`Games logged per hero — a small number here isn't trustworthy yet. Best Sens is the sens (@${MOUSE_DPI} DPI) where that hero's own accuracy is highest, with the game count in parens — treat it as unreliable below ${RELIABLE_N} games. Win % is shown for reference only — it plays no part in picking a hero's best sens. "vs. Avg" columns compare that scale's accuracy to how the hero usually does. Signature Stat is a DIFFERENT stat per hero (Ana's is sleep dart accuracy, Sojourn's charged shot) — each cell names its own; see Ability Stats by Sens below for the per-sens breakdown.`} dataInspectId="sensAnalysis-by-hero-table">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
                 <th className="py-1.5 pr-3">Hero</th><th className="py-1.5 pr-3">Type</th><th className="py-1.5 pr-3">n</th>
-                <th className="py-1.5 pr-3">Win %</th><th className="py-1.5 pr-3">Overall</th><th className="py-1.5 pr-3">Signature Stat</th><th className="py-1.5 pr-3">Best Sens</th>
+                <th className="py-1.5 pr-3" title="Reference only — plays no part in picking Best Sens">Win % <span className="text-[9px] font-normal text-[var(--faint-2)]">(info only)</span></th><th className="py-1.5 pr-3">Overall</th><th className="py-1.5 pr-3">Signature Stat</th><th className="py-1.5 pr-3">Best Sens</th>
                 <th className="py-1.5 pr-3">Overall vs. Avg</th><th className="py-1.5">Signature vs. Avg</th>
               </tr>
             </thead>
@@ -1042,7 +1035,7 @@ export default function SensAnalysis() {
                   <td className="py-1.5 pr-3 text-xs hero-name text-[var(--ink)]">{withHeroCount(h.hero, heroCounts)}</td>
                   <td className="py-1.5 pr-3 capitalize text-[var(--faint)]">{h.archetype}</td>
                   <td className="py-1.5 pr-3 font-bold">{h.n}</td>
-                  <td className="py-1.5 pr-3 font-bold text-[var(--ink)]">{f1(h.winRate)}%</td>
+                  <td className="py-1.5 pr-3 font-normal text-[var(--faint-2)]">{f1(h.winRate)}%</td>
                   <td className="py-1.5 pr-3 font-bold">{f1(h.avgOverall)}%</td>
                   {/* The crit_acc column is a different stat per hero — Ana's
                       is sleep dart, Sojourn's charged shot — so the cell names

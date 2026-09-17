@@ -410,8 +410,16 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
           avgElims10Delta: mean(ps.filter(p => p.elims10Delta != null).map(p => p.elims10Delta as number)),
           avgDeaths10: mean(ps.filter(p => p.deaths10 != null).map(p => p.deaths10 as number)),
           avgDeaths10Delta: mean(ps.filter(p => p.deaths10Delta != null).map(p => p.deaths10Delta as number)),
-          // Win rate, not just accuracy — accuracy is a proxy for the scale
-          // that actually matters: which sens wins more.
+          // RETIRED PREMISE (2026-09-17, Sean's call): this used to read "win
+          // rate, not just accuracy — accuracy is a proxy for the scale that
+          // actually matters: which sens wins more." That's backwards. A win
+          // is decided by five teammates, five opponents, map, comp, and
+          // matchmaking rating — sens is buried under all of that. Accuracy
+          // is the thing sens actually moves, so accuracy (plus the hero's
+          // own signature/crit stat) is now what this study measures. winRate
+          // stays as a plain readout — never as curve-fit input, never as a
+          // ranking or recommendation signal. See METRICS below, where it has
+          // been removed from the set that drives metricTrends/findings.
           winRate: mult100(mean(ps.map(p => p.win))),
           // Box-plot stats over raw overall accuracy at this scale.
           min: accSorted[0] ?? null,
@@ -478,6 +486,14 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
   // damage per 10 minutes and Ana ~4,700, so a pooled raw trend across scales
   // mostly measures WHICH HEROES happened to be tested where, not sens. Same
   // reason the existing curve fit uses avgDelta rather than avgOverall.
+  // winRate is deliberately absent from this list (2026-09-17, Sean's call —
+  // see the retired-premise comment on byScale's winRate field above). It is
+  // not one of the outcomes this study fits a trend to, and it can't earn a
+  // spot in the "Does Sens Move Anything?" findings section, because a match
+  // outcome is dominated by four other people, a map, and a comp, not by
+  // Sean's crosshair. It still exists on every scale/hero row as a plain,
+  // clearly-labeled readout — this list only controls curve-fit/finding
+  // inputs, not what's displayed.
   const METRICS = [
     { key: 'overall', label: 'Overall accuracy', unit: '%', pick: (sc: any) => sc.avgOverall, norm: (sc: any) => sc.avgDelta, n: (sc: any) => sc.n },
     { key: 'crit', label: 'Signature/crit stat', unit: '%', pick: (sc: any) => sc.avgCrit, norm: (sc: any) => sc.avgCritDelta, n: (sc: any) => sc.n },
@@ -485,7 +501,6 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
     { key: 'heal10', label: 'Healing per 10 min', unit: '', pick: (sc: any) => sc.avgHeal10, norm: (sc: any) => sc.avgHeal10Delta, n: (sc: any) => sc.nHeal },
     { key: 'elims10', label: 'Elims per 10 min', unit: '', pick: (sc: any) => sc.avgElims10, norm: (sc: any) => sc.avgElims10Delta, n: (sc: any) => sc.nRate },
     { key: 'deaths10', label: 'Deaths per 10 min', unit: '', pick: (sc: any) => sc.avgDeaths10, norm: (sc: any) => sc.avgDeaths10Delta, n: (sc: any) => sc.nRate },
-    { key: 'winRate', label: 'Win rate', unit: '%', pick: (sc: any) => sc.winRate, norm: (sc: any) => sc.winRate, n: (sc: any) => sc.n },
   ] as const;
 
   // Deaths are the one metric here where DOWN is good. Stated as data rather
