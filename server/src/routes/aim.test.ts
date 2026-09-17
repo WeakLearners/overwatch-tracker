@@ -18,6 +18,7 @@ import path from 'path';
 import { getDb, closeDb } from '../db/schema';
 import { insertMatch, insertHeroSlot, insertAimStats, insertAimStatsHero } from '../db/fixtures';
 import { computeAnalysis, MIN_SCALE_N } from './aim';
+import { setCurveParams } from '../lib/curveParams';
 
 let tmpPath: string;
 let db: ReturnType<typeof getDb>;
@@ -621,5 +622,68 @@ describe('computeAnalysis: co-primary best-scale selection weighs hero stats equ
     const h = computeAnalysis(db).heroes.find(x => x.hero === 'Reinhardt')!;
     assert.equal(h.bestScaleReliable, true);
     assert.equal(h.bestScaleEDPI, Math.round(2.0 * 1600), 'no hero-stat signal at all -> falls back to the accuracy leader');
+  });
+});
+
+// 2026-09-17: Sean queried `matches` directly and found curve_enabled=1 pools
+// three different curve settings, not one treatment. This section covers the
+// breakdown that surfaces that on the analysis page — a presentation-layer
+// addition, no existing metric's computation changed.
+describe('computeAnalysis: curve breakdown (2026-09-17 confound)', () => {
+  function insertPoint(opts: {
+    date: string; hero: string; sens: number; overallAcc: number;
+    curveEnabled?: 0 | 1; smooth?: number | null; input?: number | null; output?: number | null;
+  }) {
+    const matchId = insertMatch(db, {
+      date: opts.date, hero: opts.hero, role: 'DPS', win: 1,
+      sens: opts.sens, dpi: 1600, blind_trial: 1,
+      curve_enabled: opts.curveEnabled ?? 0,
+      curve_growth_rate: opts.smooth ?? null,
+      curve_midpoint: opts.input ?? null,
+      curve_motivity: opts.output ?? null,
+    });
+    insertHeroSlot(db, { match_id: matchId, slot: 1, hero: opts.hero, role: 'DPS', sens: opts.sens });
+    insertAimStats(db, { match_id: matchId, overall_acc: opts.overallAcc, duration_min: 10 });
+    insertAimStatsHero(db, { match_id: matchId, hero: opts.hero, overall_acc: opts.overallAcc });
+  }
+
+  test('curve-off and two distinct curve-on settings surface as three separate variants, not one pooled "curve on"', () => {
+    for (let g = 0; g < 3; g++) insertPoint({ date: `2026-08-0${g + 1}`, hero: 'Ashe', sens: 2.0, overallAcc: 50 });
+    for (let g = 0; g < 3; g++) insertPoint({ date: `2026-08-1${g + 1}`, hero: 'Ashe', sens: 2.0, overallAcc: 55, curveEnabled: 1, smooth: 0.25, input: 14, output: 1.15 });
+    for (let g = 0; g < 2; g++) insertPoint({ date: `2026-08-2${g + 1}`, hero: 'Ashe', sens: 2.0, overallAcc: 60, curveEnabled: 1, smooth: 1.0, input: 12, output: null });
+
+    const r = computeAnalysis(db);
+    assert.equal(r.curveBreakdown.length, 3, 'curve-off + two distinct curve-on settings must not collapse into one bucket');
+    const off = r.curveBreakdown.find(v => !v.curveEnabled)!;
+    const onA = r.curveBreakdown.find(v => v.curveEnabled && v.smooth === 0.25)!;
+    const onB = r.curveBreakdown.find(v => v.curveEnabled && v.smooth === 1.0)!;
+    assert.equal(off.n, 3);
+    assert.equal(onA.n, 3);
+    assert.equal(onA.input, 14);
+    assert.equal(onA.output, 1.15);
+    assert.equal(onB.n, 2);
+    assert.equal(onB.output, null, 'a variant with no recorded output must not be coerced to 0 or dropped');
+
+    // Same breakdown must also be visible AT the scale bucket these points
+    // share (2.0 sens / all one cm360 bucket at 1600 dpi) — a reader looking
+    // at one row of the By Scale table needs to see the mix, not just a
+    // roster-wide table elsewhere.
+    const bucket = r.byScale.find(s => s.n === 8)!;
+    assert.equal(bucket.curveVariants.length, 3);
+  });
+
+  test('a single-variant scale reports exactly one curve variant, not a false mix', () => {
+    for (let g = 0; g < 5; g++) insertPoint({ date: `2026-08-0${g + 1}`, hero: 'Ashe', sens: 2.5, overallAcc: 50 });
+    const r = computeAnalysis(db);
+    const bucket = r.byScale.find(s => s.n === 5)!;
+    assert.equal(bucket.curveVariants.length, 1);
+    assert.equal(bucket.curveVariants[0].curveEnabled, false);
+    assert.equal(bucket.curveVariants[0].n, 5);
+  });
+
+  test('liveCurve mirrors GET /api/aim/curve\'s own getCurveParams read', () => {
+    setCurveParams(db, { smooth: 0.25, input: 14, output: 1.15 });
+    const r = computeAnalysis(db);
+    assert.deepEqual({ ...r.liveCurve }, { smooth: 0.25, input: 14, output: 1.15 });
   });
 });

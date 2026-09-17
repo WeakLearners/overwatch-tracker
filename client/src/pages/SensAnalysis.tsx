@@ -37,6 +37,17 @@ interface ScaleRow {
   // returned and shown — never hidden — but must not be picked as a "best"
   // scale or feed a curve fit / finding / recommendation. See RELIABLE_N.
   reliable: boolean;
+  // Which curve setting(s) this bucket's games were actually played under
+  // (2026-09-17). Length > 1 means this ONE scale bucket mixes matches from
+  // different curve treatments (including curve-off vs. curve-on) — its
+  // pooled averages above are not a clean single-variable comparison.
+  curveVariants: CurveVariant[];
+}
+// One curve setting a set of matches was played under — curve off is its own
+// variant, not "no data". See aim.ts's summarizeCurveVariants.
+interface CurveVariant {
+  curveEnabled: boolean; smooth: number | null; input: number | null; output: number | null;
+  n: number; avgOverall: number | null; avgDelta: number | null;
 }
 interface Bucket {
   bucket: string; n: number;
@@ -89,6 +100,12 @@ interface Analysis {
   summary: { n: number; distinctScale: number; lastUpdated: string | null };
   timeline: TimelinePoint[];
   byScale: ScaleRow[];
+  // The Rawaccel curve currently live (2026-09-17) — same shape GET
+  // /api/aim/curve returns, included here so this page can show what curve
+  // is actually running without a second request.
+  liveCurve: { smooth: number; input: number; output: number };
+  // Roster-wide curve-variant breakdown (2026-09-17) — see CurveVariant.
+  curveBreakdown: CurveVariant[];
   overallCurveFit: CurveFit | null;
   // Co-primary companion to overallCurveFit — same fit, run against
   // avgCritDelta pooled across the whole roster. See aim.ts's comment on why
@@ -283,6 +300,41 @@ function coPrimaryBest<T>(
 const HERO_STAT_CHANNELS: ((r: ScaleRow) => number | null)[] = [
   r => r.avgCritDelta, r => r.avgExtraDelta, r => r.avgHeroStatDelta,
 ];
+// Whichever hero-stat channel has a reading at a given scale — same fallback
+// order the Recommendation card already uses (crit, then extra, then the raw
+// signature stat) — pulled into one helper since tie-detection below needs it
+// too.
+const heroStatDeltaOf = (r: ScaleRow): number | null => r.avgCritDelta ?? r.avgExtraDelta ?? r.avgHeroStatDelta;
+
+// Runner-up + near-tie check for a hero's "best" scale (2026-09-17, Sean's
+// call — Zenyatta's pick moved from 2.18 to 2.50 on gaps of 0.3-0.1 points,
+// which is the rank combine breaking an effective tie, not a finding; Soldier:
+// 76's 2.65 vs 2.27 is a real result on both channels). Runs the SAME
+// coPrimaryBest the server used to pick bestScale, a second time with the
+// winner removed, so the page can say when the "best" pick barely edged out
+// its nearest rival instead of only ever showing one confident-looking
+// number. Needs no server change — h.scales already carries every reliable
+// scale's full delta set.
+function heroTieInfo(h: HeroRow): { best: ScaleRow | null; runnerUp: ScaleRow | null; isNearTie: boolean; accGap: number | null; heroStatGap: number | null } {
+  const eligible = h.scales.filter(s => s.reliable);
+  if (!eligible.length) return { best: null, runnerUp: null, isNearTie: false, accGap: null, heroStatGap: null };
+  const best = coPrimaryBest(eligible, s => s.avgDelta, HERO_STAT_CHANNELS);
+  const rest = eligible.filter(s => s !== best);
+  const runnerUp = rest.length ? coPrimaryBest(rest, s => s.avgDelta, HERO_STAT_CHANNELS) : null;
+  if (!best || !runnerUp) return { best, runnerUp: null, isNearTie: false, accGap: null, heroStatGap: null };
+  const accGap = best.avgDelta != null && runnerUp.avgDelta != null ? Math.abs(best.avgDelta - runnerUp.avgDelta) : null;
+  const bestHS = heroStatDeltaOf(best);
+  const runnerHS = heroStatDeltaOf(runnerUp);
+  const heroStatGap = bestHS != null && runnerHS != null ? Math.abs(bestHS - runnerHS) : null;
+  // "Effectively tied" means NEITHER channel clears the same gap the rest of
+  // this page already treats as meaningfully different — if even one channel
+  // shows a real separation (like Soldier: 76's crit gap), it's a finding,
+  // not a coin flip.
+  const accClose = accGap == null || accGap < MEANINGFUL_DELTA_GAP;
+  const hsClose = heroStatGap == null || heroStatGap < MEANINGFUL_DELTA_GAP;
+  return { best, runnerUp, isNearTie: accClose && hsClose, accGap, heroStatGap };
+}
+
 const CONFIDENT_N = 8;
 // Distinct tested scales required before a curve fit's R² gets the confident
 // "good" tone — a 3-point quadratic has 3 free parameters, so it can hit a
@@ -293,6 +345,15 @@ const CONFIDENT_SCALES = 5;
 // noise — shared between the Recommendation card's "clearly worse" call and
 // the Insights "weakest reliable scale" callout so both use the same bar.
 const MEANINGFUL_DELTA_GAP = 1.5;
+// Below this R², a curve fit's vertex is not trustworthy regardless of how
+// many games or scales back it (2026-09-17, Sean's correction: "make the page
+// enforce that rather than leaving it as a comment" — the comment being
+// curveFitOf's own "scattered r2 is not a finding"). A quadratic ALWAYS has a
+// vertex; a low R² means the points don't actually follow that shape, so the
+// vertex is an artifact of the algebra, not a result. Same bar the roster
+// "Does Sens Move Anything?" section already uses for "is this a trend at
+// all" (R2_REAL there), reused here for the same reason.
+const WEAK_FIT_R2 = 0.25;
 
 // One color per hero, assigned by a stable hash of the hero's name (not
 // array position, so a hero keeps its color across reloads) via a
@@ -337,6 +398,69 @@ function CurveTooltip({ active, payload }: { active?: boolean; payload?: { paylo
       <div style={{ fontWeight: 700 }}>{p.x.toFixed(2)} sens @ {MOUSE_DPI} DPI</div>
       <div>{p.n != null ? 'Actual result' : 'Estimated'}: <b style={{ fontWeight: 700 }}>{signed(p.y)}</b> vs. your average</div>
       {p.n != null && <div style={{ opacity: 0.7 }}>{p.n} game{p.n === 1 ? '' : 's'}</div>}
+    </div>
+  );
+}
+
+// A curve fit's tested points, at whatever grain it was fit on (roster or one
+// hero) — only reliable scales, matching exactly what curveFitOf itself ran
+// on, so a mini-chart never shows a dot the fit wasn't actually fit through.
+interface MiniCurvePt { x: number; y: number; n: number }
+function testedPointsFor(scales: ScaleRow[], valueOf: (s: ScaleRow) => number | null): MiniCurvePt[] {
+  return bySpeed(scales.filter(s => s.reliable && valueOf(s) != null)).map(s => ({ x: s.sensAt1600, y: valueOf(s) as number, n: s.n }));
+}
+// Which channel a hero's OWN heroStatCurveFit actually ran on — mirrors the
+// server's heroStatValueOf in aim.ts so the mini-chart's points match the fit
+// exactly, not just "whichever hero-stat channel happens to be available."
+const heroStatChannelValueOf = (channel: 'crit' | 'extra' | 'heroStat' | null): ((s: ScaleRow) => number | null) => {
+  if (channel === 'crit') return s => s.avgCritDelta;
+  if (channel === 'extra') return s => s.avgExtraDelta;
+  if (channel === 'heroStat') return s => s.avgHeroStatDelta;
+  return () => null;
+};
+
+// One small, self-contained curve-fit card (2026-09-17, Sean's correction:
+// "make the fitted accuracy/sens curve a first-class object... for the roster
+// fit and per hero" — both accuracy and hero-stat curves, all legible, not
+// just the roster accuracy curve as one big chart with everything else
+// reduced to a table row). A weak fit (R² < WEAK_FIT_R2) is drawn as a faint
+// dashed line and says plainly that its peak isn't trustworthy, no matter how
+// many games sit behind it — enforcing "scattered r2 is not a finding" in the
+// UI instead of leaving it as a code comment.
+function MiniCurveChart({ fit, points, label }: { fit: CurveFit | null; points: MiniCurvePt[]; label: string }) {
+  if (!fit) {
+    return (
+      <div className="border border-ow-border rounded-lg p-2.5" data-inspect-id="sensAnalysis-mini-curve-chart">
+        <div className="text-[11px] font-bold text-[var(--ink)] mb-1 truncate" title={label}>{label}</div>
+        <p className="text-[10px] text-[var(--faint-2)]">Needs 3+ reliable scales.</p>
+      </div>
+    );
+  }
+  const weak = fit.r2 < WEAK_FIT_R2;
+  const line = buildCurveLine(fit);
+  const r2Class = weak ? 'text-red-600 dark:text-red-400' : fit.r2 >= 0.5 ? 'text-emerald-700 dark:text-emerald-500' : 'text-[var(--faint-2)]';
+  return (
+    <div className="border border-ow-border rounded-lg p-2.5" data-inspect-id="sensAnalysis-mini-curve-chart">
+      <div className="flex items-baseline justify-between gap-2 mb-1">
+        <span className="text-[11px] font-bold text-[var(--ink)] truncate" title={label}>{label}</span>
+        <span className={`text-[10px] font-bold shrink-0 ${r2Class}`}>R²={fit.r2.toFixed(2)}</span>
+      </div>
+      <ResponsiveContainer width="100%" height={100}>
+        <ComposedChart margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+          <XAxis dataKey="x" type="number" domain={['dataMin', 'dataMax']} hide />
+          <YAxis dataKey="y" type="number" hide />
+          <ReferenceLine y={0} stroke="var(--faint-2)" strokeDasharray="3 3" />
+          <Line data={line} dataKey="y" stroke={weak ? 'var(--faint-2)' : FEEL} strokeWidth={weak ? 1 : 2} strokeDasharray={weak ? '3 3' : undefined} dot={false} isAnimationActive={false} />
+          <Scatter data={points} dataKey="y" fill="var(--ink)" />
+        </ComposedChart>
+      </ResponsiveContainer>
+      <div className="text-[10px] text-[var(--faint-2)] mt-1">
+        {fit.points} scales · {fit.totalN} games
+        {weak && ' · too scattered to trust a peak'}
+        {!weak && fit.hasInteriorPeak && fit.inRange && ` · peak ≈ ${fit.optimalSens?.toFixed(2)}`}
+        {!weak && !fit.hasInteriorPeak && ' · still climbing, no interior peak'}
+        {!weak && fit.hasInteriorPeak && !fit.inRange && ' · peak estimated outside tested range'}
+      </div>
     </div>
   );
 }
@@ -721,8 +845,20 @@ function buildInsights(data: Analysis, heroCounts: Record<string, number>): stri
   return notes;
 }
 
+// Shape this page needs from GET /api/blind/state — the SAME endpoint
+// SensLog/the testing page already reads to show stage-test progress. Reusing
+// it here (2026-09-17, Sean's request) means no server change: it's already
+// correct and already used for exactly this purpose, just not visible
+// anywhere someone reading FINDINGS would think to look for it.
+interface ActiveStudySet {
+  set_id: number; hero: string | null; phase: string | null;
+  cur_stage: number; n_stages: number; games_on_stage: number; batch_size: number;
+  totalGames: number; completed: boolean; curveEnabled: boolean;
+}
+
 export default function SensAnalysis() {
   const { data, loading } = useApi<Analysis>('/api/aim/analysis');
+  const { data: blindState } = useApi<{ actives: ActiveStudySet[] }>('/api/blind/state');
   const heroCounts = useTodayHeroCounts();
 
   const wrap = (children: React.ReactNode) => (
@@ -823,8 +959,24 @@ export default function SensAnalysis() {
 
   // Curve Fit chart: sample the fitted quadratic across the tested range and
   // overlay the actual tested (sens, avgDelta) points it was fit through.
+  // Filtered to r.reliable (2026-09-17) — the server's fit only ever ran on
+  // reliableRosterScales, so a thin scale plotted here would show a dot the
+  // curve wasn't actually fit through.
   const curveLine = data.overallCurveFit ? buildCurveLine(data.overallCurveFit) : null;
-  const curveTestedPts = bySpeed(byScale.filter(r => r.avgDelta != null)).map(r => ({ x: r.sensAt1600, y: r.avgDelta as number, n: r.n }));
+  const curveTestedPts = bySpeed(byScale.filter(r => r.reliable && r.avgDelta != null)).map(r => ({ x: r.sensAt1600, y: r.avgDelta as number, n: r.n }));
+
+  // Curve confound (2026-09-17): every DISTINCT curve-on variant found in the
+  // study's own logged data. More than one means "curve on" is not a single
+  // treatment — see aim.ts's summarizeCurveVariants and Sean's 2026-09-17
+  // finding (0.25/14/1.15 x134, 1.0/12/null x58, 0.25/14/1.5 x11).
+  const curveOnVariants = data.curveBreakdown.filter(v => v.curveEnabled);
+  const curveOffVariant = data.curveBreakdown.find(v => !v.curveEnabled) ?? null;
+  const curveIsConfounded = curveOnVariants.length > 1;
+
+  // Study progress (2026-09-17) — the same /api/blind/state feed the testing
+  // page already shows, just not previously visible anywhere on the page
+  // someone reads findings from.
+  const activeStudySets = blindState?.actives ?? [];
 
   return wrap(
     <div className="space-y-6">
@@ -845,6 +997,32 @@ export default function SensAnalysis() {
         cm/360 or the raw DPI tested. DPI is what's actually being varied in testing, and your mouse settles back at
         {MOUSE_DPI} DPI once you commit to a result — so this is the number you'd actually dial in.
       </p>
+
+      {/* Phase 10 (and any other active stage-test) progress — previously
+          only visible on the Testing page, never here where findings are
+          actually read (2026-09-17, Sean's request). */}
+      {activeStudySets.length > 0 && (
+        <Section
+          title="Study Progress"
+          hint="Active stage-test sets right now — same feed the Testing page's HUD reads. A finding above drawn from a stage that's still filling in is provisional by definition."
+          dataInspectId="sensAnalysis-study-progress"
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {activeStudySets.map(s => (
+              <div key={s.set_id} className="rounded-lg bg-ow-darker border border-ow-border p-3" data-inspect-id="sensAnalysis-study-progress-set">
+                <div className="text-xs hero-name text-[var(--ink)] font-bold">{s.hero ?? 'Roster set'}</div>
+                <div className="text-[11px] text-[var(--faint)] mt-0.5">
+                  Stage <b className="text-[var(--ink)]">{s.cur_stage}</b> of <b className="text-[var(--ink)]">{s.n_stages}</b>
+                  {' · '}{s.games_on_stage}/{s.batch_size} games on stage
+                </div>
+                <div className="text-[11px] text-[var(--faint-2)] mt-1">
+                  {s.totalGames} games total{s.curveEnabled ? ' · curve on' : ''}{s.completed ? ' · complete' : ''}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
 
       {/* DPI recommendation + continue-vs-narrow call */}
       <Section
@@ -1097,9 +1275,17 @@ export default function SensAnalysis() {
                     {r.reliable && r.dateSpanDays < 3 && (
                       <span
                         className="text-[10px] font-normal text-amber-600 dark:text-amber-400 ml-1"
-                        title="Tested mostly in one short window — may reflect that session more than a stable read"
+                        title={`Tested across only ${r.distinctDates} distinct date${r.distinctDates === 1 ? '' : 's'} over ${r.dateSpanDays} day${r.dateSpanDays === 1 ? '' : 's'} — may reflect that session more than a stable read`}
                       >
                         ⚠
+                      </span>
+                    )}
+                    {r.curveVariants.length > 1 && (
+                      <span
+                        className="text-[10px] font-normal text-amber-600 dark:text-amber-400 ml-1"
+                        title={`Mixes ${r.curveVariants.length} different curve settings: ${r.curveVariants.map(v => `${v.curveEnabled ? `on ${v.smooth}/${v.input}/${v.output}` : 'off'} (n=${v.n})`).join(', ')} — see Curve Confound above`}
+                      >
+                        ⎘
                       </span>
                     )}
                   </td>
@@ -1116,7 +1302,7 @@ export default function SensAnalysis() {
       </Section>
 
       {/* By hero */}
-      <Section title="By Hero" hint={`Games logged per hero — a small number here isn't trustworthy yet. Best Sens is the sens (@${MOUSE_DPI} DPI) where that hero's own accuracy is highest, with the game count in parens — treat it as unreliable below ${RELIABLE_N} games. Win % is shown for reference only — it plays no part in picking a hero's best sens. "vs. Avg" columns compare that scale's accuracy to how the hero usually does. Signature Stat is a DIFFERENT stat per hero (Ana's is sleep dart accuracy, Sojourn's charged shot) — each cell names its own; see Ability Stats by Sens below for the per-sens breakdown.`} dataInspectId="sensAnalysis-by-hero-table">
+      <Section title="By Hero" hint={`Games logged per hero — a small number here isn't trustworthy yet. Best Sens is the sens (@${MOUSE_DPI} DPI) where that hero's own accuracy is highest, with the game count in parens — treat it as unreliable below ${RELIABLE_N} games. Win % is shown for reference only — it plays no part in picking a hero's best sens. "vs. Avg" columns compare that scale's accuracy to how the hero usually does. Signature Stat is a DIFFERENT stat per hero (Ana's is sleep dart accuracy, Sojourn's charged shot) — each cell names its own; see Ability Stats by Sens below for the per-sens breakdown. "✓" next to Best Sens means it clearly beat the runner-up (gap ≥ ${MEANINGFUL_DELTA_GAP} pts on both accuracy and hero stat); "≈ tie" means the rank math had to break a near-tie — treat the runner-up as a live option too, not a loser.`} dataInspectId="sensAnalysis-by-hero-table">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -1127,7 +1313,9 @@ export default function SensAnalysis() {
               </tr>
             </thead>
             <tbody>
-              {heroes.map(h => (
+              {heroes.map(h => {
+                const tie = heroTieInfo(h);
+                return (
                 <tr key={h.hero} className="border-t border-ow-border text-[var(--ink-2)]">
                   <td className="py-1.5 pr-3 text-xs hero-name text-[var(--ink)]">{withHeroCount(h.hero, heroCounts)}</td>
                   <td className="py-1.5 pr-3 capitalize text-[var(--faint)]">{h.archetype}</td>
@@ -1154,11 +1342,27 @@ export default function SensAnalysis() {
                     {h.bestScaleEDPI != null
                       ? <>{(h.bestScaleEDPI / MOUSE_DPI).toFixed(2)} <span className="text-[10px] text-[var(--faint-2)]">(n={h.bestScaleN})</span></>
                       : <span className="text-[var(--faint-2)]">— <span className="text-[10px]">(no scale with {RELIABLE_N}+ games)</span></span>}
+                    {tie.runnerUp && (tie.isNearTie ? (
+                      <span
+                        className="ml-1.5 inline-flex items-center rounded px-1 py-0 text-[9px] font-semibold bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                        title={`Effectively tied with ${(tie.runnerUp.eDPI / MOUSE_DPI).toFixed(2)} sens (accuracy gap ${tie.accGap != null ? tie.accGap.toFixed(2) : '—'} pts${tie.heroStatGap != null ? `, hero-stat gap ${tie.heroStatGap.toFixed(2)} pts` : ''}) — the rank math had to break a near-tie, not identify a clear winner.`}
+                      >
+                        ≈ tie
+                      </span>
+                    ) : (
+                      <span
+                        className="ml-1.5 text-[9px] text-emerald-600 dark:text-emerald-500"
+                        title={`Clearly ahead of runner-up ${(tie.runnerUp.eDPI / MOUSE_DPI).toFixed(2)} sens (accuracy gap ${tie.accGap != null ? tie.accGap.toFixed(2) : '—'} pts${tie.heroStatGap != null ? `, hero-stat gap ${tie.heroStatGap.toFixed(2)} pts` : ''})`}
+                      >
+                        ✓
+                      </span>
+                    ))}
                   </td>
                   <td className={`py-1.5 pr-3 font-bold ${deltaColor(h.bestScaleOverallDelta)}`}>{signed(h.bestScaleOverallDelta)}</td>
                   <td className={`py-1.5 font-bold ${deltaColor(h.bestScaleCritDelta)}`}>{hasCrit(h.hero) ? signed(h.bestScaleCritDelta) : <span className="text-[var(--faint-2)]">—</span>}</td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -1378,9 +1582,9 @@ export default function SensAnalysis() {
           continuous best-guess optimal sens rather than just whichever
           tested point happened to score best. */}
       {(() => {
-        const rows: { label: string; fit: CurveFit | null }[] = [
-          { label: 'Overall', fit: data.overallCurveFit },
-          ...heroes.map(h => ({ label: h.hero, fit: h.curveFit })),
+        const rows: { label: string; fit: CurveFit | null; hero: HeroRow | null }[] = [
+          { label: 'Overall', fit: data.overallCurveFit, hero: null },
+          ...heroes.map(h => ({ label: h.hero, fit: h.curveFit, hero: h })),
         ];
         const withFit = rows.filter(r => r.fit != null);
         // Co-primary companion rows (2026-09-17): the SAME kind of curve,
@@ -1394,12 +1598,22 @@ export default function SensAnalysis() {
           if (h.heroStatCurveChannel === 'heroStat') return h.heroStatLabel ?? 'signature stat';
           return 'hero stat';
         };
-        const heroStatRows: { label: string; fit: CurveFit | null }[] = [
-          { label: 'Overall (crit, pooled)', fit: data.heroStatCurveFit },
-          ...heroes.map(h => ({ label: `${h.hero} (${heroStatChannelLabel(h)})`, fit: h.heroStatCurveFit })),
+        const heroStatRows: { label: string; fit: CurveFit | null; hero: HeroRow | null }[] = [
+          { label: 'Overall (crit, pooled)', fit: data.heroStatCurveFit, hero: null },
+          ...heroes.map(h => ({ label: `${h.hero} (${heroStatChannelLabel(h)})`, fit: h.heroStatCurveFit, hero: h })),
         ];
         const heroStatWithFit = heroStatRows.filter(r => r.fit != null);
-        const fitNote = (fit: CurveFit, subject: string): { text: string; tone: 'good' | 'warn' | 'neutral' } => {
+        // 2026-09-17, Sean's correction: "a quadratic through scattered
+        // points has a vertex, and that vertex is meaningless when r² is
+        // low... make the page enforce that rather than leaving it as a
+        // comment." The weak-fit branch fires BEFORE hasInteriorPeak/inRange
+        // are even consulted, and the table cells below gate the numeric
+        // best-sens/result on it too — a weak fit shows no number at all,
+        // not a confident one wrapped in a caveat.
+        const fitNote = (fit: CurveFit, subject: string): { text: string; tone: 'good' | 'warn' | 'bad' | 'neutral' } => {
+          if (fit.r2 < WEAK_FIT_R2) {
+            return { text: `R²=${fit.r2.toFixed(2)} — the tested points don't follow a curve well enough to trust any estimated peak, no matter how many games are behind it. Treat this as no finding, not a rough guess.`, tone: 'bad' };
+          }
           if (!fit.hasInteriorPeak) {
             return { text: `${subject} is still climbing toward one edge of what you’ve tested, not leveling off in the middle — try testing further past that edge.`, tone: 'warn' };
           }
@@ -1409,12 +1623,12 @@ export default function SensAnalysis() {
           if (fit.r2 >= 0.5 && fit.totalN >= CONFIDENT_N && fit.points >= CONFIDENT_SCALES) {
             return { text: `Fits your results well, and you’ve logged enough games and scales behind it — a reasonably solid guess.`, tone: 'good' };
           }
-          return { text: `Only ${fit.totalN} games across ${fit.points} scales so far — a rough guess, still thin. Keep logging.`, tone: 'neutral' };
+          return { text: `R²=${fit.r2.toFixed(2)} — a real but modest fit. Only ${fit.totalN} games across ${fit.points} scales so far — worth taking seriously, still thin. Keep logging.`, tone: 'neutral' };
         };
         return (
           <Section
             title="Estimated Sweet Spot"
-            hint="Draws a smooth curve through each category's tested scales to guess where the peak actually is, instead of just picking whichever tested scale happened to score best. Two curves, equal standing: accuracy, and each hero's own crit/extra/signature stat — see Sean's 2026-09-17 call. Needs at least 3 reliable tested scales to draw a curve at all."
+            hint={`Draws a smooth curve through each category's tested scales to guess where the peak actually is, instead of just picking whichever tested scale happened to score best. Two curves, equal standing: accuracy, and each hero's own crit/extra/signature stat. A quadratic ALWAYS has a vertex — R² below ${WEAK_FIT_R2} means the points don't actually follow that shape, so any row (or mini-chart) below that bar shows no estimated sens or result, on purpose, instead of a confident-looking number built on scatter. Needs at least 3 reliable tested scales to draw a curve at all.`}
             dataInspectId="sensAnalysis-curve-fit-card"
           >
             {curveLine && curveTestedPts.length >= 3 && (
@@ -1448,6 +1662,18 @@ export default function SensAnalysis() {
                 <p className="text-[10px] text-[var(--faint-2)] mt-1">Orange line: the estimated curve. Dark dots: your actual tested scales it's based on (Overall only).</p>
               </div>
             )}
+            <h3 className="text-xs font-bold text-[var(--ink)] mb-2">Every Category's Curve — Accuracy</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6" data-inspect-id="sensAnalysis-mini-curve-grid-accuracy">
+              {rows.map(r => (
+                <MiniCurveChart
+                  key={r.label}
+                  fit={r.fit}
+                  points={r.hero ? testedPointsFor(r.hero.scales, s => s.avgDelta) : curveTestedPts}
+                  label={r.label === 'Overall' ? r.label : withHeroCount(r.label, heroCounts)}
+                />
+              ))}
+            </div>
+
             <h3 className="text-xs font-bold text-[var(--ink)] mb-2">By Accuracy</h3>
             {withFit.length ? (
               <div className="overflow-x-auto mb-6">
@@ -1455,7 +1681,7 @@ export default function SensAnalysis() {
                   <thead>
                     <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
                       <th className="py-1.5 pr-3">Category</th><th className="py-1.5 pr-3">Scales Tested</th><th className="py-1.5 pr-3">Games Logged</th>
-                      <th className="py-1.5 pr-3">Estimated Best Sens</th><th className="py-1.5 pr-3">Estimated Result</th><th className="py-1.5">Read</th>
+                      <th className="py-1.5 pr-3">R²</th><th className="py-1.5 pr-3">Estimated Best Sens</th><th className="py-1.5 pr-3">Estimated Result</th><th className="py-1.5">Read</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1464,21 +1690,23 @@ export default function SensAnalysis() {
                         return (
                           <tr key={r.label} className="border-t border-ow-border text-[var(--faint)]">
                             <td className="py-1.5 pr-3 hero-name text-[var(--ink)]">{r.label === 'Overall' ? r.label : withHeroCount(r.label, heroCounts)}</td>
-                            <td className="py-1.5 pr-3" colSpan={4}>Needs at least 3 reliable tested scales to draw a curve.</td>
+                            <td className="py-1.5 pr-3" colSpan={5}>Needs at least 3 reliable tested scales to draw a curve.</td>
                           </tr>
                         );
                       }
                       const note = fitNote(r.fit, 'Accuracy');
-                      const toneClass = note.tone === 'good' ? 'text-emerald-700 dark:text-emerald-500' : note.tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--faint)]';
+                      const weak = r.fit.r2 < WEAK_FIT_R2;
+                      const toneClass = note.tone === 'good' ? 'text-emerald-700 dark:text-emerald-500' : note.tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : note.tone === 'bad' ? 'text-red-600 dark:text-red-400' : 'text-[var(--faint)]';
                       return (
                         <tr key={r.label} className="border-t border-ow-border text-[var(--ink-2)] align-top">
                           <td className="py-1.5 pr-3 hero-name text-[var(--ink)] font-bold whitespace-nowrap">{r.label === 'Overall' ? r.label : withHeroCount(r.label, heroCounts)}</td>
                           <td className="py-1.5 pr-3 font-bold">{r.fit.points}</td>
                           <td className="py-1.5 pr-3 font-bold">{r.fit.totalN}</td>
+                          <td className={`py-1.5 pr-3 font-bold ${weak ? 'text-red-600 dark:text-red-400' : r.fit.r2 >= 0.5 ? 'text-emerald-700 dark:text-emerald-500' : ''}`}>{r.fit.r2.toFixed(2)}</td>
                           <td className="py-1.5 pr-3 font-bold text-[var(--ink)] whitespace-nowrap">
-                            {r.fit.hasInteriorPeak ? r.fit.optimalSens?.toFixed(2) : '—'}
+                            {!weak && r.fit.hasInteriorPeak ? r.fit.optimalSens?.toFixed(2) : '—'}
                           </td>
-                          <td className={`py-1.5 pr-3 font-bold ${deltaColor(r.fit.predictedDelta)}`}>{r.fit.hasInteriorPeak ? signed(r.fit.predictedDelta) : '—'}</td>
+                          <td className={`py-1.5 pr-3 font-bold ${!weak ? deltaColor(r.fit.predictedDelta) : ''}`}>{!weak && r.fit.hasInteriorPeak ? signed(r.fit.predictedDelta) : '—'}</td>
                           <td className={`py-1.5 text-xs ${toneClass}`}>{note.text}</td>
                         </tr>
                       );
@@ -1496,6 +1724,18 @@ export default function SensAnalysis() {
                 percentage for crit/extra, sometimes a raw per-match count
                 for a signature stat) — read each row against its own name,
                 not against the accuracy table above it. */}
+            <h3 className="text-xs font-bold text-[var(--ink)] mb-2">Every Category's Curve — Hero-Specific Stat</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6" data-inspect-id="sensAnalysis-mini-curve-grid-hero-stat">
+              {heroStatRows.map(r => (
+                <MiniCurveChart
+                  key={r.label}
+                  fit={r.fit}
+                  points={r.hero ? testedPointsFor(r.hero.scales, heroStatChannelValueOf(r.hero.heroStatCurveChannel)) : testedPointsFor(byScale, s => s.avgCritDelta)}
+                  label={r.label}
+                />
+              ))}
+            </div>
+
             <h3 className="text-xs font-bold text-[var(--ink)] mb-2">By Hero-Specific Stat</h3>
             {heroStatWithFit.length ? (
               <div className="overflow-x-auto">
@@ -1503,7 +1743,7 @@ export default function SensAnalysis() {
                   <thead>
                     <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
                       <th className="py-1.5 pr-3">Category (channel)</th><th className="py-1.5 pr-3">Scales Tested</th><th className="py-1.5 pr-3">Games Logged</th>
-                      <th className="py-1.5 pr-3">Estimated Best Sens</th><th className="py-1.5 pr-3">Estimated Result</th><th className="py-1.5">Read</th>
+                      <th className="py-1.5 pr-3">R²</th><th className="py-1.5 pr-3">Estimated Best Sens</th><th className="py-1.5 pr-3">Estimated Result</th><th className="py-1.5">Read</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1512,21 +1752,23 @@ export default function SensAnalysis() {
                         return (
                           <tr key={r.label} className="border-t border-ow-border text-[var(--faint)]">
                             <td className="py-1.5 pr-3 hero-name text-[var(--ink)]">{r.label}</td>
-                            <td className="py-1.5 pr-3" colSpan={4}>Needs at least 3 reliable tested scales, or no crit/extra/signature stat logged for this hero yet.</td>
+                            <td className="py-1.5 pr-3" colSpan={5}>Needs at least 3 reliable tested scales, or no crit/extra/signature stat logged for this hero yet.</td>
                           </tr>
                         );
                       }
                       const note = fitNote(r.fit, 'This stat');
-                      const toneClass = note.tone === 'good' ? 'text-emerald-700 dark:text-emerald-500' : note.tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--faint)]';
+                      const weak = r.fit.r2 < WEAK_FIT_R2;
+                      const toneClass = note.tone === 'good' ? 'text-emerald-700 dark:text-emerald-500' : note.tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : note.tone === 'bad' ? 'text-red-600 dark:text-red-400' : 'text-[var(--faint)]';
                       return (
                         <tr key={r.label} className="border-t border-ow-border text-[var(--ink-2)] align-top">
                           <td className="py-1.5 pr-3 hero-name text-[var(--ink)] font-bold whitespace-nowrap">{r.label}</td>
                           <td className="py-1.5 pr-3 font-bold">{r.fit.points}</td>
                           <td className="py-1.5 pr-3 font-bold">{r.fit.totalN}</td>
+                          <td className={`py-1.5 pr-3 font-bold ${weak ? 'text-red-600 dark:text-red-400' : r.fit.r2 >= 0.5 ? 'text-emerald-700 dark:text-emerald-500' : ''}`}>{r.fit.r2.toFixed(2)}</td>
                           <td className="py-1.5 pr-3 font-bold text-[var(--ink)] whitespace-nowrap">
-                            {r.fit.hasInteriorPeak ? r.fit.optimalSens?.toFixed(2) : '—'}
+                            {!weak && r.fit.hasInteriorPeak ? r.fit.optimalSens?.toFixed(2) : '—'}
                           </td>
-                          <td className={`py-1.5 pr-3 font-bold ${deltaColor(r.fit.predictedDelta)}`}>{r.fit.hasInteriorPeak ? signed(r.fit.predictedDelta) : '—'}</td>
+                          <td className={`py-1.5 pr-3 font-bold ${!weak ? deltaColor(r.fit.predictedDelta) : ''}`}>{!weak && r.fit.hasInteriorPeak ? signed(r.fit.predictedDelta) : '—'}</td>
                           <td className={`py-1.5 text-xs ${toneClass}`}>{note.text}</td>
                         </tr>
                       );
@@ -1593,6 +1835,167 @@ export default function SensAnalysis() {
             ) : (
               <p className="text-xs text-[var(--faint)]">Not enough per-hero, per-scale samples yet — keep logging games so a scale can build up 2+ per hero.</p>
             )}
+          </Section>
+        );
+      })()}
+
+      {/* Mouse-accel curve confound (2026-09-17) — SECONDARY to the fitted
+          accuracy/sens curve above, per Sean's own correction mid-task: he'd
+          forgotten the Rawaccel accel curve existed when he asked for "the
+          curve" and meant the fitted curve, not this one. Kept, demoted, and
+          placed low on the page rather than as a headline section. Still a
+          real finding: curve_enabled=1 pools three distinct curve settings,
+          and Sean's actual Rawaccel setup is a LUT (lookup-table) staircase
+          — 1,1;16,1;16.1,1.02;32,1.02;32.1,1.1;140,1.1 — while this app only
+          ever recorded a smoothed Jump curve (smooth/input/output). Those are
+          different MECHANISMS (a staircase has no smoothing and is capped at
+          1.1x; the app's model has a soft transition and currently reads
+          1.15x-1.5x), not just different numbers, so the 203 curve_enabled=1
+          matches may not accurately describe what was actually running.
+          Investigated, not fixed: the schema has no way to store a LUT
+          (curve_params/matches only ever hold three scalars) — representing
+          one would need a new column shape or table, out of scope here per
+          Sean's explicit no-schema-change instruction. */}
+      {(() => {
+        const c = data.liveCurve;
+        return (
+          <Section
+            title="Mouse-Accel Curve — Confound Check"
+            hint={`Secondary to the fitted curve above (Sean's own correction, 2026-09-17). Every distinct curve setting actually found in this page's data — curve OFF is its own row. ${curveIsConfounded ? `${curveOnVariants.length} different "curve on" settings exist — any curve-on-vs-off read is mixing that many interventions into one label.` : 'Only one setting on record so far.'}`}
+            dataInspectId="sensAnalysis-curve-confound"
+          >
+            <p className="text-xs text-[var(--faint)] rounded-lg bg-ow-darker border border-ow-border px-3 py-2 mb-3">
+              App-recorded live curve (Jump model): <b className="text-[var(--ink)] num-display">{c.smooth}</b> smooth /{' '}
+              <b className="text-[var(--ink)] num-display">{c.input}</b> input /{' '}
+              <b className="text-[var(--ink)] num-display">{c.output}</b> output. Sean's actual Rawaccel setup is a
+              LUT staircase (1,1; 16,1; 16.1,1.02; 32,1.02; 32.1,1.1; 140,1.1) — a different mechanism (no smoothing,
+              capped at 1.1×) than the Jump model above. This app cannot represent a LUT; the columns it writes are
+              Jump parameters that approximate, but do not exactly describe, what was actually running.
+            </p>
+            {curveIsConfounded && (
+              <p className="text-xs rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 px-3 py-2 mb-3" data-inspect-id="sensAnalysis-curve-confound-warning">
+                <b>{curveOnVariants.length} different "curve on" settings</b> show up in this data — it is NOT one
+                treatment. Any curve-on-vs-off read elsewhere on this page (or in past reports) pools all of them
+                together. Treat curve findings as unresolved until scoped to one specific setting.
+              </p>
+            )}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
+                    <th className="py-1.5 pr-3">Curve</th><th className="py-1.5 pr-3">n</th><th className="py-1.5 pr-3">Overall</th><th className="py-1.5">vs. Avg</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {curveOffVariant && (
+                    <tr className="border-t border-ow-border text-[var(--ink-2)]">
+                      <td className="py-1.5 pr-3 text-[var(--ink)] font-bold">Off</td>
+                      <td className="py-1.5 pr-3 font-bold">{curveOffVariant.n}</td>
+                      <td className="py-1.5 pr-3">{f1(curveOffVariant.avgOverall)}%</td>
+                      <td className={`py-1.5 ${deltaColor(curveOffVariant.avgDelta)}`}>{signed(curveOffVariant.avgDelta)}</td>
+                    </tr>
+                  )}
+                  {curveOnVariants.map((v, i) => (
+                    <tr key={i} className="border-t border-ow-border text-[var(--ink-2)]">
+                      <td className="py-1.5 pr-3 text-[var(--ink)] font-bold">
+                        On — {v.smooth ?? '—'}/{v.input ?? '—'}/{v.output ?? '—'}
+                        <span className="ml-1 text-[10px] font-normal text-[var(--faint-2)]">(smooth/input/output)</span>
+                      </td>
+                      <td className="py-1.5 pr-3 font-bold">{v.n}</td>
+                      <td className="py-1.5 pr-3">{f1(v.avgOverall)}%</td>
+                      <td className={`py-1.5 ${deltaColor(v.avgDelta)}`}>{signed(v.avgDelta)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Section>
+        );
+      })()}
+
+      {/* Hero-stat coverage (2026-09-17) — which heroes actually have a
+          crit/extra/signature stat logged, and which fall back to
+          accuracy-only in every co-primary pick above without any visible
+          flag that they were weaker inputs. Zenyatta is the concrete case:
+          heroStatLabel is null for him, so his co-primary pick falls back to
+          crit alone — one channel instead of two, same as every hero below. */}
+      {(() => {
+        const coverage = heroes.map(h => {
+          const crit = hasCrit(h.hero) ? critSlotShort(h.hero) : null;
+          const extra = extraSlotShort(h.hero);
+          const sig = h.heroStatLabel;
+          const none = crit == null && extra == null && sig == null;
+          return { h, crit, extra, sig, none };
+        });
+        const missing = coverage.filter(c => c.none);
+        return (
+          <Section
+            title="Hero-Stat Coverage"
+            hint={`Which heroes have a crit/extra/signature stat logged at all — the co-primary picks above weigh hero stats equally with accuracy, but only for heroes that HAVE one. ${missing.length} of ${heroes.length} heroes have no hero-stat channel${missing.length ? ` (${missing.map(m => m.h.hero).join(', ')})` : ''} — their best-sens pick and curve fit are accuracy-only, a weaker version of the same analysis, with no other flag on the page saying so.`}
+            dataInspectId="sensAnalysis-hero-stat-coverage"
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
+                    <th className="py-1.5 pr-3">Hero</th><th className="py-1.5 pr-3">Crit slot</th><th className="py-1.5 pr-3">Extra slot</th><th className="py-1.5 pr-3">Signature stat</th><th className="py-1.5">Co-primary basis</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {coverage.map(c => (
+                    <tr key={c.h.hero} className={`border-t border-ow-border ${c.none ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--ink-2)]'}`}>
+                      <td className="py-1.5 pr-3 text-xs hero-name text-[var(--ink)]">{withHeroCount(c.h.hero, heroCounts)}</td>
+                      <td className="py-1.5 pr-3">{c.crit ?? '—'}</td>
+                      <td className="py-1.5 pr-3">{c.extra ?? '—'}</td>
+                      <td className="py-1.5 pr-3">{c.sig ? `${c.sig} (n=${c.h.nHeroStat})` : '—'}</td>
+                      <td className="py-1.5 font-bold">{c.none ? 'Accuracy only' : 'Accuracy + hero stat'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Section>
+        );
+      })()}
+
+      {/* Where the minimum-n guard is biting (2026-09-17) — RELIABLE_N (5)
+          excludes a scale from every pick/fit/finding on this page, but
+          nothing previously said how MANY of a hero's tested scales actually
+          sit below that bar. A hero could look thoroughly tested by total n
+          while most of that n is scattered across thin, excluded buckets. */}
+      {(() => {
+        const rows = heroes.map(h => {
+          const total = h.scales.length;
+          const reliable = h.scales.filter(s => s.reliable).length;
+          return { hero: h.hero, total, reliable, thin: total - reliable };
+        });
+        const rosterTotal = byScale.length;
+        const rosterReliable = byScale.filter(s => s.reliable).length;
+        return (
+          <Section
+            title="Where the Minimum-N Guard Is Biting"
+            hint={`Scales need ${RELIABLE_N}+ games before they can win a pick or feed a curve fit or finding (MIN_SCALE_N). Roster-wide, ${rosterTotal - rosterReliable} of ${rosterTotal} tested scales are still below that bar. This breaks it down per hero, so "thoroughly tested" by total games doesn't hide a hero whose games are mostly scattered across thin, excluded scales.`}
+            dataInspectId="sensAnalysis-min-n-coverage"
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
+                    <th className="py-1.5 pr-3">Hero</th><th className="py-1.5 pr-3">Scales tested</th><th className="py-1.5 pr-3">Reliable (n≥{RELIABLE_N})</th><th className="py-1.5">Thin (excluded)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(r => (
+                    <tr key={r.hero} className="border-t border-ow-border text-[var(--ink-2)]">
+                      <td className="py-1.5 pr-3 text-xs hero-name text-[var(--ink)]">{withHeroCount(r.hero, heroCounts)}</td>
+                      <td className="py-1.5 pr-3 font-bold">{r.total}</td>
+                      <td className="py-1.5 pr-3 font-bold text-emerald-700 dark:text-emerald-500">{r.reliable}</td>
+                      <td className={`py-1.5 font-bold ${r.thin > 0 ? 'text-amber-600 dark:text-amber-400' : ''}`}>{r.thin}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </Section>
         );
       })()}

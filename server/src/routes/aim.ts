@@ -182,8 +182,16 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
   // hero and nulled on every other hero in the same match; without that guard
   // a mid-match switch would credit the primary hero's signature stat to
   // whoever was switched to.
+  // curve_enabled/curve_growth_rate/curve_midpoint/curve_motivity join the
+  // projection here (2026-09-17) — see curveVariantKey/summarizeCurveVariants
+  // below. Names are legacy from an older curve model: curve_growth_rate
+  // holds smooth, curve_midpoint holds input, curve_motivity holds output
+  // (verified 2026-09-17 against matches.ts's INSERT, which stamps
+  // curveParams.smooth/input/output into exactly those three columns in that
+  // order — not inferred from value agreement alone).
   const rows = db.prepare(`
     SELECT m.id, ah.hero, mh.sens, m.dpi, m.win, m.date, mh.feel, m.blind_trial,
+           m.curve_enabled, m.curve_growth_rate, m.curve_midpoint, m.curve_motivity,
            ah.overall_acc, ah.crit_acc, ah.extra_acc, ah.duration_min AS hero_duration_min,
            a.hero_stat_label, a.hero_stat_value, m.hero AS primary_hero, a.created_at,
            -- Output stats. All live on aim_stats, which is one row per MATCH,
@@ -198,6 +206,7 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
     WHERE mh.sens IS NOT NULL AND ah.overall_acc IS NOT NULL
   `).all() as unknown as {
     id: number; hero: string; sens: number; dpi: number | null; win: 0 | 1; blind_trial: 0 | 1 | null;
+    curve_enabled: 0 | 1; curve_growth_rate: number | null; curve_midpoint: number | null; curve_motivity: number | null;
     overall_acc: number; crit_acc: number | null; extra_acc: number | null;
     hero_stat_label: string | null; hero_stat_value: number | null; primary_hero: string;
     damage: number | null; healing: number | null; elims: number | null;
@@ -364,6 +373,33 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
     return out;
   })();
 
+  // ── Curve confound (2026-09-17) ───────────────────────────────────────────
+  // Sean queried `matches` directly and found curve_enabled=1 pools THREE
+  // different curve settings (0.25/14/1.15 × 134, 1.0/12/null × 58,
+  // 0.25/14/1.5 × 11), not one treatment — the 2026-09-09 Phase 9 report
+  // suspected this ("the curve itself was being live-tuned through Phase
+  // 7-8") without being able to name it. This groups points by the ACTUAL
+  // curve variant they were played under (curve off counts as its own
+  // variant) so the page can show a set of matches was tested under, rather
+  // than pooling every curve-on match into one number. Deliberately not
+  // folded into any existing metric — a presentation-layer breakdown only,
+  // per Sean's instruction not to change computations as part of this task.
+  const curveVariantKey = (p: { curve_enabled: 0 | 1; curve_growth_rate: number | null; curve_midpoint: number | null; curve_motivity: number | null }) =>
+    `${p.curve_enabled}|${p.curve_growth_rate ?? ''}|${p.curve_midpoint ?? ''}|${p.curve_motivity ?? ''}`;
+
+  const summarizeCurveVariants = (items: typeof pts) =>
+    [...groupBy(items, curveVariantKey).values()]
+      .map(g => ({
+        curveEnabled: g[0].curve_enabled === 1,
+        smooth: g[0].curve_growth_rate,
+        input: g[0].curve_midpoint,
+        output: g[0].curve_motivity,
+        n: g.length,
+        avgOverall: mean(g.map(p => p.overall_acc)),
+        avgDelta: mean(g.filter(p => p.delta != null).map(p => p.delta as number)),
+      }))
+      .sort((a, b) => b.n - a.n);
+
   const byScale = (items: typeof pts) =>
     [...groupBy(items, p => cmBucket(p.cm360)).entries()]
       .map(([cm, ps]) => {
@@ -437,6 +473,11 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
           // than a stable read on the scale itself.
           distinctDates: new Set(dates).size,
           dateSpanDays: Math.round((Date.parse(dates.reduce((a, b) => (b > a ? b : a))) - Date.parse(dates.reduce((a, b) => (b < a ? b : a)))) / 86400000),
+          // Which curve setting(s) this bucket's games were actually played
+          // under. Length > 1 means this one scale bucket mixes matches from
+          // different curve treatments (including curve-off vs curve-on) —
+          // its pooled averages above are not one clean experiment.
+          curveVariants: summarizeCurveVariants(ps),
         };
       })
       .sort((a, b) => a.cm360 - b.cm360);
@@ -611,6 +652,16 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
       distinctScale: new Set(pts.map(p => cmBucket(p.cm360))).size,
       lastUpdated,
     },
+    // The curve currently live in Rawaccel (same values GET /api/aim/curve
+    // returns) — surfaced here too so the analysis page can show what curve
+    // is running without a second round trip (2026-09-17, Sean's request:
+    // "give me relevant info like the curve that we are working off of").
+    liveCurve: getCurveParams(db),
+    // Roster-wide curve-variant breakdown — see summarizeCurveVariants above.
+    // curve_enabled=0 is its own variant (curve off), so this is the direct
+    // answer to "how many study points were played under which curve,
+    // including off."
+    curveBreakdown: summarizeCurveVariants(pts),
     // Chronological, point-level feed (not aggregated by scale) so the
     // frontend can plot accuracy over time — every other view on this page
     // aggregates by scale bucket, which discards time order entirely and

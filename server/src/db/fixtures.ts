@@ -25,6 +25,14 @@ export interface MatchInput {
   blind_trial?: 0 | 1;
   blind_set_id?: number | null;
   stage_index?: number | null;
+  // Rawaccel curve columns stamped per match (see matches.ts's insert). Named
+  // curve_growth_rate/curve_midpoint/curve_motivity in the schema (legacy
+  // names from an older curve model) but they hold smooth/input/output
+  // respectively — see curveParams.ts and 2026-09-17's confound finding.
+  curve_enabled?: 0 | 1;
+  curve_growth_rate?: number | null;
+  curve_midpoint?: number | null;
+  curve_motivity?: number | null;
 }
 
 // Inserts a matches row. Does NOT insert the corresponding match_heroes
@@ -33,8 +41,8 @@ export interface MatchInput {
 // insert both explicitly, so fixtures do the same via insertHeroSlot below.
 export function insertMatch(db: DB, m: MatchInput): number {
   const info = db.prepare(`
-    INSERT INTO matches (date, time, day_of_week, hour, hero, role, map, game_type, win, queue_mode, sens, dpi, feel, blind_trial, blind_set_id, stage_index)
-    VALUES (:date, :time, :day_of_week, :hour, :hero, :role, :map, :game_type, :win, :queue_mode, :sens, :dpi, :feel, :blind_trial, :blind_set_id, :stage_index)
+    INSERT INTO matches (date, time, day_of_week, hour, hero, role, map, game_type, win, queue_mode, sens, dpi, feel, blind_trial, blind_set_id, stage_index, curve_enabled, curve_growth_rate, curve_midpoint, curve_motivity)
+    VALUES (:date, :time, :day_of_week, :hour, :hero, :role, :map, :game_type, :win, :queue_mode, :sens, :dpi, :feel, :blind_trial, :blind_set_id, :stage_index, :curve_enabled, :curve_growth_rate, :curve_midpoint, :curve_motivity)
   `).run({
     date: m.date,
     time: m.time ?? null,
@@ -52,6 +60,10 @@ export function insertMatch(db: DB, m: MatchInput): number {
     blind_trial: m.blind_trial ?? 0,
     blind_set_id: m.blind_set_id ?? null,
     stage_index: m.stage_index ?? null,
+    curve_enabled: m.curve_enabled ?? 0,
+    curve_growth_rate: m.curve_growth_rate ?? null,
+    curve_midpoint: m.curve_midpoint ?? null,
+    curve_motivity: m.curve_motivity ?? null,
   });
   return Number(info.lastInsertRowid);
 }

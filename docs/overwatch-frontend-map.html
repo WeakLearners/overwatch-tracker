@@ -2419,9 +2419,10 @@ const DATA = {
       "category": "client-page",
       "layer": 1,
       "file": "client/src/pages/SensAnalysis.tsx",
-      "description": "Sensitivity study results dashboard: a data-grounded Recommendation card (verdict + supporting points), a 'What the Data Shows' auto-generated insights card, Feel-vs-Data and Peak-Sens-by-Category scatter charts, Cold-vs-Warm and Adaptation comparison cards, By-Scale and By-Hero tables, and two accuracy box-plot charts (by sens per hero, by hero per sens).",
+      "description": "Sensitivity study results dashboard: a data-grounded Recommendation card (verdict + supporting points), a 'What the Data Shows' auto-generated insights card, Feel-vs-Data and Peak-Sens-by-Category scatter charts, Cold-vs-Warm and Adaptation comparison cards, By-Scale and By-Hero tables, and two accuracy box-plot charts (by sens per hero, by hero per sens). Overhauled 2026-09-17: added the live curve chart and curve-variant confound breakdown, active stage-test progress, hero-stat coverage, and minimum-n coverage sections, plus near-tie badges on the By Hero table's best-sens pick and curve-mix warnings on the By Scale table.",
       "calls": [
-        "GET /api/aim/analysis"
+        "GET /api/aim/analysis",
+        "GET /api/blind/state"
       ],
       "uiElements": [
         {
@@ -2752,6 +2753,86 @@ const DATA = {
           "locate": {
             "path": "client/src/pages/SensAnalysis.tsx:1135",
             "grep": "grep -n -F -- 'Accuracy by Sens \u2014 Per Hero' client/src/pages/SensAnalysis.tsx"
+          }
+        },
+        {
+          "id": "sensAnalysis-curve-confound",
+          "label": "Mouse-Accel Curve \u2014 Confound Check card (secondary)",
+          "kind": "card",
+          "description": "Secondary panel (demoted 2026-09-17 per Sean's own correction \u2014 he'd meant the fitted accuracy/sens curve, not the Rawaccel accel curve). Shows the app-recorded live Jump-curve params, notes the LUT-vs-Jump mechanism mismatch with Sean's actual Rawaccel setup, and breaks down every distinct curve setting found in the study data (curve off is its own row) \u2014 surfaces the finding that curve_enabled=1 pools three different curve settings.",
+          "locate": {
+            "path": "client/src/pages/SensAnalysis.tsx:1865",
+            "grep": "grep -n -F -- 'dataInspectId=\"sensAnalysis-curve-confound\"' client/src/pages/SensAnalysis.tsx"
+          }
+        },
+        {
+          "id": "sensAnalysis-curve-confound-warning",
+          "label": "Curve Confound multi-variant warning banner",
+          "kind": "banner",
+          "description": "Amber warning shown only when more than one distinct 'curve on' setting exists in the data, stating explicitly that curve-on-vs-off reads elsewhere on the page pool all of them together.",
+          "locate": {
+            "path": "client/src/pages/SensAnalysis.tsx:1876",
+            "grep": "grep -n -F -- 'data-inspect-id=\"sensAnalysis-curve-confound-warning\"' client/src/pages/SensAnalysis.tsx"
+          }
+        },
+        {
+          "id": "sensAnalysis-study-progress",
+          "label": "Study Progress card",
+          "kind": "card",
+          "description": "Lists any active blind stage-test sets (hero, stage X of Y, games on stage, total games, curve-on/complete flags) via GET /api/blind/state \u2014 the same feed the Testing page's HUD reads, surfaced here (2026-09-17) so findings can be read alongside how far along the underlying test actually is. Rendered only when at least one set is active.",
+          "locate": {
+            "path": "client/src/pages/SensAnalysis.tsx:1008",
+            "grep": "grep -n -F -- 'dataInspectId=\"sensAnalysis-study-progress\"' client/src/pages/SensAnalysis.tsx"
+          }
+        },
+        {
+          "id": "sensAnalysis-study-progress-set",
+          "label": "Study Progress: one active set's tile",
+          "kind": "card",
+          "description": "One tile per active stage-test set inside the Study Progress card \u2014 hero, stage progress, games-on-stage/total, curve-on and completed flags.",
+          "locate": {
+            "path": "client/src/pages/SensAnalysis.tsx:1012",
+            "grep": "grep -n -F -- 'data-inspect-id=\"sensAnalysis-study-progress-set\"' client/src/pages/SensAnalysis.tsx"
+          }
+        },
+        {
+          "id": "sensAnalysis-hero-stat-coverage",
+          "label": "Hero-Stat Coverage card",
+          "kind": "card",
+          "description": "Table of every hero's crit/extra/signature-stat coverage, flagging heroes (e.g. Zenyatta, whose heroStatLabel is null) that have no hero-stat channel at all and so fall back to an accuracy-only pick in every co-primary selection on the page \u2014 added 2026-09-17 so that gap is visible instead of silent.",
+          "locate": {
+            "path": "client/src/pages/SensAnalysis.tsx:1935",
+            "grep": "grep -n -F -- 'dataInspectId=\"sensAnalysis-hero-stat-coverage\"' client/src/pages/SensAnalysis.tsx"
+          }
+        },
+        {
+          "id": "sensAnalysis-min-n-coverage",
+          "label": "Where the Minimum-N Guard Is Biting card",
+          "kind": "card",
+          "description": "Per-hero and roster-wide count of tested scales that clear vs. fall below MIN_SCALE_N/RELIABLE_N (5 games) \u2014 added 2026-09-17 so a hero's total game count can't hide that most of it is scattered across thin, excluded scale buckets.",
+          "locate": {
+            "path": "client/src/pages/SensAnalysis.tsx:1978",
+            "grep": "grep -n -F -- 'dataInspectId=\"sensAnalysis-min-n-coverage\"' client/src/pages/SensAnalysis.tsx"
+          }
+        },
+        {
+          "id": "sensAnalysis-mini-curve-grid-accuracy",
+          "label": "Every Category's Curve \u2014 Accuracy mini-chart grid",
+          "kind": "card",
+          "description": "Small-multiples grid: one compact curve-fit chart per category (Overall + every hero) fit against accuracy, each showing its own R\u00b2, tested points, and a plain 'too scattered to trust a peak' note when R\u00b2 is below WEAK_FIT_R2 \u2014 added 2026-09-17 per Sean's correction that the fitted curve (not the mouse-accel curve) needed to be a first-class, legible object for the roster AND per hero.",
+          "locate": {
+            "path": "client/src/pages/SensAnalysis.tsx:1666",
+            "grep": "grep -n -F -- 'data-inspect-id=\"sensAnalysis-mini-curve-grid-accuracy\"' client/src/pages/SensAnalysis.tsx"
+          }
+        },
+        {
+          "id": "sensAnalysis-mini-curve-grid-hero-stat",
+          "label": "Every Category's Curve \u2014 Hero-Specific Stat mini-chart grid",
+          "kind": "card",
+          "description": "Same mini-chart treatment as the accuracy grid, run against each hero's own richest hero-stat channel (crit/extra/signature) instead of accuracy \u2014 equal standing with the accuracy curves per Sean's 2026-09-17 co-primary call.",
+          "locate": {
+            "path": "client/src/pages/SensAnalysis.tsx:1728",
+            "grep": "grep -n -F -- 'data-inspect-id=\"sensAnalysis-mini-curve-grid-hero-stat\"' client/src/pages/SensAnalysis.tsx"
           }
         }
       ]
@@ -4048,6 +4129,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 
