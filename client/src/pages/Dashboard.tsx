@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect } from 'react';
 import { useApi } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
@@ -15,8 +15,6 @@ import Prematch from './Prematch';
 import LogMatch from './LogMatch';
 import TrendsSummary from '../components/TrendsSummary';
 
-// Recent-match tile letter by queue mode (colour still encodes win/loss).
-const MODE_LETTER: Record<string, string> = { qp_role: 'Q', comp_role: '5', comp_open: '6' };
 
 type ModeMeta = typeof QUEUE_MODES[number];
 type LastLog = { mode: QueueMode; win: boolean; seq: number } | null;
@@ -177,19 +175,81 @@ export default function Dashboard() {
   const wr100 = winRate(last100);
   const wr500 = winRate(last500);
   const wrDelta = wr100 !== null && wr500 !== null ? wr100 - wr500 : null;
-  // Display a long run of history (newest first) to fill the row; the headline
-  // percentage still reads only from last100/last500 above.
-  const recentGames = [...(trends ?? [])].slice(-60).reverse();
-  // Group consecutive tiles by calendar day (newest-first order preserved).
-  const gamesByDay = recentGames.reduce<{ dateStr: string; games: TrendPoint[] }[]>((acc, g) => {
-    const day = g.date.slice(0, 10);
-    if (acc.length === 0 || acc[acc.length - 1].dateStr !== day) {
-      acc.push({ dateStr: day, games: [g] });
-    } else {
-      acc[acc.length - 1].games.push(g);
+  // Recent-form chart: a running win/loss total, but drawn one RUN at a time
+  // rather than one match at a time.
+  //
+  // Height is the plain total — each win is +1, each loss -1, starting from 0 at
+  // the window's left edge. Horizontal movement happens only when the run changes
+  // direction. So four straight wins are a single vertical line four units tall,
+  // not four separate stairs, and the length of every vertical line IS the streak
+  // that produced it.
+  //
+  // That is what the earlier per-match version could not show. Compressing x by
+  // run keeps "one unit of height = one match" exactly true, while making streaks
+  // the most visible thing on the chart. Sean's window holds a 16-loss run; here
+  // it is one 16-unit cliff instead of sixteen indistinguishable steps.
+  const formRuns = (() => {
+    const runs: { win: boolean; games: TrendPoint[] }[] = [];
+    for (const g of last100) {
+      const w = !!g.win;
+      // `win` arrives from the API as 0/1, not a boolean — normalise before
+      // comparing, since `0 === false` is false in TypeScript and would start a
+      // fresh run on every single match.
+      const cur = runs[runs.length - 1];
+      if (cur && cur.win === w) cur.games.push(g);
+      else runs.push({ win: w, games: [g] });
     }
+    let net = 0;
+    return runs.map(r => {
+      net += r.games.length * (r.win ? 1 : -1);
+      return { ...r, len: r.games.length, net };
+    });
+  })();
+  const netMin = Math.min(0, ...formRuns.map(r => r.net));
+  const netMax = Math.max(0, ...formRuns.map(r => r.net));
+  // Chart is drawn in its own coordinate space and stretched to the card width,
+  // so these numbers are aspect ratio, not pixels.
+  const CH_W = 1000;
+  const CH_H = 150;
+  const CH_PAD = 10;
+  // Guard the degenerate case: a window with no swing at all would divide by zero.
+  const netSpan = Math.max(1, netMax - netMin);
+  const runX = (j: number) =>
+    formRuns.length <= 1 ? 0 : (j / (formRuns.length - 1)) * CH_W;
+  const chartY = (v: number) =>
+    CH_PAD + (1 - (v - netMin) / netSpan) * (CH_H - CH_PAD * 2);
+  // Path: start on the zero line, then for each run draw the vertical first and
+  // the horizontal after it. The horizontal carries the current total across to
+  // where the next run begins; it never changes height, because nothing happened
+  // between two runs — the next match simply went the other way.
+  const formPoints = (() => {
+    const pts: string[] = [`${runX(0)},${chartY(0)}`];
+    formRuns.forEach((r, j) => {
+      pts.push(`${runX(j)},${chartY(r.net)}`);
+      if (j < formRuns.length - 1) pts.push(`${runX(j + 1)},${chartY(r.net)}`);
+    });
+    return pts.join(' ');
+  })();
+  const zeroY = chartY(0);
+  const lastRun = formRuns.length ? formRuns[formRuns.length - 1] : null;
+  const lastNet = lastRun ? lastRun.net : 0;
+  // Gridlines. Y every 5 matches, since the height is a match count — a line
+  // every 5 gives the eye something to measure a streak against without drawing
+  // 21 of them. Zero is excluded here because it already has its own dashed
+  // break-even line and would otherwise be drawn twice.
+  const yTicks: number[] = [];
+  for (let v = Math.ceil(netMin / 5) * 5; v <= netMax; v += 5) {
+    if (v !== 0) yTicks.push(v);
+  }
+  // X wherever the calendar day changes. Runs do not align to days, so the tick
+  // sits at the first run that opened on a new date.
+  const dayTicks = formRuns.reduce<{ j: number; date: string }[]>((acc, r, j) => {
+    const day = r.games[0].date.slice(0, 10);
+    if (acc.length === 0 || acc[acc.length - 1].date !== day) acc.push({ j, date: day });
     return acc;
   }, []);
+  const bestWinRun = Math.max(0, ...formRuns.filter(r => r.win).map(r => r.len));
+  const worstLossRun = Math.max(0, ...formRuns.filter(r => !r.win).map(r => r.len));
 
   const sections = [
     { id: 'sec-mode', label: 'Mode' },
@@ -271,41 +331,163 @@ export default function Dashboard() {
               </div>
             )}
           </div>
-          <div
-            data-inspect-id="dash-recent-match-history-list"
-            className="flex gap-1.5 flex-nowrap overflow-hidden py-1"
-            style={{
-              WebkitMaskImage: 'linear-gradient(to right, #000 72%, transparent)',
-              maskImage: 'linear-gradient(to right, #000 72%, transparent)',
-            }}
-          >
-            {gamesByDay.map((group, i) => (
-              <Fragment key={group.dateStr}>
-                {i > 0 && (
-                  <div className="flex flex-col items-center shrink-0 gap-0.5 self-stretch justify-center mx-0.5">
-                    <div className="w-px flex-1 bg-ow-border opacity-60" />
-                    <span className="text-[8px] leading-none text-[var(--faint)]">
-                      {format(parseISO(gamesByDay[i - 1].dateStr), 'M/d')}
-                    </span>
-                    <div className="w-px flex-1 bg-ow-border opacity-60" />
-                  </div>
-                )}
-                {group.games.map(g => (
-                  <div
-                    key={g.id}
-                    title={`${g.win ? 'Win' : 'Loss'} · ${withHeroCount(g.hero, heroCounts).toUpperCase()} on ${withMapCount(g.map, mapCounts).toUpperCase()} (${format(parseISO(g.date), 'MMM d')})`}
-                    className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-sm italic font-display font-black ${
-                      g.win
-                        ? 'bg-emerald-500/15 text-emerald-600'
-                        : 'bg-rose-500/15 text-rose-600'
-                    }`}
+          {/* Recent form as a running win/loss total — one point per match, no
+              day grouping. Replaced the day-grouped tile strip: 100 tiles cannot
+              fit a card width, and even 60 showed only whether each individual
+              game was won, never whether the run as a whole was going anywhere.
+              Hand-drawn SVG rather than a charting library — one polyline and a
+              fill do not justify a dependency. */}
+          <div data-inspect-id="dash-recent-form-chart">
+            {formRuns.length >= 1 ? (
+              // Labels live in an HTML layer over the chart rather than inside the
+              // SVG. The SVG is stretched to the card width with
+              // preserveAspectRatio="none", which would squash any <text> drawn in
+              // it horizontally. Positioning the labels outside that stretch keeps
+              // them the right shape at every card width.
+              <div className="relative pl-7">
+                <svg
+                  viewBox={`0 0 ${CH_W} ${CH_H}`}
+                  preserveAspectRatio="none"
+                  className="w-full h-[150px] overflow-visible"
+                  role="img"
+                  aria-label={`Running win-loss total across the last ${last100.length} matches, drawn one streak at a time. Currently ${lastNet > 0 ? '+' : ''}${lastNet}, on a ${lastRun?.len ?? 0} game ${lastRun?.win ? 'win' : 'loss'} run.`}
+                >
+                  <defs>
+                    {/* Area under the line, fading out downward so the fill reads
+                        as shading rather than a solid block competing with it. */}
+                    <linearGradient id="formFillUp" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="rgb(16 185 129)" stopOpacity="0.28" />
+                      <stop offset="100%" stopColor="rgb(16 185 129)" stopOpacity="0" />
+                    </linearGradient>
+                    <linearGradient id="formFillDown" x1="0" y1="1" x2="0" y2="0">
+                      <stop offset="0%" stopColor="rgb(244 63 94)" stopOpacity="0.28" />
+                      <stop offset="100%" stopColor="rgb(244 63 94)" stopOpacity="0" />
+                    </linearGradient>
+                    {/* Split the fill at the zero line so time spent above even is
+                        green and time below is red, without cutting the line. */}
+                    <clipPath id="formClipUp">
+                      <rect x="0" y="0" width={CH_W} height={zeroY} />
+                    </clipPath>
+                    <clipPath id="formClipDown">
+                      <rect x="0" y={zeroY} width={CH_W} height={CH_H - zeroY} />
+                    </clipPath>
+                  </defs>
+
+                  {/* Grid, drawn first so the line and fill sit on top of it. */}
+                  {yTicks.map(v => (
+                    <line
+                      key={`y${v}`}
+                      x1="0"
+                      y1={chartY(v)}
+                      x2={CH_W}
+                      y2={chartY(v)}
+                      stroke="currentColor"
+                      strokeWidth="1"
+                      vectorEffect="non-scaling-stroke"
+                      className="text-[var(--faint)] opacity-[0.18]"
+                    />
+                  ))}
+                  {dayTicks.map(t => (
+                    <line
+                      key={t.date}
+                      x1={runX(t.j)}
+                      y1="0"
+                      x2={runX(t.j)}
+                      y2={CH_H}
+                      stroke="currentColor"
+                      strokeWidth="1"
+                      vectorEffect="non-scaling-stroke"
+                      className="text-[var(--faint)] opacity-[0.18]"
+                    />
+                  ))}
+
+                  <polygon
+                    points={`0,${zeroY} ${formPoints} ${CH_W},${zeroY}`}
+                    fill="url(#formFillUp)"
+                    clipPath="url(#formClipUp)"
+                  />
+                  <polygon
+                    points={`0,${zeroY} ${formPoints} ${CH_W},${zeroY}`}
+                    fill="url(#formFillDown)"
+                    clipPath="url(#formClipDown)"
+                  />
+
+                  {/* Break-even. Above it the window is up on the run, below it down. */}
+                  <line
+                    x1="0"
+                    y1={zeroY}
+                    x2={CH_W}
+                    y2={zeroY}
+                    stroke="currentColor"
+                    strokeWidth="1"
+                    strokeDasharray="4 4"
+                    vectorEffect="non-scaling-stroke"
+                    className="text-[var(--faint)] opacity-50"
+                  />
+
+                  <polyline
+                    points={formPoints}
+                    fill="none"
+                    stroke={lastNet >= 0 ? 'rgb(16 185 129)' : 'rgb(244 63 94)'}
+                    strokeWidth="2"
+                    strokeLinejoin="miter"
+                    strokeLinecap="butt"
+                    vectorEffect="non-scaling-stroke"
+                  />
+
+                  {/* Where the run stands right now. */}
+                  <circle
+                    cx={runX(formRuns.length - 1)}
+                    cy={chartY(lastNet)}
+                    r="3.5"
+                    fill={lastNet >= 0 ? 'rgb(16 185 129)' : 'rgb(244 63 94)'}
+                    vectorEffect="non-scaling-stroke"
+                  />
+
+                  {/* One invisible column per match carrying a native tooltip, so
+                      hovering still names the hero and map the way the old tiles
+                      did. Cheaper than per-point JS hover state, and it keeps the
+                      whole chart working with no event handlers at all. */}
+                  {formRuns.map((r, j) => (
+                    <rect
+                      key={r.games[0].id}
+                      x={runX(j) - (formRuns.length > 1 ? CH_W / (formRuns.length - 1) : CH_W) / 2}
+                      y="0"
+                      width={formRuns.length > 1 ? CH_W / (formRuns.length - 1) : CH_W}
+                      height={CH_H}
+                      fill="transparent"
+                    >
+                      <title>
+                        {`${r.len} ${r.win ? 'win' : 'loss'}${r.len === 1 ? '' : 'es'} in a row · ${format(parseISO(r.games[0].date), 'MMM d')} · now ${r.net > 0 ? '+' : ''}${r.net}`}
+                      </title>
+                    </rect>
+                  ))}
+                </svg>
+
+                {/* Y scale, one label per gridline, sitting in the pl-7 gutter. */}
+                {yTicks.map(v => (
+                  <span
+                    key={`yl${v}`}
+                    className="absolute left-0 -translate-y-1/2 text-[9px] leading-none tabular-nums text-[var(--faint)] w-6 text-right pr-1"
+                    style={{ top: `${(chartY(v) / CH_H) * 100}%` }}
                   >
-                    {MODE_LETTER[g.queue_mode] ?? '·'}
-                  </div>
+                    {v > 0 ? `+${v}` : v}
+                  </span>
                 ))}
-              </Fragment>
-            ))}
-            {recentGames.length === 0 && (
+
+                {/* Date labels. The first one is left-aligned to its line and the
+                    rest are centred, so the leftmost cannot hang off the card. */}
+                {dayTicks.map((t, i) => (
+                  <span
+                    key={`xl${t.date}`}
+                    className={`absolute top-full mt-0.5 text-[9px] leading-none whitespace-nowrap text-[var(--faint)] ${i === 0 ? '' : '-translate-x-1/2'}`}
+                    style={{ left: `calc(1.75rem + ${(runX(t.j) / CH_W) * 100}% - ${(runX(t.j) / CH_W) * 1.75}rem)` }}
+                  >
+                    {format(parseISO(t.date), 'M/d')}
+                  </span>
+                ))}
+              </div>
+            ) : (
               <EmptyState
                 dataInspectId="dash-empty-state-banner"
                 icon="◴"
@@ -313,6 +495,20 @@ export default function Dashboard() {
                 hint="Log your first result below and your recent form will track here."
                 className="w-full"
               />
+            )}
+            {formRuns.length >= 1 && (
+              <div className="flex items-center justify-between text-[10px] text-[var(--faint)] mt-5">
+                  <span>{last100.length} matches ago</span>
+                  <span>
+                    best run <b className="font-bold text-emerald-600">{bestWinRun}W</b>
+                    {' · '}worst <b className="font-bold text-rose-600">{worstLossRun}L</b>
+                    {' · '}now{' '}
+                    <b className={`font-bold ${lastNet >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {lastNet > 0 ? '+' : ''}{lastNet}
+                    </b>
+                  </span>
+                <span>latest</span>
+              </div>
             )}
           </div>
 
