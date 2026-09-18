@@ -454,6 +454,17 @@ export default function Prematch() {
     return v != null ? v.toFixed(2) : null;
   };
 
+  // Which stage of the set this hero is currently on. Already in the DpiTestHud
+  // payload (the DPI card reads the same two fields), so this is a read, not a
+  // new fetch. The gauge beside it only says how far through the CURRENT stage
+  // he is — it resets every stage and so cannot say where the set as a whole
+  // stands. That is what this number adds.
+  const testStageFor = (hero: string): { cur: number; total: number } | null => {
+    const a = btActives.find(a => a.hero === hero);
+    if (!a || a.n_stages <= 0) return null;
+    return { cur: a.cur_stage, total: a.n_stages };
+  };
+
   // Quantizes remaining-games-in-stage onto a 5-segment gauge (like a battery
   // meter) regardless of the set's actual batch_size, so every hero's gauge
   // reads on the same 5-bar scale.
@@ -1177,6 +1188,23 @@ export default function Prematch() {
                             title={`${testGaugeFor(h.hero)}/${GAUGE_SEGMENTS} games left at current sens`}
                             data-inspect-id="prematch-hero-picker-gauge"
                           >
+                            {/* Which stage of the set, encircled, immediately
+                                left of the gauge. Outlined rather than filled so
+                                it cannot be mistaken for the solid pick-order
+                                badge at the row's top-left corner — that one is a
+                                click position, this one is test progress. Lives
+                                inside the gauge's own absolutely-positioned
+                                container so the pair stays together at any row
+                                width instead of drifting apart. */}
+                            {testStageFor(h.hero) && (
+                              <span
+                                className="w-4 h-4 mr-1 shrink-0 relative right-[1%] rounded-full border border-ow-accent/70 text-ow-accent text-[9px] font-bold flex items-center justify-center leading-none tabular-nums"
+                                title={`Stage ${testStageFor(h.hero)!.cur} of ${testStageFor(h.hero)!.total}`}
+                                data-inspect-id="prematch-hero-picker-stage-badge"
+                              >
+                                {testStageFor(h.hero)!.cur}
+                              </span>
+                            )}
                             {Array.from({ length: GAUGE_SEGMENTS }).map((_, i) => (
                               <span
                                 key={i}
@@ -1221,7 +1249,7 @@ export default function Prematch() {
                               title={ph.title}
                               aria-label={ph.title}
                               data-inspect-id="prematch-hero-picker-next-phase-button"
-                              className={`shrink-0 relative right-[10%] w-[4.25rem] whitespace-nowrap text-center text-[9px] font-bold tracking-tight py-0.5 rounded border transition-colors ${
+                              className={`shrink-0 relative right-[8%] w-[4.25rem] whitespace-nowrap text-center text-[9px] font-bold tracking-tight py-0.5 rounded border transition-colors ${
                                 ph.enabled && !busy
                                   ? 'border-ow-accent/70 text-ow-accent hover:bg-ow-accent/15'
                                   : 'border-ow-border text-[var(--faint-2)] opacity-50 cursor-not-allowed'
