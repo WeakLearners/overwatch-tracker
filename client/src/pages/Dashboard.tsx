@@ -531,10 +531,17 @@ export default function Dashboard() {
                   <polygon
                     points={bandPoly}
                     fill="currentColor"
-                    className="text-[var(--faint)] opacity-[0.1]"
+                    className="text-ow-accent dark:text-ow-accentLight opacity-[0.1]"
                   />
                   {/* The pace line itself: where an ordinary run drifts to at the
-                      career win rate. Not a target — a reference. */}
+                      career win rate. Not a target — a reference.
+
+                      Drawn in the app's own accent rather than a neutral grey,
+                      which keeps it off the green/red axis entirely. The candles
+                      own win and loss; the pace line is a third kind of thing and
+                      should not look like a faint one of the first two. Orange on
+                      the light theme, the lighter gold on dark, since the dark
+                      card is near-black and the base accent goes muddy on it. */}
                   <polyline
                     points={pacePts}
                     fill="none"
@@ -542,7 +549,7 @@ export default function Dashboard() {
                     strokeWidth="1.5"
                     strokeDasharray="6 5"
                     vectorEffect="non-scaling-stroke"
-                    className="text-[var(--faint)] opacity-70"
+                    className="text-ow-accent dark:text-ow-accentLight opacity-90"
                   />
 
                   {/* Grid, drawn first so the candles sit on top of it. */}
@@ -786,8 +793,8 @@ export default function Dashboard() {
 
                   <div className="flex items-start gap-2">
                     <span className="shrink-0 mt-[3px] relative inline-block w-5 h-3" aria-hidden="true">
-                      <span className="absolute inset-0 rounded-[1px] bg-[var(--faint)] opacity-20" />
-                      <span className="absolute left-0 right-0 top-1/2 border-t border-dashed border-[var(--faint)] opacity-80" />
+                      <span className="absolute inset-0 rounded-[1px] bg-ow-accent dark:bg-ow-accentLight opacity-20" />
+                      <span className="absolute left-0 right-0 top-1/2 border-t border-dashed border-ow-accent dark:border-ow-accentLight opacity-90" />
                     </span>
                     <span>
                       <b className="font-bold text-[var(--muted)]">pace &amp; ±1 SD</b>
