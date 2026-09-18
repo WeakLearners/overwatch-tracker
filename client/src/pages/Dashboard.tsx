@@ -212,6 +212,7 @@ export default function Dashboard() {
     }
     const days = [...byDay.keys()].sort().slice(-CANDLE_DAYS);
     let carry = 0;
+    let played = 0;
     return days.map(date => {
       const games = byDay.get(date)!;
       // Both competitive queues (role and open) count toward the total; only
@@ -227,10 +228,17 @@ export default function Dashboard() {
       const open = carry;
       const close = open + compW - compL;
       carry = close;
+      // How many ranked matches have been played by the end of this day. The
+      // pace line and its band are functions of match count, not of date — a
+      // day with fourteen games moves them further than a day with two.
+      const nOpen = played;
+      played += comp.length;
+      const nClose = played;
       const top = Math.max(open, close);
       const bottom = Math.min(open, close);
       return {
-        date, open, close, compW, compL, qpW, qpL, top, bottom,
+        date, open, close, compW, compL, qpW, qpL, top, bottom, nOpen, nClose,
+        volume: games.length,
         up: close >= open,
         high: top + qpW,
         low: bottom - qpL,
@@ -240,16 +248,42 @@ export default function Dashboard() {
 
   // Chart is drawn in its own coordinate space and stretched to the card width,
   // so these numbers are aspect ratio, not pixels.
+  // What a match is worth on average, measured over the whole logged history
+  // rather than this window. A ranked match is a coin that comes up heads 48.03%
+  // of the time, so on average every game played costs about 0.04 of a point.
+  // That is the pace line: not a target, just where an ordinary run drifts to.
+  const careerComp = (trends ?? []).filter(g => g.queue_mode !== 'qp_role');
+  const careerEdge = careerComp.length
+    ? (2 * careerComp.filter(g => g.win === 1).length) / careerComp.length - 1
+    : 0;
+  // How far an ordinary run wanders off that pace. Each match moves the total by
+  // exactly one, up or down, so the spread after n matches is the square root of
+  // n — the same reason a hundred coin flips land near fifty heads but almost
+  // never on exactly fifty. One standard deviation is drawn as a band: roughly
+  // two runs in three stay inside it, and being outside is what a real slump
+  // looks like.
+  const perMatchSd = Math.sqrt(1 - careerEdge * careerEdge);
+  const paceAt = (n: number) => n * careerEdge;
+  const sdAt = (n: number) => perMatchSd * Math.sqrt(n);
+
   const CH_W = 1000;
   // Taller than the streak line was, and it has to be. A longer window drifts
   // further from break-even: thirty days spanned 24 matches top to bottom,
   // fifty spanned 39, a hundred spans 45. Height buys back the squeeze — at 280
   // one match is about 6px of the chart, so a 1-0 day is still a visible block
   // rather than a hairline.
-  const CH_H = 280;
+  const CH_H = 320;
   const CH_PAD = 14;
-  const lowV = Math.min(0, ...candles.map(c => c.low));
-  const highV = Math.max(0, ...candles.map(c => c.high));
+  // A lane along the bottom for the volume bars, so they get their own strip
+  // instead of sitting under the candles and fighting them for the same pixels.
+  const VOL_H = 44;
+  const PLOT_BOTTOM = CH_H - CH_PAD - VOL_H;
+  // The band can reach further than the candles do, so it has to be part of the
+  // axis. At 505 matches it runs from -42 to +2 while the candles stop at -37.
+  const bandLo = Math.min(...candles.map(c => paceAt(c.nClose) - sdAt(c.nClose)), 0);
+  const bandHi = Math.max(...candles.map(c => paceAt(c.nClose) + sdAt(c.nClose)), 0);
+  const lowV = Math.min(0, bandLo, ...candles.map(c => c.low));
+  const highV = Math.max(0, bandHi, ...candles.map(c => c.high));
   // Guard the degenerate case: a window with no swing at all divides by zero.
   const vSpan = Math.max(1, highV - lowV);
   const slotW = candles.length ? CH_W / candles.length : CH_W;
@@ -257,10 +291,23 @@ export default function Dashboard() {
   const bodyW = Math.max(2, slotW * 0.6);
   const slotX = (j: number) => slotW * (j + 0.5);
   const chartY = (v: number) =>
-    CH_PAD + (1 - (v - lowV) / vSpan) * (CH_H - CH_PAD * 2);
+    CH_PAD + (1 - (v - lowV) / vSpan) * (PLOT_BOTTOM - CH_PAD);
+  // Volume has its own scale and its own strip. Bars hang down from the top of
+  // that strip so the busiest day fills it and a two-game day is a stub.
+  const maxVol = Math.max(1, ...candles.map(c => c.volume));
+  const volY = (n: number) => CH_H - (n / maxVol) * VOL_H;
+  // Points for the pace line and the two edges of its band, one per day.
+  const pacePts = candles.map((c, j) => `${slotX(j)},${chartY(paceAt(c.nClose))}`).join(' ');
+  const bandUpper = candles.map((c, j) => `${slotX(j)},${chartY(paceAt(c.nClose) + sdAt(c.nClose))}`);
+  const bandLower = candles.map((c, j) => `${slotX(j)},${chartY(paceAt(c.nClose) - sdAt(c.nClose))}`);
+  const bandPoly = [...bandUpper, ...bandLower.reverse()].join(' ');
   const zeroY = chartY(0);
   const lastCandle = candles.length ? candles[candles.length - 1] : null;
   const lastClose = lastCandle ? lastCandle.close : 0;
+  // Where today stands against the pace, in standard deviations. Inside one is
+  // ordinary; past two is the number worth reacting to.
+  const lastN = lastCandle ? lastCandle.nClose : 0;
+  const lastZ = lastN > 0 ? (lastClose - paceAt(lastN)) / sdAt(lastN) : 0;
   // Colour ramp, carried over from the streak line this chart replaced.
   //
   // Hue says which way the day went: green for a day that broke even or better,
@@ -444,9 +491,9 @@ export default function Dashboard() {
                 <svg
                   viewBox={`0 0 ${CH_W} ${CH_H}`}
                   preserveAspectRatio="none"
-                  className="w-full h-[280px] overflow-visible"
+                  className="w-full h-[320px] overflow-visible"
                   role="img"
-                  aria-label={`Daily win-loss candles across the last ${candles.length} days played. Each candle body is that day's net competitive record, stacked on the previous day's close; wicks are quickplay wins above and losses below. Currently ${lastClose > 0 ? '+' : ''}${lastClose}.`}
+                  aria-label={`Daily win-loss candles across the last ${candles.length} days played. Each candle body is that day's net competitive record, stacked on the previous day's close; wicks are quickplay wins above and losses below. A dashed pace line shows where a run at the career win rate would drift to, shaded one standard deviation either side. Currently ${lastClose > 0 ? '+' : ''}${lastClose}, which is ${Math.abs(lastZ).toFixed(1)} standard deviations ${lastZ < 0 ? 'below' : 'above'} that pace. Volume bars along the bottom show matches played per day.`}
                 >
                   <defs>
                     {/* One shared gradient per direction, spanning the whole
@@ -469,6 +516,29 @@ export default function Dashboard() {
                       </linearGradient>
                     ))}
                   </defs>
+                  {/* The band of ordinary luck, drawn first and furthest back.
+                      Its edges are one standard deviation either side of the
+                      pace line, so it widens as the window accumulates matches —
+                      narrow at the left where only a few games have been played,
+                      wide at the right. Inside it means nothing unusual has
+                      happened yet. */}
+                  <polygon
+                    points={bandPoly}
+                    fill="currentColor"
+                    className="text-[var(--faint)] opacity-[0.1]"
+                  />
+                  {/* The pace line itself: where an ordinary run drifts to at the
+                      career win rate. Not a target — a reference. */}
+                  <polyline
+                    points={pacePts}
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeDasharray="6 5"
+                    vectorEffect="non-scaling-stroke"
+                    className="text-[var(--faint)] opacity-70"
+                  />
+
                   {/* Grid, drawn first so the candles sit on top of it. */}
                   {yTicks.map(v => (
                     <line
@@ -560,6 +630,34 @@ export default function Dashboard() {
                     );
                   })}
 
+                  {/* Volume: how many matches that day actually held, in its own
+                      strip along the bottom. The candle body is a NET, so a
+                      1W-1L day and a 7W-7L day are both flat — this is the only
+                      place the chart says how much was played. Deliberately low
+                      contrast: it is context, not a signal. Long days do not
+                      reliably go better than short ones in this window. */}
+                  <line
+                    x1="0"
+                    y1={CH_H - VOL_H}
+                    x2={CH_W}
+                    y2={CH_H - VOL_H}
+                    stroke="currentColor"
+                    strokeWidth="1"
+                    vectorEffect="non-scaling-stroke"
+                    className="text-[var(--faint)] opacity-[0.15]"
+                  />
+                  {candles.map((c, j) => (
+                    <rect
+                      key={`vol-${c.date}`}
+                      x={slotX(j) - bodyW / 2}
+                      y={volY(c.volume)}
+                      width={bodyW}
+                      height={CH_H - volY(c.volume)}
+                      fill="currentColor"
+                      className="text-[var(--muted)] opacity-40"
+                    />
+                  ))}
+
                   {/* One invisible column per day carrying a native tooltip, so
                       hovering names the day's record the way the old run
                       tooltips named the streak. Cheaper than per-point JS hover
@@ -575,7 +673,7 @@ export default function Dashboard() {
                       fill="transparent"
                     >
                       <title>
-                        {`${format(parseISO(c.date), 'MMM d')} · comp ${c.compW}W ${c.compL}L${c.qpW + c.qpL > 0 ? ` · qp ${c.qpW}W ${c.qpL}L` : ''} · ${c.open > 0 ? '+' : ''}${c.open} → ${c.close > 0 ? '+' : ''}${c.close}`}
+                        {`${format(parseISO(c.date), 'MMM d')} · ${c.volume} played · comp ${c.compW}W ${c.compL}L${c.qpW + c.qpL > 0 ? ` · qp ${c.qpW}W ${c.qpL}L` : ''} · ${c.open > 0 ? '+' : ''}${c.open} → ${c.close > 0 ? '+' : ''}${c.close} · pace ${paceAt(c.nClose) >= 0 ? '+' : ''}${paceAt(c.nClose).toFixed(1)}`}
                       </title>
                     </rect>
                   ))}
@@ -614,18 +712,44 @@ export default function Dashboard() {
               />
             )}
             {candles.length >= 1 && (
-              <div className="flex items-center justify-between text-[10px] text-[var(--faint)] mt-5">
-                  <span>{candles.length} days</span>
+              <>
+                <div className="flex items-center justify-between text-[10px] text-[var(--faint)] mt-5">
+                    <span>{candles.length} days</span>
+                    <span>
+                      best day <b className="font-bold text-emerald-600">{bestDay > 0 ? '+' : ''}{bestDay}</b>
+                      {' · '}worst <b className="font-bold text-rose-600">{worstDay}</b>
+                      {' · '}now{' '}
+                      <b className={`font-bold ${lastClose >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {lastClose > 0 ? '+' : ''}{lastClose}
+                      </b>
+                    </span>
+                  <span>latest</span>
+                </div>
+                {/* What the underlay is saying, in words. The band is only useful
+                    if the number that goes with it is on screen — "inside one
+                    standard deviation" is the difference between a slump and an
+                    ordinary stretch, and the candles alone cannot tell you which
+                    this is. */}
+                <div className="flex items-center justify-between flex-wrap gap-y-1 text-[10px] text-[var(--faint)] mt-1.5" data-inspect-id="dash-recent-form-pace-note">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="inline-block w-4 border-t border-dashed border-[var(--faint)]" aria-hidden="true" />
+                    pace at career <b className="font-bold">{((careerEdge + 1) * 50).toFixed(1)}</b>% ·
+                    shaded ±1 SD · bars = matches played
+                  </span>
                   <span>
-                    best day <b className="font-bold text-emerald-600">{bestDay > 0 ? '+' : ''}{bestDay}</b>
-                    {' · '}worst <b className="font-bold text-rose-600">{worstDay}</b>
-                    {' · '}now{' '}
+                    {lastN} ranked · pace <b className="font-bold">{paceAt(lastN) >= 0 ? '+' : ''}{paceAt(lastN).toFixed(0)}</b>
+                    {' · '}you{' '}
                     <b className={`font-bold ${lastClose >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                       {lastClose > 0 ? '+' : ''}{lastClose}
                     </b>
+                    {' · '}
+                    <b className={`font-bold ${Math.abs(lastZ) >= 2 ? 'text-amber-600' : ''}`}>
+                      {lastZ >= 0 ? '+' : '−'}{Math.abs(lastZ).toFixed(2)} SD
+                    </b>
+                    {Math.abs(lastZ) < 1 ? ' — ordinary' : Math.abs(lastZ) < 2 ? ' — notable' : ' — real'}
                   </span>
-                <span>latest</span>
-              </div>
+                </div>
+              </>
             )}
           </div>
 
