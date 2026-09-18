@@ -646,9 +646,15 @@ export default function Dashboard() {
                   {/* Volume: how many matches that day actually held, in its own
                       strip along the bottom. The candle body is a NET, so a
                       1W-1L day and a 7W-7L day are both flat — this is the only
-                      place the chart says how much was played. Deliberately low
-                      contrast: it is context, not a signal. Long days do not
-                      reliably go better than short ones in this window. */}
+                      place the chart says how much was played. Every queue counts
+                      here, ranked and quickplay together: the bar answers "how
+                      much did I play", which is a different question from the two
+                      the candle already answers.
+
+                      Deliberately low contrast: it is context, not a signal. Long
+                      days do not reliably go better than short ones in this
+                      window. The legend states what the bar IS; the reason it
+                      exists lives here, not on screen. */}
                   <line
                     x1="0"
                     y1={CH_H - VOL_H}
@@ -811,8 +817,8 @@ export default function Dashboard() {
                     </span>
                     <span>
                       <b className="font-bold text-[var(--muted)]">bars below</b>
-                      <br />matches played that day — the body is a net,
-                      <br />so 1W-1L and 7W-7L both look flat
+                      <br />total games that day, ranked and quickplay
+                      <br />tallest bar = your busiest day, <b className="font-bold">{maxVol}</b>
                     </span>
                   </div>
                 </div>
