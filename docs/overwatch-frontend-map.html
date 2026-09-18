@@ -551,7 +551,7 @@ const DATA = {
           "kind": "nav",
           "description": "Sticky wayfinding rail under the header standing in for section tabs on this one-long-scroll page; pill links jump to Mode, Recent Matches, Match, Trends, and Career, highlighting the currently in-view section.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:289",
+            "path": "client/src/pages/Dashboard.tsx:342",
             "grep": "grep -n -F -- 'dash-section-nav' client/src/pages/Dashboard.tsx"
           }
         },
@@ -581,7 +581,7 @@ const DATA = {
           "kind": "card",
           "description": "Card titled 'Recent Matches' containing the win-rate summary, the recent-match history strip, and (when applicable) the tilt warning banner.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:320",
+            "path": "client/src/pages/Dashboard.tsx:373",
             "grep": "grep -n -F -- '>Recent Matches</h2>' client/src/pages/Dashboard.tsx"
           }
         },
@@ -591,7 +591,7 @@ const DATA = {
           "kind": "stat-tile",
           "description": "Displays the win rate over the last 100 logged games with an animated percentage and a trend arrow/delta comparing it against the last 500 games.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:323",
+            "path": "client/src/pages/Dashboard.tsx:376",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-recent-form-stat\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -599,9 +599,9 @@ const DATA = {
           "id": "dash-recent-form-chart",
           "label": "Recent form streak chart",
           "kind": "chart",
-          "description": "Running win/loss total across the last 100 matches \u2014 the same window dash-recent-form-stat's headline percentage reads. Height is a plain total (win +1, loss -1), so one unit of height is exactly one match; horizontal movement happens ONLY when the run changes direction, so each win or loss streak is a single vertical line whose length IS that streak. Replaced the day-grouped tile strip it supersedes, which could not show a streak as anything but a row of identical squares. Area under the line is shaded green above the dashed break-even line and red below, clipped at zero. Grid: y every 5 matches, x at each calendar-day boundary. Axis labels are an HTML layer positioned over the SVG, NOT SVG text \u2014 the chart stretches with preserveAspectRatio=\"none\", which would squash any text drawn inside it. Hover targets are one invisible rect per run, reporting run length, date and running total; no event handlers and no charting library.",
+          "description": "Running win/loss total across the last 100 matches \u2014 the same window dash-recent-form-stat's headline percentage reads. Height is a plain total (win +1, loss -1), so one unit of height is exactly one match; horizontal movement happens ONLY when the run changes direction, so each win or loss streak is a single vertical line whose length IS that streak. Replaced the day-grouped tile strip it supersedes, which could not show a streak as anything but a row of identical squares. Area under the line is shaded green above the dashed break-even line and red below, clipped at zero. Grid: y every 5 matches, x at each calendar-day boundary. Axis labels are an HTML layer positioned over the SVG, NOT SVG text \u2014 the chart stretches with preserveAspectRatio=\"none\", which would squash any text drawn inside it. The stroke is a vertical gradient rather than one flat colour: flat grey at break-even, saturating to vivid green going up and vivid red going down, so how strongly the line is coloured says how far from even the run has got. Measured in chart coordinates (gradientUnits=userSpaceOnUse), NOT as a percentage of the shape's bounding box, so a given colour always means the same running total instead of re-anchoring whenever the peak or low moves. BLEND_THRESHOLD in Dashboard.tsx is the single knob controlling how far the near-grey band reaches; 1.0 is linear. Lightness stays in a narrow band on purpose \u2014 the dark theme's card is near-black, so darkening the line for contrast would sink it into the background. Hover targets are one invisible rect per run, reporting run length, date and running total; no event handlers and no charting library.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:340",
+            "path": "client/src/pages/Dashboard.tsx:393",
             "grep": "grep -n -F -- 'dash-recent-form-chart' client/src/pages/Dashboard.tsx"
           }
         },
@@ -611,7 +611,7 @@ const DATA = {
           "kind": "banner",
           "description": "Placeholder banner shown in the recent-match strip when no matches have been logged yet, prompting the user to log their first result.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:494",
+            "path": "client/src/pages/Dashboard.tsx:565",
             "grep": "grep -n -F -- 'title=\"No matches logged yet\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -621,7 +621,7 @@ const DATA = {
           "kind": "banner",
           "description": "Amber warning banner that appears when the session is on-tilt (two losses in a row today), optionally showing the user's historical win rate in that situation.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:516",
+            "path": "client/src/pages/Dashboard.tsx:587",
             "grep": "grep -n -F -- 'dash-tilt-warning-banner' client/src/pages/Dashboard.tsx"
           }
         },
@@ -631,7 +631,7 @@ const DATA = {
           "kind": "header",
           "description": "Section header titled 'Match' with subtitle 'Prep with the advisor, then log the result.', introducing the Prematch advisor and LogMatch form below.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:532",
+            "path": "client/src/pages/Dashboard.tsx:603",
             "grep": "grep -n -F -- 'sub=\"Prep with the advisor, then log the result.\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -641,7 +641,7 @@ const DATA = {
           "kind": "link",
           "description": "Link in the Match section header that opens the sensitivity-study page (/sens) in a new tab, keeping the dashboard in place.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:542",
+            "path": "client/src/pages/Dashboard.tsx:613",
             "grep": "grep -n -F -- 'Log sens stats' client/src/pages/Dashboard.tsx"
           }
         },
@@ -651,7 +651,7 @@ const DATA = {
           "kind": "section",
           "description": "Embeds the Prematch advisor component, which lets the user prep (map/mode selection, LLM pre-match advice) before logging a result.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:545",
+            "path": "client/src/pages/Dashboard.tsx:616",
             "grep": "grep -n -F -- '<Prematch />' client/src/pages/Dashboard.tsx"
           }
         },
@@ -661,7 +661,7 @@ const DATA = {
           "kind": "section",
           "description": "Embeds the LogMatch component, the form used to record the result (hero, map, win/loss, etc.) of the just-played match.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:546",
+            "path": "client/src/pages/Dashboard.tsx:617",
             "grep": "grep -n -F -- '<LogMatch />' client/src/pages/Dashboard.tsx"
           }
         },
@@ -671,7 +671,7 @@ const DATA = {
           "kind": "header",
           "description": "Section header titled 'Trends' with subtitle 'Recent form and momentum.', introducing the trends summary below.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:550",
+            "path": "client/src/pages/Dashboard.tsx:621",
             "grep": "grep -n -F -- 'title=\"Trends\" sub=\"Recent form and momentum.\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -681,7 +681,7 @@ const DATA = {
           "kind": "section",
           "description": "Embeds the TrendsSummary component showing recent-form charts/metrics and momentum indicators.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:551",
+            "path": "client/src/pages/Dashboard.tsx:622",
             "grep": "grep -n -F -- '<TrendsSummary />' client/src/pages/Dashboard.tsx"
           }
         },
@@ -691,7 +691,7 @@ const DATA = {
           "kind": "header",
           "description": "Section header titled 'Career' with subtitle 'All-time totals across every mode.', introducing the career stat-tile grid below.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:555",
+            "path": "client/src/pages/Dashboard.tsx:626",
             "grep": "grep -n -F -- 'title=\"Career\" sub=\"All-time totals across every mode.\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -701,7 +701,7 @@ const DATA = {
           "kind": "stat-tile",
           "description": "Displays the all-time total number of logged games.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:559",
+            "path": "client/src/pages/Dashboard.tsx:630",
             "grep": "grep -n -F -- 'label=\"Total Games\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -711,7 +711,7 @@ const DATA = {
           "kind": "stat-tile",
           "description": "Displays the all-time win-rate percentage, colored green if 50% or higher and red otherwise.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:563",
+            "path": "client/src/pages/Dashboard.tsx:634",
             "grep": "grep -n -F -- 'label=\"Win Rate\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -721,7 +721,7 @@ const DATA = {
           "kind": "stat-tile",
           "description": "Displays the all-time count of wins, styled in the 'win' color.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:569",
+            "path": "client/src/pages/Dashboard.tsx:640",
             "grep": "grep -n -F -- 'label=\"Wins\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -731,7 +731,7 @@ const DATA = {
           "kind": "stat-tile",
           "description": "Displays the all-time count of losses (total minus wins), styled in the 'loss' color.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:570",
+            "path": "client/src/pages/Dashboard.tsx:641",
             "grep": "grep -n -F -- 'label=\"Losses\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -741,7 +741,7 @@ const DATA = {
           "kind": "stat-tile",
           "description": "Displays the count of distinct heroes played across all logged matches.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:571",
+            "path": "client/src/pages/Dashboard.tsx:642",
             "grep": "grep -n -F -- 'label=\"Heroes Played\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -751,7 +751,7 @@ const DATA = {
           "kind": "stat-tile",
           "description": "Displays the current win or loss streak length and type (e.g. '3 W'), colored to match win or loss.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:575",
+            "path": "client/src/pages/Dashboard.tsx:646",
             "grep": "grep -n -F -- 'label=\"Current Streak\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -761,7 +761,7 @@ const DATA = {
           "kind": "stat-tile",
           "description": "Displays the longest win streak recorded all-time, styled in the 'win' color.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:579",
+            "path": "client/src/pages/Dashboard.tsx:650",
             "grep": "grep -n -F -- 'label=\"Longest Win Streak\"' client/src/pages/Dashboard.tsx"
           }
         }
@@ -820,7 +820,7 @@ const DATA = {
           "description": "Odometer-style counter showing how many matches remain in the currently selected DPI test overall.",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:386",
-            "grep": "grep -n -F -- 'className=\"text-sm text-[var(--ink)]\">matches left</div>' client/src/pages/Prematch.tsx"
+            "grep": "grep -n -F -- 'prematch-dpi-matches-left-odometer' client/src/pages/Prematch.tsx"
           }
         },
         {
@@ -830,7 +830,7 @@ const DATA = {
           "description": "Odometer-style counter showing how many games remain before the DPI test advances to its next stage.",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:391",
-            "grep": "grep -n -F -- '<div className=\"text-sm text-[var(--ink)]\">games left</div>' client/src/pages/Prematch.tsx"
+            "grep": "grep -n -F -- 'prematch-dpi-games-left-odometer' client/src/pages/Prematch.tsx"
           }
         },
         {
@@ -850,7 +850,7 @@ const DATA = {
           "description": "Link that navigates to the Sens page so the user can work through the backlog of matches awaiting stats. (duplicated for the active-test and idle-test layouts \u2014 locate command matches both.)",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:404",
-            "grep": "grep -n -F -- 'rounded-md bg-gradient-to-r from-ow-accent to-ow-accentLight' client/src/pages/Prematch.tsx"
+            "grep": "grep -n -F -- 'prematch-backlog-go-link' client/src/pages/Prematch.tsx"
           }
         },
         {
@@ -1758,7 +1758,7 @@ const DATA = {
           "description": "Per-hero raw scoreboard counts (whole numbers, not percentages) rendered from RAW_STAT_FIELDS \u2014 currently Juno only: Torpedo Damage and Torpedo Healing. Saved to aim_stats_heroes.torpedo_damage/torpedo_healing rather than the accuracy slots, which are averaged across heroes. data-inspect-ids are generated per field (sl-torpedo-damage-input, sl-torpedo-healing-input).",
           "locate": {
             "path": "client/src/pages/SensLog.tsx:94",
-            "grep": "grep -n -F -- 'const RAW_STAT_FIELDS' client/src/pages/SensLog.tsx"
+            "grep": "grep -n -F -- 'const rawFields = RAW_STAT_FIELDS' client/src/pages/SensLog.tsx"
           }
         },
         {
@@ -2502,7 +2502,7 @@ const DATA = {
           "description": "Summary text showing total logged matches and distinct sens scales tested, plus a last-updated timestamp that refreshes when new match stats are submitted.",
           "locate": {
             "path": "client/src/pages/SensAnalysis.tsx:655",
-            "grep": "grep -n -F -- 'distinct sens (@{MOUSE_DPI} DPI) scales.' client/src/pages/SensAnalysis.tsx"
+            "grep": "grep -n -F -- 'sensAnalysis-summary-line' client/src/pages/SensAnalysis.tsx"
           }
         },
         {
@@ -2512,7 +2512,7 @@ const DATA = {
           "description": "Informational banner explaining that every scale on the page is shown as in-game sens at the reference DPI rather than cm/360 or the raw tested DPI.",
           "locate": {
             "path": "client/src/pages/SensAnalysis.tsx:665",
-            "grep": "grep -n -F -- 'Standard of measure:' client/src/pages/SensAnalysis.tsx"
+            "grep": "grep -n -F -- 'sensAnalysis-standard-of-measure-banner' client/src/pages/SensAnalysis.tsx"
           }
         },
         {
