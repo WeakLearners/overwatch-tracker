@@ -175,134 +175,101 @@ export default function Dashboard() {
   const wr100 = winRate(last100);
   const wr500 = winRate(last500);
   const wrDelta = wr100 !== null && wr500 !== null ? wr100 - wr500 : null;
-  // Recent-form chart: a running win/loss total, but drawn one RUN at a time
-  // rather than one match at a time.
+  // Recent form as a candlestick chart, one candle per calendar day.
   //
-  // Height is the plain total — each win is +1, each loss -1, starting from 0 at
-  // the window's left edge. Horizontal movement happens only when the run changes
-  // direction. So four straight wins are a single vertical line four units tall,
-  // not four separate stairs, and the length of every vertical line IS the streak
-  // that produced it.
+  // The idea is borrowed from a stock chart, and the borrowing is honest: a
+  // trading day opens where yesterday closed, moves around, and closes
+  // somewhere. A day of Overwatch has exactly that shape.
   //
-  // That is what the earlier per-match version could not show. Compressing x by
-  // run keeps "one unit of height = one match" exactly true, while making streaks
-  // the most visible thing on the chart. Sean's window holds a 16-loss run; here
-  // it is one 16-unit cliff instead of sixteen indistinguishable steps.
-  const formRuns = (() => {
-    const runs: { win: boolean; games: TrendPoint[] }[] = [];
-    for (const g of last100) {
-      const w = !!g.win;
-      // `win` arrives from the API as 0/1, not a boolean — normalise before
-      // comparing, since `0 === false` is false in TypeScript and would start a
-      // fresh run on every single match.
-      const cur = runs[runs.length - 1];
-      if (cur && cur.win === w) cur.games.push(g);
-      else runs.push({ win: w, games: [g] });
+  // Height stays a plain running win/loss total. Every competitive win is +1
+  // and every loss -1, so one unit of height is still exactly one match — the
+  // property the streak line had, and the day-tile strip before it did not.
+  //
+  //   open   = wherever yesterday's candle finished drawing
+  //   close  = open plus that day's net competitive record
+  //   body   = open to close. Green when the day broke even or better, red below
+  //   wicks  = quickplay. Wins reach up from the body's top edge, losses down
+  //            from the bottom. Total wick length is the day's quickplay count,
+  //            split by how it went.
+  //
+  // Quickplay deliberately does not move the close. Only ranked play carries the
+  // total forward; the wick says what else the day held. That is also why the
+  // two never gap apart — each candle starts on the last one's closing edge,
+  // which is the connected look Heikin-Ashi is after, without HA's averaging.
+  const CANDLE_DAYS = 30;
+  const candles = (() => {
+    const byDay = new Map<string, TrendPoint[]>();
+    for (const g of trends ?? []) {
+      const d = g.date.slice(0, 10);
+      const arr = byDay.get(d);
+      if (arr) arr.push(g);
+      else byDay.set(d, [g]);
     }
-    let net = 0;
-    return runs.map(r => {
-      net += r.games.length * (r.win ? 1 : -1);
-      return { ...r, len: r.games.length, net };
+    const days = [...byDay.keys()].sort().slice(-CANDLE_DAYS);
+    let carry = 0;
+    return days.map(date => {
+      const games = byDay.get(date)!;
+      // Both competitive queues (role and open) count toward the total; only
+      // qp_role is practice.
+      const comp = games.filter(g => g.queue_mode !== 'qp_role');
+      const qp = games.filter(g => g.queue_mode === 'qp_role');
+      // `win` arrives from the API as 0/1, not a boolean — compare to 1 rather
+      // than leaning on truthiness, the same trap the old run-grouping hit.
+      const compW = comp.filter(g => g.win === 1).length;
+      const compL = comp.length - compW;
+      const qpW = qp.filter(g => g.win === 1).length;
+      const qpL = qp.length - qpW;
+      const open = carry;
+      const close = open + compW - compL;
+      carry = close;
+      const top = Math.max(open, close);
+      const bottom = Math.min(open, close);
+      return {
+        date, open, close, compW, compL, qpW, qpL, top, bottom,
+        up: close >= open,
+        high: top + qpW,
+        low: bottom - qpL,
+      };
     });
   })();
-  const netMin = Math.min(0, ...formRuns.map(r => r.net));
-  const netMax = Math.max(0, ...formRuns.map(r => r.net));
+
   // Chart is drawn in its own coordinate space and stretched to the card width,
   // so these numbers are aspect ratio, not pixels.
   const CH_W = 1000;
-  const CH_H = 150;
-  const CH_PAD = 10;
-  // Guard the degenerate case: a window with no swing at all would divide by zero.
-  const netSpan = Math.max(1, netMax - netMin);
-  const runX = (j: number) =>
-    formRuns.length <= 1 ? 0 : (j / (formRuns.length - 1)) * CH_W;
+  const CH_H = 200;
+  const CH_PAD = 14;
+  const lowV = Math.min(0, ...candles.map(c => c.low));
+  const highV = Math.max(0, ...candles.map(c => c.high));
+  // Guard the degenerate case: a window with no swing at all divides by zero.
+  const vSpan = Math.max(1, highV - lowV);
+  const slotW = candles.length ? CH_W / candles.length : CH_W;
+  // Bodies keep a gap between them so 30 days read as 30 candles, not a block.
+  const bodyW = Math.max(2, slotW * 0.6);
+  const slotX = (j: number) => slotW * (j + 0.5);
   const chartY = (v: number) =>
-    CH_PAD + (1 - (v - netMin) / netSpan) * (CH_H - CH_PAD * 2);
-  // Path: start on the zero line, then for each run draw the vertical first and
-  // the horizontal after it. The horizontal carries the current total across to
-  // where the next run begins; it never changes height, because nothing happened
-  // between two runs — the next match simply went the other way.
-  const formPoints = (() => {
-    const pts: string[] = [`${runX(0)},${chartY(0)}`];
-    formRuns.forEach((r, j) => {
-      pts.push(`${runX(j)},${chartY(r.net)}`);
-      if (j < formRuns.length - 1) pts.push(`${runX(j + 1)},${chartY(r.net)}`);
-    });
-    return pts.join(' ');
-  })();
+    CH_PAD + (1 - (v - lowV) / vSpan) * (CH_H - CH_PAD * 2);
   const zeroY = chartY(0);
-  const lastRun = formRuns.length ? formRuns[formRuns.length - 1] : null;
-  const lastNet = lastRun ? lastRun.net : 0;
-  // Colour ramp for the plot line. Saturation carries the meaning: right at
-  // break-even the line is nearly grey, and it saturates toward full green going
-  // up and full red going down. So how strongly the line is coloured says how far
-  // from even the run has got, independently of where it sits on the card.
-  //
-  // Draining the colour out near zero is also what lets green meet red gradually.
-  // Two saturated colours blended directly pass through brown; two nearly-grey
-  // ones pass through grey, which reads as "no strong result either way" — which
-  // is exactly what a total near zero means.
-  const BLEND_THRESHOLD = 1.0;
-  const maxAbsNet = Math.max(Math.abs(netMin), Math.abs(netMax), 1);
-  const STROKE_STOPS = 21;
-  const strokeStops = Array.from({ length: STROKE_STOPS }, (_, k) => {
-    // Walk from the top of the axis down, so offsets come out ascending — SVG
-    // requires stop offsets in increasing order.
-    const v = netMax - (k / (STROKE_STOPS - 1)) * (netMax - netMin);
-    const t = Math.min(1, Math.abs(v) / maxAbsNet);
-    const up = v >= 0;
-    // The two sides need different curves to look like the same ramp. A washed-out
-    // green sits near the eye's peak brightness sensitivity, so it collapses to
-    // plain grey while a washed-out red still reads as pink. Feeding the green
-    // side through a lower exponent makes its colour arrive faster off zero; the
-    // red side stays close to linear. Same intent both ways, corrected for the
-    // fact that the eye does not treat the two hues alike.
-    // BLEND_THRESHOLD sets how far from break-even the grey band reaches before
-    // real colour arrives. Raise it and the near-grey zone widens; drop it to 1
-    // and colour climbs in a straight line from zero.
-    //
-    // Settled at 1.0 — a straight line — after trying 1.6, 1.3 and 1.2 against the
-    // real chart. The argument for pushing it higher was that the line spends most
-    // of its time within a few matches of even, so a wider grey band would give
-    // that range more room. On screen the difference between those values turned
-    // out to be smaller than it looks in a table, and the plain version reads no
-    // worse, so the plain version wins.
-    //
-    // Worth knowing if this is revisited: saturation on a 2px line has limited
-    // headroom whatever curve is applied. The untried lever is stroke width
-    // growing with distance from even.
-    const shaped = Math.pow(t, BLEND_THRESHOLD);
-    const hue = up ? 160 : 350;
-    // Saturation runs nearly the full range. Lightness deliberately stays in a
-    // narrow band: the dark theme puts this chart on a near-black card (#101216),
-    // so buying contrast by darkening the line would sink it into the background
-    // there. Saturation reads on both themes.
-    const sat = 4 + 91 * shaped;
-    // Base lightness is identical on both sides so the two ramps meet seamlessly
-    // at zero, where both are grey enough that the hue difference is invisible.
-    const light = 57 - (up ? 13 : 11) * shaped;
-    return {
-      offset: chartY(v) / CH_H,
-      color: `hsl(${hue} ${sat.toFixed(1)}% ${light.toFixed(1)}%)`,
-    };
-  });
+  const lastCandle = candles.length ? candles[candles.length - 1] : null;
+  const lastClose = lastCandle ? lastCandle.close : 0;
+  const UP_COLOR = 'rgb(16 185 129)';
+  const DOWN_COLOR = 'rgb(244 63 94)';
+
   // Gridlines. Y every 5 matches, since the height is a match count — a line
-  // every 5 gives the eye something to measure a streak against without drawing
-  // 21 of them. Zero is excluded here because it already has its own dashed
-  // break-even line and would otherwise be drawn twice.
+  // every 5 gives the eye something to measure a day against without drawing
+  // one per match. Zero is excluded: it already has its own dashed break-even
+  // line and would otherwise be drawn twice.
   const yTicks: number[] = [];
-  for (let v = Math.ceil(netMin / 5) * 5; v <= netMax; v += 5) {
+  for (let v = Math.ceil(lowV / 5) * 5; v <= highV; v += 5) {
     if (v !== 0) yTicks.push(v);
   }
-  // X wherever the calendar day changes. Runs do not align to days, so the tick
-  // sits at the first run that opened on a new date.
-  const dayTicks = formRuns.reduce<{ j: number; date: string }[]>((acc, r, j) => {
-    const day = r.games[0].date.slice(0, 10);
-    if (acc.length === 0 || acc[acc.length - 1].date !== day) acc.push({ j, date: day });
-    return acc;
-  }, []);
-  const bestWinRun = Math.max(0, ...formRuns.filter(r => r.win).map(r => r.len));
-  const worstLossRun = Math.max(0, ...formRuns.filter(r => !r.win).map(r => r.len));
+  // Roughly eight date labels whatever the window holds; thirty would collide.
+  const labelEvery = Math.max(1, Math.ceil(candles.length / 8));
+  const dayTicks = candles
+    .map((c, j) => ({ j, date: c.date }))
+    .filter(t => t.j % labelEvery === 0);
+  const dayNets = candles.map(c => c.compW - c.compL);
+  const bestDay = dayNets.length ? Math.max(...dayNets) : 0;
+  const worstDay = dayNets.length ? Math.min(...dayNets) : 0;
 
   const sections = [
     { id: 'sec-mode', label: 'Mode' },
@@ -391,7 +358,7 @@ export default function Dashboard() {
               Hand-drawn SVG rather than a charting library — one polyline and a
               fill do not justify a dependency. */}
           <div data-inspect-id="dash-recent-form-chart">
-            {formRuns.length >= 1 ? (
+            {candles.length >= 1 ? (
               // Labels live in an HTML layer over the chart rather than inside the
               // SVG. The SVG is stretched to the card width with
               // preserveAspectRatio="none", which would squash any <text> drawn in
@@ -401,50 +368,11 @@ export default function Dashboard() {
                 <svg
                   viewBox={`0 0 ${CH_W} ${CH_H}`}
                   preserveAspectRatio="none"
-                  className="w-full h-[150px] overflow-visible"
+                  className="w-full h-[200px] overflow-visible"
                   role="img"
-                  aria-label={`Running win-loss total across the last ${last100.length} matches, drawn one streak at a time. Currently ${lastNet > 0 ? '+' : ''}${lastNet}, on a ${lastRun?.len ?? 0} game ${lastRun?.win ? 'win' : 'loss'} run.`}
+                  aria-label={`Daily win-loss candles across the last ${candles.length} days played. Each candle body is that day's net competitive record, stacked on the previous day's close; wicks are quickplay wins above and losses below. Currently ${lastClose > 0 ? '+' : ''}${lastClose}.`}
                 >
-                  <defs>
-                    {/* Area under the line, fading out downward so the fill reads
-                        as shading rather than a solid block competing with it. */}
-                    <linearGradient id="formFillUp" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="rgb(16 185 129)" stopOpacity="0.28" />
-                      <stop offset="100%" stopColor="rgb(16 185 129)" stopOpacity="0" />
-                    </linearGradient>
-                    <linearGradient id="formFillDown" x1="0" y1="1" x2="0" y2="0">
-                      <stop offset="0%" stopColor="rgb(244 63 94)" stopOpacity="0.28" />
-                      <stop offset="100%" stopColor="rgb(244 63 94)" stopOpacity="0" />
-                    </linearGradient>
-                    {/* The plot line's own colour, from strokeStops above.
-                        Measured in the chart's coordinates rather than in
-                        percentages of the shape's bounding box, so a given colour
-                        always means the same running total — a percentage
-                        gradient would re-anchor to wherever the line happened to
-                        reach that day. */}
-                    <linearGradient
-                      id="formStroke"
-                      gradientUnits="userSpaceOnUse"
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2={CH_H}
-                    >
-                      {strokeStops.map((st, k) => (
-                        <stop key={k} offset={st.offset} stopColor={st.color} />
-                      ))}
-                    </linearGradient>
-                    {/* Split the fill at the zero line so time spent above even is
-                        green and time below is red, without cutting the line. */}
-                    <clipPath id="formClipUp">
-                      <rect x="0" y="0" width={CH_W} height={zeroY} />
-                    </clipPath>
-                    <clipPath id="formClipDown">
-                      <rect x="0" y={zeroY} width={CH_W} height={CH_H - zeroY} />
-                    </clipPath>
-                  </defs>
-
-                  {/* Grid, drawn first so the line and fill sit on top of it. */}
+                  {/* Grid, drawn first so the candles sit on top of it. */}
                   {yTicks.map(v => (
                     <line
                       key={`y${v}`}
@@ -458,30 +386,6 @@ export default function Dashboard() {
                       className="text-[var(--faint)] opacity-[0.18]"
                     />
                   ))}
-                  {dayTicks.map(t => (
-                    <line
-                      key={t.date}
-                      x1={runX(t.j)}
-                      y1="0"
-                      x2={runX(t.j)}
-                      y2={CH_H}
-                      stroke="currentColor"
-                      strokeWidth="1"
-                      vectorEffect="non-scaling-stroke"
-                      className="text-[var(--faint)] opacity-[0.18]"
-                    />
-                  ))}
-
-                  <polygon
-                    points={`0,${zeroY} ${formPoints} ${CH_W},${zeroY}`}
-                    fill="url(#formFillUp)"
-                    clipPath="url(#formClipUp)"
-                  />
-                  <polygon
-                    points={`0,${zeroY} ${formPoints} ${CH_W},${zeroY}`}
-                    fill="url(#formFillDown)"
-                    clipPath="url(#formClipDown)"
-                  />
 
                   {/* Break-even. Above it the window is up on the run, below it down. */}
                   <line
@@ -496,40 +400,85 @@ export default function Dashboard() {
                     className="text-[var(--faint)] opacity-50"
                   />
 
-                  <polyline
-                    points={formPoints}
-                    fill="none"
-                    stroke="url(#formStroke)"
-                    strokeWidth="2"
-                    strokeLinejoin="miter"
-                    strokeLinecap="butt"
-                    vectorEffect="non-scaling-stroke"
-                  />
+                  {candles.map((c, j) => {
+                    const cx = slotX(j);
+                    const color = c.up ? UP_COLOR : DOWN_COLOR;
+                    const yTop = chartY(c.top);
+                    const yBottom = chartY(c.bottom);
+                    return (
+                      <g key={c.date}>
+                        {/* Quickplay wins reach up from the body's top edge. */}
+                        {c.qpW > 0 && (
+                          <line
+                            x1={cx}
+                            y1={yTop}
+                            x2={cx}
+                            y2={chartY(c.high)}
+                            stroke={color}
+                            strokeWidth="2"
+                            strokeOpacity="0.75"
+                            vectorEffect="non-scaling-stroke"
+                          />
+                        )}
+                        {/* Quickplay losses hang below the bottom edge. */}
+                        {c.qpL > 0 && (
+                          <line
+                            x1={cx}
+                            y1={yBottom}
+                            x2={cx}
+                            y2={chartY(c.low)}
+                            stroke={color}
+                            strokeWidth="2"
+                            strokeOpacity="0.75"
+                            vectorEffect="non-scaling-stroke"
+                          />
+                        )}
+                        {/* An even day has no body to draw, so it gets a bar
+                            instead of a zero-height rectangle that renders as
+                            nothing. Same idea as a doji on a price chart. */}
+                        {yBottom - yTop < 0.5 ? (
+                          <line
+                            x1={cx - bodyW / 2}
+                            y1={yTop}
+                            x2={cx + bodyW / 2}
+                            y2={yTop}
+                            stroke={color}
+                            strokeWidth="2"
+                            vectorEffect="non-scaling-stroke"
+                          />
+                        ) : (
+                          <rect
+                            x={cx - bodyW / 2}
+                            y={yTop}
+                            width={bodyW}
+                            height={yBottom - yTop}
+                            fill={color}
+                            fillOpacity="0.5"
+                            stroke={color}
+                            strokeWidth="1.5"
+                            vectorEffect="non-scaling-stroke"
+                          />
+                        )}
+                      </g>
+                    );
+                  })}
 
-                  {/* Where the run stands right now. */}
-                  <circle
-                    cx={runX(formRuns.length - 1)}
-                    cy={chartY(lastNet)}
-                    r="3.5"
-                    fill={lastNet >= 0 ? 'rgb(16 185 129)' : 'rgb(244 63 94)'}
-                    vectorEffect="non-scaling-stroke"
-                  />
-
-                  {/* One invisible column per match carrying a native tooltip, so
-                      hovering still names the hero and map the way the old tiles
-                      did. Cheaper than per-point JS hover state, and it keeps the
-                      whole chart working with no event handlers at all. */}
-                  {formRuns.map((r, j) => (
+                  {/* One invisible column per day carrying a native tooltip, so
+                      hovering names the day's record the way the old run
+                      tooltips named the streak. Cheaper than per-point JS hover
+                      state, and it keeps the chart working with no event
+                      handlers at all. */}
+                  {candles.map((c, j) => (
                     <rect
-                      key={r.games[0].id}
-                      x={runX(j) - (formRuns.length > 1 ? CH_W / (formRuns.length - 1) : CH_W) / 2}
+                      key={`hit-${c.date}`}
+                      x={slotX(j) - slotW / 2}
                       y="0"
-                      width={formRuns.length > 1 ? CH_W / (formRuns.length - 1) : CH_W}
+                      width={slotW}
                       height={CH_H}
                       fill="transparent"
                     >
                       <title>
-                        {`${r.len} ${r.win ? 'win' : 'loss'}${r.len === 1 ? '' : 'es'} in a row · ${format(parseISO(r.games[0].date), 'MMM d')} · now ${r.net > 0 ? '+' : ''}${r.net}`}
+                        {`${format(parseISO(c.date), 'MMM d')} · comp ${c.compW}W ${c.compL}L${c.qpW + c.qpL > 0 ? ` · qp ${c.qpW}W ${c.qpL}L` : ''} · ${c.open > 0 ? '+' : ''}${c.open} → ${c.close > 0 ? '+' : ''}${c.close}`}
                       </title>
                     </rect>
                   ))}
@@ -546,13 +495,13 @@ export default function Dashboard() {
                   </span>
                 ))}
 
-                {/* Date labels. The first one is left-aligned to its line and the
-                    rest are centred, so the leftmost cannot hang off the card. */}
+                {/* Date labels. The first one is left-aligned to its candle and
+                    the rest are centred, so the leftmost cannot hang off the card. */}
                 {dayTicks.map((t, i) => (
                   <span
                     key={`xl${t.date}`}
                     className={`absolute top-full mt-0.5 text-[9px] leading-none whitespace-nowrap text-[var(--faint)] ${i === 0 ? '' : '-translate-x-1/2'}`}
-                    style={{ left: `calc(1.75rem + ${(runX(t.j) / CH_W) * 100}% - ${(runX(t.j) / CH_W) * 1.75}rem)` }}
+                    style={{ left: `calc(1.75rem + ${(slotX(t.j) / CH_W) * 100}% - ${(slotX(t.j) / CH_W) * 1.75}rem)` }}
                   >
                     {format(parseISO(t.date), 'M/d')}
                   </span>
@@ -567,15 +516,15 @@ export default function Dashboard() {
                 className="w-full"
               />
             )}
-            {formRuns.length >= 1 && (
+            {candles.length >= 1 && (
               <div className="flex items-center justify-between text-[10px] text-[var(--faint)] mt-5">
-                  <span>{last100.length} matches ago</span>
+                  <span>{candles.length} days</span>
                   <span>
-                    best run <b className="font-bold text-emerald-600">{bestWinRun}W</b>
-                    {' · '}worst <b className="font-bold text-rose-600">{worstLossRun}L</b>
+                    best day <b className="font-bold text-emerald-600">{bestDay > 0 ? '+' : ''}{bestDay}</b>
+                    {' · '}worst <b className="font-bold text-rose-600">{worstDay}</b>
                     {' · '}now{' '}
-                    <b className={`font-bold ${lastNet >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {lastNet > 0 ? '+' : ''}{lastNet}
+                    <b className={`font-bold ${lastClose >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {lastClose > 0 ? '+' : ''}{lastClose}
                     </b>
                   </span>
                 <span>latest</span>
