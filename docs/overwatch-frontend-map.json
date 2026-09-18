@@ -656,10 +656,20 @@
           "id": "prematch-hero-picker-gauge",
           "label": "Hero picker remaining-tests gauge",
           "kind": "meter",
-          "description": "5-segment parallelogram gauge (battery-meter style) centered horizontally inside each hero picker row. Green segments = games remaining in the current DPI/sens stage, grey filled (50% opacity) segments = already logged; quantized from that hero's active test batch_size/games_on_stage onto a fixed 5-bar scale. Only shown for a hero with an active test \u2014 see prematch-hero-picker-done-badge for the alternative shown once a hero's test finishes.",
+          "description": "5-segment parallelogram gauge (battery-meter style) centered horizontally inside each hero picker row. Green segments = games remaining in the current DPI/sens stage, grey filled (50% opacity) segments = already logged; quantized from that hero's active test batch_size/games_on_stage onto a fixed 5-bar scale. Only shown for a hero with an active test \u2014 see prematch-hero-picker-done-badge for the alternative shown once a hero's test finishes. Reports progress through the CURRENT stage only; it empties and refills each stage, so prematch-hero-picker-stage-badge sits immediately left of it to say which stage that is.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:929",
+            "path": "client/src/pages/Prematch.tsx:1189",
             "grep": "grep -n -F -- 'prematch-hero-picker-gauge' client/src/pages/Prematch.tsx"
+          }
+        },
+        {
+          "id": "prematch-hero-picker-stage-badge",
+          "label": "Hero picker stage indicator",
+          "kind": "badge",
+          "description": "Encircled number immediately left of the remaining-matches gauge, giving which stage of the test set this hero is currently on (hover shows \"Stage X of Y\"). Reads cur_stage/n_stages straight off GET /api/blind/state, the same two fields the DPI HUD card uses. Outlined rather than filled so it does not read as a second prematch-hero-picker-order-badge, which is solid and marks click position at the row's top-left corner. Rendered inside the gauge's own absolutely-positioned container so the number and the bars travel together at any row width. Only shown for a hero with an active test.",
+          "locate": {
+            "path": "client/src/pages/Prematch.tsx:1203",
+            "grep": "grep -n -F -- 'prematch-hero-picker-stage-badge' client/src/pages/Prematch.tsx"
           }
         },
         {
