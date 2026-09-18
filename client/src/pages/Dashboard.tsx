@@ -196,7 +196,10 @@ export default function Dashboard() {
   // total forward; the wick says what else the day held. That is also why the
   // two never gap apart — each candle starts on the last one's closing edge,
   // which is the connected look Heikin-Ashi is after, without HA's averaging.
-  const CANDLE_DAYS = 30;
+  // Fifty days played, which reaches back about seven weeks and holds roughly
+  // 570 matches. Wider than this and the bodies start touching: at fifty the
+  // chart gives each day 20 units of its 1000-wide space and the body takes 12.
+  const CANDLE_DAYS = 50;
   const candles = (() => {
     const byDay = new Map<string, TrendPoint[]>();
     for (const g of trends ?? []) {
@@ -236,7 +239,10 @@ export default function Dashboard() {
   // Chart is drawn in its own coordinate space and stretched to the card width,
   // so these numbers are aspect ratio, not pixels.
   const CH_W = 1000;
-  const CH_H = 200;
+  // Taller than the streak line was. A longer window drifts further from zero —
+  // fifty days span 39 matches top to bottom against thirty days' 24 — and the
+  // height has to grow with it or a one-match day shrinks to a hairline.
+  const CH_H = 240;
   const CH_PAD = 14;
   const lowV = Math.min(0, ...candles.map(c => c.low));
   const highV = Math.max(0, ...candles.map(c => c.high));
@@ -434,7 +440,7 @@ export default function Dashboard() {
                 <svg
                   viewBox={`0 0 ${CH_W} ${CH_H}`}
                   preserveAspectRatio="none"
-                  className="w-full h-[200px] overflow-visible"
+                  className="w-full h-[240px] overflow-visible"
                   role="img"
                   aria-label={`Daily win-loss candles across the last ${candles.length} days played. Each candle body is that day's net competitive record, stacked on the previous day's close; wicks are quickplay wins above and losses below. Currently ${lastClose > 0 ? '+' : ''}${lastClose}.`}
                 >
