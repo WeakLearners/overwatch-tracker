@@ -251,8 +251,74 @@ export default function Dashboard() {
   const zeroY = chartY(0);
   const lastCandle = candles.length ? candles[candles.length - 1] : null;
   const lastClose = lastCandle ? lastCandle.close : 0;
-  const UP_COLOR = 'rgb(16 185 129)';
-  const DOWN_COLOR = 'rgb(244 63 94)';
+  // Colour ramp, carried over from the streak line this chart replaced.
+  //
+  // Hue says which way the day went: green for a day that broke even or better,
+  // red for a losing one. Saturation says something else entirely — how far from
+  // break-even the running total has got. Right at the zero line a candle is
+  // nearly grey. Twelve matches down it is vivid.
+  //
+  // So the chart reads at two distances. Up close each candle's hue tells you
+  // whether that day was won or lost. From across the room the whole field
+  // drains to grey near even and floods with colour when a run goes somewhere.
+  //
+  // Draining colour out near zero is also what lets green meet red gradually.
+  // Two saturated colours side by side clash; two nearly-grey ones do not, which
+  // reads correctly as "no strong result either way" — exactly what a total near
+  // zero means.
+  const BLEND_THRESHOLD = 1.0;
+  const maxAbsV = Math.max(Math.abs(lowV), Math.abs(highV), 1);
+  const GRAD_STOPS = 21;
+  // Measured in chart coordinates rather than as a percentage of each candle's
+  // own box, so a given colour always means the same running total. A per-shape
+  // gradient would re-anchor to each candle's height, and the same green would
+  // mean +11 on one day and +2 on the next.
+  const gradStops = (up: boolean) =>
+    Array.from({ length: GRAD_STOPS }, (_, k) => {
+      // Walk from the top of the axis down, so offsets come out ascending — SVG
+      // requires stop offsets in increasing order.
+      const v = highV - (k / (GRAD_STOPS - 1)) * (highV - lowV);
+      const t = Math.min(1, Math.abs(v) / maxAbsV);
+      // BLEND_THRESHOLD sets how far from break-even the grey band reaches
+      // before real colour arrives. Raise it and the near-grey zone widens; at
+      // 1.0 colour climbs in a straight line from zero. Settled there on the
+      // streak line after trying 1.6, 1.3 and 1.2 against real data — the plain
+      // version read no worse, so the plain version won. Filled bodies have far
+      // more colour headroom than the 2px line did, so if this is ever revisited
+      // it has more room to move here than it did there.
+      const shaped = Math.pow(t, BLEND_THRESHOLD);
+      // Lightness deliberately stays in a narrow band: the dark theme puts this
+      // chart on a near-black card, so buying contrast by darkening would sink
+      // the candle into the background. Saturation reads on both themes.
+      // Floor and ceiling of the saturation ramp.
+      //
+      // The streak line floored this at 4% — flat grey at break-even. That was
+      // right for a 2px line, where hue carried no information and grey simply
+      // meant "nothing much happening". It is wrong here, because a candle's
+      // hue says which way the day went, and a grey candle has lost that.
+      //
+      // The numbers say the same thing. Measured across the current window,
+      // 17 of 30 candles sit between -2 and +1. At a 4% floor all seventeen
+      // come out the same near-grey, and a won day is indistinguishable from a
+      // lost one — the exact complaint that killed the line's first ramp.
+      //
+      // So the floor rises to where green and red are still telling apart, and
+      // the ceiling gives the far candles somewhere to go. Distance from
+      // break-even is still what drives it; the scale just no longer starts at
+      // invisible.
+      const SAT_FLOOR = 22;
+      const SAT_CEIL = 95;
+      const sat = SAT_FLOOR + (SAT_CEIL - SAT_FLOOR) * shaped;
+      // Base lightness is identical on both sides so the two ramps meet
+      // seamlessly at zero, where both are grey enough that hue is invisible.
+      const light = 57 - (up ? 13 : 11) * shaped;
+      return {
+        offset: chartY(v) / CH_H,
+        color: `hsl(${up ? 160 : 350} ${sat.toFixed(1)}% ${light.toFixed(1)}%)`,
+      };
+    });
+  const UP_COLOR = 'url(#candleUp)';
+  const DOWN_COLOR = 'url(#candleDown)';
 
   // Gridlines. Y every 5 matches, since the height is a match count — a line
   // every 5 gives the eye something to measure a day against without drawing
@@ -372,6 +438,27 @@ export default function Dashboard() {
                   role="img"
                   aria-label={`Daily win-loss candles across the last ${candles.length} days played. Each candle body is that day's net competitive record, stacked on the previous day's close; wicks are quickplay wins above and losses below. Currently ${lastClose > 0 ? '+' : ''}${lastClose}.`}
                 >
+                  <defs>
+                    {/* One shared gradient per direction, spanning the whole
+                        chart in its own coordinates. Every candle samples the
+                        same ramp, so two candles at the same height are the
+                        same colour no matter how tall their bodies are. */}
+                    {([true, false] as const).map(up => (
+                      <linearGradient
+                        key={up ? 'up' : 'down'}
+                        id={up ? 'candleUp' : 'candleDown'}
+                        gradientUnits="userSpaceOnUse"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2={CH_H}
+                      >
+                        {gradStops(up).map((st, k) => (
+                          <stop key={k} offset={st.offset} stopColor={st.color} />
+                        ))}
+                      </linearGradient>
+                    ))}
+                  </defs>
                   {/* Grid, drawn first so the candles sit on top of it. */}
                   {yTicks.map(v => (
                     <line
@@ -416,7 +503,7 @@ export default function Dashboard() {
                             y2={chartY(c.high)}
                             stroke={color}
                             strokeWidth="2"
-                            strokeOpacity="0.75"
+                            strokeOpacity="0.9"
                             vectorEffect="non-scaling-stroke"
                           />
                         )}
@@ -429,7 +516,7 @@ export default function Dashboard() {
                             y2={chartY(c.low)}
                             stroke={color}
                             strokeWidth="2"
-                            strokeOpacity="0.75"
+                            strokeOpacity="0.9"
                             vectorEffect="non-scaling-stroke"
                           />
                         )}
@@ -453,7 +540,7 @@ export default function Dashboard() {
                             width={bodyW}
                             height={yBottom - yTop}
                             fill={color}
-                            fillOpacity="0.5"
+                            fillOpacity="0.85"
                             stroke={color}
                             strokeWidth="1.5"
                             vectorEffect="non-scaling-stroke"
