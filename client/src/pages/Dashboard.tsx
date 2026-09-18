@@ -324,6 +324,24 @@ export default function Dashboard() {
   // reads correctly as "no strong result either way" — exactly what a total near
   // zero means.
   const BLEND_THRESHOLD = 1.0;
+  // Floor and ceiling of the saturation ramp.
+  //
+  // The streak line floored this at 4% — flat grey at break-even. That was
+  // right for a 2px line, where hue carried no information and grey simply
+  // meant "nothing much happening". It is wrong here, because a candle's
+  // hue says which way the day went, and a grey candle has lost that.
+  //
+  // The numbers say the same thing. Measured across the current window,
+  // 17 of 30 candles sit between -2 and +1. At a 4% floor all seventeen
+  // come out the same near-grey, and a won day is indistinguishable from a
+  // lost one — the exact complaint that killed the line's first ramp.
+  //
+  // So the floor rises to where green and red are still telling apart, and
+  // the ceiling gives the far candles somewhere to go. Distance from
+  // break-even is still what drives it; the scale just no longer starts at
+  // invisible.
+  const SAT_FLOOR = 22;
+  const SAT_CEIL = 95;
   const maxAbsV = Math.max(Math.abs(lowV), Math.abs(highV), 1);
   const GRAD_STOPS = 21;
   // Measured in chart coordinates rather than as a percentage of each candle's
@@ -347,24 +365,6 @@ export default function Dashboard() {
       // Lightness deliberately stays in a narrow band: the dark theme puts this
       // chart on a near-black card, so buying contrast by darkening would sink
       // the candle into the background. Saturation reads on both themes.
-      // Floor and ceiling of the saturation ramp.
-      //
-      // The streak line floored this at 4% — flat grey at break-even. That was
-      // right for a 2px line, where hue carried no information and grey simply
-      // meant "nothing much happening". It is wrong here, because a candle's
-      // hue says which way the day went, and a grey candle has lost that.
-      //
-      // The numbers say the same thing. Measured across the current window,
-      // 17 of 30 candles sit between -2 and +1. At a 4% floor all seventeen
-      // come out the same near-grey, and a won day is indistinguishable from a
-      // lost one — the exact complaint that killed the line's first ramp.
-      //
-      // So the floor rises to where green and red are still telling apart, and
-      // the ceiling gives the far candles somewhere to go. Distance from
-      // break-even is still what drives it; the scale just no longer starts at
-      // invisible.
-      const SAT_FLOOR = 22;
-      const SAT_CEIL = 95;
       const sat = SAT_FLOOR + (SAT_CEIL - SAT_FLOOR) * shaped;
       // Base lightness is identical on both sides so the two ramps meet
       // seamlessly at zero, where both are grey enough that hue is invisible.
@@ -376,6 +376,12 @@ export default function Dashboard() {
     });
   const UP_COLOR = 'url(#candleUp)';
   const DOWN_COLOR = 'url(#candleDown)';
+  // Flat versions for the legend. The chart's own colours are gradients defined
+  // inside its <defs>, and a url(#...) reference is meaningless in the legend's
+  // separate SVG and in plain CSS backgrounds. These are the ramp's full-
+  // saturation ends, so the legend swatch matches a candle at the extremes.
+  const UP_SWATCH = `hsl(160 ${SAT_CEIL}% 44%)`;
+  const DOWN_SWATCH = `hsl(350 ${SAT_CEIL}% 46%)`;
 
   // Gridlines. Y every 5 matches, since the height is a match count — a line
   // every 5 gives the eye something to measure a day against without drawing
@@ -731,11 +737,7 @@ export default function Dashboard() {
                     ordinary stretch, and the candles alone cannot tell you which
                     this is. */}
                 <div className="flex items-center justify-between flex-wrap gap-y-1 text-[10px] text-[var(--faint)] mt-1.5" data-inspect-id="dash-recent-form-pace-note">
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="inline-block w-4 border-t border-dashed border-[var(--faint)]" aria-hidden="true" />
-                    pace at career <b className="font-bold">{((careerEdge + 1) * 50).toFixed(1)}</b>% ·
-                    shaded ±1 SD · bars = matches played
-                  </span>
+                  <span />
                   <span>
                     {lastN} ranked · pace <b className="font-bold">{paceAt(lastN) >= 0 ? '+' : ''}{paceAt(lastN).toFixed(0)}</b>
                     {' · '}you{' '}
@@ -748,6 +750,64 @@ export default function Dashboard() {
                     </b>
                     {Math.abs(lastZ) < 1 ? ' — ordinary' : Math.abs(lastZ) < 2 ? ' — notable' : ' — real'}
                   </span>
+                </div>
+                {/* Legend. The candle is the part no one can guess: the body is
+                    a NET, not a count, and the wick has been repurposed from
+                    intraday range to a second series. Drawing a miniature one is
+                    shorter than the sentence it would take to say that. */}
+                <div
+                  data-inspect-id="dash-recent-form-legend"
+                  className="flex flex-wrap items-start gap-x-6 gap-y-3 text-[10px] leading-[1.6] text-[var(--faint)] mt-4 pt-3 border-t border-ow-border"
+                >
+                  <div className="flex items-start gap-2">
+                    <svg width="24" height="44" viewBox="0 0 24 44" aria-hidden="true" className="shrink-0 mt-0.5">
+                      <line x1="12" y1="1" x2="12" y2="12" stroke={UP_SWATCH} strokeWidth="2" strokeOpacity="0.9" />
+                      <rect x="3" y="12" width="18" height="19" fill={UP_SWATCH} fillOpacity="0.85" stroke={UP_SWATCH} strokeWidth="1.5" />
+                      <line x1="12" y1="31" x2="12" y2="43" stroke={UP_SWATCH} strokeWidth="2" strokeOpacity="0.9" />
+                    </svg>
+                    <span>
+                      <b className="font-bold text-[var(--muted)]">one candle = one day</b>
+                      <br />body: ranked wins minus losses, from where yesterday ended
+                      <br />wick: quickplay — wins above, losses below
+                    </span>
+                  </div>
+
+                  <div className="flex items-start gap-2">
+                    <span className="shrink-0 mt-[3px] inline-flex gap-1" aria-hidden="true">
+                      <span className="inline-block w-2.5 h-3 rounded-[1px]" style={{ background: UP_SWATCH, opacity: 0.85 }} />
+                      <span className="inline-block w-2.5 h-3 rounded-[1px]" style={{ background: DOWN_SWATCH, opacity: 0.85 }} />
+                    </span>
+                    <span>
+                      <b className="font-bold text-[var(--muted)]">colour</b>
+                      <br />green: the day broke even or better
+                      <br />stronger colour = further from break-even
+                    </span>
+                  </div>
+
+                  <div className="flex items-start gap-2">
+                    <span className="shrink-0 mt-[3px] relative inline-block w-5 h-3" aria-hidden="true">
+                      <span className="absolute inset-0 rounded-[1px] bg-[var(--faint)] opacity-20" />
+                      <span className="absolute left-0 right-0 top-1/2 border-t border-dashed border-[var(--faint)] opacity-80" />
+                    </span>
+                    <span>
+                      <b className="font-bold text-[var(--muted)]">pace &amp; ±1 SD</b>
+                      <br />where a run at your career <b className="font-bold">{((careerEdge + 1) * 50).toFixed(1)}</b>% would drift
+                      <br />shading is the room an ordinary run has to wander
+                    </span>
+                  </div>
+
+                  <div className="flex items-start gap-2">
+                    <span className="shrink-0 mt-[3px] inline-flex items-end gap-[2px] h-3" aria-hidden="true">
+                      <span className="inline-block w-1 h-1.5 bg-[var(--muted)] opacity-40" />
+                      <span className="inline-block w-1 h-3 bg-[var(--muted)] opacity-40" />
+                      <span className="inline-block w-1 h-2 bg-[var(--muted)] opacity-40" />
+                    </span>
+                    <span>
+                      <b className="font-bold text-[var(--muted)]">bars below</b>
+                      <br />matches played that day — the body is a net,
+                      <br />so 1W-1L and 7W-7L both look flat
+                    </span>
+                  </div>
                 </div>
               </>
             )}
