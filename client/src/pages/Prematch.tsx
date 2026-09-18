@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { useApi, revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
-import { MAPS, QUEUE_MODES, ROLE_COLORS, ROLE_PILL_CLASS, TYPE_COLORS, HEROES, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, MapVotingRow, QueueMode, Streaks } from '../types';
+import { MAPS, QUEUE_MODES, ROLE_COLORS, ROLE_PILL_CLASS, TYPE_COLORS, HEROES, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, MapVotingRow, QueueMode, Streaks, RANK_TIERS, RANK_TIER_COLOR, DEFAULT_LOBBY_SPREAD, rankLabel, rankTier, rankDivision, rankFromParts } from '../types';
 import AdvisorCard from '../components/AdvisorCard';
 import EmptyState from '../components/EmptyState';
 import { useMapDrawer } from '../contexts/MapDrawerContext';
@@ -174,7 +174,7 @@ interface PrematchData {
 export default function Prematch() {
   // Shared, single-instance match state (queue mode, map, advisor) lives here
   // and is consumed by the Log Match section too.
-  const { queueMode, map, setMap, mapType, rec, recLoading, recError, refreshRec, revalidateRec, testRole, setTestRole, setPendingHeroes, matchLoggedSignal } = useMatch();
+  const { queueMode, map, setMap, mapType, rec, recLoading, recError, refreshRec, revalidateRec, testRole, setTestRole, setPendingHeroes, matchLoggedSignal, playerRank, setPlayerRank, lobbyLow, lobbyHigh, applyLobbySpread, nudgeLobby, clearLobbyRange } = useMatch();
   const { data: dpiHud } = useApi<DpiTestHud>('/api/blind/state');
   const btActives = dpiHud?.actives ?? [];
   // Several heroes can be "In Testing" at once, but the mouse can only be set
@@ -1118,6 +1118,97 @@ export default function Prematch() {
                     )}
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Lobby Rank — captured HERE, at hero select, and not in the Match Log.
+            The lobby's rank spread is only readable on the opening scoreboard.
+            By the time the match ends and gets logged it is gone, and a guess
+            recalled ten minutes later is not an observation. So the reading is
+            taken at the start and carried through the match in MatchContext,
+            surviving a mid-match reload, then flushed on submit.
+
+            Competitive only — quickplay has no rank, so the section is hidden
+            rather than sitting empty and inviting a guess. */}
+        {queueMode !== 'qp_role' && (
+          <div className="mt-4 pt-4 border-t border-ow-border/40" data-inspect-id="prematch-lobby-rank-section">
+            <div className="flex items-baseline gap-2 mb-3">
+              <h3 className="text-sm grad-brand font-black uppercase tracking-widest" data-inspect-id="prematch-lobby-rank-header">Lobby Rank</h3>
+              <span className="text-xs text-[var(--faint-2)]">read it off the scoreboard now</span>
+            </div>
+
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs text-[var(--faint)] w-12 shrink-0">You</span>
+              <select
+                value={playerRank == null ? '' : rankTier(playerRank)}
+                onChange={e => setPlayerRank(e.target.value ? rankFromParts(e.target.value as typeof RANK_TIERS[number], playerRank == null ? 5 : rankDivision(playerRank)) : null)}
+                data-inspect-id="prematch-player-rank-tier-select"
+                className="flex-1 min-w-0 field px-2 py-2 text-sm"
+              >
+                <option value="">— rank —</option>
+                {RANK_TIERS.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <select
+                value={playerRank == null ? '' : rankDivision(playerRank)}
+                onChange={e => playerRank != null && setPlayerRank(rankFromParts(rankTier(playerRank), Number(e.target.value)))}
+                disabled={playerRank == null}
+                data-inspect-id="prematch-player-rank-division-select"
+                className="w-16 field px-2 py-2 text-sm disabled:opacity-40"
+              >
+                {[5, 4, 3, 2, 1].map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+              {playerRank != null && (
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: RANK_TIER_COLOR[rankTier(playerRank)] }}
+                  aria-hidden="true"
+                />
+              )}
+            </div>
+
+            {/* The one-tap capture. +/-5 is the standard lobby and sits first. */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--faint)] w-12 shrink-0">Lobby</span>
+              <div className="grid grid-cols-3 gap-2 flex-1" data-inspect-id="prematch-lobby-spread-buttons">
+                {[DEFAULT_LOBBY_SPREAD, 3, 7].map(n => {
+                  const active = playerRank != null && lobbyLow != null && lobbyHigh != null
+                    && lobbyHigh - lobbyLow === 2 * n
+                    && lobbyLow + lobbyHigh === 2 * playerRank;
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      data-inspect-id="prematch-lobby-spread-option"
+                      onClick={() => applyLobbySpread(n)}
+                      disabled={playerRank == null}
+                      aria-pressed={active}
+                      className={`text-xs font-semibold py-2 rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                        active
+                          ? 'bg-ow-accent/20 border-ow-accent/60 text-[var(--ink)]'
+                          : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
+                      }`}
+                    >
+                      ±{n}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Only appears once a spread is set. The nudgers are for the ~1%
+                of lobbies that aren't symmetric around Sean's own rank. */}
+            {lobbyLow != null && lobbyHigh != null && (
+              <div className="flex flex-wrap items-center justify-center gap-2 mt-2 text-xs" data-inspect-id="prematch-lobby-range-readout">
+                <button type="button" onClick={() => nudgeLobby('low', -1)} className="w-6 h-6 rounded border border-ow-border text-[var(--faint)] hover:text-[var(--ink)]" aria-label="Lower the lobby floor">−</button>
+                <span className="font-semibold" style={{ color: RANK_TIER_COLOR[rankTier(lobbyLow)] }}>{rankLabel(lobbyLow)}</span>
+                <button type="button" onClick={() => nudgeLobby('low', 1)} className="w-6 h-6 rounded border border-ow-border text-[var(--faint)] hover:text-[var(--ink)]" aria-label="Raise the lobby floor">+</button>
+                <span className="text-[var(--faint-2)]">→</span>
+                <button type="button" onClick={() => nudgeLobby('high', -1)} className="w-6 h-6 rounded border border-ow-border text-[var(--faint)] hover:text-[var(--ink)]" aria-label="Lower the lobby ceiling">−</button>
+                <span className="font-semibold" style={{ color: RANK_TIER_COLOR[rankTier(lobbyHigh)] }}>{rankLabel(lobbyHigh)}</span>
+                <button type="button" onClick={() => nudgeLobby('high', 1)} className="w-6 h-6 rounded border border-ow-border text-[var(--faint)] hover:text-[var(--ink)]" aria-label="Raise the lobby ceiling">+</button>
+                <button type="button" onClick={clearLobbyRange} className="ml-1 text-[var(--faint-2)] hover:text-red-600" aria-label="Clear the lobby range">clear</button>
               </div>
             )}
           </div>

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
-import { MAPS, QUEUE_MODES, QueueMode, Recommendation, MatchDeathEntry } from '../types';
+import { MAPS, QUEUE_MODES, QueueMode, Recommendation, MatchDeathEntry, RANK_MIN, RANK_MAX, clampRank } from '../types';
 
 // Coaching always shows a DPS and a Support column side by side — the advisor
 // endpoint returns one recommendation per role (either can be null if that
@@ -20,6 +20,16 @@ const SENS_KEY = 'ow-last-sens';
 // ult} — a stale v-axis buffer sitting in localStorage from before this
 // change would otherwise load malformed entries into the new capture UI.
 const DEATH_BUFFER_KEY = 'ow-death-buffer-v4';
+
+// Competitive rank. Sean's own rank changes only when he ranks up, so it
+// persists like sens does. The LOBBY range is different: it is a reading taken
+// off the scoreboard at the start of one specific match, and it is only
+// visible there — by the time the match ends and gets logged, the scoreboard
+// is gone. So it is captured in Pre-Match and has to survive the match itself,
+// including a page reload mid-game, which is why it lives in localStorage and
+// not in component state. It clears the moment the match is logged.
+const RANK_KEY = 'ow-player-rank';
+const LOBBY_KEY = 'ow-lobby-range';
 
 // The shared "current match" intent for the single-page Dashboard: one queue
 // mode, one selected map, one advisor recommendation, consumed by both the
@@ -43,6 +53,18 @@ interface MatchContextValue {
   // scope the hero dropdowns to heroes being tested in that role.
   testRole: 'DPS' | 'Support';
   setTestRole: (r: 'DPS' | 'Support') => void;
+  // Competitive rank, on the 1-45 division ladder (see RANK_TIERS in types).
+  // Entered in Pre-Match before the match starts, read by Log Match on submit.
+  // Same shape as sens: the input and the consumer are in different sections.
+  playerRank: number | null;
+  setPlayerRank: (r: number | null) => void;
+  lobbyLow: number | null;
+  lobbyHigh: number | null;
+  /** Fill both ends of the lobby range at +/-n around Sean's own rank. */
+  applyLobbySpread: (n: number) => void;
+  /** Move one end by d divisions, never past the other end. */
+  nudgeLobby: (end: 'low' | 'high', d: number) => void;
+  clearLobbyRange: () => void;
   rec: AdvisorByRole | null;
   recLoading: boolean;
   recError: string | null;
@@ -92,6 +114,55 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try { localStorage.setItem(TEST_ROLE_KEY, testRole); } catch { /* ignore */ }
   }, [testRole]);
+  const [playerRank, setPlayerRankState] = useState<number | null>(() => {
+    try {
+      const v = Number(localStorage.getItem(RANK_KEY));
+      return v >= RANK_MIN && v <= RANK_MAX ? v : null;
+    } catch { return null; }
+  });
+  const setPlayerRank = useCallback((r: number | null) => {
+    setPlayerRankState(r);
+    try {
+      if (r == null) localStorage.removeItem(RANK_KEY);
+      else localStorage.setItem(RANK_KEY, String(r));
+    } catch { /* ignore */ }
+  }, []);
+
+  const [lobbyRange, setLobbyRange] = useState<{ low: number; high: number } | null>(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(LOBBY_KEY) ?? 'null');
+      if (raw && typeof raw.low === 'number' && typeof raw.high === 'number') return raw;
+      return null;
+    } catch { return null; }
+  });
+  // Persisted the same way sens is — an effect on the value, not a write
+  // buried inside a setState updater. React calls updaters twice in dev, so a
+  // write in there runs twice for every one real change.
+  useEffect(() => {
+    try {
+      if (lobbyRange == null) localStorage.removeItem(LOBBY_KEY);
+      else localStorage.setItem(LOBBY_KEY, JSON.stringify(lobbyRange));
+    } catch { /* ignore */ }
+  }, [lobbyRange]);
+
+  const applyLobbySpread = useCallback((n: number) => {
+    if (playerRank == null) return;
+    setLobbyRange({ low: clampRank(playerRank - n), high: clampRank(playerRank + n) });
+  }, [playerRank]);
+
+  // An end never crosses the other end: the floor can rise only to the
+  // ceiling, and the ceiling can fall only to the floor.
+  const nudgeLobby = useCallback((end: 'low' | 'high', d: number) => {
+    setLobbyRange(cur => {
+      if (!cur) return cur;
+      return end === 'low'
+        ? { ...cur, low: Math.min(clampRank(cur.low + d), cur.high) }
+        : { ...cur, high: Math.max(clampRank(cur.high + d), cur.low) };
+    });
+  }, []);
+
+  const clearLobbyRange = useCallback(() => setLobbyRange(null), []);
+
   const [pendingHeroes, setPendingHeroes] = useState<string[] | null>(null);
   const [matchLoggedSignal, setMatchLoggedSignal] = useState(0);
   const [lastLog, setLastLog] = useState<{ mode: QueueMode; win: boolean; seq: number } | null>(null);
@@ -164,6 +235,10 @@ export function MatchProvider({ children }: { children: ReactNode }) {
       rec, recLoading, recError,
       refreshRec: () => fetchRec(true),
       revalidateRec: () => fetchRec(false),
+      playerRank, setPlayerRank,
+      lobbyLow: lobbyRange?.low ?? null,
+      lobbyHigh: lobbyRange?.high ?? null,
+      applyLobbySpread, nudgeLobby, clearLobbyRange,
       pendingHeroes, setPendingHeroes,
       matchLoggedSignal,
       lastLog,

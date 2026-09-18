@@ -330,3 +330,71 @@ export const TYPE_COLORS: Record<string, string> = {
   Flashpoint: 'bg-pink-500/15 text-pink-700 dark:text-pink-400',
   Clash: 'bg-rose-500/15 text-rose-700 dark:text-rose-400',
 };
+
+// ---------------------------------------------------------------------------
+// Competitive rank ladder
+// ---------------------------------------------------------------------------
+// Overwatch ranks are a strict ladder, so we store them as one integer: 1-40.
+// Bronze 5 = 1 (bottom), Gold 5 = 11, Champion 1 = 45 (top). Within a tier the
+// divisions count DOWN as you climb — Gold 5 is worse than Gold 1 — so the
+// arithmetic below inverts the division number on purpose.
+//
+// The reason for an integer rather than the text 'Gold 5': every question this
+// data exists to answer is a distance. How wide was the lobby? Where did Sean
+// sit inside it? Both are subtraction here. Neither is possible on a string.
+//
+// This must stay in step with the player_rank/lobby_low/lobby_high migration in
+// server/src/db/schema.ts.
+
+export const RANK_TIERS = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Emerald', 'Diamond', 'Master', 'Grandmaster', 'Champion'] as const;
+export type RankTier = typeof RANK_TIERS[number];
+
+export const RANK_MIN = 1;
+export const RANK_MAX = RANK_TIERS.length * 5; // 45
+
+/** The standard lobby spread: Sean sees nobody more than 5 divisions away, ~99% of the time. */
+export const DEFAULT_LOBBY_SPREAD = 5;
+
+export const RANK_TIER_COLOR: Record<RankTier, string> = {
+  Bronze:       '#a1663a',
+  Silver:       '#9aa4ad',
+  Gold:         '#e0a63c',
+  Platinum:     '#59c3c3',
+  Emerald:      '#3fb984',
+  Diamond:      '#6f9dfb',
+  Master:       '#d8b23a',
+  Grandmaster:  '#c05b9c',
+  Champion:     '#e05a4a',
+};
+
+export function rankTier(r: number): RankTier {
+  return RANK_TIERS[Math.floor((clampRank(r) - 1) / 5)];
+}
+
+/** Division within the tier, 5 (lowest) down to 1 (highest). */
+export function rankDivision(r: number): number {
+  return 5 - ((clampRank(r) - 1) % 5);
+}
+
+export function clampRank(r: number): number {
+  return Math.max(RANK_MIN, Math.min(RANK_MAX, Math.round(r)));
+}
+
+/** "Gold 5" */
+export function rankLabel(r: number | null | undefined): string {
+  if (r == null) return '—';
+  return `${rankTier(r)} ${rankDivision(r)}`;
+}
+
+/** "G5" — for tight spaces like a match row. */
+export function rankShort(r: number | null | undefined): string {
+  if (r == null) return '—';
+  const t = rankTier(r);
+  const c = t === 'Grandmaster' ? 'GM' : t === 'Champion' ? 'C' : t[0];
+  return `${c}${rankDivision(r)}`;
+}
+
+/** Turn a tier + division back into the single number. */
+export function rankFromParts(tier: RankTier, division: number): number {
+  return RANK_TIERS.indexOf(tier) * 5 + (5 - division) + 1;
+}

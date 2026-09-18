@@ -367,6 +367,35 @@ function initSchema(db: DatabaseSync) {
     db.exec(`ALTER TABLE matches ADD COLUMN result_driver TEXT`);
   }
 
+  // player_rank / lobby_low / lobby_high: competitive rank captured as a
+  // single integer on a 1-45 division ladder — Bronze 5 = 1, Gold 5 = 11,
+  // Champion 1 = 45. Nine tiers of five divisions, Emerald included (it sits
+  // between Platinum and Diamond). See RANK_TIERS in client/src/types/index.ts
+  // for the canonical mapping; the two must stay in step. A tier inserted in
+  // the MIDDLE shifts every number above it, so any future tier change needs a
+  // data migration unless these columns are still entirely null.
+  //
+  // Why an integer and not 'Gold 5' as text: the whole question this data
+  // answers is about DISTANCE. How wide was the lobby (high - low), and where
+  // did Sean sit inside it (rank - midpoint). Both are subtraction on this
+  // scale and neither is expressible on a text label without a lookup table
+  // at every call site.
+  //
+  // player_rank is Sean's own division at match time. lobby_low / lobby_high
+  // are the lowest and highest ranks he saw in that lobby. The standard case
+  // is +/-5 around his own rank, which is what the one-tap button in
+  // LogMatch fills in; the nudgers exist for the lobbies that aren't shaped
+  // that way.
+  //
+  // Nullable with NO default, same rule as match_quality above. Quickplay has
+  // no rank at all, and a backfilled guess would read as a real observation.
+  // Untouched stays null forever.
+  for (const c of ['player_rank', 'lobby_low', 'lobby_high']) {
+    if (!cols.find(x => x.name === c)) {
+      db.exec(`ALTER TABLE matches ADD COLUMN ${c} INTEGER`);
+    }
+  }
+
   // match_deaths: one row per death, FACT only — who killed Sean and whether
   // it was an ult. Replaces the old matches.deaths JSON column's per-death
   // capture (that column stays frozen, untouched, as historical v1/v2/v3
