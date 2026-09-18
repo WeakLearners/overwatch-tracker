@@ -41,7 +41,7 @@ export default function App() {
           <div className="relative max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               {/* Diagonal slash: the orange/cyan split repeated in miniature as
-                  a mark, echoing the game's own team-colour divide. */}
+                  a mark, echoing the game's own team-color divide. */}
               <span
                 aria-hidden="true"
                 className="inline-block w-2.5 h-8 shrink-0 bg-gradient-to-br from-ow-accent from-48% to-ow-blue to-52%"

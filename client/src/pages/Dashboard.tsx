@@ -239,7 +239,16 @@ export default function Dashboard() {
       return {
         date, open, close, compW, compL, qpW, qpL, top, bottom, nOpen, nClose,
         volume: games.length,
-        up: close >= open,
+        // Which way the day went, as hue. Normally that is the competitive
+        // running total: close above open means a winning day.
+        //
+        // A quickplay-only day never moves that total, so close === open and
+        // the >= test called every one of them green — 13 of the 27 such days
+        // in the current window were actually losing days showing green. When
+        // there is no competitive match to judge, fall back to the only record
+        // the day has: its quickplay win-loss. A tied day stays green, which
+        // matches how an even competitive day already renders.
+        up: comp.length ? close >= open : qpW >= qpL,
         high: top + qpW,
         low: bottom - qpL,
       };
@@ -317,35 +326,51 @@ export default function Dashboard() {
   //
   // So the chart reads at two distances. Up close each candle's hue tells you
   // whether that day was won or lost. From across the room the whole field
-  // drains to grey near even and floods with colour when a run goes somewhere.
+  // drains to grey near even and floods with color when a run goes somewhere.
   //
-  // Draining colour out near zero is also what lets green meet red gradually.
-  // Two saturated colours side by side clash; two nearly-grey ones do not, which
+  // Draining color out near zero is also what lets green meet red gradually.
+  // Two saturated colors side by side clash; two nearly-grey ones do not, which
   // reads correctly as "no strong result either way" — exactly what a total near
   // zero means.
   const BLEND_THRESHOLD = 1.0;
   // Floor and ceiling of the saturation ramp.
   //
-  // The streak line floored this at 4% — flat grey at break-even. That was
-  // right for a 2px line, where hue carried no information and grey simply
-  // meant "nothing much happening". It is wrong here, because a candle's
-  // hue says which way the day went, and a grey candle has lost that.
+  // Saturation says how far the running total has wandered from break-even;
+  // hue says which way a single day went. A candle sitting near zero is pale,
+  // and a pale enough candle loses its hue — a won day and a lost day start to
+  // look alike. The floor is how pale a candle is allowed to get.
   //
-  // The numbers say the same thing. Measured across the current window,
-  // 17 of 30 candles sit between -2 and +1. At a 4% floor all seventeen
-  // come out the same near-grey, and a won day is indistinguishable from a
-  // lost one — the exact complaint that killed the line's first ramp.
+  // History: 4 on the streak line, raised to 22 against the old 30-day window,
+  // where 17 of 30 candles sat between -2 and +1 and came out as identical
+  // greys. The 100-day window spreads them out. Measured 2026-09-18, only 7 of
+  // 100 land in the palest tenth of the ramp, against 55 in the middle — so 22
+  // was protecting 7% of the chart and costing the other 93% a fifth of the
+  // available range.
   //
-  // So the floor rises to where green and red are still telling apart, and
-  // the ceiling gives the far candles somewhere to go. Distance from
-  // break-even is still what drives it; the scale just no longer starts at
-  // invisible.
-  const SAT_FLOOR = 22;
+  // Back to 4, Sean's call on 2026-09-18 after seeing 12 in the app. The thing
+  // to watch if this is revisited: the chart re-zeroes at its left edge every
+  // day, so the leftmost candles are always near zero. A low floor washes out
+  // the left edge permanently, not just on today's data.
+  const SAT_FLOOR = 4;
   const SAT_CEIL = 95;
-  const maxAbsV = Math.max(Math.abs(lowV), Math.abs(highV), 1);
+  // Where the ramp reaches full color, in games rather than in screen space.
+  //
+  // This used to be maxAbsV — the chart's own furthest extent — which made the
+  // scale float. The same green meant -12 on a calm window and -40 on a wild
+  // one, and every new day could restretch the whole ramp. A fixed anchor means
+  // a color always stands for the same number of games, which is the same
+  // reason the gradient is measured in chart coordinates rather than per candle.
+  //
+  // 10 games is the transition zone: inside it the running total is close enough
+  // to break-even to call the day ordinary, and color fades toward grey to say
+  // so. Past 10 the candle is simply at full color and stays there. Measured
+  // 2026-09-18, that pins 87 of 100 candles — saturation stops grading distance
+  // and becomes a near-break-even flag instead. Hue still carries each day's
+  // direction.
+  const SAT_FULL_AT = 10;
   const GRAD_STOPS = 21;
   // Measured in chart coordinates rather than as a percentage of each candle's
-  // own box, so a given colour always means the same running total. A per-shape
+  // own box, so a given color always means the same running total. A per-shape
   // gradient would re-anchor to each candle's height, and the same green would
   // mean +11 on one day and +2 on the next.
   const gradStops = (up: boolean) =>
@@ -353,13 +378,13 @@ export default function Dashboard() {
       // Walk from the top of the axis down, so offsets come out ascending — SVG
       // requires stop offsets in increasing order.
       const v = highV - (k / (GRAD_STOPS - 1)) * (highV - lowV);
-      const t = Math.min(1, Math.abs(v) / maxAbsV);
+      const t = Math.min(1, Math.abs(v) / SAT_FULL_AT);
       // BLEND_THRESHOLD sets how far from break-even the grey band reaches
-      // before real colour arrives. Raise it and the near-grey zone widens; at
-      // 1.0 colour climbs in a straight line from zero. Settled there on the
+      // before real color arrives. Raise it and the near-grey zone widens; at
+      // 1.0 color climbs in a straight line from zero. Settled there on the
       // streak line after trying 1.6, 1.3 and 1.2 against real data — the plain
       // version read no worse, so the plain version won. Filled bodies have far
-      // more colour headroom than the 2px line did, so if this is ever revisited
+      // more color headroom than the 2px line did, so if this is ever revisited
       // it has more room to move here than it did there.
       const shaped = Math.pow(t, BLEND_THRESHOLD);
       // Lightness deliberately stays in a narrow band: the dark theme puts this
@@ -376,7 +401,7 @@ export default function Dashboard() {
     });
   const UP_COLOR = 'url(#candleUp)';
   const DOWN_COLOR = 'url(#candleDown)';
-  // Flat versions for the legend. The chart's own colours are gradients defined
+  // Flat versions for the legend. The chart's own colors are gradients defined
   // inside its <defs>, and a url(#...) reference is meaningless in the legend's
   // separate SVG and in plain CSS backgrounds. These are the ramp's full-
   // saturation ends, so the legend swatch matches a candle at the extremes.
@@ -505,7 +530,7 @@ export default function Dashboard() {
                     {/* One shared gradient per direction, spanning the whole
                         chart in its own coordinates. Every candle samples the
                         same ramp, so two candles at the same height are the
-                        same colour no matter how tall their bodies are. */}
+                        same color no matter how tall their bodies are. */}
                     {([true, false] as const).map(up => (
                       <linearGradient
                         key={up ? 'up' : 'down'}
@@ -791,9 +816,9 @@ export default function Dashboard() {
                       <span className="inline-block w-2.5 h-3 rounded-[1px]" style={{ background: DOWN_SWATCH, opacity: 0.85 }} />
                     </span>
                     <span>
-                      <b className="font-bold text-[var(--muted)]">colour</b>
+                      <b className="font-bold text-[var(--muted)]">color</b>
                       <br />green: the day broke even or better
-                      <br />stronger colour = further from break-even
+                      <br />stronger color = further from break-even
                     </span>
                   </div>
 
