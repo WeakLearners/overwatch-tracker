@@ -168,15 +168,17 @@ export default function Dashboard() {
   const { data: prematch } = useApi<{ session: { on_tilt: boolean; tilt_win_rate: number | null; tilt_games: number } | null }>('/api/stats/prematch');
   const tilt = prematch?.session;
 
-  const last25 = trends?.slice(-25) ?? [];
+  // /api/stats/trends returns every logged match (its `window` param only sizes
+  // the rolling-average column), so both slices below are backed by real rows.
   const last100 = trends?.slice(-100) ?? [];
+  const last500 = trends?.slice(-500) ?? [];
   const winRate = (games: TrendPoint[]) =>
     games.length ? Math.round((games.filter(g => g.win).length / games.length) * 100) : null;
-  const wr25 = winRate(last25);
   const wr100 = winRate(last100);
-  const wrDelta = wr25 !== null && wr100 !== null ? wr25 - wr100 : null;
+  const wr500 = winRate(last500);
+  const wrDelta = wr100 !== null && wr500 !== null ? wr100 - wr500 : null;
   // Display a long run of history (newest first) to fill the row; the headline
-  // percentage still reads only from last25/last100 above.
+  // percentage still reads only from last100/last500 above.
   const recentGames = [...(trends ?? [])].slice(-60).reverse();
   // Group consecutive tiles by calendar day (newest-first order preserved).
   const gamesByDay = recentGames.reduce<{ dateStr: string; games: TrendPoint[] }[]>((acc, g) => {
@@ -257,13 +259,13 @@ export default function Dashboard() {
             <div className="flex items-center gap-2">
               <h2 className="text-sm heading-display text-[var(--ink-2)]">Recent Matches</h2>
             </div>
-            {wr25 !== null && (
+            {wr100 !== null && (
               <div className="flex items-baseline gap-2 text-xs" data-inspect-id="dash-recent-form-stat">
-                <span className="text-[var(--faint)]">last <b className="font-bold">{last25.length}</b></span>
-                <span className={`text-4xl font-black tracking-tight num-display ${wr25 >= 50 ? 'grad-win' : 'grad-loss'}`}><AnimatedNumber value={wr25} suffix="%" /></span>
+                <span className="text-[var(--faint)]">last <b className="font-bold">{last100.length}</b></span>
+                <span className={`text-4xl font-black tracking-tight num-display ${wr100 >= 50 ? 'grad-win' : 'grad-loss'}`}><AnimatedNumber value={wr100} suffix="%" /></span>
                 {wrDelta !== null && (
                   <span className={`font-bold ${wrDelta > 0 ? 'text-emerald-600' : wrDelta < 0 ? 'text-red-600' : 'text-[var(--faint)]'}`}>
-                    {wrDelta > 0 ? '▲' : wrDelta < 0 ? '▼' : '±'} {wrDelta > 0 ? '+' : ''}{wrDelta} vs last {last100.length} ({wr100}%)
+                    {wrDelta > 0 ? '▲' : wrDelta < 0 ? '▼' : '±'} {wrDelta > 0 ? '+' : ''}{wrDelta} vs last {last500.length} ({wr500}%)
                   </span>
                 )}
               </div>

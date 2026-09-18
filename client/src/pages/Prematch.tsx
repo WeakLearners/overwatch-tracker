@@ -421,6 +421,13 @@ export default function Prematch() {
 
   const ranked  = [...selected].sort((a, b) => (scoreMap[b]?.blended_score ?? 0) - (scoreMap[a]?.blended_score ?? 0));
   const winner  = ranked[0];
+  // The single source of truth for "which map are we telling him to vote for".
+  // The headline below prefers the hero-informed pick and only falls back to
+  // the map-only blended score; the selected-map chips must follow the same
+  // branch or the green check lands on a different map than the headline.
+  const recommended = testPick?.available && testPick.picks.length > 0
+    ? testPick.picks[0].map
+    : winner;
   const topOnMap = data?.byHero ?? [];
   // "Select Your Hero" surfaces every hero in the CURRENT testing phase's
   // full roster — both the ones still actively testing and the ones that
@@ -762,7 +769,7 @@ export default function Prematch() {
                 <div key={m} className="flex-1 min-w-0 flex flex-col gap-1">
                 <span
                   className={`w-full min-w-0 flex items-center justify-center gap-1 pl-2 pr-1 py-1 text-[10px] map-name transition-colors ${
-                    m === winner
+                    m === recommended
                       ? 'bg-emerald-500/20 text-emerald-700'
                       : 'bg-ow-accent/15 text-ow-accent'
                   }`}
@@ -773,7 +780,7 @@ export default function Prematch() {
                     className="flex items-center gap-1 min-w-0 hover:opacity-80 transition-opacity"
                     title={`Set ${m} as the match map`}
                   >
-                    {m === winner && <span className="shrink-0 normal-case">✓</span>}
+                    {m === recommended && <span className="shrink-0 normal-case">✓</span>}
                     <span className="truncate">{withMapCount(m, mapCounts)}</span>
                   </button>
                   <button
