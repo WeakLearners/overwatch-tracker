@@ -233,6 +233,59 @@ export default function Dashboard() {
   const zeroY = chartY(0);
   const lastRun = formRuns.length ? formRuns[formRuns.length - 1] : null;
   const lastNet = lastRun ? lastRun.net : 0;
+  // Colour ramp for the plot line. Saturation carries the meaning: right at
+  // break-even the line is nearly grey, and it saturates toward full green going
+  // up and full red going down. So how strongly the line is coloured says how far
+  // from even the run has got, independently of where it sits on the card.
+  //
+  // Draining the colour out near zero is also what lets green meet red gradually.
+  // Two saturated colours blended directly pass through brown; two nearly-grey
+  // ones pass through grey, which reads as "no strong result either way" — which
+  // is exactly what a total near zero means.
+  const BLEND_THRESHOLD = 1.0;
+  const maxAbsNet = Math.max(Math.abs(netMin), Math.abs(netMax), 1);
+  const STROKE_STOPS = 21;
+  const strokeStops = Array.from({ length: STROKE_STOPS }, (_, k) => {
+    // Walk from the top of the axis down, so offsets come out ascending — SVG
+    // requires stop offsets in increasing order.
+    const v = netMax - (k / (STROKE_STOPS - 1)) * (netMax - netMin);
+    const t = Math.min(1, Math.abs(v) / maxAbsNet);
+    const up = v >= 0;
+    // The two sides need different curves to look like the same ramp. A washed-out
+    // green sits near the eye's peak brightness sensitivity, so it collapses to
+    // plain grey while a washed-out red still reads as pink. Feeding the green
+    // side through a lower exponent makes its colour arrive faster off zero; the
+    // red side stays close to linear. Same intent both ways, corrected for the
+    // fact that the eye does not treat the two hues alike.
+    // BLEND_THRESHOLD sets how far from break-even the grey band reaches before
+    // real colour arrives. Raise it and the near-grey zone widens; drop it to 1
+    // and colour climbs in a straight line from zero.
+    //
+    // Settled at 1.0 — a straight line — after trying 1.6, 1.3 and 1.2 against the
+    // real chart. The argument for pushing it higher was that the line spends most
+    // of its time within a few matches of even, so a wider grey band would give
+    // that range more room. On screen the difference between those values turned
+    // out to be smaller than it looks in a table, and the plain version reads no
+    // worse, so the plain version wins.
+    //
+    // Worth knowing if this is revisited: saturation on a 2px line has limited
+    // headroom whatever curve is applied. The untried lever is stroke width
+    // growing with distance from even.
+    const shaped = Math.pow(t, BLEND_THRESHOLD);
+    const hue = up ? 160 : 350;
+    // Saturation runs nearly the full range. Lightness deliberately stays in a
+    // narrow band: the dark theme puts this chart on a near-black card (#101216),
+    // so buying contrast by darkening the line would sink it into the background
+    // there. Saturation reads on both themes.
+    const sat = 4 + 91 * shaped;
+    // Base lightness is identical on both sides so the two ramps meet seamlessly
+    // at zero, where both are grey enough that the hue difference is invisible.
+    const light = 57 - (up ? 13 : 11) * shaped;
+    return {
+      offset: chartY(v) / CH_H,
+      color: `hsl(${hue} ${sat.toFixed(1)}% ${light.toFixed(1)}%)`,
+    };
+  });
   // Gridlines. Y every 5 matches, since the height is a match count — a line
   // every 5 gives the eye something to measure a streak against without drawing
   // 21 of them. Zero is excluded here because it already has its own dashed
@@ -363,6 +416,24 @@ export default function Dashboard() {
                       <stop offset="0%" stopColor="rgb(244 63 94)" stopOpacity="0.28" />
                       <stop offset="100%" stopColor="rgb(244 63 94)" stopOpacity="0" />
                     </linearGradient>
+                    {/* The plot line's own colour, from strokeStops above.
+                        Measured in the chart's coordinates rather than in
+                        percentages of the shape's bounding box, so a given colour
+                        always means the same running total — a percentage
+                        gradient would re-anchor to wherever the line happened to
+                        reach that day. */}
+                    <linearGradient
+                      id="formStroke"
+                      gradientUnits="userSpaceOnUse"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2={CH_H}
+                    >
+                      {strokeStops.map((st, k) => (
+                        <stop key={k} offset={st.offset} stopColor={st.color} />
+                      ))}
+                    </linearGradient>
                     {/* Split the fill at the zero line so time spent above even is
                         green and time below is red, without cutting the line. */}
                     <clipPath id="formClipUp">
@@ -428,7 +499,7 @@ export default function Dashboard() {
                   <polyline
                     points={formPoints}
                     fill="none"
-                    stroke={lastNet >= 0 ? 'rgb(16 185 129)' : 'rgb(244 63 94)'}
+                    stroke="url(#formStroke)"
                     strokeWidth="2"
                     strokeLinejoin="miter"
                     strokeLinecap="butt"
