@@ -57,7 +57,7 @@
           "kind": "nav",
           "description": "Sticky wayfinding rail under the header standing in for section tabs on this one-long-scroll page; pill links jump to Mode, Recent Matches, Match, Trends, and Career, highlighting the currently in-view section.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:229",
+            "path": "client/src/pages/Dashboard.tsx:289",
             "grep": "grep -n -F -- 'dash-section-nav' client/src/pages/Dashboard.tsx"
           }
         },
@@ -67,7 +67,7 @@
           "kind": "radio-group",
           "description": "Three clickable tiles (QP, Comp Role, Comp Open) that double as a queue-mode selector; clicking one sets the active queue mode used by the advisor and match log, shows recent/all-time win rate and most-played hero for that mode, and flashes green/red when a new match is logged under it.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:55",
+            "path": "client/src/pages/Dashboard.tsx:52",
             "grep": "grep -n -F -- 'mode-tile hover:-translate-x-1 hover:-translate-y-1' client/src/pages/Dashboard.tsx"
           }
         },
@@ -77,7 +77,7 @@
           "kind": "card",
           "description": "Card wrapping the queue-mode selector; titled 'Mode' and holds the three mode tiles.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:137",
+            "path": "client/src/pages/Dashboard.tsx:134",
             "grep": "grep -n -F -- 'mb-4\">Mode</h2>' client/src/pages/Dashboard.tsx"
           }
         },
@@ -87,7 +87,7 @@
           "kind": "card",
           "description": "Card titled 'Recent Matches' containing the win-rate summary, the recent-match history strip, and (when applicable) the tilt warning banner.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:260",
+            "path": "client/src/pages/Dashboard.tsx:320",
             "grep": "grep -n -F -- '>Recent Matches</h2>' client/src/pages/Dashboard.tsx"
           }
         },
@@ -97,18 +97,18 @@
           "kind": "stat-tile",
           "description": "Displays the win rate over the last 100 logged games with an animated percentage and a trend arrow/delta comparing it against the last 500 games.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:263",
+            "path": "client/src/pages/Dashboard.tsx:323",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-recent-form-stat\"' client/src/pages/Dashboard.tsx"
           }
         },
         {
-          "id": "dash-recent-match-history-list",
-          "label": "Recent match history strip",
-          "kind": "list",
-          "description": "Horizontally scrolling, day-grouped row of small win/loss tiles (up to the last 60 games, newest first); static (no click-to-edit \u2014 that moved to Today's Matches on the Log Match page, logmatch-todays-matches-card), hovering shows a tooltip with hero/map/date.",
+          "id": "dash-recent-form-chart",
+          "label": "Recent form streak chart",
+          "kind": "chart",
+          "description": "Running win/loss total across the last 100 matches \u2014 the same window dash-recent-form-stat's headline percentage reads. Height is a plain total (win +1, loss -1), so one unit of height is exactly one match; horizontal movement happens ONLY when the run changes direction, so each win or loss streak is a single vertical line whose length IS that streak. Replaced the day-grouped tile strip it supersedes, which could not show a streak as anything but a row of identical squares. Area under the line is shaded green above the dashed break-even line and red below, clipped at zero. Grid: y every 5 matches, x at each calendar-day boundary. Axis labels are an HTML layer positioned over the SVG, NOT SVG text \u2014 the chart stretches with preserveAspectRatio=\"none\", which would squash any text drawn inside it. Hover targets are one invisible rect per run, reporting run length, date and running total; no event handlers and no charting library.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:273",
-            "grep": "grep -n -F -- 'dash-recent-match-history-list' client/src/pages/Dashboard.tsx"
+            "path": "client/src/pages/Dashboard.tsx:340",
+            "grep": "grep -n -F -- 'dash-recent-form-chart' client/src/pages/Dashboard.tsx"
           }
         },
         {
@@ -117,7 +117,7 @@
           "kind": "banner",
           "description": "Placeholder banner shown in the recent-match strip when no matches have been logged yet, prompting the user to log their first result.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:317",
+            "path": "client/src/pages/Dashboard.tsx:494",
             "grep": "grep -n -F -- 'title=\"No matches logged yet\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -127,7 +127,7 @@
           "kind": "banner",
           "description": "Amber warning banner that appears when the session is on-tilt (two losses in a row today), optionally showing the user's historical win rate in that situation.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:325",
+            "path": "client/src/pages/Dashboard.tsx:516",
             "grep": "grep -n -F -- 'dash-tilt-warning-banner' client/src/pages/Dashboard.tsx"
           }
         },
@@ -137,7 +137,7 @@
           "kind": "header",
           "description": "Section header titled 'Match' with subtitle 'Prep with the advisor, then log the result.', introducing the Prematch advisor and LogMatch form below.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:341",
+            "path": "client/src/pages/Dashboard.tsx:532",
             "grep": "grep -n -F -- 'sub=\"Prep with the advisor, then log the result.\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -147,7 +147,7 @@
           "kind": "link",
           "description": "Link in the Match section header that opens the sensitivity-study page (/sens) in a new tab, keeping the dashboard in place.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:351",
+            "path": "client/src/pages/Dashboard.tsx:542",
             "grep": "grep -n -F -- 'Log sens stats' client/src/pages/Dashboard.tsx"
           }
         },
@@ -157,7 +157,7 @@
           "kind": "section",
           "description": "Embeds the Prematch advisor component, which lets the user prep (map/mode selection, LLM pre-match advice) before logging a result.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:354",
+            "path": "client/src/pages/Dashboard.tsx:545",
             "grep": "grep -n -F -- '<Prematch />' client/src/pages/Dashboard.tsx"
           }
         },
@@ -167,7 +167,7 @@
           "kind": "section",
           "description": "Embeds the LogMatch component, the form used to record the result (hero, map, win/loss, etc.) of the just-played match.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:355",
+            "path": "client/src/pages/Dashboard.tsx:546",
             "grep": "grep -n -F -- '<LogMatch />' client/src/pages/Dashboard.tsx"
           }
         },
@@ -177,7 +177,7 @@
           "kind": "header",
           "description": "Section header titled 'Trends' with subtitle 'Recent form and momentum.', introducing the trends summary below.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:359",
+            "path": "client/src/pages/Dashboard.tsx:550",
             "grep": "grep -n -F -- 'title=\"Trends\" sub=\"Recent form and momentum.\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -187,7 +187,7 @@
           "kind": "section",
           "description": "Embeds the TrendsSummary component showing recent-form charts/metrics and momentum indicators.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:360",
+            "path": "client/src/pages/Dashboard.tsx:551",
             "grep": "grep -n -F -- '<TrendsSummary />' client/src/pages/Dashboard.tsx"
           }
         },
@@ -197,7 +197,7 @@
           "kind": "header",
           "description": "Section header titled 'Career' with subtitle 'All-time totals across every mode.', introducing the career stat-tile grid below.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:364",
+            "path": "client/src/pages/Dashboard.tsx:555",
             "grep": "grep -n -F -- 'title=\"Career\" sub=\"All-time totals across every mode.\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -207,7 +207,7 @@
           "kind": "stat-tile",
           "description": "Displays the all-time total number of logged games.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:368",
+            "path": "client/src/pages/Dashboard.tsx:559",
             "grep": "grep -n -F -- 'label=\"Total Games\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -217,7 +217,7 @@
           "kind": "stat-tile",
           "description": "Displays the all-time win-rate percentage, colored green if 50% or higher and red otherwise.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:372",
+            "path": "client/src/pages/Dashboard.tsx:563",
             "grep": "grep -n -F -- 'label=\"Win Rate\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -227,7 +227,7 @@
           "kind": "stat-tile",
           "description": "Displays the all-time count of wins, styled in the 'win' color.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:378",
+            "path": "client/src/pages/Dashboard.tsx:569",
             "grep": "grep -n -F -- 'label=\"Wins\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -237,7 +237,7 @@
           "kind": "stat-tile",
           "description": "Displays the all-time count of losses (total minus wins), styled in the 'loss' color.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:379",
+            "path": "client/src/pages/Dashboard.tsx:570",
             "grep": "grep -n -F -- 'label=\"Losses\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -247,7 +247,7 @@
           "kind": "stat-tile",
           "description": "Displays the count of distinct heroes played across all logged matches.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:380",
+            "path": "client/src/pages/Dashboard.tsx:571",
             "grep": "grep -n -F -- 'label=\"Heroes Played\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -257,7 +257,7 @@
           "kind": "stat-tile",
           "description": "Displays the current win or loss streak length and type (e.g. '3 W'), colored to match win or loss.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:385",
+            "path": "client/src/pages/Dashboard.tsx:575",
             "grep": "grep -n -F -- 'label=\"Current Streak\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -267,7 +267,7 @@
           "kind": "stat-tile",
           "description": "Displays the longest win streak recorded all-time, styled in the 'win' color.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:389",
+            "path": "client/src/pages/Dashboard.tsx:579",
             "grep": "grep -n -F -- 'label=\"Longest Win Streak\"' client/src/pages/Dashboard.tsx"
           }
         }
