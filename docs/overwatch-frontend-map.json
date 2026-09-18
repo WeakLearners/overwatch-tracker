@@ -95,10 +95,10 @@
           "id": "dash-recent-form-stat",
           "label": "Recent form win-rate readout",
           "kind": "stat-tile",
-          "description": "Displays the win rate over the last 25 logged games with an animated percentage and a trend arrow/delta comparing it against the last 100 games.",
+          "description": "Displays the win rate over the last 100 logged games with an animated percentage and a trend arrow/delta comparing it against the last 500 games.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:271",
-            "grep": "grep -n -F -- 'vs last {last100.length} ({wr100}%)' client/src/pages/Dashboard.tsx"
+            "path": "client/src/pages/Dashboard.tsx:263",
+            "grep": "grep -n -F -- 'data-inspect-id=\"dash-recent-form-stat\"' client/src/pages/Dashboard.tsx"
           }
         },
         {
@@ -446,9 +446,9 @@
           "id": "prematch-selected-map-chips",
           "label": "Selected map chips",
           "kind": "list",
-          "description": "Row of chips, one per currently selected voting map, with the recommended winner highlighted green. Clicking the chip body sets that map as the active match map (drives the Hero Advisor below); a separate, more prominent circular \u00d7 button removes it from the voting picks.",
+          "description": "Row of chips, one per currently selected voting map, with the recommended map highlighted green. That highlight reads the same `recommended` value the Vote-for headline uses, so the check and the headline can never name different maps. Clicking the chip body sets that map as the active match map (drives the Hero Advisor below); a separate, more prominent circular \u00d7 button removes it from the voting picks.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:591",
+            "path": "client/src/pages/Prematch.tsx:767",
             "grep": "grep -n -F -- 'prematch-selected-map-chips' client/src/pages/Prematch.tsx"
           }
         },
@@ -476,9 +476,9 @@
           "id": "prematch-vote-for-button",
           "label": "Vote for (winner map) button",
           "kind": "button",
-          "description": "Shows the recommended map to vote for based on blended win-rate score; clicking it opens the Map drawer for that map.",
+          "description": "Shows the recommended map to vote for. Prefers the hero-informed testPick; falls back to the map-only blended win-rate score. Clicking it sets or opens that map.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:604",
+            "path": "client/src/pages/Prematch.tsx:842",
             "grep": "grep -n -F -- 'prematch-vote-for-button' client/src/pages/Prematch.tsx"
           }
         },
