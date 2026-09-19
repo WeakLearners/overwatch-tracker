@@ -342,7 +342,7 @@ export default function Dashboard() {
   // How sharply the light drops off. 1 would be a straight line; higher
   // numbers crowd the colour change nearer the ground. This is the dial to
   // turn when the ramp reads too soft or too abrupt.
-  const FALLOFF = 2.2;
+  const FALLOFF = 3;
   const VOL_STOPS = Array.from({ length: 11 }, (_, i) => {
     const o = i / 10; // 0 at the tallest roof, 1 at the ground
     return { offset: o, mix: Math.round(Math.pow(o, FALLOFF) * 100) };
