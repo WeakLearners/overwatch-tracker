@@ -685,7 +685,7 @@ export default function LogMatch() {
           keeps that same "new deaths appear above the picker" reading. */}
       <div id="notable-deaths" className="card mb-6 scroll-mt-24" data-inspect-id="logmatch-deaths-card">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm heading-display text-[var(--ink)]">Deaths</h2>
+          <h2 className="text-sm card-title">Deaths</h2>
           {deathBuffer.length > 0 && (
             <button
               type="button"
@@ -748,7 +748,7 @@ export default function LogMatch() {
       <div id="match-details" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card" data-inspect-id="logmatch-match-details-card">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm heading-display text-[var(--ink)]">Match Details</h2>
+            <h2 className="text-sm card-title">Match Details</h2>
             <div className="flex items-center gap-3">
               <button
                 type="button"
@@ -1100,7 +1100,7 @@ export default function LogMatch() {
         </div>
 
         <div className="card" data-inspect-id="logmatch-todays-matches-card">
-          <h2 className="text-sm heading-display text-[var(--ink-2)] mb-4">Today's Matches</h2>
+          <h2 className="text-sm card-title mb-4">Today's Matches</h2>
           {recent.length > 0 ? (
             <div className="space-y-2" data-inspect-id="logmatch-recently-logged-list">
               {recent.map(r => {

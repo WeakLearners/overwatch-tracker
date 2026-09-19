@@ -241,7 +241,7 @@ function buildCurveLine(fit: CurveFit, steps = 40): { x: number; y: number }[] {
 function Section({ title, hint, children, dataInspectId }: { title: string; hint: string; children: React.ReactNode; dataInspectId?: string }) {
   return (
     <div className="card" data-inspect-id={dataInspectId}>
-      <h2 className="text-sm heading-display text-[var(--ink)]">{title}</h2>
+      <h2 className="text-sm card-title">{title}</h2>
       <p className="text-xs text-[var(--faint)] mt-1 mb-4">{hint}</p>
       {children}
     </div>

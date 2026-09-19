@@ -60,7 +60,9 @@ interface MatchContextValue {
   setPlayerRank: (r: number | null) => void;
   lobbyLow: number | null;
   lobbyHigh: number | null;
-  /** Fill both ends of the lobby range at +/-n around Sean's own rank. */
+  /** Set both ends at once — what the lobby range slider writes. */
+  setLobbyRange: (low: number, high: number) => void;
+  /** Fill both ends at +/-n around Sean's own rank. */
   applyLobbySpread: (n: number) => void;
   /** Move one end by d divisions, never past the other end. */
   nudgeLobby: (end: 'low' | 'high', d: number) => void;
@@ -163,6 +165,10 @@ export function MatchProvider({ children }: { children: ReactNode }) {
 
   const clearLobbyRange = useCallback(() => setLobbyRange(null), []);
 
+  const setLobbyRangeValues = useCallback((low: number, high: number) => {
+    setLobbyRange({ low: clampRank(Math.min(low, high)), high: clampRank(Math.max(low, high)) });
+  }, []);
+
   const [pendingHeroes, setPendingHeroes] = useState<string[] | null>(null);
   const [matchLoggedSignal, setMatchLoggedSignal] = useState(0);
   const [lastLog, setLastLog] = useState<{ mode: QueueMode; win: boolean; seq: number } | null>(null);
@@ -238,7 +244,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
       playerRank, setPlayerRank,
       lobbyLow: lobbyRange?.low ?? null,
       lobbyHigh: lobbyRange?.high ?? null,
-      applyLobbySpread, nudgeLobby, clearLobbyRange,
+      setLobbyRange: setLobbyRangeValues, applyLobbySpread, nudgeLobby, clearLobbyRange,
       pendingHeroes, setPendingHeroes,
       matchLoggedSignal,
       lastLog,

@@ -3,7 +3,8 @@ import { format } from 'date-fns';
 import { useApi, revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
-import { MAPS, QUEUE_MODES, ROLE_COLORS, ROLE_PILL_CLASS, TYPE_COLORS, HEROES, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, MapVotingRow, QueueMode, Streaks, RANK_TIERS, RANK_TIER_COLOR, DEFAULT_LOBBY_SPREAD, rankLabel, rankTier, rankDivision, rankFromParts } from '../types';
+import LobbyRangeSlider from '../components/LobbyRangeSlider';
+import { MAPS, QUEUE_MODES, ROLE_COLORS, ROLE_PILL_CLASS, TYPE_COLORS, HEROES, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, MapVotingRow, QueueMode, Streaks, RANK_TIER_COLOR, DEFAULT_LOBBY_SPREAD, rankLabel, rankTier, rankDivision, rankFromParts, clampRank } from '../types';
 import AdvisorCard from '../components/AdvisorCard';
 import EmptyState from '../components/EmptyState';
 import { useMapDrawer } from '../contexts/MapDrawerContext';
@@ -171,10 +172,56 @@ interface PrematchData {
   bestByGameType: HeroRow | null;
 }
 
+// Band width persists; band position never does (see the Lobby Rank section).
+const TRAY_WIDTH_KEY = 'ow-lobby-tray-width';
+
 export default function Prematch() {
   // Shared, single-instance match state (queue mode, map, advisor) lives here
   // and is consumed by the Log Match section too.
-  const { queueMode, map, setMap, mapType, rec, recLoading, recError, refreshRec, revalidateRec, testRole, setTestRole, setPendingHeroes, matchLoggedSignal, playerRank, setPlayerRank, lobbyLow, lobbyHigh, applyLobbySpread, nudgeLobby, clearLobbyRange } = useMatch();
+  const { queueMode, map, setMap, mapType, rec, recLoading, recError, refreshRec, revalidateRec, testRole, setTestRole, setPendingHeroes, matchLoggedSignal, playerRank, setPlayerRank, lobbyLow, lobbyHigh, setLobbyRange, clearLobbyRange } = useMatch();
+
+  // The lobby band's width in divisions, remembered across matches. Eleven is
+  // +/-5 around Sean's rank, the spread ~99% of lobbies fall inside — so the
+  // usual match is one drag, not a resize and a drag. The POSITION is never
+  // remembered; that is the per-match observation.
+  const [trayWidth, setTrayWidthState] = useState(() => {
+    const v = Number(localStorage.getItem(TRAY_WIDTH_KEY));
+    return v >= 1 && v <= 2 * 10 + 1 ? v : DEFAULT_LOBBY_SPREAD * 2 + 1;
+  });
+  // Two separate jobs, deliberately separate functions.
+  //
+  // rememberTrayWidth only stores the number. It is what a finished handle
+  // drag reports. Folding these two together is what made the slider fight
+  // itself: dragging an end changed the width, the width setter re-centred the
+  // bar around its old middle, and the bar snapped back under the cursor.
+  const rememberTrayWidth = (w: number) => {
+    setTrayWidthState(w);
+    try { localStorage.setItem(TRAY_WIDTH_KEY, String(w)); } catch { /* ignore */ }
+  };
+  // resizeTray changes the bar's width in place, keeping it centred where it
+  // already sits. Only the header's -/+ buttons do this.
+  const resizeTray = (w: number) => {
+    rememberTrayWidth(w);
+    if (lobbyLow != null && lobbyHigh != null) {
+      const centre = Math.round((lobbyLow + lobbyHigh) / 2);
+      const half = Math.floor((w - 1) / 2);
+      setLobbyRange(centre - half, centre - half + w - 1);
+    }
+  };
+
+  // The rank drum. Quickplay has no rank, so it isn't shown there.
+  const showRankDrum = queueMode !== 'qp_role';
+  // First press seeds at Gold 5 — a visible starting point on the badge, a few
+  // presses from any real rank, and it sticks from then on. Moving the rank
+  // clears any lobby range, because that range was built from the OLD rank and
+  // would otherwise attach itself silently to the new one.
+  const stepRank = (d: number) => {
+    if (playerRank == null) { setPlayerRank(rankFromParts('Gold', 5)); return; }
+    const next = clampRank(playerRank + d);
+    if (next === playerRank) return;
+    setPlayerRank(next);
+    clearLobbyRange();
+  };
   const { data: dpiHud } = useApi<DpiTestHud>('/api/blind/state');
   const btActives = dpiHud?.actives ?? [];
   // Several heroes can be "In Testing" at once, but the mouse can only be set
@@ -555,7 +602,7 @@ export default function Prematch() {
               from the same 40px offset their search-input/select rows do —
               see the mt-2.5 comment below for how that offset is spent. */}
           <div className="flex items-center justify-between mb-2 min-h-8 gap-2">
-            <h2 className="text-sm heading-display text-[var(--ink)] whitespace-nowrap">{bt?.sens != null ? 'Sens Test' : 'DPI Test'}</h2>
+            <h2 className="text-sm card-title whitespace-nowrap">{bt?.sens != null ? 'Sens Test' : 'DPI Test'}</h2>
             {bt && (
               <span className="text-xs num-display text-[var(--ink)] shrink-0" data-inspect-id="prematch-dpi-value-badge">
                 {bt.sens != null ? `${bt.sens.toFixed(2)} sens` : `${bt.dpi} DPI`}
@@ -672,7 +719,7 @@ export default function Prematch() {
         <div className="card flex-1 min-w-0 flex flex-col overflow-hidden" data-inspect-id="prematch-map-voting-card">
           <div className="flex items-center justify-between mb-2 min-h-8">
             <div className="flex items-center gap-2">
-              <h2 className="text-sm heading-display text-[var(--ink)] whitespace-nowrap">Map Voting</h2>
+              <h2 className="text-sm card-title whitespace-nowrap">Map Voting</h2>
               <span className="text-xs text-[var(--faint)] bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">tap up to 3</span>
             </div>
             <div className="flex gap-2" data-inspect-id="prematch-role-pick-toggle">
@@ -901,7 +948,7 @@ export default function Prematch() {
         <div className="card flex-1 min-w-0 flex flex-col overflow-hidden" data-inspect-id="prematch-hero-advisor-card">
           <div className="flex items-center justify-between mb-2 min-h-8">
             <div className="flex items-center gap-2">
-              <h2 className="text-sm heading-display text-[var(--ink)] whitespace-nowrap">Hero Advisor</h2>
+              <h2 className="text-sm card-title whitespace-nowrap">Hero Advisor</h2>
               <span className="text-xs text-[var(--faint)] bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">pick a map</span>
             </div>
             {map && (
@@ -1013,7 +1060,7 @@ export default function Prematch() {
       <div id="consolidated-advisor" className="card" data-inspect-id="prematch-consolidated-advisor-card">
         <div className="flex items-start justify-between gap-3 mb-1">
           <div>
-            <h2 className="text-sm heading-display text-[var(--ink-2)]">
+            <h2 className="text-sm card-title">
               {map ? (
                 <>Your Heroes on <button onClick={() => openMap(map)} className="text-ow-accent hover:text-ow-accent/80 transition-colors" data-inspect-id="prematch-your-heroes-map-link">{withMapCount(map, mapCounts)}</button></>
               ) : 'Your Best Heroes Overall'}
@@ -1041,9 +1088,65 @@ export default function Prematch() {
             One column per role (DPS / Support), each the hottest-trending hero for
             that role rather than the single overall-best-win-rate hero, paired with
             the in-game sens its own best-tested scale points to. */}
-        {(trendingDps || trendingSupport) && !map && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 items-start" data-inspect-id="prematch-recommended-pick-card">
-            {([['DPS', trendingDps], ['Support', trendingSupport]] as const).map(([role, rec]) => {
+        {(showRankDrum || ((trendingDps || trendingSupport) && !map)) && (
+          <div className={`grid gap-3 mt-3 items-stretch ${showRankDrum ? 'grid-cols-[auto_1fr] sm:grid-cols-[auto_1fr_1fr]' : 'grid-cols-1 sm:grid-cols-2'}`} data-inspect-id="prematch-recommended-pick-card">
+            {/* Current rank — a drum: one square badge with a step up above it
+                and a step down below. Each press moves one division.
+
+                It renders on its own condition, not the row's. The two role
+                columns beside it only exist while no map is picked; the rank
+                has to stay reachable after a map IS picked, because that is
+                when hero select is on screen and the lobby's ranks are
+                readable. Tying it to the row would hide it at the one moment
+                it is needed. */}
+            {showRankDrum && (
+              <div className="flex flex-col items-center justify-center gap-1.5 shrink-0" data-inspect-id="prematch-rank-drum">
+                <button
+                  type="button"
+                  onClick={() => stepRank(1)}
+                  data-inspect-id="prematch-rank-drum-up"
+                  aria-label="Rank up one division"
+                  className="w-20 h-6 rounded-md border border-ow-border text-[var(--faint)] hover:text-ow-accent hover:border-ow-accent/60 transition-colors leading-none text-xs"
+                >
+                  ▲
+                </button>
+                <div
+                  className="w-20 aspect-square rounded-lg border-2 grid place-content-center text-center select-none"
+                  data-inspect-id="prematch-rank-drum-badge"
+                  style={playerRank == null ? undefined : {
+                    borderColor: RANK_TIER_COLOR[rankTier(playerRank)],
+                    backgroundColor: `${RANK_TIER_COLOR[rankTier(playerRank)]}1f`,
+                  }}
+                  title={playerRank == null ? 'No rank set' : rankLabel(playerRank)}
+                >
+                  {playerRank == null ? (
+                    <span className="text-[10px] uppercase tracking-widest text-[var(--faint-2)] px-1 leading-tight">Set<br />rank</span>
+                  ) : (
+                    <>
+                      <span
+                        className="text-[9px] uppercase tracking-widest font-bold leading-none"
+                        style={{ color: RANK_TIER_COLOR[rankTier(playerRank)] }}
+                      >
+                        {rankTier(playerRank)}
+                      </span>
+                      <span className="text-3xl num-display font-black leading-none mt-1 text-[var(--ink)]">
+                        {rankDivision(playerRank)}
+                      </span>
+                    </>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => stepRank(-1)}
+                  data-inspect-id="prematch-rank-drum-down"
+                  aria-label="Rank down one division"
+                  className="w-20 h-6 rounded-md border border-ow-border text-[var(--faint)] hover:text-ow-accent hover:border-ow-accent/60 transition-colors leading-none text-xs"
+                >
+                  ▼
+                </button>
+              </div>
+            )}
+            {(trendingDps || trendingSupport) && !map && ([['DPS', trendingDps], ['Support', trendingSupport]] as const).map(([role, rec]) => {
               const delta = rec && !rec.is_new && rec.recent_wr != null && rec.prev_wr != null
                 ? Math.round((rec.recent_wr - rec.prev_wr) * 10) / 10 : null;
               return (
@@ -1135,81 +1238,25 @@ export default function Prematch() {
         {queueMode !== 'qp_role' && (
           <div className="mt-4 pt-4 border-t border-ow-border/40" data-inspect-id="prematch-lobby-rank-section">
             <div className="flex items-baseline gap-2 mb-3">
-              <h3 className="text-sm grad-brand font-black uppercase tracking-widest" data-inspect-id="prematch-lobby-rank-header">Lobby Rank</h3>
+              <h3 className="text-sm card-title" data-inspect-id="prematch-lobby-rank-header">Lobby Rank</h3>
               <span className="text-xs text-[var(--faint-2)]">read it off the scoreboard now</span>
             </div>
 
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-xs text-[var(--faint)] w-12 shrink-0">You</span>
-              <select
-                value={playerRank == null ? '' : rankTier(playerRank)}
-                onChange={e => setPlayerRank(e.target.value ? rankFromParts(e.target.value as typeof RANK_TIERS[number], playerRank == null ? 5 : rankDivision(playerRank)) : null)}
-                data-inspect-id="prematch-player-rank-tier-select"
-                className="flex-1 min-w-0 field px-2 py-2 text-sm"
-              >
-                <option value="">— rank —</option>
-                {RANK_TIERS.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-              <select
-                value={playerRank == null ? '' : rankDivision(playerRank)}
-                onChange={e => playerRank != null && setPlayerRank(rankFromParts(rankTier(playerRank), Number(e.target.value)))}
-                disabled={playerRank == null}
-                data-inspect-id="prematch-player-rank-division-select"
-                className="w-16 field px-2 py-2 text-sm disabled:opacity-40"
-              >
-                {[5, 4, 3, 2, 1].map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
-              {playerRank != null && (
-                <span
-                  className="w-2.5 h-2.5 rounded-full shrink-0"
-                  style={{ backgroundColor: RANK_TIER_COLOR[rankTier(playerRank)] }}
-                  aria-hidden="true"
-                />
-              )}
-            </div>
-
-            {/* The one-tap capture. +/-5 is the standard lobby and sits first. */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-[var(--faint)] w-12 shrink-0">Lobby</span>
-              <div className="grid grid-cols-3 gap-2 flex-1" data-inspect-id="prematch-lobby-spread-buttons">
-                {[DEFAULT_LOBBY_SPREAD, 3, 7].map(n => {
-                  const active = playerRank != null && lobbyLow != null && lobbyHigh != null
-                    && lobbyHigh - lobbyLow === 2 * n
-                    && lobbyLow + lobbyHigh === 2 * playerRank;
-                  return (
-                    <button
-                      key={n}
-                      type="button"
-                      data-inspect-id="prematch-lobby-spread-option"
-                      onClick={() => applyLobbySpread(n)}
-                      disabled={playerRank == null}
-                      aria-pressed={active}
-                      className={`text-xs font-semibold py-2 rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                        active
-                          ? 'bg-ow-accent/20 border-ow-accent/60 text-[var(--ink)]'
-                          : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
-                      }`}
-                    >
-                      ±{n}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Only appears once a spread is set. The nudgers are for the ~1%
-                of lobbies that aren't symmetric around Sean's own rank. */}
-            {lobbyLow != null && lobbyHigh != null && (
-              <div className="flex flex-wrap items-center justify-center gap-2 mt-2 text-xs" data-inspect-id="prematch-lobby-range-readout">
-                <button type="button" onClick={() => nudgeLobby('low', -1)} className="w-6 h-6 rounded border border-ow-border text-[var(--faint)] hover:text-[var(--ink)]" aria-label="Lower the lobby floor">−</button>
-                <span className="font-semibold" style={{ color: RANK_TIER_COLOR[rankTier(lobbyLow)] }}>{rankLabel(lobbyLow)}</span>
-                <button type="button" onClick={() => nudgeLobby('low', 1)} className="w-6 h-6 rounded border border-ow-border text-[var(--faint)] hover:text-[var(--ink)]" aria-label="Raise the lobby floor">+</button>
-                <span className="text-[var(--faint-2)]">→</span>
-                <button type="button" onClick={() => nudgeLobby('high', -1)} className="w-6 h-6 rounded border border-ow-border text-[var(--faint)] hover:text-[var(--ink)]" aria-label="Lower the lobby ceiling">−</button>
-                <span className="font-semibold" style={{ color: RANK_TIER_COLOR[rankTier(lobbyHigh)] }}>{rankLabel(lobbyHigh)}</span>
-                <button type="button" onClick={() => nudgeLobby('high', 1)} className="w-6 h-6 rounded border border-ow-border text-[var(--faint)] hover:text-[var(--ink)]" aria-label="Raise the lobby ceiling">+</button>
-                <button type="button" onClick={clearLobbyRange} className="ml-1 text-[var(--faint-2)] hover:text-red-600" aria-label="Clear the lobby range">clear</button>
-              </div>
+            {playerRank == null ? (
+              <p className="text-xs text-[var(--faint-2)]" data-inspect-id="prematch-lobby-rank-needs-rank">
+                Set your rank on the drum above first — the track is built around it.
+              </p>
+            ) : (
+              <LobbyRangeSlider
+                playerRank={playerRank}
+                low={lobbyLow}
+                high={lobbyHigh}
+                width={trayWidth}
+                onChange={setLobbyRange}
+                onRememberWidth={rememberTrayWidth}
+                onResize={resizeTray}
+                onClear={clearLobbyRange}
+              />
             )}
           </div>
         )}
@@ -1219,7 +1266,7 @@ export default function Prematch() {
             selection panel — bordered, tinted, chip buttons — rather than a
             trailing stats list, so it doesn't get missed after Coaching above it. */}
         <div className="mt-4 pt-4 border-t border-ow-border/40">
-        <h3 className="text-sm grad-brand font-black uppercase tracking-widest mb-3" data-inspect-id="prematch-select-your-hero-header">Select Your Hero</h3>
+        <h3 className="text-sm card-title mb-3" data-inspect-id="prematch-select-your-hero-header">Select Your Hero</h3>
         {showHeroPicker ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" data-inspect-id="prematch-hero-picker-list">
             {(['DPS', 'Support'] as const).map(role => {

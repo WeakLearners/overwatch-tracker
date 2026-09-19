@@ -53,6 +53,43 @@ function buildPrompt(el: UiElement, note: string): string {
   return lines.join('\n');
 }
 
+// Copying has to work when the app is NOT on localhost. Vite runs with
+// host:true, so the dashboard is often opened from another machine at
+// http://192.168.x.x:5173. That is a plain http origin, and browsers do not
+// expose navigator.clipboard there at all — the property is simply undefined.
+//
+// The old code called navigator.clipboard.writeText(...).then(...) with no
+// .catch(). On that origin the call threw before the promise existed, the
+// click handler died, and the button looked dead: no toast, no error, no
+// clue. A rejection on localhost (an unfocused document, for one) was just as
+// silent.
+//
+// So: try the modern API, fall back to the old hidden-textarea trick that
+// works on plain http, and return whether it actually worked so the caller can
+// say so out loud.
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (window.isSecureContext && navigator.clipboard) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch { /* fall through to the legacy path below */ }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none;';
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 type Bubble = { el: UiElement; rect: DOMRect };
 
 export default function InspectorOverlay() {
@@ -103,9 +140,12 @@ export default function InspectorOverlay() {
     setNote('');
   }, []);
 
+  // On failure the bubble deliberately stays open, with the text still in the
+  // box, so the prompt isn't lost along with the copy.
   const copyPrompt = useCallback(() => {
     if (!bubble) return;
-    navigator.clipboard.writeText(buildPrompt(bubble.el, note)).then(() => {
+    copyText(buildPrompt(bubble.el, note)).then(ok => {
+      if (!ok) { showToast('Copy blocked — select the text and copy by hand'); return; }
       showToast('Prompt copied');
       closeBubble();
       setEnabled(false);
@@ -115,7 +155,8 @@ export default function InspectorOverlay() {
 
   const copyLocateOnly = useCallback(() => {
     if (!bubble) return;
-    navigator.clipboard.writeText(bubble.el.locate.grep).then(() => {
+    copyText(bubble.el.locate.grep).then(ok => {
+      if (!ok) { showToast('Copy blocked — select the text and copy by hand'); return; }
       showToast('Locate copied');
       closeBubble();
     });

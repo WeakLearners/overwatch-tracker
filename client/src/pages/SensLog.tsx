@@ -261,7 +261,7 @@ export default function SensLog() {
       <BackfillPanel pending={pending} loading={loading} />
 
       <div className="mt-10 pt-8 border-t border-ow-border">
-        <h2 data-inspect-id="sl-header-stage-trials" className="text-sm heading-display text-[var(--ink)] mb-1">Sens stage trials</h2>
+        <h2 data-inspect-id="sl-header-stage-trials" className="text-sm card-title mb-1">Sens stage trials</h2>
         <p className="text-xs text-[var(--faint)] mb-4">Mouse DPI is locked at 1600 permanently — set your in-game sens to the value shown, play a batch, switch to the next stage. Log each game in the Match Tracker — it auto-tags to your current stage and queues up above for its combat details. Heroes can be tested in parallel — start as many as you like at once.</p>
         <PlanCard tabs={PLAN_TABS} state={dpiState} />
         <TestPanel state={dpiState} />
@@ -336,7 +336,7 @@ function CurveParamsCard({ locked }: { locked: boolean }) {
   return (
     <div className="card mb-6" data-inspect-id="sl-curve-params-card">
       <div className="flex items-start justify-between mb-1">
-        <h2 className="text-sm heading-display text-[var(--ink)]">Mouse acceleration curve</h2>
+        <h2 className="text-sm card-title">Mouse acceleration curve</h2>
         {locked && (
           <span data-inspect-id="sl-curve-params-lock-badge" title="A stage-test set is active — curve params are frozen until it finishes or is cancelled." className="text-[10px] text-[var(--faint-2)] flex items-center gap-1">
             🔒 locked while testing
@@ -1071,7 +1071,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
         <div className="fixed inset-0 z-50 grid place-items-center">
           <div className="fixed inset-0 bg-black/50" onClick={() => setShowAddPhase(false)} />
           <div className="relative card max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto" data-inspect-id="sl-add-phase-modal">
-            <h3 className="text-sm heading-display text-[var(--ink)] mb-1">Add new phase</h3>
+            <h3 className="text-sm card-title mb-1">Add new phase</h3>
             <p className="text-xs text-[var(--faint)] mb-4">
               Build the next phase's plan. Carried-over heroes' ranges are centered using each hero's full logged history (the
               curve fit on the Analysis page) — hover a hero's row for the basis, or the ⚠ badge for heroes with no reliable data
@@ -1280,7 +1280,7 @@ function ActiveTestCard({ active }: { active: DpiTestActive }) {
     return (
       <div className="card max-w-lg">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm heading-display text-[var(--ink)]">{title} — complete</h2>
+          <h2 className="text-sm card-title">{title} — complete</h2>
           <button type="button" onClick={loadSummary} data-inspect-id="sl-load-summary-btn" className={`${btnSecondary} py-1.5 px-3 text-xs`}>Load summary</button>
         </div>
         {answer ? <AnswerTable stages={answer} /> : <p className="text-xs text-[var(--faint)]">All stages hit their game target.</p>}
@@ -1377,7 +1377,7 @@ function CreateTestCard() {
 
   return (
     <div className="card max-w-lg" data-inspect-id="sl-create-test-card">
-      <h2 className="text-sm heading-display text-[var(--ink)] mb-1">Create an ad-hoc sens test set</h2>
+      <h2 className="text-sm card-title mb-1">Create an ad-hoc sens test set</h2>
       <p className="text-xs text-[var(--faint)] mb-4">Mouse DPI is locked at 1600 permanently. Pick each stage's in-game sens directly — e.g. levels chosen per hero from the analysis page. Type them into your in-game sens setting in this same order; the current stage's value stays visible on screen the whole test.</p>
       <div className="grid grid-cols-2 gap-3 mb-3">
         <label className="block">
@@ -1575,12 +1575,12 @@ function BackfillPanel({ pending, loading }: {
 
   return (
     <div>
-      <h2 data-inspect-id="sl-record-combat-header" className="text-sm heading-display text-[var(--ink)] mb-1">Record combat details</h2>
+      <h2 data-inspect-id="sl-record-combat-header" className="text-sm card-title mb-1">Record combat details</h2>
       <p className="text-xs text-[var(--faint)] mb-4">Every match awaiting its aim stats. Matches are logged in the Match Tracker; while a stage test is running they arrive here already tagged with that stage's DPI.</p>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div className="card" data-inspect-id="sl-awaiting-stats-card">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm heading-display text-[var(--ink)]">Awaiting Stats</h3>
+          <h3 className="text-sm card-title">Awaiting Stats</h3>
           <span className="text-xs text-[var(--faint)]"><b className="font-bold">{pending.length}</b> pending</span>
         </div>
         {loading ? <p className="text-xs text-[var(--faint)]">Loading…</p>
@@ -1677,7 +1677,7 @@ function BackfillPanel({ pending, loading }: {
 
       <div className="card" data-inspect-id="sl-logged-today-card">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm heading-display text-[var(--ink)]">Logged Today</h3>
+          <h3 className="text-sm card-title">Logged Today</h3>
           <span className="text-xs text-[var(--faint)]"><b className="font-bold">{logged.length}</b> logged</span>
         </div>
         {loggedLoading ? <p className="text-xs text-[var(--faint)]">Loading…</p>
@@ -1810,7 +1810,7 @@ function BackfillPanel({ pending, loading }: {
         <div className="fixed inset-0 z-50 grid place-items-center">
           <div className="fixed inset-0 bg-black/50" onClick={() => setShowCaughtUp(false)} />
           <div className="relative card max-w-sm w-full mx-4 text-center" data-inspect-id="sl-caught-up-modal">
-            <h3 className="text-sm heading-display text-[var(--ink)] mb-1.5">All caught up</h3>
+            <h3 className="text-sm card-title mb-1.5">All caught up</h3>
             <p className="text-xs text-[var(--faint)] mb-4">No matches left awaiting combat details. Head back to the Match Tracker?</p>
             <div className="flex items-center gap-2">
               <button type="button" onClick={() => setShowCaughtUp(false)} data-inspect-id="sl-caught-up-stay-btn" className={`${btnSecondary} flex-1 py-2 text-sm`}>Stay</button>

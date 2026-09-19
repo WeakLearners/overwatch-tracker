@@ -131,7 +131,7 @@ function ModeComparisonCard({ data }: { data: ModeComparison[] }) {
 
   return (
     <div className="card" data-inspect-id="dash-mode-card">
-      <h2 className="text-sm heading-display text-[var(--ink-2)] mb-4">Mode</h2>
+      <h2 className="text-sm card-title mb-4">Mode</h2>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {QUEUE_MODES.map(meta => (
           <ModeTile
@@ -491,7 +491,7 @@ export default function Dashboard() {
         <div className="card reveal" style={{ '--reveal-delay': '60ms' } as React.CSSProperties} data-inspect-id="dash-recent-matches-card">
           <div className="flex items-center justify-between flex-wrap gap-y-1 mb-4">
             <div className="flex items-center gap-2">
-              <h2 className="text-sm heading-display text-[var(--ink-2)]">Recent Matches</h2>
+              <h2 className="text-sm card-title">Recent Matches</h2>
             </div>
             {wr100 !== null && (
               <div className="flex items-baseline gap-2 text-xs" data-inspect-id="dash-recent-form-stat">

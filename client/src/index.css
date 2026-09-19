@@ -237,6 +237,20 @@
   html.dark .grad-loss    { @apply from-rose-300 to-red-500; }
   html.dark .grad-neutral { @apply from-white to-gray-500; }
 
+  /* Card titles. Lifted from the Lobby Rank header, which Sean picked as the
+     house treatment for every card heading: the brand ramp instead of plain
+     ink, heavier weight, wider tracking.
+
+     It repeats .grad-brand's two rules rather than @apply-ing it, so the light
+     and dark halves stay side by side and visible. See the note above
+     .grad-brand for why light theme is a solid colour rather than a clipped
+     gradient — the cyan end of the ramp measures under 2:1 on a white card. */
+  .card-title {
+    @apply font-black uppercase tracking-widest;
+    color: #E05A0A;
+  }
+  html.dark .card-title { @apply bg-gradient-to-br from-ow-accentLight to-ow-blue bg-clip-text text-transparent; }
+
   .btn-primary {
     @apply bg-gradient-to-r from-ow-accent to-ow-accentLight text-white font-bold
            shadow-lg shadow-ow-accent/30 transition-all duration-200
