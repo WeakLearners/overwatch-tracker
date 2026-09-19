@@ -43,23 +43,50 @@ const DEATH_BUFFER_KEY = 'ow-death-buffer-v4';
 const RANK_KEY = 'ow-player-rank';
 const LOBBY_KEY = 'ow-lobby-range';
 const ACCOUNT_KEY = 'ow-account';
-const rankKeyFor = (a: Account) => `${RANK_KEY}:${a}`;
-const lobbyKeyFor = (a: Account) => `${LOBBY_KEY}:${a}`;
 
-function readRank(a: Account): number | null {
+// Rank is keyed by account AND role — eight slots, not four. Overwatch ranks
+// each role separately, so "Sean's rank" is not a thing that exists; only
+// "Linx's support rank" is. The lobby range follows the same key because a
+// lobby is something you are in on one account in one role, and the track it
+// sits on is drawn around that pairing's rank.
+type RankRole = 'DPS' | 'Support';
+const rankKeyFor = (a: Account, r: RankRole) => `${RANK_KEY}:${a}:${r}`;
+const lobbyKeyFor = (a: Account, r: RankRole) => `${LOBBY_KEY}:${a}:${r}`;
+
+// One-time move of everything that came before the per-role split. The value
+// stored back when there was a single rank is Linx's support rank — Sean said
+// so directly on 2026-09-19 — so it is written there rather than to whichever
+// slot happens to be selected first. Runs once and leaves a marker; without
+// the marker it would re-run after Sean legitimately cleared that slot and
+// silently put the old rank back.
+const MIGRATED_KEY = 'ow-rank-migrated-to-role-slots';
+function migrateLegacyRank() {
   try {
-    const raw = localStorage.getItem(rankKeyFor(a))
-      // One-time adoption of the pre-per-account value.
-      ?? (a === DEFAULT_ACCOUNT ? localStorage.getItem(RANK_KEY) : null);
-    const v = Number(raw);
+    if (localStorage.getItem(MIGRATED_KEY)) return;
+    const legacyRank =
+      localStorage.getItem(`${RANK_KEY}:Linx`) ?? localStorage.getItem(RANK_KEY);
+    const legacyLobby =
+      localStorage.getItem(`${LOBBY_KEY}:Linx`) ?? localStorage.getItem(LOBBY_KEY);
+    if (legacyRank && !localStorage.getItem(rankKeyFor('Linx', 'Support'))) {
+      localStorage.setItem(rankKeyFor('Linx', 'Support'), legacyRank);
+    }
+    if (legacyLobby && !localStorage.getItem(lobbyKeyFor('Linx', 'Support'))) {
+      localStorage.setItem(lobbyKeyFor('Linx', 'Support'), legacyLobby);
+    }
+    localStorage.setItem(MIGRATED_KEY, '1');
+  } catch { /* ignore */ }
+}
+migrateLegacyRank();
+
+function readRank(a: Account, r: RankRole): number | null {
+  try {
+    const v = Number(localStorage.getItem(rankKeyFor(a, r)));
     return v >= RANK_MIN && v <= RANK_MAX ? v : null;
   } catch { return null; }
 }
-function readLobby(a: Account): { low: number; high: number } | null {
+function readLobby(a: Account, r: RankRole): { low: number; high: number } | null {
   try {
-    const raw = localStorage.getItem(lobbyKeyFor(a))
-      ?? (a === DEFAULT_ACCOUNT ? localStorage.getItem(LOBBY_KEY) : null);
-    const v = JSON.parse(raw ?? 'null');
+    const v = JSON.parse(localStorage.getItem(lobbyKeyFor(a, r)) ?? 'null');
     if (v && typeof v.low === 'number' && typeof v.high === 'number') return v;
     return null;
   } catch { return null; }
@@ -90,7 +117,11 @@ interface MatchContextValue {
   // Competitive rank, on the 1-45 division ladder (see RANK_TIERS in types).
   // Entered in Pre-Match before the match starts, read by Log Match on submit.
   // Same shape as sens: the input and the consumer are in different sections.
-  /** Which of Sean's four accounts is in play. Rank and lobby range are stored per account. */
+  /**
+   * Which of Sean's four accounts is in play. Rank and lobby range are stored
+   * per account AND per role — eight slots — because Overwatch ranks each role
+   * separately. Changing either one reloads the drum and the lobby track.
+   */
   account: Account;
   setAccount: (a: Account) => void;
   playerRank: number | null;
@@ -147,7 +178,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     try { return localStorage.getItem(SENS_KEY) ?? '2.5'; } catch { return '2.5'; }
   });
   useEffect(() => { if (sens) localStorage.setItem(SENS_KEY, sens); }, [sens]);
-  const [testRole, setTestRole] = useState<'DPS' | 'Support'>(() => {
+  const [testRole, setTestRoleState] = useState<'DPS' | 'Support'>(() => {
     try { return localStorage.getItem(TEST_ROLE_KEY) === 'Support' ? 'Support' : 'DPS'; } catch { return 'DPS'; }
   });
   useEffect(() => {
@@ -160,39 +191,53 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     } catch { return DEFAULT_ACCOUNT; }
   });
 
-  const [playerRank, setPlayerRankState] = useState<number | null>(() => readRank(account));
+  const [playerRank, setPlayerRankState] = useState<number | null>(() => readRank(account, testRole));
   const setPlayerRank = useCallback((r: number | null) => {
     setPlayerRankState(r);
     try {
-      if (r == null) localStorage.removeItem(rankKeyFor(account));
-      else localStorage.setItem(rankKeyFor(account), String(r));
+      if (r == null) localStorage.removeItem(rankKeyFor(account, testRole));
+      else localStorage.setItem(rankKeyFor(account, testRole), String(r));
     } catch { /* ignore */ }
-  }, [account]);
+  }, [account, testRole]);
 
-  const [lobbyRange, setLobbyRange] = useState<{ low: number; high: number } | null>(() => readLobby(account));
+  const [lobbyRange, setLobbyRange] = useState<{ low: number; high: number } | null>(() => readLobby(account, testRole));
 
-  // Switching accounts swaps the whole rank context in one move: the drum's
-  // rank and the lobby track both come from storage under the new account.
-  // Read, not cleared — each account keeps whatever it was last left at, so
-  // switching back is free.
+  // Account and role each swap the whole rank context in one move: the drum's
+  // rank and the lobby track both reload from the new slot's storage. Read,
+  // never cleared — every slot keeps what it was last left at, so moving
+  // between them is free.
+  //
+  // Both swaps happen inside the setter rather than in an effect on the
+  // changed value. An effect would run AFTER the lobby-persist effect below,
+  // which would have already written the outgoing slot's range under the
+  // incoming slot's key — quietly copying one role's reading onto another.
   const setAccount = useCallback((a: Account) => {
     setAccountState(prev => {
       if (prev === a) return prev;
       try { localStorage.setItem(ACCOUNT_KEY, a); } catch { /* ignore */ }
-      setPlayerRankState(readRank(a));
-      setLobbyRange(readLobby(a));
+      setPlayerRankState(readRank(a, testRole));
+      setLobbyRange(readLobby(a, testRole));
       return a;
     });
-  }, []);
+  }, [testRole]);
+
+  const setTestRole = useCallback((r: 'DPS' | 'Support') => {
+    setTestRoleState(prev => {
+      if (prev === r) return prev;
+      setPlayerRankState(readRank(account, r));
+      setLobbyRange(readLobby(account, r));
+      return r;
+    });
+  }, [account]);
   // Persisted the same way sens is — an effect on the value, not a write
   // buried inside a setState updater. React calls updaters twice in dev, so a
   // write in there runs twice for every one real change.
   useEffect(() => {
     try {
-      if (lobbyRange == null) localStorage.removeItem(lobbyKeyFor(account));
-      else localStorage.setItem(lobbyKeyFor(account), JSON.stringify(lobbyRange));
+      if (lobbyRange == null) localStorage.removeItem(lobbyKeyFor(account, testRole));
+      else localStorage.setItem(lobbyKeyFor(account, testRole), JSON.stringify(lobbyRange));
     } catch { /* ignore */ }
-  }, [lobbyRange, account]);
+  }, [lobbyRange, account, testRole]);
 
   const applyLobbySpread = useCallback((n: number) => {
     if (playerRank == null) return;

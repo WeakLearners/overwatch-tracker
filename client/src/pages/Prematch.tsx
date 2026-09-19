@@ -1191,7 +1191,22 @@ export default function Prematch() {
             <div className="flex items-baseline justify-between gap-3 flex-wrap mb-3">
               <div className="flex items-baseline gap-2">
                 <h3 className="text-sm card-title" data-inspect-id="prematch-lobby-rank-header">Lobby Rank</h3>
-                <span className="text-xs text-[var(--faint-2)]">read it off the scoreboard now</span>
+                {/* Which of the eight slots is on screen. The account half is
+                    the pill row to the right; the role half is set by Role
+                    Pick, up in the Map Voting card, where it cannot be seen
+                    from here. Without this line the drum's value would depend
+                    on an off-screen control — the reader would have no way to
+                    tell whether Plat 4 is this account's DPS rank or its
+                    support rank. Read-only on purpose: Role Pick already owns
+                    that choice, and the same exclusive control in two places
+                    is how they drift apart. */}
+                <span
+                  className="text-xs text-[var(--faint-2)]"
+                  data-inspect-id="prematch-lobby-rank-slot-label"
+                  title="Rank is stored per account and per role. Change the role in Role Pick, on the Map Voting card."
+                >
+                  <b className="font-semibold text-[var(--muted)]">{account} · {testRole}</b> — read it off the scoreboard now
+                </span>
               </div>
               {/* Which account is being played. It belongs in this header and
                   nowhere else: each account sits at its own rank, so the drum

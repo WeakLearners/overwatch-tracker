@@ -658,7 +658,7 @@
           "kind": "header",
           "description": "Header labeling the hero-selection panel that lists top heroes per role for the currently selected map.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1321",
+            "path": "client/src/pages/Prematch.tsx:1336",
             "grep": "grep -n -F -- 'Select Your Hero</h3>' client/src/pages/Prematch.tsx"
           }
         },
@@ -668,7 +668,7 @@
           "kind": "list",
           "description": "Two-column (DPS/Support) list of heroes — the union of every hero with an active sens test AND every hero belonging to the current DPI/sens testing phase's roster (so already-finished heroes stay visible instead of disappearing the moment their test completes), ranked by win rate on the selected map. Clicking a hero records it as an ordered pick (see prematch-hero-picker-order-badge) and pre-fills Log Match's hero slots in that order; clicking an already-picked hero again toggles it off.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1323",
+            "path": "client/src/pages/Prematch.tsx:1338",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-hero-picker-list\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -678,7 +678,7 @@
           "kind": "badge",
           "description": "①/②/③ badge shown on a hero row once it's been clicked, marking its position in the up-to-3 ordered click sequence that fills Log Match's hero slots (1st click → primary hero, 2nd/3rd → the two switch-hero slots). Colored via ROLE_PILL_CLASS to match the app's existing DPS/Tank/Support role-color convention rather than a generic accent.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1372",
+            "path": "client/src/pages/Prematch.tsx:1387",
             "grep": "grep -n -F -- 'prematch-hero-picker-order-badge' client/src/pages/Prematch.tsx"
           }
         },
@@ -688,7 +688,7 @@
           "kind": "meter",
           "description": "5-segment parallelogram gauge (battery-meter style) centered horizontally inside each hero picker row. Green segments = games remaining in the current DPI/sens stage, grey filled (50% opacity) segments = already logged; quantized from that hero's active test batch_size/games_on_stage onto a fixed 5-bar scale. Only shown for a hero with an active test — see prematch-hero-picker-done-badge for the alternative shown once a hero's test finishes. Reports progress through the CURRENT stage only; it empties and refills each stage, so prematch-hero-picker-stage-badge sits immediately left of it to say which stage that is.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1385",
+            "path": "client/src/pages/Prematch.tsx:1400",
             "grep": "grep -n -F -- 'prematch-hero-picker-gauge' client/src/pages/Prematch.tsx"
           }
         },
@@ -698,7 +698,7 @@
           "kind": "badge",
           "description": "Encircled number immediately left of the remaining-matches gauge, giving which stage of the test set this hero is currently on (hover shows \"Stage X of Y\"). Reads cur_stage/n_stages straight off GET /api/blind/state, the same two fields the DPI HUD card uses. Outlined rather than filled so it does not read as a second prematch-hero-picker-order-badge, which is solid and marks click position at the row's top-left corner. Rendered inside the gauge's own absolutely-positioned container so the number and the bars travel together at any row width. Only shown for a hero with an active test.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1399",
+            "path": "client/src/pages/Prematch.tsx:1414",
             "grep": "grep -n -F -- 'prematch-hero-picker-stage-badge' client/src/pages/Prematch.tsx"
           }
         },
@@ -708,7 +708,7 @@
           "kind": "badge",
           "description": "Shown on a hero row in Select Your Hero when that hero belongs to the current DPI/sens testing phase's roster but has already finished it (no active test, blind_stage_sets completed=true for that phase) — lets the whole phase roster stay visible instead of dropping a hero the moment its test completes.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1423",
+            "path": "client/src/pages/Prematch.tsx:1438",
             "grep": "grep -n -F -- 'prematch-hero-picker-done-badge' client/src/pages/Prematch.tsx"
           }
         },
@@ -718,7 +718,7 @@
           "kind": "banner",
           "description": "Empty-state message shown when no games have been logged for the current map/filter, prompting the user to pick a map or log a match.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1479",
+            "path": "client/src/pages/Prematch.tsx:1494",
             "grep": "grep -n -F -- 'dataInspectId=\"prematch-empty-state-banner\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -738,7 +738,7 @@
           "kind": "button",
           "description": "One hero row in the Select Your Hero picker. Click toggles it into the match's pick order. Selected and hover states both use the ROLE's colour, not the brand accent — teal in the DPS column, pink in the Support column — via --sel set inline on every chip so hover and selection agree. Matches the order badge, which already coloured by role.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1348",
+            "path": "client/src/pages/Prematch.tsx:1363",
             "grep": "grep -n -F -- 'prematch-hero-picker-button' client/src/pages/Prematch.tsx"
           }
         },
@@ -748,7 +748,7 @@
           "kind": "button",
           "description": "Moves one hero forward in its sens test, from inside the Select Your Hero row. Two moves, tried in that order: the next STAGE within the current set (POST /api/blind/advance) when that stage has its full batch of games, otherwise the next PHASE (POST /api/blind/sets with the newest plan's bracket) once every stage is done. Label names which move it will make — \"Next stage →\" or \"Next phase →\" — and the disabled states carry the same noun so a greyed-out button says which move is being waited on. Advancing a stage short of its batch is deliberately not offered here; that abandons the stage permanently and stays on Sens Log behind its confirm.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1447",
+            "path": "client/src/pages/Prematch.tsx:1462",
             "grep": "grep -n -F -- 'prematch-hero-picker-next-phase-button' client/src/pages/Prematch.tsx"
           }
         },
@@ -756,7 +756,7 @@
           "id": "prematch-lobby-rank-section",
           "label": "Lobby Rank section",
           "kind": "section",
-          "description": "Competitive rank capture, placed in Pre-Match rather than the Match Log on purpose: the lobby's rank spread is only readable on the opening scoreboard, and a number recalled after the match is a guess, not an observation. Hidden entirely on Quickplay, which has no rank. Laid out as one row of two columns — your own rank on the left, the lobby spread on the right. Its header carries the four-account picker on the right (see prematch-account-toggle); rank and lobby range are stored per account as of 2026-09-19.",
+          "description": "Competitive rank capture, placed in Pre-Match rather than the Match Log on purpose: the lobby's rank spread is only readable on the opening scoreboard, and a number recalled after the match is a guess, not an observation. Hidden entirely on Quickplay, which has no rank. Laid out as one row of two columns — your own rank on the left, the lobby spread on the right. Its header carries the four-account picker on the right (see prematch-account-toggle); rank and lobby range are stored per account AND per role (8 slots) as of 2026-09-19.",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:1190",
             "grep": "grep -n -F -- 'prematch-lobby-rank-section' client/src/pages/Prematch.tsx"
@@ -766,9 +766,9 @@
           "id": "prematch-account-toggle",
           "label": "Lobby Rank — account picker",
           "kind": "input",
-          "description": "Row of four pills in the Lobby Rank header's top right, one per Overwatch account: Pinx, Jinx, Winx, Linx (renamed from SOJ/SKI/26R/26J the same day). Added 2026-09-19. Styled from Map Voting's role pills — same clipped corner and the shared .is-selected bottom-lit state — because it is the same kind of control. The selected pill takes the hue of that account's current rank tier via --sel, so the pill row and the rank badge below agree. Switching accounts swaps the whole rank context: player_rank and the lobby range are stored per account under 'ow-player-rank:<ACCT>' and 'ow-lobby-range:<ACCT>', read (not cleared) on switch, so each account keeps where it was left. The pre-per-account single-key values are adopted once by Pinx, the default. NOTE: the account name IS the storage key suffix, so a future rename strands that account's stored rank and range — only the default is covered by the legacy adoption. NOTE: the account is NOT written to the matches table — no schema change was made; a logged match still records only player_rank.",
+          "description": "Row of four pills in the Lobby Rank header's top right, one per Overwatch account: Pinx, Jinx, Winx, Linx (renamed from SOJ/SKI/26R/26J the same day). Added 2026-09-19. Styled from Map Voting's role pills — same clipped corner and the shared .is-selected bottom-lit state — because it is the same kind of control. The selected pill takes the hue of that account's current rank tier via --sel, so the pill row and the rank badge below agree. Switching accounts swaps the whole rank context: player_rank and the lobby range are stored per account AND per role — EIGHT slots — under 'ow-player-rank:<ACCT>:<Role>' and 'ow-lobby-range:<ACCT>:<Role>', read (not cleared) on switch, so every slot keeps where it was left. The role half comes from Role Pick on the Map Voting card; prematch-lobby-rank-slot-label names the active pairing. Both swaps happen inside the setters, not in an effect — an effect runs after the lobby-persist effect and would copy the outgoing slot's range onto the incoming slot's key. Pre-split values migrate once to Linx/Support (Sean's statement 2026-09-19 that the stored rank was Linx's support rank), guarded by 'ow-rank-migrated-to-role-slots' so a legitimate clear is not undone. NOTE: the account name IS the storage key suffix, so a future rename strands that account's stored rank and range — only the default is covered by the legacy adoption. NOTE: the account is NOT written to the matches table — no schema change was made; a logged match still records only player_rank.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1203",
+            "path": "client/src/pages/Prematch.tsx:1218",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-account-toggle\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -778,7 +778,7 @@
           "kind": "button",
           "description": "Selects the Pinx account. Loads that account's stored rank into the drum and its stored lobby range into the track; nothing is cleared, so switching back restores what was there.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1226",
+            "path": "client/src/pages/Prematch.tsx:1241",
             "grep": "grep -n -F -- 'prematch-account-${a.toLowerCase()}-button' client/src/pages/Prematch.tsx"
           }
         },
@@ -788,7 +788,7 @@
           "kind": "button",
           "description": "Selects the Jinx account. Loads that account's stored rank into the drum and its stored lobby range into the track; nothing is cleared, so switching back restores what was there.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1226",
+            "path": "client/src/pages/Prematch.tsx:1241",
             "grep": "grep -n -F -- 'prematch-account-${a.toLowerCase()}-button' client/src/pages/Prematch.tsx"
           }
         },
@@ -798,7 +798,7 @@
           "kind": "button",
           "description": "Selects the Winx account. Loads that account's stored rank into the drum and its stored lobby range into the track; nothing is cleared, so switching back restores what was there.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1226",
+            "path": "client/src/pages/Prematch.tsx:1241",
             "grep": "grep -n -F -- 'prematch-account-${a.toLowerCase()}-button' client/src/pages/Prematch.tsx"
           }
         },
@@ -808,7 +808,7 @@
           "kind": "button",
           "description": "Selects the Linx account. Loads that account's stored rank into the drum and its stored lobby range into the track; nothing is cleared, so switching back restores what was there.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1226",
+            "path": "client/src/pages/Prematch.tsx:1241",
             "grep": "grep -n -F -- 'prematch-account-${a.toLowerCase()}-button' client/src/pages/Prematch.tsx"
           }
         },
@@ -823,12 +823,22 @@
           }
         },
         {
+          "id": "prematch-lobby-rank-slot-label",
+          "label": "Lobby Rank — active slot label",
+          "kind": "display",
+          "description": "Reads '<Account> · <Role> — read it off the scoreboard now'. Added 2026-09-19 with the per-role rank split. Rank is stored in eight slots (4 accounts x 2 roles); the account half is the pill row beside this, but the role half is set by Role Pick on the MAP VOTING card, which is not visible from here. Without this label the drum's value depends on an off-screen control and there is no way to tell whether a shown rank is that account's DPS or support rank. Deliberately read-only — Role Pick owns the role choice, and duplicating an exclusive control is how two copies drift apart.",
+          "locate": {
+            "path": "client/src/pages/Prematch.tsx:1205",
+            "grep": "grep -n -F -- 'data-inspect-id=\"prematch-lobby-rank-slot-label\"' client/src/pages/Prematch.tsx"
+          }
+        },
+        {
           "id": "prematch-lobby-rank-row",
           "label": "Lobby Rank — drum + track row",
           "kind": "container",
           "description": "One flex row holding the rank drum on the left and the lobby range track on the right. Added 2026-09-19 when the drum moved down out of the Recommended pick row. The drum keeps its fixed square width (shrink-0); the track side is flex-1 min-w-0 so a full 21-box row shrinks instead of pushing the drum off the card.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1241",
+            "path": "client/src/pages/Prematch.tsx:1256",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-lobby-rank-row\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -838,7 +848,7 @@
           "kind": "input",
           "description": "Left half of the Lobby Rank row, sitting beside the lobby range track it defines. A square tier-colored badge showing Sean's current rank, with a step-up button above and a step-down below; each press moves one division on the 1-45 ladder. Competitive only — it shares the Lobby Rank section's own condition, so it stays reachable at hero select whether or not a map is picked. Moved here 2026-09-19 from the Recommended pick row: your own rank is the origin the lobby range is measured from, so the two belong in one place. This is the only control that writes player_rank.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1242",
+            "path": "client/src/pages/Prematch.tsx:1257",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-rank-drum\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -848,7 +858,7 @@
           "kind": "button",
           "description": "Moves Sean's rank up one division. From no rank at all it seeds at Gold 5, visibly, as a starting point to drum from. Any move clears the lobby range, which was computed from the old rank.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1246",
+            "path": "client/src/pages/Prematch.tsx:1261",
             "grep": "grep -n -F -- 'prematch-rank-drum-up' client/src/pages/Prematch.tsx"
           }
         },
@@ -858,7 +868,7 @@
           "kind": "display",
           "description": "Square badge: tier name above, division digit below, wearing the app's shared .is-selected state in that tier's own hue via --sel — the badge IS the current rank, so it reads the way every other chosen thing reads, and it flips for light theme on its own. The tier name is ink rather than the tier colour: measured on the badge fill, tier-coloured text runs 1.86:1 (Master) to 3.98:1 (Bronze) in light and fails on three tiers in dark. Reads 'Set rank' with a plain border when no rank is stored.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1256",
+            "path": "client/src/pages/Prematch.tsx:1271",
             "grep": "grep -n -F -- 'prematch-rank-drum-badge' client/src/pages/Prematch.tsx"
           }
         },
@@ -868,7 +878,7 @@
           "kind": "button",
           "description": "Moves Sean's rank down one division. Same seeding and same lobby-range clearing as the step-up button.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1287",
+            "path": "client/src/pages/Prematch.tsx:1302",
             "grep": "grep -n -F -- 'prematch-rank-drum-down' client/src/pages/Prematch.tsx"
           }
         },
@@ -878,7 +888,7 @@
           "kind": "display",
           "description": "Stands in for the slider until a rank is on the drum beside it. The track is built around Sean's own rank, so there is nothing to draw without one.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1296",
+            "path": "client/src/pages/Prematch.tsx:1311",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-lobby-rank-needs-rank\"' client/src/pages/Prematch.tsx"
           }
         },
