@@ -775,7 +775,11 @@ export default function Dashboard() {
                     vectorEffect="non-scaling-stroke"
                     className="text-[var(--faint)] opacity-[0.15]"
                   />
-                  {/* The light the bars stand in, drawn BEHIND them. The bars
+                  {/* The light the bars stand in, drawn BEHIND them. No hard
+                      edge underneath it: a crisp accent rule along the bottom
+                      read as a second axis and pulled the eye down, away from
+                      the candles. The ramp alone gives the skyline something
+                      to stand in without drawing a line to look at. The bars
                       are 40% opaque, so the ramp reads through their lower
                       half and the bottom of every bar picks up the glow —
                       lit from within rather than washed over. Non-interactive,
@@ -799,21 +803,6 @@ export default function Dashboard() {
                       fillOpacity="0.88"
                     />
                   ))}
-
-                  {/* The source of that light: a hairline along the bottom
-                      edge, where the bars are rooted. Non-scaling so it stays
-                      one pixel at every card width. */}
-                  <line
-                    x1="0"
-                    y1={CH_H}
-                    x2={CH_W}
-                    y2={CH_H}
-                    stroke="currentColor"
-                    strokeWidth="1"
-                    vectorEffect="non-scaling-stroke"
-                    className="text-ow-accent dark:text-ow-accentLight opacity-70"
-                    pointerEvents="none"
-                  />
 
                   {/* One invisible column per day carrying a native tooltip, so
                       hovering names the day's record the way the old run
