@@ -31,7 +31,12 @@
        while leaving the roof visible. Each theme needs its own value because
        "a step off the card" means darker on white and lighter on gunmetal. */
     --vol-roof: #ccd1d9;
-    --vol-base: #F7931E;
+    /* Pushed 2026-09-19 for a hotter ground. Saturation alone had nowhere to
+       go — #F7931E already measured 93.1%, and the dark theme's base was at a
+       flat 100% — so the move is chroma, which is saturation and lightness
+       together. This is hue 32.4 held, saturation to 100%, lightness to 50%,
+       which is the most colourful this hue can physically be. */
+    --vol-base: #FF8A00;
     --ink: #14161c;
     --ink-2: #2c2f38;
 --muted: #565c6b;
@@ -66,7 +71,7 @@
     --ow-border: 51 56 66;      /* #333842 hairline */
     --surface: #14161c;         /* gunmetal page base */
     --vol-roof: #3b414d;        /* a step LIGHTER than the #1D2027 card */
-    --vol-base: #FFC069;
+    --vol-base: #FFB34B;        /* chroma 0.588 -> 0.706, a true +20%; hue held at 34.8 */
     --ink: #edeff3;             /* primary text */
     --ink-2: #c6cad2;
     --muted: #8a8f9c;
