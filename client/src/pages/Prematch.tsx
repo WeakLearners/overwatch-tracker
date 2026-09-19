@@ -628,7 +628,11 @@ export default function Prematch() {
         className="card !py-1.5 !px-3 mb-3 flex items-center gap-2.5 flex-wrap"
         data-inspect-id="prematch-identity-strip"
       >
-        <span className="text-[10px] uppercase tracking-widest text-[var(--faint)] shrink-0">Playing as</span>
+        {/* .card-title, the same as every card heading on the page — this
+            strip is a section of the page and its label should read as one.
+            The class already carries uppercase and the widest tracking, so
+            only the size is set here. */}
+        <span className="text-xs card-title shrink-0">Playing as</span>
         <div className="flex gap-1" data-inspect-id="prematch-account-toggle">
           {ACCOUNTS.map(a =>
             identityPill(
