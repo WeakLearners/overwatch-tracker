@@ -602,19 +602,25 @@ export default function Dashboard() {
                         ))}
                       </linearGradient>
                     ))}
-                    {/* The floor light. A vertical ramp from nothing at the top
-                        of the volume strip to the accent at the chart's bottom
-                        edge, where the bars stand. The colour rides on
-                        currentColor set by the class on the gradient itself, so
-                        the same def is warm orange in light theme and the
-                        lighter tint in dark — a stop cannot carry a theme
-                        query, but the element holding it can.
+                    {/* The light is IN the buildings, not behind them. One
+                        ramp spanning the whole volume strip in its own
+                        coordinates, so every bar samples the same gradient and
+                        two bars of the same height come out identical — the
+                        same rule the candle gradients follow.
 
-                        A gradient, not a blur filter. The chart is stretched
-                        horizontally with preserveAspectRatio="none", and a
-                        feGaussianBlur would be stretched with it — wider on a
-                        wide card, which is exactly the distortion the axis
-                        labels were moved out of the SVG to avoid. */}
+                        Dark at the top, hot at the ground. The lit part is a
+                        fixed slice of the strip rather than a fraction of each
+                        bar, so a one-match day and a fourteen-match day are
+                        lit to the same height. That is what real light does,
+                        and it is also what keeps the bar tops clean: the top
+                        of a tall bar is solid #14161c with no ramp still
+                        running through it.
+
+                        #14161c serves both themes — light theme's own ink,
+                        dark theme's page base, darker than the card either
+                        way. The hot end rides on currentColor set by the class
+                        here, since a stop cannot carry a theme query but the
+                        element holding it can. */}
                     <linearGradient
                       id="volumeGlow"
                       gradientUnits="userSpaceOnUse"
@@ -624,9 +630,10 @@ export default function Dashboard() {
                       y2={CH_H}
                       className="text-ow-accent dark:text-ow-accentLight"
                     >
-                      <stop offset="0" stopColor="currentColor" stopOpacity="0" />
-                      <stop offset="0.55" stopColor="currentColor" stopOpacity="0.08" />
-                      <stop offset="1" stopColor="currentColor" stopOpacity="0.32" />
+                      <stop offset="0" stopColor="#14161c" />
+                      <stop offset="0.62" stopColor="#14161c" />
+                      <stop offset="0.86" stopColor="currentColor" stopOpacity="0.55" />
+                      <stop offset="1" stopColor="currentColor" />
                     </linearGradient>
                   </defs>
                   {/* The band of ordinary luck, drawn first and furthest back.
@@ -758,14 +765,12 @@ export default function Dashboard() {
                       much did I play", which is a different question from the two
                       the candle already answers.
 
-                      Drawn as a skyline: near-solid dark blocks standing in
-                      front of the glow, so the light reads as sky between the
-                      buildings rather than a wash across them. One literal
-                      colour serves both themes — #14161c is the light theme's
-                      own ink and the dark theme's page base, which is darker
-                      than the card the chart sits on. So the bars are the
-                      darkest thing in the strip either way, which is what
-                      makes them silhouettes.
+                      Drawn as a skyline, lit from the ground up. The glow
+                      lives in the bars themselves (see #volumeGlow in the
+                      defs) rather than on a backdrop behind them, which was
+                      the earlier version — a lit panel behind near-solid
+                      blocks meant the brightest part of the light sat where
+                      the buildings covered it.
 
                       They were low-contrast grey until 2026-09-19, on the
                       reasoning that volume is context and not a signal. That
@@ -786,22 +791,6 @@ export default function Dashboard() {
                     vectorEffect="non-scaling-stroke"
                     className="text-[var(--faint)] opacity-[0.15]"
                   />
-                  {/* The light the bars stand in, drawn BEHIND them. No hard
-                      edge underneath it: a crisp accent rule along the bottom
-                      read as a second axis and pulled the eye down, away from
-                      the candles. The ramp alone gives the skyline something
-                      to stand in without drawing a line to look at. The bars
-                      are near-solid now, so the ramp is read in the gaps
-                      between them rather than through them. Non-interactive,
-                      so it never steals a hover from the day columns. */}
-                  <rect
-                    x="0"
-                    y={CH_H - VOL_H}
-                    width={CH_W}
-                    height={VOL_H}
-                    fill="url(#volumeGlow)"
-                    pointerEvents="none"
-                  />
                   {candles.map((c, j) => (
                     <rect
                       key={`vol-${c.date}`}
@@ -809,7 +798,7 @@ export default function Dashboard() {
                       y={volY(c.volume)}
                       width={volW}
                       height={CH_H - volY(c.volume)}
-                      fill="#14161c"
+                      fill="url(#volumeGlow)"
                     />
                   ))}
 
@@ -988,10 +977,14 @@ export default function Dashboard() {
                   </div>
 
                   <div className="flex items-start gap-2">
-                    <span className="shrink-0 mt-[3px] inline-flex items-end gap-[2px] h-3" aria-hidden="true">
-                      <span className="inline-block w-1 h-1.5 bg-[#14161c]" />
-                      <span className="inline-block w-1 h-3 bg-[#14161c]" />
-                      <span className="inline-block w-1 h-2 bg-[#14161c]" />
+                    <span className="shrink-0 mt-[3px] inline-flex items-end gap-[2px] h-3 text-ow-accent dark:text-ow-accentLight" aria-hidden="true">
+                      {['0.375rem', '0.75rem', '0.5rem'].map((h, i) => (
+                        <span
+                          key={i}
+                          className="inline-block w-1"
+                          style={{ height: h, background: 'linear-gradient(to top, currentColor, #14161c 55%)' }}
+                        />
+                      ))}
                     </span>
                     <span>
                       <b className="font-bold text-[var(--muted)]">bars below</b>
