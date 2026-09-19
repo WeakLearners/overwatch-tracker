@@ -608,19 +608,20 @@ export default function Dashboard() {
                         two bars of the same height come out identical — the
                         same rule the candle gradients follow.
 
-                        Dark at the top, hot at the ground. The lit part is a
-                        fixed slice of the strip rather than a fraction of each
-                        bar, so a one-match day and a fourteen-match day are
-                        lit to the same height. That is what real light does,
-                        and it is also what keeps the bar tops clean: the top
-                        of a tall bar is solid #14161c with no ramp still
-                        running through it.
+                        Two stops across the whole strip, so the warm-up is
+                        one long climb rather than a flare at the bottom. The
+                        lit part is a fixed slice of the STRIP, not a fraction
+                        of each bar, so a one-match day and a fourteen-match
+                        day are lit to the same height off the ground. That is
+                        what real light does.
 
-                        #14161c serves both themes — light theme's own ink,
-                        dark theme's page base, darker than the card either
-                        way. The hot end rides on currentColor set by the class
-                        here, since a stop cannot carry a theme query but the
-                        element holding it can. */}
+                        Both ends are CSS variables (index.css), because they
+                        have to say opposite things in the two themes and a
+                        stop cannot carry a theme query. --vol-roof is
+                        near-black in light theme and a pale slate in dark: the
+                        dark card is #1D2027 and a near-black roof on it is
+                        darker than its own background, which is exactly how
+                        the bar tops went missing. */}
                     <linearGradient
                       id="volumeGlow"
                       gradientUnits="userSpaceOnUse"
@@ -628,12 +629,9 @@ export default function Dashboard() {
                       y1={CH_H - VOL_H}
                       x2="0"
                       y2={CH_H}
-                      className="text-ow-accent dark:text-ow-accentLight"
                     >
-                      <stop offset="0" stopColor="#14161c" />
-                      <stop offset="0.62" stopColor="#14161c" />
-                      <stop offset="0.86" stopColor="currentColor" stopOpacity="0.55" />
-                      <stop offset="1" stopColor="currentColor" />
+                      <stop offset="0" style={{ stopColor: 'var(--vol-roof)' }} />
+                      <stop offset="1" style={{ stopColor: 'var(--vol-base)' }} />
                     </linearGradient>
                   </defs>
                   {/* The band of ordinary luck, drawn first and furthest back.
@@ -977,12 +975,12 @@ export default function Dashboard() {
                   </div>
 
                   <div className="flex items-start gap-2">
-                    <span className="shrink-0 mt-[3px] inline-flex items-end gap-[2px] h-3 text-ow-accent dark:text-ow-accentLight" aria-hidden="true">
+                    <span className="shrink-0 mt-[3px] inline-flex items-end gap-[2px] h-3" aria-hidden="true">
                       {['0.375rem', '0.75rem', '0.5rem'].map((h, i) => (
                         <span
                           key={i}
                           className="inline-block w-1"
-                          style={{ height: h, background: 'linear-gradient(to top, currentColor, #14161c 55%)' }}
+                          style={{ height: h, background: 'linear-gradient(to top, var(--vol-base), var(--vol-roof))' }}
                         />
                       ))}
                     </span>

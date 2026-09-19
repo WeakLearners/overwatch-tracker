@@ -19,6 +19,15 @@
     --ow-dark: 237 239 243;     /* #edeff3 */
     --ow-border: 210 214 222;   /* #d2d6de */
     --surface: #eef0f4;
+    /* The volume skyline's two ends. They live here rather than in the chart
+       because they have to say opposite things in the two themes, and an SVG
+       stop cannot carry a theme query — the same reason the lobby slider's
+       lamp colours are here. Light theme: near-black roofs on a white card,
+       a true silhouette. Dark theme swaps the logic, because #14161c IS the
+       dark page base and a roof painted in it is darker than the card it
+       stands on, which is how the tops disappeared. */
+    --vol-roof: #14161c;
+    --vol-base: #F7931E;
     --ink: #14161c;
     --ink-2: #2c2f38;
 --muted: #565c6b;
@@ -52,6 +61,8 @@
     --ow-dark: 22 24 29;        /* #16181D */
     --ow-border: 51 56 66;      /* #333842 hairline */
     --surface: #14161c;         /* gunmetal page base */
+    --vol-roof: #767c8a;        /* lighter than the #1D2027 card, so roofs read */
+    --vol-base: #FFC069;
     --ink: #edeff3;             /* primary text */
     --ink-2: #c6cad2;
     --muted: #8a8f9c;
