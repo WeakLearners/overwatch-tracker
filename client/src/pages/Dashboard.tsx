@@ -327,6 +327,23 @@ export default function Dashboard() {
   // against — which is what made the tops look soft and spread.
   const ROOFLINE = 0.78;
   const volY = (n: number) => CH_H - (n / maxVol) * VOL_H * ROOFLINE;
+  // The skyline's ramp, as a falloff rather than a straight line. Real light
+  // drops off fast near its source and slowly further out, and that shape is
+  // worth copying here for a reason beyond looks: a straight line spends half
+  // its colour range on the top half of the tallest bar, which almost no day
+  // reaches. The busiest day in the window is 40 matches against a typical
+  // 12.3, so an ordinary bar lives entirely in the bottom third. Squaring the
+  // curve moves the colour travel down into that third — an ordinary bar now
+  // sweeps about half the range instead of a fifth of it.
+  //
+  // color-mix does the blending, so the two ends stay CSS variables and stay
+  // theme-aware. Nine stops is enough that the curve reads smooth.
+  const VOL_STOPS = Array.from({ length: 9 }, (_, i) => {
+    const o = i / 8; // 0 at the tallest roof, 1 at the ground
+    return { offset: o, mix: Math.round(o * o * 100) };
+  });
+  const volStopColor = (mix: number) =>
+    `color-mix(in srgb, var(--vol-base) ${mix}%, var(--vol-roof))`;
   // Points for the pace line and the two edges of its band, one per day.
   const pacePts = candles.map((c, j) => `${slotX(j)},${chartY(paceAt(c.nClose))}`).join(' ');
   const bandUpper = candles.map((c, j) => `${slotX(j)},${chartY(paceAt(c.nClose) + sdAt(c.nClose))}`);
@@ -626,6 +643,9 @@ export default function Dashboard() {
                         ordinary day is lit most of the way up, a two-match
                         day is solid glow.
 
+                        The stops themselves are a falloff curve, not a
+                        straight line — see VOL_STOPS above for why.
+
                         Both ends are CSS variables (index.css), because a
                         stop cannot carry a theme query. --vol-roof is the
                         card's own background colour, so a bar fades into the
@@ -639,8 +659,9 @@ export default function Dashboard() {
                       x2="0"
                       y2={CH_H}
                     >
-                      <stop offset="0" style={{ stopColor: 'var(--vol-roof)' }} />
-                      <stop offset="1" style={{ stopColor: 'var(--vol-base)' }} />
+                      {VOL_STOPS.map(st => (
+                        <stop key={st.offset} offset={st.offset} style={{ stopColor: volStopColor(st.mix) }} />
+                      ))}
                     </linearGradient>
                   </defs>
                   {/* The band of ordinary luck, drawn first and furthest back.
@@ -995,7 +1016,9 @@ export default function Dashboard() {
                           className="inline-block w-1"
                           style={{
                             height: h,
-                            backgroundImage: 'linear-gradient(to top, var(--vol-base), var(--vol-roof))',
+                            backgroundImage: `linear-gradient(to top, ${VOL_STOPS.map(
+                              st => `${volStopColor(st.mix)} ${Math.round((1 - st.offset) * 100)}%`,
+                            ).reverse().join(', ')})`,
                             backgroundSize: '100% 0.75rem',
                             backgroundPosition: 'bottom',
                             backgroundRepeat: 'no-repeat',
