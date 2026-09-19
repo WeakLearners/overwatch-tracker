@@ -608,22 +608,23 @@ export default function Dashboard() {
                         two bars of the same height come out identical — the
                         same rule the candle gradients follow.
 
-                        The ramp holds at roof colour for the top third, then
-                        climbs to the ground. Where that hold sits is set by
-                        how tall a normal bar actually is, not by taste: the
-                        busiest day in the window is 40 matches and a typical
-                        one is 12.3, so a typical bar reaches only about a
-                        third of the strip. Spread the ramp over the FULL
-                        strip and that bar samples just the bottom third of
-                        it — a few percent of colour change, which reads as no
-                        gradient at all. Concentrating the climb in the lower
-                        two-thirds is what puts a visible transition inside an
-                        ordinary day's bar.
+                        The ramp spans the TALLEST BAR, not the strip. That
+                        is the whole trick, and it is why there are no hand-
+                        tuned hold stops here any more. Keyed to the strip,
+                        the top fifth of the ramp sat above every building and
+                        was never drawn — so the visible part was a squashed
+                        fraction of the colours, and the fix was a magic
+                        number moving the stops down. Keyed to the busiest
+                        day, every colour in the ramp lands on something.
 
-                        The lit part is still a fixed slice of the STRIP, not
-                        a fraction of each bar, so a quiet day and a busy day
-                        are lit to the same height off the ground. That is
-                        what real light does.
+                        It also self-tunes. Log a 60-match day and the ramp
+                        stretches to it on its own; no constant to revisit.
+
+                        The light is still one thing shared by every bar, not
+                        a per-bar effect. So height reads as colour: the
+                        busiest day fades all the way out at its roof, an
+                        ordinary day is lit most of the way up, a two-match
+                        day is solid glow.
 
                         Both ends are CSS variables (index.css), because a
                         stop cannot carry a theme query. --vol-roof is the
@@ -634,12 +635,11 @@ export default function Dashboard() {
                       id="volumeGlow"
                       gradientUnits="userSpaceOnUse"
                       x1="0"
-                      y1={CH_H - VOL_H}
+                      y1={volY(maxVol)}
                       x2="0"
                       y2={CH_H}
                     >
                       <stop offset="0" style={{ stopColor: 'var(--vol-roof)' }} />
-                      <stop offset="0.32" style={{ stopColor: 'var(--vol-roof)' }} />
                       <stop offset="1" style={{ stopColor: 'var(--vol-base)' }} />
                     </linearGradient>
                   </defs>
@@ -985,11 +985,21 @@ export default function Dashboard() {
 
                   <div className="flex items-start gap-2">
                     <span className="shrink-0 mt-[3px] inline-flex items-end gap-[2px] h-3" aria-hidden="true">
+                      {/* All three share one ramp sized to the TALLEST of them
+                          and anchored to the bottom, the same rule the chart
+                          follows — so the short swatches show a slice of the
+                          gradient rather than their own squashed copy. */}
                       {['0.375rem', '0.75rem', '0.5rem'].map((h, i) => (
                         <span
                           key={i}
                           className="inline-block w-1"
-                          style={{ height: h, background: 'linear-gradient(to top, var(--vol-base), var(--vol-roof) 68%)' }}
+                          style={{
+                            height: h,
+                            backgroundImage: 'linear-gradient(to top, var(--vol-base), var(--vol-roof))',
+                            backgroundSize: '100% 0.75rem',
+                            backgroundPosition: 'bottom',
+                            backgroundRepeat: 'no-repeat',
+                          }}
                         />
                       ))}
                     </span>
