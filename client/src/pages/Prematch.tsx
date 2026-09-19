@@ -172,7 +172,7 @@ interface PrematchData {
   bestByGameType: HeroRow | null;
 }
 
-// Band width persists; band position never does (see the Lobby Rank section).
+// The band's remembered width. Its position persists too, in MatchContext.
 const TRAY_WIDTH_KEY = 'ow-lobby-tray-width';
 
 export default function Prematch() {
@@ -1180,7 +1180,9 @@ export default function Prematch() {
             By the time the match ends and gets logged it is gone, and a guess
             recalled ten minutes later is not an observation. So the reading is
             taken at the start and carried through the match in MatchContext,
-            surviving a mid-match reload, then flushed on submit.
+            surviving a mid-match reload — and surviving the log as well, since
+            the next match is nearly always the same lobby. Adjust it when the
+            lobby changes; "clear" empties it.
 
             Competitive only — quickplay has no rank, so the section is hidden
             rather than sitting empty and inviting a guess. */}

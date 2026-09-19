@@ -304,7 +304,7 @@ interface BlindSetSummary {
 export default function LogMatch() {
   // Map + queue mode are shared with the Pre-Match section via context; this
   // section only owns date/time/hero/win plus the death tags.
-  const { queueMode, setQueueMode, map, setMap, mapType, sens, testRole, pendingHeroes, setPendingHeroes, revalidateRec, notifyMatchLogged, deathBuffer, removeDeathFromBuffer, toggleDeathUlt, clearDeathBuffer, playerRank, lobbyLow, lobbyHigh, clearLobbyRange } = useMatch();
+  const { queueMode, setQueueMode, map, setMap, mapType, sens, testRole, pendingHeroes, setPendingHeroes, revalidateRec, notifyMatchLogged, deathBuffer, removeDeathFromBuffer, toggleDeathUlt, clearDeathBuffer, playerRank, lobbyLow, lobbyHigh } = useMatch();
   const { data: dpiState } = useApi<DpiTestState>('/api/blind/state');
   const { data: blindSets } = useApi<{ sets: BlindSetSummary[] }>('/api/blind/sets');
   const mapCounts = useTodayMapCounts();
@@ -641,7 +641,12 @@ export default function LogMatch() {
       setFeelByHero({});
       setTeamRating(0);
       setMatchQuality(null);
-      setResultDriver(null); clearLobbyRange();
+      setResultDriver(null);
+      // The lobby range deliberately survives the submit. It is a reading of
+      // the ladder you are playing in, not a property of the match just
+      // logged, and the next lobby is nearly always the same one. Wiping it
+      // meant re-placing the bar from scratch every game to record something
+      // that had not changed. Now it stays put and gets nudged.
       dateTouched.current = false;
       timeTouched.current = false;
       setForm(f => ({ ...f, hero: '', win: '', notes: '', date: datePart, time: format(new Date(), 'HH:mm') }));
@@ -760,7 +765,7 @@ export default function LogMatch() {
                   setFeelByHero({});
                   setTeamRating(0);
                   setMatchQuality(null);
-                  setResultDriver(null); clearLobbyRange();
+                  setResultDriver(null);
                   clearDeathBuffer();
                   notifyMatchLogged();
                   // Wait a paint cycle so the layout has settled from the resets above
@@ -782,7 +787,7 @@ export default function LogMatch() {
               </button>
               <button
                 type="button"
-                onClick={() => { setForm(f => ({ ...f, hero: '', notes: '' })); setSwitchHeroes(['', '']); setMap(''); setFeelByHero({}); setTeamRating(0); setMatchQuality(null); setResultDriver(null); clearLobbyRange(); }}
+                onClick={() => { setForm(f => ({ ...f, hero: '', notes: '' })); setSwitchHeroes(['', '']); setMap(''); setFeelByHero({}); setTeamRating(0); setMatchQuality(null); setResultDriver(null); }}
                 disabled={!form.hero && !map}
                 data-inspect-id="logmatch-reset-button"
                 className="text-xs text-[var(--faint)] hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--faint)]"

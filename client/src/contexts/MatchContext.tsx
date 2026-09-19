@@ -27,7 +27,13 @@ const DEATH_BUFFER_KEY = 'ow-death-buffer-v4';
 // visible there — by the time the match ends and gets logged, the scoreboard
 // is gone. So it is captured in Pre-Match and has to survive the match itself,
 // including a page reload mid-game, which is why it lives in localStorage and
-// not in component state. It clears the moment the match is logged.
+// not in component state.
+//
+// It also survives the log. The bar used to be wiped on submit, on Reset and
+// on Match Cancelled, which meant re-placing it from scratch before every
+// game. Consecutive matches are nearly always the same lobby, so that was
+// re-entering an unchanged reading. It now holds until Sean moves it or
+// presses the slider's own "clear".
 const RANK_KEY = 'ow-player-rank';
 const LOBBY_KEY = 'ow-lobby-range';
 
