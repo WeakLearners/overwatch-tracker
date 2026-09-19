@@ -321,7 +321,12 @@ export default function Dashboard() {
   // Volume has its own scale and its own strip. Bars hang down from the top of
   // that strip so the busiest day fills it and a two-game day is a stub.
   const maxVol = Math.max(1, ...candles.map(c => c.volume));
-  const volY = (n: number) => CH_H - (n / maxVol) * VOL_H;
+  // The tallest bar stops short of the strip's ceiling, leaving a sliver of
+  // lit sky above the whole skyline. Without it the tallest roofline runs into
+  // the divider, and a bar top with nothing behind it has no edge to read
+  // against — which is what made the tops look soft and spread.
+  const ROOFLINE = 0.78;
+  const volY = (n: number) => CH_H - (n / maxVol) * VOL_H * ROOFLINE;
   // Points for the pace line and the two edges of its band, one per day.
   const pacePts = candles.map((c, j) => `${slotX(j)},${chartY(paceAt(c.nClose))}`).join(' ');
   const bandUpper = candles.map((c, j) => `${slotX(j)},${chartY(paceAt(c.nClose) + sdAt(c.nClose))}`);
@@ -805,7 +810,6 @@ export default function Dashboard() {
                       width={volW}
                       height={CH_H - volY(c.volume)}
                       fill="#14161c"
-                      fillOpacity="0.88"
                     />
                   ))}
 
@@ -985,9 +989,9 @@ export default function Dashboard() {
 
                   <div className="flex items-start gap-2">
                     <span className="shrink-0 mt-[3px] inline-flex items-end gap-[2px] h-3" aria-hidden="true">
-                      <span className="inline-block w-1 h-1.5 bg-[#14161c] opacity-[0.88]" />
-                      <span className="inline-block w-1 h-3 bg-[#14161c] opacity-[0.88]" />
-                      <span className="inline-block w-1 h-2 bg-[#14161c] opacity-[0.88]" />
+                      <span className="inline-block w-1 h-1.5 bg-[#14161c]" />
+                      <span className="inline-block w-1 h-3 bg-[#14161c]" />
+                      <span className="inline-block w-1 h-2 bg-[#14161c]" />
                     </span>
                     <span>
                       <b className="font-bold text-[var(--muted)]">bars below</b>
