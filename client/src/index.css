@@ -22,11 +22,15 @@
     /* The volume skyline's two ends. They live here rather than in the chart
        because they have to say opposite things in the two themes, and an SVG
        stop cannot carry a theme query — the same reason the lobby slider's
-       lamp colours are here. Light theme: near-black roofs on a white card,
-       a true silhouette. Dark theme swaps the logic, because #14161c IS the
-       dark page base and a roof painted in it is darker than the card it
-       stands on, which is how the tops disappeared. */
-    --vol-roof: #14161c;
+       lamp colours are here.
+
+       The roof end IS the card's own background, so a bar dissolves into the
+       card rather than ending on an edge — the skyline rises out of the page
+       instead of being stamped on it. Written as var(--ow-card) and defined
+       only once: --ow-card is already redefined under html.dark, and a custom
+       property resolves where it is USED, so this follows the theme with no
+       second declaration to keep in sync. */
+    --vol-roof: rgb(var(--ow-card));
     --vol-base: #F7931E;
     --ink: #14161c;
     --ink-2: #2c2f38;
@@ -61,8 +65,7 @@
     --ow-dark: 22 24 29;        /* #16181D */
     --ow-border: 51 56 66;      /* #333842 hairline */
     --surface: #14161c;         /* gunmetal page base */
-    --vol-roof: #767c8a;        /* lighter than the #1D2027 card, so roofs read */
-    --vol-base: #FFC069;
+    --vol-base: #FFC069;        /* --vol-roof needs no dark value: it tracks --ow-card */
     --ink: #edeff3;             /* primary text */
     --ink-2: #c6cad2;
     --muted: #8a8f9c;

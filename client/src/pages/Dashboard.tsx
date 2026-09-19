@@ -625,13 +625,11 @@ export default function Dashboard() {
                         are lit to the same height off the ground. That is
                         what real light does.
 
-                        Both ends are CSS variables (index.css), because they
-                        have to say opposite things in the two themes and a
-                        stop cannot carry a theme query. --vol-roof is
-                        near-black in light theme and a pale slate in dark: the
-                        dark card is #1D2027 and a near-black roof on it is
-                        darker than its own background, which is exactly how
-                        the bar tops went missing. */}
+                        Both ends are CSS variables (index.css), because a
+                        stop cannot carry a theme query. --vol-roof is the
+                        card's own background colour, so a bar fades into the
+                        card instead of ending on an edge — the skyline rises
+                        out of the page rather than sitting on top of it. */}
                     <linearGradient
                       id="volumeGlow"
                       gradientUnits="userSpaceOnUse"
