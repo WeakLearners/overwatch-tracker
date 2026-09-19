@@ -325,7 +325,7 @@ export default function Dashboard() {
   // lit sky above the whole skyline. Without it the tallest roofline runs into
   // the divider, and a bar top with nothing behind it has no edge to read
   // against — which is what made the tops look soft and spread.
-  const ROOFLINE = 0.82;
+  const ROOFLINE = 0.86;
   const volY = (n: number) => CH_H - (n / maxVol) * VOL_H * ROOFLINE;
   // The skyline's ramp, as a falloff rather than a straight line. Real light
   // drops off fast near its source and slowly further out, and that shape is
