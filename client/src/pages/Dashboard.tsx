@@ -591,6 +591,32 @@ export default function Dashboard() {
                         ))}
                       </linearGradient>
                     ))}
+                    {/* The floor light. A vertical ramp from nothing at the top
+                        of the volume strip to the accent at the chart's bottom
+                        edge, where the bars stand. The colour rides on
+                        currentColor set by the class on the gradient itself, so
+                        the same def is warm orange in light theme and the
+                        lighter tint in dark — a stop cannot carry a theme
+                        query, but the element holding it can.
+
+                        A gradient, not a blur filter. The chart is stretched
+                        horizontally with preserveAspectRatio="none", and a
+                        feGaussianBlur would be stretched with it — wider on a
+                        wide card, which is exactly the distortion the axis
+                        labels were moved out of the SVG to avoid. */}
+                    <linearGradient
+                      id="volumeGlow"
+                      gradientUnits="userSpaceOnUse"
+                      x1="0"
+                      y1={CH_H - VOL_H}
+                      x2="0"
+                      y2={CH_H}
+                      className="text-ow-accent dark:text-ow-accentLight"
+                    >
+                      <stop offset="0" stopColor="currentColor" stopOpacity="0" />
+                      <stop offset="0.55" stopColor="currentColor" stopOpacity="0.08" />
+                      <stop offset="1" stopColor="currentColor" stopOpacity="0.32" />
+                    </linearGradient>
                   </defs>
                   {/* The band of ordinary luck, drawn first and furthest back.
                       Its edges are one standard deviation either side of the
@@ -746,6 +772,35 @@ export default function Dashboard() {
                       className="text-[var(--muted)] opacity-40"
                     />
                   ))}
+
+                  {/* The light the bars stand in. Drawn after them, so it
+                      washes over their feet rather than sitting behind and
+                      showing through — the bars are only 40% opaque, and
+                      behind them the ramp would read as a stain instead of a
+                      light. Non-interactive, so it never steals a hover from
+                      the day columns below it. */}
+                  <rect
+                    x="0"
+                    y={CH_H - VOL_H}
+                    width={CH_W}
+                    height={VOL_H}
+                    fill="url(#volumeGlow)"
+                    pointerEvents="none"
+                  />
+                  {/* The source of that light: a hairline along the bottom
+                      edge, where the bars are rooted. Non-scaling so it stays
+                      one pixel at every card width. */}
+                  <line
+                    x1="0"
+                    y1={CH_H}
+                    x2={CH_W}
+                    y2={CH_H}
+                    stroke="currentColor"
+                    strokeWidth="1"
+                    vectorEffect="non-scaling-stroke"
+                    className="text-ow-accent dark:text-ow-accentLight opacity-70"
+                    pointerEvents="none"
+                  />
 
                   {/* One invisible column per day carrying a native tooltip, so
                       hovering names the day's record the way the old run
