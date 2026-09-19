@@ -636,39 +636,49 @@ export default function Prematch() {
             strip is a section of the page and its label should read as one.
             The class already carries uppercase and the widest tracking, so
             only the size is set here. */}
-        <span className="text-xs card-title shrink-0">Playing as</span>
-        <div className="flex gap-1" data-inspect-id="prematch-account-toggle">
-          {ACCOUNTS.map(a =>
-            identityPill(
-              a,
-              account === a,
-              () => setAccount(a),
-              // The selected account wears its own rank tier's hue, so this
-              // strip and the rank badge further down agree without being
-              // told twice. No rank in this slot yet means no hue.
-              account === a && playerRank != null ? RANK_TIER_RGB[rankTier(playerRank)] : undefined,
-              `prematch-account-${a.toLowerCase()}-button`,
-              `Play as ${a}`,
-            ),
-          )}
+        <span className="text-xs card-title shrink-0 flex-1 basis-0 min-w-0">Playing as</span>
+
+        {/* The two pill groups sit dead centre of the strip. Centring is done
+            by giving the label and the readout `flex-1 basis-0` rather than by
+            margins: equal basis makes the two side items claim equal width
+            whatever they contain, so the middle block lands on the strip's
+            true centre. Sizing them to their own content would drift the
+            centre every time the readout's rank text changed length. */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex gap-1" data-inspect-id="prematch-account-toggle">
+            {ACCOUNTS.map(a =>
+              identityPill(
+                a,
+                account === a,
+                () => setAccount(a),
+                // The selected account wears its own rank tier's hue, so this
+                // strip and the rank badge further down agree without being
+                // told twice. No rank in this slot yet means no hue.
+                account === a && playerRank != null ? RANK_TIER_RGB[rankTier(playerRank)] : undefined,
+                `prematch-account-${a.toLowerCase()}-button`,
+                `Play as ${a}`,
+              ),
+            )}
+          </div>
+          <span className="w-px self-stretch my-0.5 bg-ow-border/70 shrink-0" aria-hidden="true" />
+          <div className="flex gap-1" data-inspect-id="prematch-role-pick-toggle">
+            {(['DPS', 'Support'] as const).map(r =>
+              identityPill(
+                r,
+                testRole === r,
+                () => setTestRole(r),
+                ROLE_SEL_RGB[r],
+                `prematch-role-pick-${r.toLowerCase()}-button`,
+                `Queue as ${r}`,
+              ),
+            )}
+          </div>
         </div>
-        <span className="w-px self-stretch my-0.5 bg-ow-border/70 shrink-0" aria-hidden="true" />
-        <div className="flex gap-1" data-inspect-id="prematch-role-pick-toggle">
-          {(['DPS', 'Support'] as const).map(r =>
-            identityPill(
-              r,
-              testRole === r,
-              () => setTestRole(r),
-              ROLE_SEL_RGB[r],
-              `prematch-role-pick-${r.toLowerCase()}-button`,
-              `Queue as ${r}`,
-            ),
-          )}
-        </div>
+
         {/* Says out loud which of the eight rank slots the pair selects. The
             drum is far enough down the page that the strip is off screen by
             the time it is read. */}
-        <span className="text-[11px] text-[var(--faint-2)] ml-auto" data-inspect-id="prematch-identity-rank-readout">
+        <span className="text-[11px] text-[var(--faint-2)] flex-1 basis-0 min-w-0 text-right" data-inspect-id="prematch-identity-rank-readout">
           rank slot <b className="font-semibold text-[var(--muted)]">{account} · {testRole}</b>
           {playerRank != null && <> — <b className="font-semibold text-[var(--ink-2)]">{rankLabel(playerRank)}</b></>}
         </span>
