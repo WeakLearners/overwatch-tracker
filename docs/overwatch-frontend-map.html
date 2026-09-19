@@ -913,7 +913,7 @@ const DATA = {
           ],
           "locate": {
             "path": "client/src/pages/Prematch.tsx:694",
-            "grep": "grep -n -F -- 'prematch-role-pick-toggle' client/src/pages/Prematch.tsx"
+            "grep": "grep -n -F -- \"'prematch-role-pick-toggle',\" client/src/pages/Prematch.tsx"
           }
         },
         {
@@ -1282,8 +1282,8 @@ const DATA = {
           "kind": "input",
           "description": "Row of four pills in the page-level identity strip (moved there from the Lobby Rank header on 2026-09-19), one per Overwatch account: Pinx, Jinx, Winx, Linx (renamed from SOJ/SKI/26R/26J the same day). Added 2026-09-19. Styled from Map Voting's role pills \u2014 same clipped corner and the shared .is-selected bottom-lit state \u2014 because it is the same kind of control. The selected pill takes the hue of that account's current rank tier via --sel, so the pill row and the rank badge below agree. Switching accounts swaps the whole rank context: player_rank and the lobby range are stored per account AND per role \u2014 EIGHT slots \u2014 under 'ow-player-rank:<ACCT>:<Role>' and 'ow-lobby-range:<ACCT>:<Role>', read (not cleared) on switch, so every slot keeps where it was left. The role half comes from Role Pick on the Map Voting card; prematch-lobby-rank-slot-label names the active pairing. Both swaps happen inside the setters, not in an effect \u2014 an effect runs after the lobby-persist effect and would copy the outgoing slot's range onto the incoming slot's key. Pre-split values migrate once to Linx/Support (Sean's statement 2026-09-19 that the stored rank was Linx's support rank), guarded by 'ow-rank-migrated-to-role-slots' so a legitimate clear is not undone. NOTE: the account name IS the storage key suffix, so a future rename strands that account's stored rank and range \u2014 only the default is covered by the legacy adoption. NOTE: the account is NOT written to the matches table \u2014 no schema change was made; a logged match still records only player_rank. Rendered by identityGroup as a sliding segmented control; the lit block's hue transitions with the slide, so moving from a Gold account to a Platinum one changes colour as it travels.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:654",
-            "grep": "grep -n -F -- 'data-inspect-id=\"prematch-account-toggle\"' client/src/pages/Prematch.tsx"
+            "path": "client/src/pages/Prematch.tsx:684",
+            "grep": "grep -n -F -- \"'prematch-account-toggle',\" client/src/pages/Prematch.tsx"
           }
         },
         {
@@ -4469,6 +4469,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 
