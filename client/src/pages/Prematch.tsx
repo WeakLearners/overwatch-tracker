@@ -1355,7 +1355,7 @@ export default function Prematch() {
                                 width instead of drifting apart. */}
                             {testStageFor(h.hero) && (
                               <span
-                                className="w-4 h-4 mr-1 shrink-0 relative right-[1%] rounded-full border border-ow-accent/70 text-ow-accent text-[9px] font-bold flex items-center justify-center leading-none tabular-nums"
+                                className="w-4 h-4 mr-1 shrink-0 relative right-[1%] rounded-full border border-ow-accent/70 text-[#9A3412] dark:text-ow-accent text-[9px] font-bold flex items-center justify-center leading-none tabular-nums"
                                 title={`Stage ${testStageFor(h.hero)!.cur} of ${testStageFor(h.hero)!.total}`}
                                 data-inspect-id="prematch-hero-picker-stage-badge"
                               >
@@ -1379,7 +1379,7 @@ export default function Prematch() {
                           // shown so Sean can see the whole phase at a glance,
                           // not just whichever hero is still running.
                           <span
-                            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 pointer-events-none whitespace-nowrap"
+                            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-800 dark:text-emerald-600 pointer-events-none whitespace-nowrap"
                             title="Already tested this phase"
                             data-inspect-id="prematch-hero-picker-done-badge"
                           >

@@ -15,15 +15,24 @@
      paper-white flip, so the HUD identity holds before the toggle. ── */
   :root {
     --ow-card: 255 255 255;     /* #ffffff raised tile */
-    --ow-darker: 226 229 235;   /* #e2e5eb recessed */
+    --ow-darker: 234 236 241;   /* #eaecf1 recessed — lightened 2026-09-18; at #e2e5eb every secondary text tier on it measured 3.8-4.0:1 */
     --ow-dark: 237 239 243;     /* #edeff3 */
     --ow-border: 210 214 222;   /* #d2d6de */
     --surface: #eef0f4;
     --ink: #14161c;
     --ink-2: #2c2f38;
-    --muted: #565c6b;
-    --faint: #7a8091;
-    --faint-2: #aab0bd;
+--muted: #565c6b;
+    /* Darkened 2026-09-18 after a full light-theme contrast sweep. The old
+       values measured 3.94:1 (--faint) and 2.18:1 (--faint-2) against a white
+       card — 25 failing text elements on the dashboard alone, all of it real
+       copy rather than decoration. On white there is only so much room between
+       "readable" and "invisible", so the bottom of this scale is necessarily
+       more compressed here than in dark theme. */
+    --faint: #5f6676;   /* 5.76:1 on white, 4.56:1 on the recessed grey */
+    --faint-2: #636a79; /* 5.43:1 on white, 4.59:1 on the recessed grey */
+    /* --faint and --faint-2 sit close together in light theme, on purpose.
+       Once both must clear 4.5:1 against a white card there is simply not much
+       room left between them. Dark theme keeps the wider spread it always had. */
     --card-border: rgba(20, 22, 28, 0.08);
     --card-border-hover: rgba(20, 22, 28, 0.16);
     /* Layered depth: a tight contact shadow that grounds the panel, plus a
@@ -216,6 +225,32 @@
   .stat-label { @apply text-xs uppercase tracking-wider mt-1; color: var(--muted); }
   .win { @apply text-emerald-500; }
   .loss { @apply text-red-500; }
+  /* Light-theme correction for the win/loss palette.
+     Measured against a white card: emerald-500 2.54:1, emerald-600 3.77,
+     red-400 2.77, red-500 3.76. All fail.
+     These override the utility class itself rather than editing 79 call sites.
+     Doing it here also means a NEW call site cannot get it wrong, which editing
+     79 existing ones would not have guaranteed. The utilities keep their normal
+     meaning in dark theme, where they already measure 5-8:1. */
+  html:not(.dark) .text-emerald-500 { color: #047857; } /* -> 5.48:1 */
+  html:not(.dark) .text-emerald-600 { color: #047857; }
+  html:not(.dark) .text-red-400     { color: #B91C1C; } /* one value for the family; -600 still measured 4.09 on the recessed grey */
+  html:not(.dark) .text-red-500     { color: #B91C1C; } /* -> 6.47:1 */
+  html:not(.dark) .text-red-600     { color: #B91C1C; } /* 3.83 on the recessed grey -> 5.47 */
+  html:not(.dark) .bg-teal-600      { background-color: #0F766E; } /* white on it: 3.74 -> 5.47 */
+  /* The accent and amber families, same treatment and same reason. Orange on a
+     white card is the app's worst offender: #F7931E measures 2.30:1, and it is
+     used as text in 35 places. #B44309 keeps the hue and clears 4.5 on every
+     light surface it lands on — white 5.60, the recessed grey 4.44, its own
+     accent tint 4.96. */
+  html:not(.dark) .text-ow-accent   { color: #B44309; }
+  /* Amber goes to -800, not -700. The analysis page puts amber text on its own
+     amber tint, where -700 still measured 4.48 — just under. One value for the
+     whole family is simpler than two and clears every surface it lands on. */
+  html:not(.dark) .text-amber-400   { color: #92400E; }
+  html:not(.dark) .text-amber-500   { color: #92400E; } /* 2.15 -> 7.09 on white */
+  html:not(.dark) .text-amber-600   { color: #92400E; } /* 3.19 -> 7.09 */
+  html:not(.dark) .text-amber-700   { color: #92400E; }
   .pill {
     @apply inline-flex items-center px-2 py-0.5 text-xs font-medium whitespace-nowrap;
     clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
@@ -228,7 +263,7 @@
      cyan end measures under 2:1 against a white card — no single-stop fix
      can save it. Dark theme's near-black card gives the same ramp 8-10:1,
      so it keeps the gradient treatment. */
-  .grad-brand   { color: #E05A0A; }
+  .grad-brand   { color: #B44309; }  /* 5.60:1 on white; #E05A0A measured 3.73 */
   .grad-win     { @apply bg-gradient-to-br from-emerald-500 to-emerald-700 bg-clip-text text-transparent; }
   .grad-loss    { @apply bg-gradient-to-br from-rose-500 to-red-700 bg-clip-text text-transparent; }
   .grad-neutral { @apply bg-gradient-to-br from-stone-500 to-stone-700 bg-clip-text text-transparent; }
@@ -450,7 +485,7 @@
      gradient — the cyan end of the ramp measures under 2:1 on a white card. */
   .card-title {
     @apply font-black uppercase tracking-widest;
-    color: #E05A0A;
+    color: #B44309; /* 5.60:1 on white; the old #E05A0A measured 3.73 */
   }
   html.dark .card-title { @apply bg-gradient-to-br from-ow-accentLight to-ow-blue bg-clip-text text-transparent; }
 
