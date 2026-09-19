@@ -747,10 +747,24 @@ export default function Dashboard() {
                       much did I play", which is a different question from the two
                       the candle already answers.
 
-                      Deliberately low contrast: it is context, not a signal. Long
-                      days do not reliably go better than short ones in this
-                      window. The legend states what the bar IS; the reason it
-                      exists lives here, not on screen. */}
+                      Drawn as a skyline: near-solid dark blocks standing in
+                      front of the glow, so the light reads as sky between the
+                      buildings rather than a wash across them. One literal
+                      colour serves both themes — #14161c is the light theme's
+                      own ink and the dark theme's page base, which is darker
+                      than the card the chart sits on. So the bars are the
+                      darkest thing in the strip either way, which is what
+                      makes them silhouettes.
+
+                      They were low-contrast grey until 2026-09-19, on the
+                      reasoning that volume is context and not a signal. That
+                      reasoning still holds — long days do not reliably go
+                      better than short ones in this window — but contrast is
+                      not what was carrying it. The bars sit in their own strip
+                      under a divider, well away from the candles, and nothing
+                      about a dark block claims the day went well. The legend
+                      states what the bar IS; the reason it exists lives here,
+                      not on screen. */}
                   <line
                     x1="0"
                     y1={CH_H - VOL_H}
@@ -781,8 +795,8 @@ export default function Dashboard() {
                       y={volY(c.volume)}
                       width={bodyW}
                       height={CH_H - volY(c.volume)}
-                      fill="currentColor"
-                      className="text-[var(--muted)] opacity-40"
+                      fill="#14161c"
+                      fillOpacity="0.88"
                     />
                   ))}
 
@@ -977,9 +991,9 @@ export default function Dashboard() {
 
                   <div className="flex items-start gap-2">
                     <span className="shrink-0 mt-[3px] inline-flex items-end gap-[2px] h-3" aria-hidden="true">
-                      <span className="inline-block w-1 h-1.5 bg-[var(--muted)] opacity-40" />
-                      <span className="inline-block w-1 h-3 bg-[var(--muted)] opacity-40" />
-                      <span className="inline-block w-1 h-2 bg-[var(--muted)] opacity-40" />
+                      <span className="inline-block w-1 h-1.5 bg-[#14161c] opacity-[0.88]" />
+                      <span className="inline-block w-1 h-3 bg-[#14161c] opacity-[0.88]" />
+                      <span className="inline-block w-1 h-2 bg-[#14161c] opacity-[0.88]" />
                     </span>
                     <span>
                       <b className="font-bold text-[var(--muted)]">bars below</b>
