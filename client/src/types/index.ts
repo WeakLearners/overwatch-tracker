@@ -254,6 +254,12 @@ export interface TrendPoint {
   win: 0 | 1;
   queue_mode: QueueMode;
   rolling_win_rate: number;
+  /**
+   * Sean's own rank at the time of the match, 1-45, or null for every match
+   * logged before the rank drum existed. The dashboard's candle chart reads it
+   * only to spot the day a tier boundary was crossed.
+   */
+  player_rank: number | null;
 }
 
 export interface WeeklyTrend {

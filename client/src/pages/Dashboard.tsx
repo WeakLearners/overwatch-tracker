@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useApi } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
-import { Overview, Streaks, TrendPoint, ModeComparison, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB } from '../types';
+import { Overview, Streaks, TrendPoint, ModeComparison, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB, RANK_TIER_RGB, rankTier, rankLabel } from '../types';
 import StatCard from '../components/StatCard';
 import AnimatedNumber from '../components/AnimatedNumber';
 import EmptyState from '../components/EmptyState';
@@ -230,6 +230,12 @@ export default function Dashboard() {
       const compL = comp.length - compW;
       const qpW = qp.filter(g => g.win === 1).length;
       const qpL = qp.length - qpW;
+      // Where the ladder stood when the day ended. Matches arrive already
+      // ordered by date then time, so the last reading of the day is the
+      // latest one. Most days have none at all: the rank drum is new, and
+      // every match logged before it carries null.
+      const withRank = games.filter(g => g.player_rank != null);
+      const rank = withRank.length ? withRank[withRank.length - 1].player_rank! : null;
       const open = carry;
       const close = open + compW - compL;
       carry = close;
@@ -242,7 +248,7 @@ export default function Dashboard() {
       const top = Math.max(open, close);
       const bottom = Math.min(open, close);
       return {
-        date, open, close, compW, compL, qpW, qpL, top, bottom, nOpen, nClose,
+        date, open, close, compW, compL, qpW, qpL, top, bottom, nOpen, nClose, rank,
         volume: games.length,
         // Which way the day went, as hue. Normally that is the competitive
         // running total: close above open means a winning day.
@@ -315,6 +321,40 @@ export default function Dashboard() {
   const bandUpper = candles.map((c, j) => `${slotX(j)},${chartY(paceAt(c.nClose) + sdAt(c.nClose))}`);
   const bandLower = candles.map((c, j) => `${slotX(j)},${chartY(paceAt(c.nClose) - sdAt(c.nClose))}`);
   const bandPoly = [...bandUpper, ...bandLower.reverse()].join(' ');
+  // Promotions and demotions, read off the rank drum rather than logged as
+  // their own event. Nothing in the app records "I hit Platinum" — but every
+  // competitive match carries the rank Sean had when he played it, so a tier
+  // boundary being crossed is visible as a change between one day's closing
+  // rank and the next day's. A day with no ranked match logged simply holds
+  // the previous reading, so a gap in play never invents a crossing.
+  //
+  // Only the boundary matters, not every division. Gold 3 to Gold 2 is a good
+  // night; Gold 1 to Platinum 5 is the thing you remember, and it is the only
+  // one that gets a mark.
+  const tierMarks = (() => {
+    const out: { j: number; date: string; up: boolean; tier: string; from: string; rank: number; prev: number }[] = [];
+    let prev: number | null = null;
+    candles.forEach((c, j) => {
+      if (c.rank == null) return;
+      if (prev != null && rankTier(c.rank) !== rankTier(prev)) {
+        out.push({
+          j,
+          date: c.date,
+          up: c.rank > prev,
+          tier: rankTier(c.rank),
+          from: rankTier(prev),
+          rank: c.rank,
+          prev,
+        });
+      }
+      prev = c.rank;
+    });
+    return out;
+  })();
+  // Index by day so the day's hover tooltip can name the crossing too. The
+  // triangle says a tier changed; only the tooltip can say which two.
+  const tierMarkByDay = new Map(tierMarks.map(m => [m.date, m]));
+
   const zeroY = chartY(0);
   const lastCandle = candles.length ? candles[candles.length - 1] : null;
   const lastClose = lastCandle ? lastCandle.close : 0;
@@ -722,7 +762,7 @@ export default function Dashboard() {
                       fill="transparent"
                     >
                       <title>
-                        {`${format(parseISO(c.date), 'MMM d')} · ${c.volume} played · comp ${c.compW}W ${c.compL}L${c.qpW + c.qpL > 0 ? ` · qp ${c.qpW}W ${c.qpL}L` : ''} · ${c.open > 0 ? '+' : ''}${c.open} → ${c.close > 0 ? '+' : ''}${c.close} · pace ${paceAt(c.nClose) >= 0 ? '+' : ''}${paceAt(c.nClose).toFixed(1)}`}
+                        {`${format(parseISO(c.date), 'MMM d')} · ${c.volume} played · comp ${c.compW}W ${c.compL}L${c.qpW + c.qpL > 0 ? ` · qp ${c.qpW}W ${c.qpL}L` : ''} · ${c.open > 0 ? '+' : ''}${c.open} → ${c.close > 0 ? '+' : ''}${c.close} · pace ${paceAt(c.nClose) >= 0 ? '+' : ''}${paceAt(c.nClose).toFixed(1)}${tierMarkByDay.has(c.date) ? ` · ${tierMarkByDay.get(c.date)!.up ? 'promoted' : 'demoted'} ${rankLabel(tierMarkByDay.get(c.date)!.prev)} → ${rankLabel(tierMarkByDay.get(c.date)!.rank)}` : ''}`}
                       </title>
                     </rect>
                   ))}
@@ -750,6 +790,48 @@ export default function Dashboard() {
                     {format(parseISO(t.date), 'M/d')}
                   </span>
                 ))}
+
+                {/* Tier crossings. These are HTML, not SVG, for the same
+                    reason the axis labels are: the chart is stretched to the
+                    card width with preserveAspectRatio="none", and a triangle
+                    drawn inside it would be stretched with it — a promotion
+                    marker would come out a different shape on a wide card than
+                    on a narrow one.
+
+                    A promotion sits just under the day's low pointing up, and
+                    a demotion just over its high pointing down, so neither
+                    lands on top of the candle it belongs to. The colour is the
+                    tier being ENTERED, which is the thing worth reading off a
+                    glance — the mark answers "where am I now", not "where was
+                    I". */}
+                {tierMarks.map(m => {
+                  const c = candles[m.j];
+                  const y = m.up ? chartY(c.low) : chartY(c.high);
+                  return (
+                    <span
+                      key={`tier-${m.date}`}
+                      data-inspect-id="dash-recent-form-tier-mark"
+                      title={`${m.up ? 'Promoted' : 'Demoted'} ${m.from} → ${m.tier} · ${rankLabel(m.prev)} → ${rankLabel(m.rank)} · ${format(parseISO(m.date), 'MMM d')}`}
+                      aria-label={`${m.up ? 'Promoted to' : 'Demoted to'} ${m.tier} on ${format(parseISO(m.date), 'MMMM d')}`}
+                      className="absolute text-[11px] leading-none pointer-events-none select-none"
+                      style={{
+                        left: `calc(1.75rem + ${(slotX(m.j) / CH_W) * 100}% - ${(slotX(m.j) / CH_W) * 1.75}rem)`,
+                        top: `${(y / CH_H) * 100}%`,
+                        transform: m.up ? 'translate(-50%, 2px)' : 'translate(-50%, -100%) translateY(-2px)',
+                        color: `rgb(${RANK_TIER_RGB[m.tier as keyof typeof RANK_TIER_RGB]})`,
+                        // A tier colour chosen to read on a rank badge is not
+                        // guaranteed to read on the chart's own background,
+                        // and Bronze against a dark card is the worst case. A
+                        // thin outline in the page's surface colour keeps the
+                        // shape legible in both themes without touching the
+                        // hue, which is the part carrying the meaning.
+                        textShadow: '0 0 2px var(--surface), 0 0 2px var(--surface)',
+                      }}
+                    >
+                      {m.up ? '▲' : '▼'}
+                    </span>
+                  );
+                })}
               </div>
             ) : (
               <EmptyState
@@ -851,6 +933,24 @@ export default function Dashboard() {
                       <br />tallest bar = your busiest day, <b className="font-bold">{maxVol}</b>
                     </span>
                   </div>
+
+                  {/* Only drawn once a crossing exists. An entry explaining a
+                      symbol that is nowhere on the chart is just clutter, and
+                      until enough ranked matches carry a rank there will be
+                      none. */}
+                  {tierMarks.length > 0 && (
+                    <div className="flex items-start gap-2">
+                      <span className="shrink-0 mt-[3px] inline-flex flex-col leading-[0.6] text-[9px]" aria-hidden="true">
+                        <span style={{ color: `rgb(${RANK_TIER_RGB.Platinum})` }}>▲</span>
+                        <span style={{ color: `rgb(${RANK_TIER_RGB.Gold})` }}>▼</span>
+                      </span>
+                      <span>
+                        <b className="font-bold text-[var(--muted)]">tier change</b>
+                        <br />up under the candle, down above it
+                        <br />colored for the tier you moved <i>into</i>
+                      </span>
+                    </div>
+                  )}
                 </div>
               </>
             )}
