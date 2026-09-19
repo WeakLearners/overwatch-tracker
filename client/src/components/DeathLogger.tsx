@@ -112,7 +112,7 @@ export default function DeathLogger() {
               aria-pressed={role === r}
               className={`flex-1 text-xs font-semibold py-1 rounded-md border transition-colors ${
                 role === r
-                  ? 'bg-ow-accent/20 border-ow-accent/60 text-[var(--ink)]'
+                  ? 'is-selected text-[var(--ink)]'
                   : 'bg-transparent border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
               }`}
             >

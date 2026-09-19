@@ -237,6 +237,54 @@
   html.dark .grad-loss    { @apply from-rose-300 to-red-500; }
   html.dark .grad-neutral { @apply from-white to-gray-500; }
 
+  /* Selected state. One definition for every "this one is chosen" control:
+     nav pills, role tabs, on/off toggles, the hero picker's chips.
+
+     Before this, "selected" was written five different ways — fill at /10,
+     /15, /20 and /25, border at full, /70, /60, /50 and /40. Near-copies
+     drifting apart, the same failure card titles had.
+
+     It borrows the lobby rank slider's GRAMMAR, not its physics: light enters
+     from the bottom edge. Two shadow layers here against the slider's eight.
+     The slider keeps the full treatment because it has a lamp on screen that
+     you actually move; a toggle button does not, and an uncaused glow is only
+     decoration.
+
+     Text colour is deliberately NOT set here. Pills colour their label accent,
+     toggles keep it ink, and that difference is intentional — this class
+     leaves it alone. It also assumes the element already has a border width;
+     every site that uses it does. */
+  .is-selected {
+    /* --sel is the hue, as bare RGB channels. It defaults to the brand accent,
+       which is what almost every selected control wants. The mode selectors
+       override it per tile, because a mode's identity IS its colour — sky for
+       Quickplay, red for Competitive Role, orange for Competitive Open. Forcing
+       them all to accent orange would make two of the three unrecognisable.
+       So the GRAMMAR travels and the hue stays local, the same split the
+       lobby slider uses. */
+    --sel: 247 147 30;
+    border-color: rgb(var(--sel));
+    background-image: linear-gradient(
+      to top,
+      rgb(var(--sel) / 0.30),
+      rgb(var(--sel) / 0.13) 55%,
+      rgb(var(--sel) / 0.06)
+    );
+    box-shadow:
+      inset 0 -2px 0 0 rgb(var(--sel) / 0.85),
+      inset 0 -7px 11px -6px rgb(var(--sel) / 0.95);
+  }
+
+  /* Hover preview of the selected state, in whatever hue --sel carries. Pair
+     it with .is-selected on the same element and set --sel once, inline: the
+     resting hover and the chosen state then agree on colour instead of hovering
+     accent-orange and settling into teal. Falls back to the accent when --sel
+     is not set. */
+  .hover-sel:hover {
+    border-color: rgb(var(--sel, 247 147 30) / 0.7);
+    background-color: rgb(var(--sel, 247 147 30) / 0.10);
+  }
+
   /* Card titles. Lifted from the Lobby Rank header, which Sean picked as the
      house treatment for every card heading: the brand ramp instead of plain
      ink, heavier weight, wider tracking.
@@ -275,20 +323,3 @@
   }
 }
 
-/* Result-toggle chevrons: a staggered opacity pulse that travels up the stack,
-   simulating upward scrolling. Paused by default; runs on hover or when the side
-   is selected. Per-chevron animation-delay (set inline) offsets the wave. */
-@keyframes chevScroll {
-  0%, 100% { opacity: 0; }
-  50%      { opacity: 0.9; }
-}
-.chev path {
-  opacity: 0.18;               /* uniform, steady when unselected / not hovering */
-}
-.chev.is-selected path {
-  animation: chevScroll 1.6s ease-in-out infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-  .chev path { animation: none; opacity: 0.18; }
-  .chev.is-selected path { opacity: 0.5; }
-}

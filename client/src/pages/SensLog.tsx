@@ -1101,7 +1101,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                       aria-pressed={phaseCurveEnabled === v}
                       className={`py-1.5 rounded border-2 text-[10px] font-semibold transition-all ${
                         phaseCurveEnabled === v
-                          ? 'bg-ow-accent/15 border-ow-accent text-ow-accent'
+                          ? 'is-selected text-ow-accent'
                           : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)] bg-ow-darker'
                       }`}
                     >
@@ -1404,7 +1404,7 @@ function CreateTestCard() {
                 aria-pressed={curveEnabled === v}
                 className={`py-2 rounded-lg border-2 text-xs font-semibold transition-all ${
                   curveEnabled === v
-                    ? 'bg-ow-accent/15 border-ow-accent text-ow-accent'
+                    ? 'is-selected text-ow-accent'
                     : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)] bg-ow-darker'
                 }`}
               >

@@ -12,7 +12,7 @@ export default function SensNav({ dataInspectId }: { dataInspectId?: string }) {
         data-inspect-id={inspectId}
         className={`pill heading-display tracking-[0.08em] border transition-all ${
           active
-            ? 'bg-ow-accent/15 text-ow-accent border-ow-accent'
+            ? 'is-selected text-ow-accent'
             : 'text-[var(--faint)] border-ow-border hover:text-[var(--ink)] hover:border-gray-500'
         }`}
       >

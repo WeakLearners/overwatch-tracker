@@ -4,7 +4,7 @@ import { useApi, revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import LobbyRangeSlider from '../components/LobbyRangeSlider';
-import { MAPS, QUEUE_MODES, ROLE_COLORS, ROLE_PILL_CLASS, TYPE_COLORS, HEROES, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, MapVotingRow, QueueMode, Streaks, RANK_TIER_COLOR, DEFAULT_LOBBY_SPREAD, rankLabel, rankTier, rankDivision, rankFromParts, clampRank } from '../types';
+import { MAPS, QUEUE_MODES, ROLE_COLORS, ROLE_SEL_RGB, ROLE_TEXT, ROLE_PILL_CLASS, TYPE_COLORS, HEROES, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, MapVotingRow, QueueMode, Streaks, RANK_TIER_COLOR, DEFAULT_LOBBY_SPREAD, rankLabel, rankTier, rankDivision, rankFromParts, clampRank } from '../types';
 import AdvisorCard from '../components/AdvisorCard';
 import EmptyState from '../components/EmptyState';
 import { useMapDrawer } from '../contexts/MapDrawerContext';
@@ -725,15 +725,21 @@ export default function Prematch() {
             <div className="flex gap-2" data-inspect-id="prematch-role-pick-toggle">
               {(['DPS', 'Support'] as const).map(r => {
                 const active = testRole === r;
-                const activeBorder = r === 'DPS' ? 'border-teal-400 dark:border-teal-500' : 'border-pink-400 dark:border-pink-500';
                 return (
                   <button
                     key={r}
                     onClick={() => setTestRole(r)}
                     className={`px-3 py-1 border-2 text-xs font-semibold transition-all ${
-                      active ? `${ROLE_COLORS[r]} ${activeBorder}` : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)]'
+                      active ? `is-selected ${ROLE_TEXT[r]}` : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)]'
                     }`}
-                    style={{ clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)' }}
+                    // .is-selected draws the bottom-lit selected state; --sel
+                    // gives it the role's own hue, teal for DPS and pink for
+                    // Support. The hand-written border map that used to sit here
+                    // duplicated values the colour table already held.
+                    style={{
+                      clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)',
+                      ...(active ? { '--sel': ROLE_SEL_RGB[r] } as React.CSSProperties : {}),
+                    }}
                     data-inspect-id={`prematch-role-pick-${r.toLowerCase()}-button`}
                   >
                     {r}
@@ -1273,7 +1279,7 @@ export default function Prematch() {
               const heroes = byRole[role];
               return (
                 <div key={role}>
-                  <div className={`text-xs font-bold uppercase tracking-widest mb-2 ${ROLE_COLORS[role].split(' ')[1]}`}>{role}</div>
+                  <div className={`text-xs font-bold uppercase tracking-widest mb-2 ${ROLE_TEXT[role]}`}>{role}</div>
                   <div className="flex flex-col gap-1.5">
                     {heroes.map(h => {
                       const clickIndex = clickedHeroes.indexOf(h.hero);
@@ -1295,10 +1301,16 @@ export default function Prematch() {
                         }}
                         data-inspect-id="prematch-hero-picker-button"
                         aria-pressed={isClicked}
+                        // --sel is set on every chip, not just the chosen ones,
+                        // so the hover preview and the settled selection share
+                        // one hue. The order badge below already colours by role
+                        // for the same reason: the row should read as "this
+                        // role's pick", not as a generic accent highlight.
+                        style={{ '--sel': ROLE_SEL_RGB[role] } as React.CSSProperties}
                         className={`relative flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-lg border cursor-pointer active:scale-[0.98] transition-all group ${
                           isClicked
-                            ? 'border-ow-accent bg-ow-accent/15'
-                            : 'border-ow-border bg-ow-darker hover:border-ow-accent/70 hover:bg-ow-accent/10'
+                            ? 'is-selected'
+                            : 'border-ow-border bg-ow-darker hover-sel'
                         }`}
                       >
                         {isClicked && (

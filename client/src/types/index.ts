@@ -21,6 +21,17 @@ export const QUEUE_MODE_COLORS: Record<QueueMode, { selected: string; card: stri
   comp_open: { selected: 'border-orange-400 bg-orange-50 text-orange-700 dark:border-orange-400 dark:bg-orange-500/15 dark:text-orange-300', card: 'bg-orange-50 dark:bg-orange-500/25', tileDim: 'bg-orange-500/5 dark:bg-orange-500/10', accent: 'text-orange-600 dark:text-orange-300', glow: 'shadow-[0_10px_30px_-12px_rgba(249,115,22,0.45)]', bright: 'rgba(253,186,116,0.9)' },
 };
 
+// Each mode's selected-state hue, as bare RGB channels for the --sel custom
+// property that .is-selected reads (see index.css). Matches the border-*-400
+// each tile already used: sky, red, orange. A mode's identity is its colour, so
+// these override the shared class's accent default rather than replacing the
+// class — the bottom-lit treatment is the same everywhere, only the hue moves.
+export const QUEUE_MODE_SEL_RGB: Record<QueueMode, string> = {
+  qp_role:   '56 189 248',  // sky-400
+  comp_role: '248 113 113', // red-400
+  comp_open: '251 146 60',  // orange-400
+};
+
 // Short tag shown as the big italic mode watermark (the "background lettering").
 export const MODE_TAG: Record<QueueMode, string> = { qp_role: 'QP', comp_role: 'V5', comp_open: 'V6' };
 
@@ -302,6 +313,26 @@ export const ROLE_COLORS: Record<string, string> = {
   DPS: 'bg-teal-600/15 text-teal-700 dark:text-teal-400',
   Tank: 'bg-blue-500/15 text-blue-700 dark:text-blue-400',
   Support: 'bg-pink-500/15 text-pink-700 dark:text-pink-400',
+};
+
+// Each role's selected-state hue, as bare RGB channels for the --sel custom
+// property .is-selected reads. Matches the border-*-400 the role toggle used to
+// hand-write next to this table.
+export const ROLE_SEL_RGB: Record<string, string> = {
+  DPS:     '45 212 191',  // teal-400
+  Tank:    '96 165 250',  // blue-400
+  Support: '244 114 182', // pink-400
+};
+
+// Role text colour on its own. ROLE_COLORS bundles a flat background with the
+// text colour, and .is-selected now supplies the background — layering the two
+// muddies the hue, since a background-image sits over a background-color rather
+// than replacing it. This exists so a caller can take the text without the fill
+// instead of string-indexing ROLE_COLORS apart.
+export const ROLE_TEXT: Record<string, string> = {
+  DPS:     'text-teal-700 dark:text-teal-400',
+  Tank:    'text-blue-700 dark:text-blue-400',
+  Support: 'text-pink-700 dark:text-pink-400',
 };
 
 // Same reasoning as ROLE_COLORS above, for the solid role-pill treatment used

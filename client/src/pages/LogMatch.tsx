@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { HEROES, MAPS, ROLE_COLORS, ROLE_PILL_CLASS, ROLE_PILL_CLASS_DARK, TYPE_COLORS, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, MODE_WASH_CLASS, MODE_COMPACT, OLDEST_DASH_FADE_STYLE } from '../types';
+import { HEROES, MAPS, ROLE_COLORS, ROLE_PILL_CLASS, ROLE_PILL_CLASS_DARK, TYPE_COLORS, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB, MODE_WASH_CLASS, MODE_COMPACT, OLDEST_DASH_FADE_STYLE } from '../types';
 import { useMatch } from '../contexts/MatchContext';
 import DeathLogger from '../components/DeathLogger';
 import EmptyState from '../components/EmptyState';
@@ -800,16 +800,18 @@ export default function LogMatch() {
                 {QUEUE_MODES.map(m => {
                   const active = queueMode === m.value;
                   const c = QUEUE_MODE_COLORS[m.value];
-                  const activeBorder = {
-                    qp_role: 'border-sky-400', comp_role: 'border-red-400', comp_open: 'border-orange-400',
-                  }[m.value];
                   return (
                     <button
                       key={m.value}
                       type="button"
                       onClick={() => setQueueMode(m.value)}
+                      // .is-selected supplies the fill and the bottom-lit edge;
+                      // --sel tells it which hue to do it in. The flat c.card
+                      // fill and the hand-written border are gone, since the
+                      // shared class now owns both.
+                      style={active ? ({ '--sel': QUEUE_MODE_SEL_RGB[m.value] } as React.CSSProperties) : undefined}
                       className={`relative overflow-hidden py-2 rounded-lg border-2 text-xs font-semibold leading-tight transition-all ${
-                        active ? `${c.card} ${c.accent} ${c.glow} ${activeBorder}` : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)]'
+                        active ? `is-selected ${c.accent} ${c.glow}` : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)]'
                       }`}
                     >
                       {/* V5/V6 digits carry more side-bearing than QP's letters,
@@ -942,56 +944,31 @@ export default function LogMatch() {
 
             <div>
               <label data-inspect-id="logmatch-result-toggle" className="block text-xs text-[var(--muted)] mb-1.5">Result</label>
-              <div className="relative flex h-[3.25rem] w-full rounded-lg overflow-hidden">
-                {/* Sliding fill — animates to the selected half and takes its color;
-                    hidden until a result is chosen. */}
-                <span
-                  aria-hidden="true"
-                  className={`pointer-events-none absolute inset-y-0 left-0 w-1/2 transition-all duration-200 ease-out ${
-                    form.win === '1' ? 'translate-x-0 bg-teal-700'
-                    : form.win === '0' ? 'translate-x-full bg-pink-700'
-                    : 'opacity-0'
-                  }`}
-                />
-                {[{ v: '1', label: 'Win',  onColor: 'text-teal-400', litColor: 'text-teal-300' },
-                  { v: '0', label: 'Loss', onColor: 'text-pink-400', litColor: 'text-pink-300' }].map(({ v, label, onColor, litColor }) => {
+              {/* Two plain buttons in the app's shared selected style. The
+                  sliding fill and the animated chevron insignia that used to
+                  live here are retired: the chevrons also collided by name with
+                  the new .is-selected class, so the SVG was picking up a border
+                  and a gradient meant for buttons. Win keeps teal, Loss keeps
+                  pink; --sel carries the hue, .is-selected the treatment. */}
+              <div className="grid grid-cols-2 gap-2" data-inspect-id="logmatch-result-buttons">
+                {[{ v: '1', label: 'Win',  sel: '45 212 191',  text: 'text-teal-300' },
+                  { v: '0', label: 'Loss', sel: '244 114 182', text: 'text-pink-300' }].map(({ v, label, sel, text }) => {
                   const selected = form.win === v;
-                  // Stacked chevrons like a military rank insignia — pointing up
-                  // for Win, down for Loss. Filled bands so the arm-ends are cut
-                  // perfectly vertical (x is constant on each end edge).
-                  const T = 5;                              // band thickness
-                  const apex = v === '1' ? -6 : 6;          // apex above / below the arms
-                  const bases = v === '1' ? [6, 12, 18, 24] : [0, 6, 12, 18];
-                  const chevrons = bases.map(
-                    y => `M0 ${y} L24 ${y + apex} L48 ${y} L48 ${y + T} L24 ${y + apex + T} L0 ${y + T} Z`,
-                  );
                   return (
                     <button
                       key={v}
                       type="button"
                       onClick={() => setForm(f => ({ ...f, win: v as '0' | '1' }))}
-                      className={`group relative z-10 flex-1 flex items-center justify-center overflow-hidden text-sm font-bold uppercase tracking-wider transition-colors ${
-                        selected ? 'text-white' : 'text-[var(--faint)] hover:text-[var(--ink)]'
+                      aria-pressed={selected}
+                      data-inspect-id="logmatch-result-option"
+                      style={{ '--sel': sel } as React.CSSProperties}
+                      className={`h-[3.25rem] rounded-lg border-2 font-display italic font-black text-xl uppercase tracking-wider transition-all ${
+                        selected
+                          ? `is-selected ${text}`
+                          : 'border-ow-border text-[var(--faint)] hover-sel hover:text-[var(--ink)]'
                       }`}
                     >
-                      {/* Stacked-chevron rank insignia behind the label. Darkens
-                          against the bright fill when selected. */}
-                      <svg
-                        aria-hidden="true"
-                        viewBox="0 0 48 28"
-                        fill="currentColor"
-                        className={`chev pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-auto ${
-                          selected ? `is-selected ${litColor}` : onColor
-                        }`}
-                      >
-                        {chevrons.map((d, i) => {
-                          // Win: bottom chevron leads → highlight travels up.
-                          // Loss: top chevron leads → highlight travels down.
-                          const order = v === '1' ? chevrons.length - 1 - i : i;
-                          return <path key={i} d={d} style={{ animationDelay: `${order * 0.4}s` }} />;
-                        })}
-                      </svg>
-                      <span className="relative z-10 font-display italic font-black text-xl">{label}</span>
+                      {label}
                     </button>
                   );
                 })}
@@ -1054,7 +1031,7 @@ export default function LogMatch() {
                       aria-pressed={matchQuality === v}
                       className={`text-xs font-semibold py-2 rounded-lg border capitalize transition-colors ${
                         matchQuality === v
-                          ? 'bg-ow-accent/20 border-ow-accent/60 text-[var(--ink)]'
+                          ? 'is-selected text-[var(--ink)]'
                           : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
                       }`}
                     >
@@ -1075,7 +1052,7 @@ export default function LogMatch() {
                       aria-pressed={resultDriver === v}
                       className={`text-xs font-semibold py-2 rounded-lg border capitalize transition-colors ${
                         resultDriver === v
-                          ? 'bg-ow-accent/20 border-ow-accent/60 text-[var(--ink)]'
+                          ? 'is-selected text-[var(--ink)]'
                           : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
                       }`}
                     >

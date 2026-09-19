@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useApi } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
-import { Overview, Streaks, TrendPoint, ModeComparison, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS } from '../types';
+import { Overview, Streaks, TrendPoint, ModeComparison, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB } from '../types';
 import StatCard from '../components/StatCard';
 import AnimatedNumber from '../components/AnimatedNumber';
 import EmptyState from '../components/EmptyState';
@@ -49,7 +49,12 @@ function ModeTile({ meta, m, selected, onSelect, openHero, lastLog }: {
       type="button"
       onClick={onSelect}
       data-inspect-id="dash-mode-tiles"
-      className={`relative overflow-hidden text-left rounded-lg p-4 transition-all duration-200 mode-tile hover:-translate-x-1 hover:-translate-y-1 ${selected ? `${c.card} ${c.glow}` : c.tileDim}`}
+      // Same arrangement as LogMatch's selector: the shared class draws the
+      // bottom-lit selected state, --sel decides its hue. A border width is
+      // added here because the tile had none and .is-selected sets a colour,
+      // which paints nothing without one.
+      style={selected ? ({ '--sel': QUEUE_MODE_SEL_RGB[meta.value] } as React.CSSProperties) : undefined}
+      className={`relative overflow-hidden text-left rounded-lg p-4 border-2 transition-all duration-200 mode-tile hover:-translate-x-1 hover:-translate-y-1 ${selected ? `is-selected ${c.glow}` : `border-transparent ${c.tileDim}`}`}
     >
       {/* 10% larger than the other (selector) watermarks — these tiles are bigger.
           Opacity is left at the component default (15%) even when selected —
@@ -472,7 +477,7 @@ export default function Dashboard() {
             aria-current={activeSection === s.id ? 'true' : undefined}
             className={`pill shrink-0 border transition-colors heading-display tracking-[0.08em] ${
               activeSection === s.id
-                ? 'bg-ow-accent/15 text-ow-accent border-ow-accent'
+                ? 'is-selected text-ow-accent'
                 : 'border-ow-border text-[var(--muted)] hover:text-ow-accent hover:border-ow-accent/60'
             }`}
           >
