@@ -337,10 +337,15 @@ export default function Dashboard() {
   // sweeps about half the range instead of a fifth of it.
   //
   // color-mix does the blending, so the two ends stay CSS variables and stay
-  // theme-aware. Nine stops is enough that the curve reads smooth.
-  const VOL_STOPS = Array.from({ length: 9 }, (_, i) => {
-    const o = i / 8; // 0 at the tallest roof, 1 at the ground
-    return { offset: o, mix: Math.round(o * o * 100) };
+  // theme-aware. Eleven stops, since a steeper curve packs more change into
+  // the bottom of the ramp and nine started to step rather than blend.
+  // How sharply the light drops off. 1 would be a straight line; higher
+  // numbers crowd the colour change nearer the ground. This is the dial to
+  // turn when the ramp reads too soft or too abrupt.
+  const FALLOFF = 2.2;
+  const VOL_STOPS = Array.from({ length: 11 }, (_, i) => {
+    const o = i / 10; // 0 at the tallest roof, 1 at the ground
+    return { offset: o, mix: Math.round(Math.pow(o, FALLOFF) * 100) };
   });
   const volStopColor = (mix: number) =>
     `color-mix(in srgb, var(--vol-base) ${mix}%, var(--vol-roof))`;
