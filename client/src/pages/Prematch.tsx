@@ -588,7 +588,9 @@ export default function Prematch() {
       onClick={onClick}
       aria-pressed={active}
       title={title}
-      className={`px-3 flex items-center justify-center border-2 text-[11px] leading-none font-semibold tracking-wide transition-all ${
+      // text-xs is 12px — 11px plus a shade over 10%, and a scale token
+      // rather than an arbitrary 12.1px nobody else on the page uses.
+      className={`px-3 flex items-center justify-center border-2 text-xs leading-none font-semibold tracking-wide transition-all ${
         active ? 'is-selected text-[var(--ink)]' : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)]'
       }`}
       style={{
