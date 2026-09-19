@@ -951,8 +951,11 @@ export default function LogMatch() {
                   and a gradient meant for buttons. Win keeps teal, Loss keeps
                   pink; --sel carries the hue, .is-selected the treatment. */}
               <div className="grid grid-cols-2 gap-2" data-inspect-id="logmatch-result-buttons">
-                {[{ v: '1', label: 'Win',  sel: '45 212 191',  text: 'text-teal-300' },
-                  { v: '0', label: 'Loss', sel: '244 114 182', text: 'text-pink-300' }].map(({ v, label, sel, text }) => {
+                {/* Light theme needs the dark end of each ramp: teal-300 on the
+                    pale selected fill measures 1.35:1, pink-300 1.61:1 — both
+                    invisible. The 700s measure 5.00:1 and 5.36:1. */}
+                {[{ v: '1', label: 'Win',  sel: '45 212 191',  text: 'text-teal-700 dark:text-teal-300' },
+                  { v: '0', label: 'Loss', sel: '244 114 182', text: 'text-pink-700 dark:text-pink-300' }].map(({ v, label, sel, text }) => {
                   const selected = form.win === v;
                   return (
                     <button

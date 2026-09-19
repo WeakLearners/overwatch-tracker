@@ -477,7 +477,7 @@ export default function Dashboard() {
             aria-current={activeSection === s.id ? 'true' : undefined}
             className={`pill shrink-0 border transition-colors heading-display tracking-[0.08em] ${
               activeSection === s.id
-                ? 'is-selected text-ow-accent'
+                ? 'is-selected text-orange-700 dark:text-ow-accent'
                 : 'border-ow-border text-[var(--muted)] hover:text-ow-accent hover:border-ow-accent/60'
             }`}
           >

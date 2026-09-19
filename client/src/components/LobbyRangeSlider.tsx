@@ -1,24 +1,16 @@
 import { useCallback, useMemo, useRef } from 'react';
-import { RANK_MIN, RANK_MAX, RANK_TIER_COLOR, rankLabel, rankTier, rankDivision, clampRank } from '../types';
+import { RANK_MIN, RANK_MAX, RANK_TIER_COLOR, RANK_TIER_RGB, rankLabel, rankTier, rankDivision, clampRank } from '../types';
 
 // How far either side of Sean's own rank the row reaches. Ten divisions is two
 // full tiers each way — comfortably wider than the +/-5 that ~99% of lobbies
 // fall inside, so the standard case never sits against an edge.
 const WINDOW = 10;
 
-// The lamp's colour, in one place.
-//
-// It is the theme's own secondary accent — the tactical cyan in
-// tailwind.config.js, ow.blue #29D3F2 — not a violet borrowed from outside the
-// palette. A cold cyan lamp does the same job an ultraviolet one did: it reads
-// as a hard, actinic light rather than as ordinary room light, so the panes
-// above look like they are fluorescing rather than merely being lit.
-//
-// The CORE stays near-white whatever the glow is. That is what keeps the pane
-// colours above being made by the GLASS. A lamp saturated all the way through
-// tints every pane its own hue and undoes the point of having tiers.
-const LAMP_GLOW = '41, 211, 242';     // ow.blue
-const LAMP_CONTACT = '214, 248, 255'; // near-white cyan, where the lamp meets a pane
+// The lamp's colours live in index.css, on .lobby-slider as --lamp-core and
+// --lamp-deep. They have to: the lamp is near-white on a dark card and
+// saturated cyan on a white one, and an inline style cannot carry a theme
+// query. That inversion is the whole reason this component's visuals are
+// classes rather than style objects.
 
 type Props = {
   /** Sean's own rank; the row is built around it. */
@@ -190,7 +182,7 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
   const hiIdx = set ? slots.indexOf(high!) : -1;
 
   return (
-    <div data-inspect-id="lobby-range-slider">
+    <div className="lobby-slider" data-inspect-id="lobby-range-slider">
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-xs text-[var(--muted)]">
           Lobby range{' '}
@@ -258,12 +250,12 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
             {slots.slice(loIdx, hiIdx + 1).map((r, k) => (
               <span
                 key={r}
+                className="rank-halo"
                 data-inspect-id="lobby-range-slider-halo"
                 style={{
                   gridColumn: `${loIdx + 1 + k} / span 1`,
-                  backgroundImage: `linear-gradient(to top, ${RANK_TIER_COLOR[rankTier(r)]}c4, ${RANK_TIER_COLOR[rankTier(r)]}45 45%, transparent)`,
-                  filter: 'blur(4px)',
-                }}
+                  '--tier': RANK_TIER_RGB[rankTier(r)],
+                } as React.CSSProperties}
               />
             ))}
           </div>
@@ -272,13 +264,6 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
         {slots.map((r, i) => {
           const inRange = set && i >= loIdx && i <= hiIdx;
           const isMine = r === playerRank;
-          // The two panes at the ends of the lit run are the only ones with
-          // darkness beside them, so they are the only ones whose sideways
-          // bleed is actually visible. Giving every lit pane the same strong
-          // bleed wastes it on seams between two equally-bright neighbours.
-          const bleedL = inRange && i === loIdx ? 8 : 4;
-          const bleedR = inRange && i === hiIdx ? 8 : 4;
-          const c = RANK_TIER_COLOR[rankTier(r)];
           return (
             <button
               key={r}
@@ -288,49 +273,14 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
               title={rankLabel(r)}
               aria-label={`${rankLabel(r)}${inRange ? ' — in range' : ''}`}
               aria-pressed={inRange}
-              className={`h-7 rounded text-[11px] num-display font-bold transition-colors ${
+              // --tier is the pane's own colour. Everything else about how a
+              // lit pane looks lives in .rank-pane in index.css, because it has
+              // to say opposite things in the two themes and an inline style
+              // cannot carry a media or class query.
+              style={{ '--tier': RANK_TIER_RGB[rankTier(r)] } as React.CSSProperties}
+              className={`rank-pane h-7 rounded text-[11px] num-display font-bold transition-colors ${
                 isMine ? 'ring-1 ring-[var(--ink)] ring-inset' : ''
-              } ${inRange ? 'text-white drop-shadow-[0_0_3px_rgba(0,0,0,0.55)]' : 'text-[var(--faint-2)]'}`}
-              style={{
-                // The boxes are panes of tinted glass and the bar below is a
-                // lamp. A box the bar sits under is lit FROM THE BOTTOM: the
-                // fill ramps upward, brightest where the light enters and
-                // falling off toward the top, because that is what happens
-                // when you shine a light up through glass.
-                //
-                // The shadows do the rest. A hot line along the bottom edge is
-                // the lamp itself striking the pane. A thin white line along
-                // the top is the specular glint that reads as "this is glass,
-                // not paint" — unlit panes keep a fainter version of it, which
-                // is why they still look like glass with the lamp moved away.
-                // The outer shadow is the bloom spilling past the edges.
-                backgroundImage: inRange
-                  // Read bottom to top. A sliver of raw lamp colour where it
-                  // touches the pane. Then the tier colour takes over almost
-                  // at once and stays strong the whole way up, ending at 0x1f
-                  // rather than at nothing — that last stop is the point: the
-                  // light reaches the far edge instead of dying halfway.
-                  ? `linear-gradient(to top, rgba(${LAMP_CONTACT}, 0.92) 0%, ${c}e6 13%, ${c}a6 42%, ${c}52 74%, ${c}1f 100%)`
-                  // Unlit glass is barely there. The gap between this and the
-                  // line above is what makes the lamp look like it is doing
-                  // something.
-                  : `linear-gradient(to top, ${c}17, ${c}08 55%, transparent)`,
-                border: `1px solid ${c}${inRange ? 'e6' : '26'}`,
-                boxShadow: inRange
-                  ? [
-                      `inset 0 -4px 9px -1px rgba(${LAMP_GLOW}, 0.85)`,   // the lamp pooling at the contact
-                      `inset 0 -1px 0 0 rgba(${LAMP_CONTACT}, 0.95)`,     // the lamp touching the glass
-                      `inset 0 1px 0 0 rgba(255,255,255,0.3)`,          // specular glint along the top
-                      `inset 0 0 12px -2px ${c}`,                       // the pane glowing from inside
-                      `inset 2px 0 7px -3px ${c}`,                      // light gathering at the left edge
-                      `inset -2px 0 7px -3px ${c}`,                     // and at the right
-                      `-${bleedL}px 0 ${bleedL * 2}px -5px ${c}`,       // bleeding out sideways
-                      `${bleedR}px 0 ${bleedR * 2}px -5px ${c}`,
-                      `0 -9px 20px -4px ${c}`,                          // fluorescence escaping upward
-                      `0 0 14px -2px ${c}`,
-                    ].join(', ')
-                  : 'inset 0 1px 0 0 rgba(255,255,255,0.06)',
-              }}
+              } ${inRange ? 'is-lit' : 'text-[var(--faint-2)]'}`}
             >
               {rankDivision(r)}
             </button>
@@ -365,19 +315,8 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
             onKeyDown={onKeyDown}
             data-drag-role="bar"
             data-inspect-id="lobby-range-slider-bar"
-            className="relative h-2.5 rounded-full cursor-grab active:cursor-grabbing focus:outline-none focus:ring-2 focus:ring-ow-blue/70"
-            style={{
-              gridColumn: `${loIdx + 1} / span ${hiIdx - loIdx + 1}`,
-              // See LAMP_GLOW at the top of the file for why this is the
-              // theme's cyan and why its core stays near-white.
-              backgroundImage: `linear-gradient(to bottom, #ffffff 0%, rgb(${LAMP_CONTACT}) 28%, rgb(${LAMP_GLOW}) 70%, #12A6C2 100%)`,
-              boxShadow: [
-                'inset 0 1px 0 0 rgba(255,255,255,0.95)',
-                `0 0 5px 0 rgba(${LAMP_CONTACT}, 0.95)`,
-                `0 0 16px 2px rgba(${LAMP_GLOW}, 0.75)`,
-                `0 0 32px 7px rgba(${LAMP_GLOW}, 0.4)`,
-              ].join(', '),
-            }}
+            className="rank-lamp relative h-2.5 rounded-full cursor-grab active:cursor-grabbing focus:outline-none focus:ring-2 focus:ring-ow-blue/70"
+            style={{ gridColumn: `${loIdx + 1} / span ${hiIdx - loIdx + 1}` }}
           >
             {/* Triangles pointing outward, away from the bar: the shape says
                 which way to pull. The grab targets are deliberately larger
@@ -389,8 +328,7 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
                 separate things that happen to share a colour. */}
             <span
               aria-hidden="true"
-              className="pointer-events-none absolute -top-2 left-0 right-0 h-2"
-              style={{ backgroundImage: `linear-gradient(to top, rgba(${LAMP_GLOW}, 0.75), rgba(${LAMP_GLOW}, 0.22) 60%, transparent)` }}
+              className="rank-spill pointer-events-none absolute -top-2 left-0 right-0 h-2"
             />
             <span
               data-drag-role="low"
@@ -399,16 +337,8 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
               aria-hidden="true"
             >
               <span
-                className="w-2.5 h-3.5"
-                style={{
-                  // clip-path, not a border trick, so the shape stays a real
-                  // element the glow can follow. drop-shadow is the filter that
-                  // follows a CLIPPED silhouette; box-shadow would draw a
-                  // rectangle around a triangle and give the game away.
-                  clipPath: 'polygon(100% 0, 100% 100%, 0 50%)',
-                  backgroundImage: `linear-gradient(to bottom, #ffffff, rgb(${LAMP_GLOW}))`,
-                  filter: `drop-shadow(0 0 4px rgba(${LAMP_GLOW}, 0.95))`,
-                }}
+                className="rank-handle w-2.5 h-3.5"
+                style={{ clipPath: 'polygon(100% 0, 100% 100%, 0 50%)' }}
               />
             </span>
             <span
@@ -418,12 +348,8 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
               aria-hidden="true"
             >
               <span
-                className="w-2.5 h-3.5"
-                style={{
-                  clipPath: 'polygon(0 0, 0 100%, 100% 50%)',
-                  backgroundImage: `linear-gradient(to bottom, #ffffff, rgb(${LAMP_GLOW}))`,
-                  filter: `drop-shadow(0 0 4px rgba(${LAMP_GLOW}, 0.95))`,
-                }}
+                className="rank-handle w-2.5 h-3.5"
+                style={{ clipPath: 'polygon(0 0, 0 100%, 100% 50%)' }}
               />
             </span>
           </div>

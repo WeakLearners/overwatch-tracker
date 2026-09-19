@@ -264,6 +264,23 @@
        lobby slider uses. */
     --sel: 247 147 30;
     border-color: rgb(var(--sel));
+    /* LIGHT THEME. Cards here are pure white, and a glow cannot add light to
+       white — layering a translucent hue over it only darkens it. So the blur
+       that reads as light on a dark card reads as a smudge on a pale one. The
+       bottom edge becomes a crisp rule instead, and the fill drops to a tint
+       roughly half the dark theme's strength. Measured: the blurred band hit
+       rgb(56 214 194) against white, a hard saturated bar rather than a glow. */
+    background-image: linear-gradient(
+      to top,
+      rgb(var(--sel) / 0.18),
+      rgb(var(--sel) / 0.08) 55%,
+      rgb(var(--sel) / 0.03)
+    );
+    box-shadow: inset 0 -2px 0 0 rgb(var(--sel) / 0.9);
+  }
+  /* DARK THEME. Here the surface is near-black, the glow has headroom to add
+     light, and the bottom-lit reading works as intended. */
+  html.dark .is-selected {
     background-image: linear-gradient(
       to top,
       rgb(var(--sel) / 0.30),
@@ -273,6 +290,144 @@
     box-shadow:
       inset 0 -2px 0 0 rgb(var(--sel) / 0.85),
       inset 0 -7px 11px -6px rgb(var(--sel) / 0.95);
+  }
+
+  /* ------------------------------------------------------------------
+     Lobby rank slider: panes of tinted glass over a lamp.
+
+     Every layer of this effect ADDS light. On a near-black card that reads as
+     illumination. On a white one it cannot: laying a translucent colour over
+     white only darkens it, so the same blurs and inner glows came out as grey
+     smudges and the lit panes read DARKER than the unlit ones. The metaphor
+     inverted.
+
+     So the two themes say the same thing in opposite grammars.
+       Dark  — lit means BRIGHTER. Glow, bloom, halo, a white-hot lamp.
+       Light — lit means MORE SATURATED. Vivid fill against washed-out
+               neighbours, a crisp edge instead of a blur, a saturated lamp
+               instead of a white one, and no halo at all, because light
+               spilling above a pane is not a thing you can draw on paper.
+
+     --tier is the pane's own colour, set inline per box.
+     ------------------------------------------------------------------ */
+  .lobby-slider {
+    --lamp-core: 41 211 242;   /* saturated: the only way a lamp shows on white */
+    --lamp-deep: 14 147 174;
+  }
+  html.dark .lobby-slider {
+    --lamp-core: 255 255 255;  /* white-hot: it has darkness to burn against */
+    --lamp-deep: 41 211 242;
+  }
+
+  .rank-pane {
+    border: 1px solid rgb(var(--tier) / 0.35);
+    background-image: linear-gradient(to top, rgb(var(--tier) / 0.12), rgb(var(--tier) / 0.05) 55%, transparent);
+  }
+  .rank-pane.is-lit {
+    border-color: rgb(var(--tier));
+    background-image: linear-gradient(
+      to top,
+      rgb(var(--tier) / 0.95) 0%,
+      rgb(var(--tier) / 0.78) 38%,
+      rgb(var(--tier) / 0.55) 72%,
+      rgb(var(--tier) / 0.38) 100%
+    );
+    box-shadow:
+      inset 0 -2px 0 0 rgb(var(--lamp-core)),
+      /* The glow, light-theme edition. It sits OUTSIDE the pane and stays at
+         low alpha over a wide blur. That is the whole trick on white: a
+         saturated hue at 0.2-0.45 spread far reads as coloured light, the way
+         a neon sign tints the wall behind it. The same hue at high alpha over
+         a short blur reads as dirt, which is what the inner glows were doing. */
+      0 0 14px 0 rgb(var(--tier) / 0.55),
+      0 6px 18px -4px rgb(var(--tier) / 0.45),
+      0 2px 8px -2px rgb(var(--tier) / 0.45);
+    /* Dark digits. A vivid pane in light theme is a PALE surface — white text
+       on it measures 1.95:1 on Master, 2.02 on Platinum, 2.08 on Gold. Eight of
+       the nine tiers fail with white. Ink passes every one (7-9:1) except
+       Bronze, which sits at 4.25 either way because Bronze is the one tier dark
+       enough to be ambiguous. */
+    color: #14161c;
+  }
+  html.dark .rank-pane {
+    border-color: rgb(var(--tier) / 0.15);
+    background-image: linear-gradient(to top, rgb(var(--tier) / 0.14), rgb(var(--tier) / 0.05) 55%, transparent);
+  }
+  html.dark .rank-pane.is-lit {
+    border-color: rgb(var(--tier) / 0.9);
+    background-image: linear-gradient(
+      to top,
+      rgb(var(--lamp-deep) / 0.85) 0%,
+      rgb(var(--tier) / 0.9) 13%,
+      rgb(var(--tier) / 0.65) 42%,
+      rgb(var(--tier) / 0.32) 74%,
+      rgb(var(--tier) / 0.12) 100%
+    );
+    box-shadow:
+      inset 0 -4px 9px -1px rgb(var(--lamp-deep) / 0.6),
+      inset 0 -1px 0 0 rgb(var(--lamp-core) / 0.9),
+      inset 0 1px 0 0 rgb(255 255 255 / 0.22),
+      inset 0 0 12px -2px rgb(var(--tier) / 0.6),
+      inset 2px 0 7px -3px rgb(var(--tier) / 0.6),
+      inset -2px 0 7px -3px rgb(var(--tier) / 0.6),
+      0 -8px 18px -5px rgb(var(--tier) / 0.55),
+      0 0 13px -3px rgb(var(--tier) / 0.55);
+    /* White digits. The dark-theme pane sits over a near-black card, so the
+       same fill lands far darker and the reading flips. */
+    color: #ffffff;
+    text-shadow: 0 0 3px rgb(0 0 0 / 0.55);
+  }
+
+  .rank-lamp {
+    background-image: linear-gradient(to bottom, rgb(var(--lamp-core)), rgb(var(--lamp-deep)));
+    box-shadow:
+      0 0 8px 0 rgb(var(--lamp-core) / 0.7),
+      0 0 18px 3px rgb(var(--lamp-core) / 0.35),
+      0 2px 10px 0 rgb(var(--lamp-deep) / 0.4);
+  }
+  html.dark .rank-lamp {
+    background-image: linear-gradient(to bottom, #ffffff 0%, rgb(214 248 255) 28%, rgb(var(--lamp-deep)) 70%, #12A6C2 100%);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.95),
+      0 0 5px 0 rgb(214 248 255 / 0.8),
+      0 0 13px 1px rgb(var(--lamp-deep) / 0.5),
+      0 0 24px 4px rgb(var(--lamp-deep) / 0.25);
+  }
+
+  /* The halo above the lit run, and the lamp's upward spill. Both exist in both
+     themes; only the strength changes. Dark was turned DOWN (2026-09-18) to
+     close the gap: several of its layers sat at full alpha, so dark read as a
+     light show next to light theme's quiet tint, and switching themes felt like
+     switching apps rather than switching palettes. Light theme keeps them FAINT and WIDE —
+     the first attempt used dark theme's alphas on white and produced a grey
+     smear that washed out the tier labels above it. Faint and wide reads as a
+     colour cast; dense and tight reads as a stain. */
+  .rank-halo {
+    background-image: linear-gradient(to top, rgb(var(--tier) / 0.5), rgb(var(--tier) / 0.18) 45%, transparent);
+    filter: blur(6px);
+  }
+  html.dark .rank-halo {
+    background-image: linear-gradient(to top, rgb(var(--tier) / 0.55), rgb(var(--tier) / 0.2) 45%, transparent);
+    filter: blur(5px);
+  }
+  /* The two end triangles. Same rule as the lamp: near-white core in dark,
+     saturated in light, because a white arrowhead on a white page is nothing.
+     drop-shadow rather than box-shadow so the glow follows the clipped
+     silhouette instead of drawing a rectangle around a triangle. */
+  .rank-handle {
+    background-image: linear-gradient(to bottom, rgb(var(--lamp-core)), rgb(var(--lamp-deep)));
+    filter: drop-shadow(0 0 4px rgb(var(--lamp-core) / 0.9));
+  }
+  html.dark .rank-handle {
+    background-image: linear-gradient(to bottom, #ffffff, rgb(var(--lamp-deep)));
+    filter: drop-shadow(0 0 4px rgb(var(--lamp-deep) / 0.95));
+  }
+
+  .rank-spill {
+    background-image: linear-gradient(to top, rgb(var(--lamp-core) / 0.45), rgb(var(--lamp-core) / 0.14) 60%, transparent);
+  }
+  html.dark .rank-spill {
+    background-image: linear-gradient(to top, rgb(var(--lamp-deep) / 0.5), rgb(var(--lamp-deep) / 0.15) 60%, transparent);
   }
 
   /* Hover preview of the selected state, in whatever hue --sel carries. Pair

@@ -4,7 +4,7 @@ import { useApi, revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import LobbyRangeSlider from '../components/LobbyRangeSlider';
-import { MAPS, QUEUE_MODES, ROLE_COLORS, ROLE_SEL_RGB, ROLE_TEXT, ROLE_PILL_CLASS, TYPE_COLORS, HEROES, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, MapVotingRow, QueueMode, Streaks, RANK_TIER_COLOR, DEFAULT_LOBBY_SPREAD, rankLabel, rankTier, rankDivision, rankFromParts, clampRank } from '../types';
+import { MAPS, QUEUE_MODES, ROLE_COLORS, ROLE_SEL_RGB, ROLE_TEXT, ROLE_PILL_CLASS, TYPE_COLORS, HEROES, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, MapVotingRow, QueueMode, Streaks, RANK_TIER_RGB, DEFAULT_LOBBY_SPREAD, rankLabel, rankTier, rankDivision, rankFromParts, clampRank } from '../types';
 import AdvisorCard from '../components/AdvisorCard';
 import EmptyState from '../components/EmptyState';
 import { useMapDrawer } from '../contexts/MapDrawerContext';
@@ -1117,22 +1117,29 @@ export default function Prematch() {
                   ▲
                 </button>
                 <div
-                  className="w-20 aspect-square rounded-lg border-2 grid place-content-center text-center select-none"
+                  className={`w-20 aspect-square rounded-lg border-2 grid place-content-center text-center select-none ${
+                    playerRank == null ? 'border-ow-border' : 'is-selected'
+                  }`}
                   data-inspect-id="prematch-rank-drum-badge"
-                  style={playerRank == null ? undefined : {
-                    borderColor: RANK_TIER_COLOR[rankTier(playerRank)],
-                    backgroundColor: `${RANK_TIER_COLOR[rankTier(playerRank)]}1f`,
-                  }}
+                  // The shared selected state, in the tier's own hue — the badge
+                  // IS the current rank, so it should read the way every other
+                  // chosen thing in the app reads. --sel carries the hue;
+                  // .is-selected carries the bottom-lit treatment and flips it
+                  // for light theme on its own.
+                  style={playerRank == null ? undefined : ({ '--sel': RANK_TIER_RGB[rankTier(playerRank)] } as React.CSSProperties)}
                   title={playerRank == null ? 'No rank set' : rankLabel(playerRank)}
                 >
                   {playerRank == null ? (
                     <span className="text-[10px] uppercase tracking-widest text-[var(--faint-2)] px-1 leading-tight">Set<br />rank</span>
                   ) : (
                     <>
-                      <span
-                        className="text-[9px] uppercase tracking-widest font-bold leading-none"
-                        style={{ color: RANK_TIER_COLOR[rankTier(playerRank)] }}
-                      >
+                      {/* The tier name is ink, not the tier colour. Measured on
+                          the badge fill, tier-coloured text runs 1.86:1 (Master)
+                          to 3.98:1 (Bronze) in light theme and fails on three
+                          tiers in dark. The fill, border and bottom rule already
+                          say which tier this is; the label does not need to
+                          repeat it in a colour that cannot be read. */}
+                      <span className="text-[9px] uppercase tracking-widest font-bold leading-none text-[var(--ink-2)]">
                         {rankTier(playerRank)}
                       </span>
                       <span className="text-3xl num-display font-black leading-none mt-1 text-[var(--ink)]">

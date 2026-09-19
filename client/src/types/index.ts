@@ -16,9 +16,9 @@ export const QUEUE_MODES: { value: QueueMode; label: string; short: string }[] =
 // fourth unrelated hue.
 //   selected: pill style · card: selected-card border+bg · accent: label text color
 export const QUEUE_MODE_COLORS: Record<QueueMode, { selected: string; card: string; tileDim: string; accent: string; glow: string; bright: string }> = {
-  qp_role:   { selected: 'border-sky-400 bg-sky-50 text-sky-700 dark:border-sky-400 dark:bg-sky-500/15 dark:text-sky-300', card: 'bg-sky-50 dark:bg-sky-500/25', tileDim: 'bg-sky-500/5 dark:bg-sky-500/10', accent: 'text-sky-600 dark:text-sky-300', glow: 'shadow-[0_10px_30px_-12px_rgba(56,189,248,0.45)]', bright: 'rgba(125,211,252,0.9)' },
-  comp_role: { selected: 'border-red-400 bg-red-50 text-red-700 dark:border-red-400 dark:bg-red-500/15 dark:text-red-300', card: 'bg-red-50 dark:bg-red-500/25', tileDim: 'bg-red-500/5 dark:bg-red-500/10', accent: 'text-red-600 dark:text-red-300', glow: 'shadow-[0_10px_30px_-12px_rgba(239,68,68,0.45)]', bright: 'rgba(252,165,165,0.9)' },
-  comp_open: { selected: 'border-orange-400 bg-orange-50 text-orange-700 dark:border-orange-400 dark:bg-orange-500/15 dark:text-orange-300', card: 'bg-orange-50 dark:bg-orange-500/25', tileDim: 'bg-orange-500/5 dark:bg-orange-500/10', accent: 'text-orange-600 dark:text-orange-300', glow: 'shadow-[0_10px_30px_-12px_rgba(249,115,22,0.45)]', bright: 'rgba(253,186,116,0.9)' },
+  qp_role:   { selected: 'border-sky-400 bg-sky-50 text-sky-700 dark:border-sky-400 dark:bg-sky-500/15 dark:text-sky-300', card: 'bg-sky-50 dark:bg-sky-500/25', tileDim: 'bg-sky-500/5 dark:bg-sky-500/10', accent: 'text-sky-700 dark:text-sky-300', glow: 'shadow-[0_10px_30px_-12px_rgba(56,189,248,0.45)]', bright: 'rgba(125,211,252,0.9)' },
+  comp_role: { selected: 'border-red-400 bg-red-50 text-red-700 dark:border-red-400 dark:bg-red-500/15 dark:text-red-300', card: 'bg-red-50 dark:bg-red-500/25', tileDim: 'bg-red-500/5 dark:bg-red-500/10', accent: 'text-red-700 dark:text-red-300', glow: 'shadow-[0_10px_30px_-12px_rgba(239,68,68,0.45)]', bright: 'rgba(252,165,165,0.9)' },
+  comp_open: { selected: 'border-orange-400 bg-orange-50 text-orange-700 dark:border-orange-400 dark:bg-orange-500/15 dark:text-orange-300', card: 'bg-orange-50 dark:bg-orange-500/25', tileDim: 'bg-orange-500/5 dark:bg-orange-500/10', accent: 'text-orange-700 dark:text-orange-300', glow: 'shadow-[0_10px_30px_-12px_rgba(249,115,22,0.45)]', bright: 'rgba(253,186,116,0.9)' },
 };
 
 // Each mode's selected-state hue, as bare RGB channels for the --sel custom
@@ -396,6 +396,22 @@ export const RANK_TIER_COLOR: Record<RankTier, string> = {
   Master:       '#d8b23a',
   Grandmaster:  '#c05b9c',
   Champion:     '#e05a4a',
+};
+
+// The same tier colours as bare RGB channels, for the --tier custom property
+// the lobby slider's CSS reads. Kept beside RANK_TIER_COLOR rather than derived
+// at runtime: a hex-to-rgb helper called once per pane per render is work for
+// values that never change.
+export const RANK_TIER_RGB: Record<RankTier, string> = {
+  Bronze:      '161 102 58',
+  Silver:      '154 164 173',
+  Gold:        '224 166 60',
+  Platinum:    '89 195 195',
+  Emerald:     '63 185 132',
+  Diamond:     '111 157 251',
+  Master:      '216 178 58',
+  Grandmaster: '192 91 156',
+  Champion:    '224 90 74',
 };
 
 export function rankTier(r: number): RankTier {
