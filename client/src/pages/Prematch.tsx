@@ -622,10 +622,14 @@ export default function Prematch() {
           Quickplay needs it. */}
       {/* Deliberately thinner than a card. .card is p-5 — 20px top and bottom —
           which is right for a panel of content and far too much for one row of
-          pills. Overridden to py-1.5 px-3 so the strip reads as a bar the page
-          wears rather than a card competing with the three below it. */}
+          pills. The VERTICAL padding is overridden to py-1.5 so the strip reads
+          as a bar rather than a fourth card. The HORIZONTAL padding is left at
+          the card's own px-5 on purpose: the Sens Test card sits directly below
+          with the same 20px inset, so "Playing as" and that card's title start
+          on the same vertical line. Trimming both sides knocked them 8px out
+          of alignment. */}
       <div
-        className="card !py-1.5 !px-3 mb-3 flex items-center gap-2.5 flex-wrap"
+        className="card !py-1.5 mb-3 flex items-center gap-2.5 flex-wrap"
         data-inspect-id="prematch-identity-strip"
       >
         {/* .card-title, the same as every card heading on the page — this
