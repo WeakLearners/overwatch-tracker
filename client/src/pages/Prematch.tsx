@@ -588,13 +588,15 @@ export default function Prematch() {
       onClick={onClick}
       aria-pressed={active}
       title={title}
-      className={`px-2 py-0.5 border-2 text-[11px] leading-tight font-semibold tracking-wide transition-all ${
+      className={`px-3 flex items-center justify-center border-2 text-[11px] leading-none font-semibold tracking-wide transition-all ${
         active ? 'is-selected text-[var(--ink)]' : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)]'
       }`}
       style={{
-        // 5px corner rather than the 6px the bigger pills use — the notch has
-        // to stay proportional to the pill, or a short pill looks chipped.
-        clipPath: 'polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px)',
+        // The notch scales with the pill. At 34px tall a 5px cut reads as a
+        // nick rather than a cut corner; at 7px it matches the .card's own
+        // 14px notch at half the size, which is the proportion the rest of
+        // the page uses.
+        clipPath: 'polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px)',
         ...(active && sel ? ({ '--sel': sel } as React.CSSProperties) : {}),
       }}
       data-inspect-id={inspectId}
@@ -622,21 +624,23 @@ export default function Prematch() {
           Quickplay needs it. */}
       {/* Deliberately thinner than a card. .card is p-5 — 20px top and bottom —
           which is right for a panel of content and far too much for one row of
-          pills. The VERTICAL padding is overridden to py-1.5 so the strip reads
-          as a bar rather than a fourth card. The HORIZONTAL padding is left at
+          pills. The VERTICAL padding is overridden to zero: the pills span the
+          strip edge to edge, so they define its height and there is no padding
+          left to add on top. min-h keeps the bar from collapsing on itself if
+          the pills ever shrink. The HORIZONTAL padding is left at
           the card's own px-5 on purpose: the Sens Test card sits directly below
           with the same 20px inset, so "Playing as" and that card's title start
           on the same vertical line. Trimming both sides knocked them 8px out
           of alignment. */}
       <div
-        className="card !py-1.5 mb-3 flex items-center gap-2.5 flex-wrap"
+        className="card !py-0 mb-3 flex items-stretch gap-2.5 flex-wrap min-h-[34px]"
         data-inspect-id="prematch-identity-strip"
       >
         {/* .card-title, the same as every card heading on the page — this
             strip is a section of the page and its label should read as one.
             The class already carries uppercase and the widest tracking, so
             only the size is set here. */}
-        <span className="text-xs card-title shrink-0 flex-1 basis-0 min-w-0">Playing as</span>
+        <span className="text-xs card-title shrink-0 flex-1 basis-0 min-w-0 self-center">Playing as</span>
 
         {/* The two pill groups sit dead centre of the strip. Centring is done
             by giving the label and the readout `flex-1 basis-0` rather than by
@@ -644,7 +648,7 @@ export default function Prematch() {
             whatever they contain, so the middle block lands on the strip's
             true centre. Sizing them to their own content would drift the
             centre every time the readout's rank text changed length. */}
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex items-stretch gap-2.5 shrink-0">
           <div className="flex gap-1" data-inspect-id="prematch-account-toggle">
             {ACCOUNTS.map(a =>
               identityPill(
@@ -660,7 +664,7 @@ export default function Prematch() {
               ),
             )}
           </div>
-          <span className="w-px self-stretch my-0.5 bg-ow-border/70 shrink-0" aria-hidden="true" />
+          <span className="w-px self-stretch my-1.5 bg-ow-border/70 shrink-0" aria-hidden="true" />
           <div className="flex gap-1" data-inspect-id="prematch-role-pick-toggle">
             {(['DPS', 'Support'] as const).map(r =>
               identityPill(
@@ -678,7 +682,7 @@ export default function Prematch() {
         {/* Says out loud which of the eight rank slots the pair selects. The
             drum is far enough down the page that the strip is off screen by
             the time it is read. */}
-        <span className="text-[11px] text-[var(--faint-2)] flex-1 basis-0 min-w-0 text-right" data-inspect-id="prematch-identity-rank-readout">
+        <span className="text-[11px] text-[var(--faint-2)] flex-1 basis-0 min-w-0 text-right self-center" data-inspect-id="prematch-identity-rank-readout">
           rank slot <b className="font-semibold text-[var(--muted)]">{account} · {testRole}</b>
           {playerRank != null && <> — <b className="font-semibold text-[var(--ink-2)]">{rankLabel(playerRank)}</b></>}
         </span>
