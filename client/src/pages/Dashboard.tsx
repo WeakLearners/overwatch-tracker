@@ -652,10 +652,10 @@ export default function Dashboard() {
                         straight line — see VOL_STOPS above for why.
 
                         Both ends are CSS variables (index.css), because a
-                        stop cannot carry a theme query. --vol-roof is the
-                        card's own background colour, so a bar fades into the
-                        card instead of ending on an edge — the skyline rises
-                        out of the page rather than sitting on top of it. */}
+                        stop cannot carry a theme query. --vol-roof sits a
+                        short step off the card rather than on it: close
+                        enough that a tall bar reads as receding into the
+                        page, far enough that its roofline is still there. */}
                     <linearGradient
                       id="volumeGlow"
                       gradientUnits="userSpaceOnUse"
