@@ -31,12 +31,15 @@
        while leaving the roof visible. Each theme needs its own value because
        "a step off the card" means darker on white and lighter on gunmetal. */
     --vol-roof: #ccd1d9;
-    /* Pushed 2026-09-19 for a hotter ground. Saturation alone had nowhere to
-       go — #F7931E already measured 93.1%, and the dark theme's base was at a
-       flat 100% — so the move is chroma, which is saturation and lightness
-       together. This is hue 32.4 held, saturation to 100%, lightness to 50%,
-       which is the most colourful this hue can physically be. */
-    --vol-base: #FF8A00;
+    /* Pushed twice on 2026-09-19 for a hotter ground, and the second push
+       had to change hue because the first ran out of room. Saturation was
+       already 93.1%; raising it and dropping lightness to 50% reached
+       #FF8A00, the most colourful hue 32.4 can physically be. Still weak on
+       white — it measured 2.36:1 against the card, which is why it read
+       washed. Sliding the hue toward red buys the punch that chroma could
+       not: hue 22 at 3.31:1 is 40% more contrast on the same card, and still
+       reads orange rather than red. */
+    --vol-base: #F55A00;
     --ink: #14161c;
     --ink-2: #2c2f38;
 --muted: #565c6b;
