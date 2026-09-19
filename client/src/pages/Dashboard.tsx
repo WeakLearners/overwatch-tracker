@@ -761,6 +761,19 @@ export default function Dashboard() {
                     vectorEffect="non-scaling-stroke"
                     className="text-[var(--faint)] opacity-[0.15]"
                   />
+                  {/* The light the bars stand in, drawn BEHIND them. The bars
+                      are 40% opaque, so the ramp reads through their lower
+                      half and the bottom of every bar picks up the glow —
+                      lit from within rather than washed over. Non-interactive,
+                      so it never steals a hover from the day columns. */}
+                  <rect
+                    x="0"
+                    y={CH_H - VOL_H}
+                    width={CH_W}
+                    height={VOL_H}
+                    fill="url(#volumeGlow)"
+                    pointerEvents="none"
+                  />
                   {candles.map((c, j) => (
                     <rect
                       key={`vol-${c.date}`}
@@ -773,20 +786,6 @@ export default function Dashboard() {
                     />
                   ))}
 
-                  {/* The light the bars stand in. Drawn after them, so it
-                      washes over their feet rather than sitting behind and
-                      showing through — the bars are only 40% opaque, and
-                      behind them the ramp would read as a stain instead of a
-                      light. Non-interactive, so it never steals a hover from
-                      the day columns below it. */}
-                  <rect
-                    x="0"
-                    y={CH_H - VOL_H}
-                    width={CH_W}
-                    height={VOL_H}
-                    fill="url(#volumeGlow)"
-                    pointerEvents="none"
-                  />
                   {/* The source of that light: a hairline along the bottom
                       edge, where the bars are rooted. Non-scaling so it stays
                       one pixel at every card width. */}
