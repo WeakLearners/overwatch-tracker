@@ -571,8 +571,94 @@ export default function Prematch() {
 
   const queueLabel = QUEUE_MODES.find(q => q.value === queueMode)?.label ?? '';
 
+  // One pill, drawn the same way wherever it appears in the identity strip.
+  // Account and role are the same kind of choice — a small exclusive pick —
+  // and giving them two looks would imply a difference that is not there.
+  const identityPill = (
+    label: string,
+    active: boolean,
+    onClick: () => void,
+    sel: string | undefined,
+    inspectId: string,
+    title: string,
+  ) => (
+    <button
+      key={label}
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      title={title}
+      className={`px-2.5 py-1 border-2 text-[11px] font-semibold tracking-wide transition-all ${
+        active ? 'is-selected text-[var(--ink)]' : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)]'
+      }`}
+      style={{
+        clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)',
+        ...(active && sel ? ({ '--sel': sel } as React.CSSProperties) : {}),
+      }}
+      data-inspect-id={inspectId}
+    >
+      {label}
+    </button>
+  );
+
   return (
     <div>
+
+      {/* Who is playing, right now. Account and role were separate controls in
+          two different cards until 2026-09-19 — the account pills lived in the
+          Lobby Rank header, the role pills in Map Voting's. Together they name
+          one thing, and four separate things read them: the hero advisor's
+          request, the Hero Advisor card's own role pill, Log Match's hero
+          dropdown filter, and which of the eight rank slots the drum shows.
+          A page-level setting with four readers does not belong inside one
+          card's header.
+
+          It sits ABOVE the cards rather than inside any of them, and that is
+          load-bearing rather than cosmetic: the Lobby Rank card is hidden
+          entirely on Quickplay, and the role pick still has work to do there.
+          Folding role into that card would have made it vanish exactly when
+          Quickplay needs it. */}
+      <div
+        className="card mb-4 flex items-center gap-3 flex-wrap"
+        data-inspect-id="prematch-identity-strip"
+      >
+        <span className="text-xs uppercase tracking-widest text-[var(--faint)] shrink-0">Playing as</span>
+        <div className="flex gap-1.5" data-inspect-id="prematch-account-toggle">
+          {ACCOUNTS.map(a =>
+            identityPill(
+              a,
+              account === a,
+              () => setAccount(a),
+              // The selected account wears its own rank tier's hue, so this
+              // strip and the rank badge further down agree without being
+              // told twice. No rank in this slot yet means no hue.
+              account === a && playerRank != null ? RANK_TIER_RGB[rankTier(playerRank)] : undefined,
+              `prematch-account-${a.toLowerCase()}-button`,
+              `Play as ${a}`,
+            ),
+          )}
+        </div>
+        <span className="w-px self-stretch bg-ow-border/70 shrink-0" aria-hidden="true" />
+        <div className="flex gap-1.5" data-inspect-id="prematch-role-pick-toggle">
+          {(['DPS', 'Support'] as const).map(r =>
+            identityPill(
+              r,
+              testRole === r,
+              () => setTestRole(r),
+              ROLE_SEL_RGB[r],
+              `prematch-role-pick-${r.toLowerCase()}-button`,
+              `Queue as ${r}`,
+            ),
+          )}
+        </div>
+        {/* Says out loud which of the eight rank slots the pair selects. The
+            drum is far enough down the page that the strip is off screen by
+            the time it is read. */}
+        <span className="text-xs text-[var(--faint-2)] ml-auto" data-inspect-id="prematch-identity-rank-readout">
+          rank slot <b className="font-semibold text-[var(--muted)]">{account} · {testRole}</b>
+          {playerRank != null && <> — <b className="font-semibold text-[var(--ink-2)]">{rankLabel(playerRank)}</b></>}
+        </span>
+      </div>
 
       {/* DPI test HUD (square) + Map Voting + Hero Advisor row — stacks on
           phone widths; three-across only once there's room for each card's
@@ -716,35 +802,14 @@ export default function Prematch() {
 
         {/* Map Voting */}
         <div className="card flex-1 min-w-0 flex flex-col overflow-hidden" data-inspect-id="prematch-map-voting-card">
+          {/* Role Pick used to sit on the right of this row. It moved to the
+              page-level identity strip on 2026-09-19 — four things read it,
+              not just this card's recommendation, and it has to stay on
+              screen in Quickplay. */}
           <div className="flex items-center justify-between mb-2 min-h-8">
             <div className="flex items-center gap-2">
               <h2 className="text-sm card-title whitespace-nowrap">Map Voting</h2>
               <span className="text-xs text-[var(--faint)] bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">tap up to 3</span>
-            </div>
-            <div className="flex gap-2" data-inspect-id="prematch-role-pick-toggle">
-              {(['DPS', 'Support'] as const).map(r => {
-                const active = testRole === r;
-                return (
-                  <button
-                    key={r}
-                    onClick={() => setTestRole(r)}
-                    className={`px-3 py-1 border-2 text-xs font-semibold transition-all ${
-                      active ? `is-selected ${ROLE_TEXT[r]}` : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)]'
-                    }`}
-                    // .is-selected draws the bottom-lit selected state; --sel
-                    // gives it the role's own hue, teal for DPS and pink for
-                    // Support. The hand-written border map that used to sit here
-                    // duplicated values the colour table already held.
-                    style={{
-                      clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)',
-                      ...(active ? { '--sel': ROLE_SEL_RGB[r] } as React.CSSProperties : {}),
-                    }}
-                    data-inspect-id={`prematch-role-pick-${r.toLowerCase()}-button`}
-                  >
-                    {r}
-                  </button>
-                );
-              })}
             </div>
           </div>
 
@@ -1188,63 +1253,9 @@ export default function Prematch() {
             rather than sitting empty and inviting a guess. */}
         {queueMode !== 'qp_role' && (
           <div className="mt-4 pt-4 border-t border-ow-border/40" data-inspect-id="prematch-lobby-rank-section">
-            <div className="flex items-baseline justify-between gap-3 flex-wrap mb-3">
-              <div className="flex items-baseline gap-2">
-                <h3 className="text-sm card-title" data-inspect-id="prematch-lobby-rank-header">Lobby Rank</h3>
-                {/* Which of the eight slots is on screen. The account half is
-                    the pill row to the right; the role half is set by Role
-                    Pick, up in the Map Voting card, where it cannot be seen
-                    from here. Without this line the drum's value would depend
-                    on an off-screen control — the reader would have no way to
-                    tell whether Plat 4 is this account's DPS rank or its
-                    support rank. Read-only on purpose: Role Pick already owns
-                    that choice, and the same exclusive control in two places
-                    is how they drift apart. */}
-                <span
-                  className="text-xs text-[var(--faint-2)]"
-                  data-inspect-id="prematch-lobby-rank-slot-label"
-                  title="Rank is stored per account and per role. Change the role in Role Pick, on the Map Voting card."
-                >
-                  <b className="font-semibold text-[var(--muted)]">{account} · {testRole}</b> — read it off the scoreboard now
-                </span>
-              </div>
-              {/* Which account is being played. It belongs in this header and
-                  nowhere else: each account sits at its own rank, so the drum
-                  and the track below both change when this changes. Borrowed
-                  wholesale from Map Voting's role pills — same clipped corner,
-                  same .is-selected bottom-lit treatment — because this is the
-                  same kind of control, a small exclusive pick, and a second
-                  visual language for it would be noise. */}
-              <div className="flex gap-1.5 shrink-0" data-inspect-id="prematch-account-toggle">
-                {ACCOUNTS.map(a => {
-                  const active = account === a;
-                  return (
-                    <button
-                      key={a}
-                      type="button"
-                      onClick={() => setAccount(a)}
-                      aria-pressed={active}
-                      title={`Play as ${a} — its own rank and lobby range`}
-                      className={`px-2.5 py-1 border-2 text-[11px] font-semibold tracking-wide transition-all ${
-                        active ? 'is-selected text-[var(--ink)]' : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)]'
-                      }`}
-                      style={{
-                        clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)',
-                        // The selected account takes the hue of the rank it is
-                        // sitting at, so the pill row and the badge below agree
-                        // without being told twice. No rank yet means no hue,
-                        // and .is-selected falls back to its own default.
-                        ...(active && playerRank != null
-                          ? ({ '--sel': RANK_TIER_RGB[rankTier(playerRank)] } as React.CSSProperties)
-                          : {}),
-                      }}
-                      data-inspect-id={`prematch-account-${a.toLowerCase()}-button`}
-                    >
-                      {a}
-                    </button>
-                  );
-                })}
-              </div>
+            <div className="flex items-baseline gap-2 mb-3">
+              <h3 className="text-sm card-title" data-inspect-id="prematch-lobby-rank-header">Lobby Rank</h3>
+              <span className="text-xs text-[var(--faint-2)]">read it off the scoreboard now</span>
             </div>
 
             {/* The drum sits in this row, beside the track it defines. Your
