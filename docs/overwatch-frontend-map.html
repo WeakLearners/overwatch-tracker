@@ -1260,47 +1260,47 @@ const DATA = {
           "id": "prematch-account-toggle",
           "label": "Lobby Rank \u2014 account picker",
           "kind": "input",
-          "description": "Row of four pills in the Lobby Rank header's top right, one per Overwatch account: SOJ, SKI, 26R, 26J. Added 2026-09-19. Styled from Map Voting's role pills \u2014 same clipped corner and the shared .is-selected bottom-lit state \u2014 because it is the same kind of control. The selected pill takes the hue of that account's current rank tier via --sel, so the pill row and the rank badge below agree. Switching accounts swaps the whole rank context: player_rank and the lobby range are stored per account under 'ow-player-rank:<ACCT>' and 'ow-lobby-range:<ACCT>', read (not cleared) on switch, so each account keeps where it was left. The pre-per-account single-key values are adopted once by SOJ. NOTE: the account is NOT written to the matches table \u2014 no schema change was made; a logged match still records only player_rank.",
+          "description": "Row of four pills in the Lobby Rank header's top right, one per Overwatch account: Pinx, Jinx, Winx, Linx (renamed from SOJ/SKI/26R/26J the same day). Added 2026-09-19. Styled from Map Voting's role pills \u2014 same clipped corner and the shared .is-selected bottom-lit state \u2014 because it is the same kind of control. The selected pill takes the hue of that account's current rank tier via --sel, so the pill row and the rank badge below agree. Switching accounts swaps the whole rank context: player_rank and the lobby range are stored per account under 'ow-player-rank:<ACCT>' and 'ow-lobby-range:<ACCT>', read (not cleared) on switch, so each account keeps where it was left. The pre-per-account single-key values are adopted once by Pinx, the default. NOTE: the account name IS the storage key suffix, so a future rename strands that account's stored rank and range \u2014 only the default is covered by the legacy adoption. NOTE: the account is NOT written to the matches table \u2014 no schema change was made; a logged match still records only player_rank.",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:1203",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-account-toggle\"' client/src/pages/Prematch.tsx"
           }
         },
         {
-          "id": "prematch-account-soj-button",
-          "label": "Account \u2014 SOJ",
+          "id": "prematch-account-pinx-button",
+          "label": "Account \u2014 Pinx",
           "kind": "button",
-          "description": "Selects the SOJ account. Loads that account's stored rank into the drum and its stored lobby range into the track; nothing is cleared, so switching back restores what was there.",
+          "description": "Selects the Pinx account. Loads that account's stored rank into the drum and its stored lobby range into the track; nothing is cleared, so switching back restores what was there.",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:1226",
             "grep": "grep -n -F -- 'prematch-account-${a.toLowerCase()}-button' client/src/pages/Prematch.tsx"
           }
         },
         {
-          "id": "prematch-account-ski-button",
-          "label": "Account \u2014 SKI",
+          "id": "prematch-account-jinx-button",
+          "label": "Account \u2014 Jinx",
           "kind": "button",
-          "description": "Selects the SKI account. Loads that account's stored rank into the drum and its stored lobby range into the track; nothing is cleared, so switching back restores what was there.",
+          "description": "Selects the Jinx account. Loads that account's stored rank into the drum and its stored lobby range into the track; nothing is cleared, so switching back restores what was there.",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:1226",
             "grep": "grep -n -F -- 'prematch-account-${a.toLowerCase()}-button' client/src/pages/Prematch.tsx"
           }
         },
         {
-          "id": "prematch-account-26r-button",
-          "label": "Account \u2014 26R",
+          "id": "prematch-account-winx-button",
+          "label": "Account \u2014 Winx",
           "kind": "button",
-          "description": "Selects the 26R account. Loads that account's stored rank into the drum and its stored lobby range into the track; nothing is cleared, so switching back restores what was there.",
+          "description": "Selects the Winx account. Loads that account's stored rank into the drum and its stored lobby range into the track; nothing is cleared, so switching back restores what was there.",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:1226",
             "grep": "grep -n -F -- 'prematch-account-${a.toLowerCase()}-button' client/src/pages/Prematch.tsx"
           }
         },
         {
-          "id": "prematch-account-26j-button",
-          "label": "Account \u2014 26J",
+          "id": "prematch-account-linx-button",
+          "label": "Account \u2014 Linx",
           "kind": "button",
-          "description": "Selects the 26J account. Loads that account's stored rank into the drum and its stored lobby range into the track; nothing is cleared, so switching back restores what was there.",
+          "description": "Selects the Linx account. Loads that account's stored rank into the drum and its stored lobby range into the track; nothing is cleared, so switching back restores what was there.",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:1226",
             "grep": "grep -n -F -- 'prematch-account-${a.toLowerCase()}-button' client/src/pages/Prematch.tsx"
@@ -4449,6 +4449,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 

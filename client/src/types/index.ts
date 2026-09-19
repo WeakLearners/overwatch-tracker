@@ -412,11 +412,14 @@ export const RANK_TIER_COLOR: Record<RankTier, string> = {
  * Sean's four Overwatch accounts. Each one carries its own competitive rank, so
  * the rank drum and the lobby range are stored per account rather than once —
  * a single stored rank would follow him onto an account it does not belong to.
- * Short codes, because they sit in a pill row and the full names never fit.
+ *
+ * The names are also the localStorage key suffix ('ow-player-rank:Pinx'), so
+ * renaming one strands whatever that account had stored. Only the default
+ * account is protected, by the legacy single-key adoption below it.
  */
-export const ACCOUNTS = ['SOJ', 'SKI', '26R', '26J'] as const;
+export const ACCOUNTS = ['Pinx', 'Jinx', 'Winx', 'Linx'] as const;
 export type Account = typeof ACCOUNTS[number];
-export const DEFAULT_ACCOUNT: Account = 'SOJ';
+export const DEFAULT_ACCOUNT: Account = 'Pinx';
 export function isAccount(v: unknown): v is Account {
   return typeof v === 'string' && (ACCOUNTS as readonly string[]).includes(v);
 }
