@@ -210,7 +210,6 @@ export default function Prematch() {
   };
 
   // The rank drum. Quickplay has no rank, so it isn't shown there.
-  const showRankDrum = queueMode !== 'qp_role';
   // First press seeds at Gold 5 — a visible starting point on the badge, a few
   // presses from any real rank, and it sticks from then on. Moving the rank
   // clears any lobby range, because that range was built from the OLD rank and
@@ -1094,72 +1093,9 @@ export default function Prematch() {
             One column per role (DPS / Support), each the hottest-trending hero for
             that role rather than the single overall-best-win-rate hero, paired with
             the in-game sens its own best-tested scale points to. */}
-        {(showRankDrum || ((trendingDps || trendingSupport) && !map)) && (
-          <div className={`grid gap-3 mt-3 items-stretch ${showRankDrum ? 'grid-cols-[auto_1fr] sm:grid-cols-[auto_1fr_1fr]' : 'grid-cols-1 sm:grid-cols-2'}`} data-inspect-id="prematch-recommended-pick-card">
-            {/* Current rank — a drum: one square badge with a step up above it
-                and a step down below. Each press moves one division.
-
-                It renders on its own condition, not the row's. The two role
-                columns beside it only exist while no map is picked; the rank
-                has to stay reachable after a map IS picked, because that is
-                when hero select is on screen and the lobby's ranks are
-                readable. Tying it to the row would hide it at the one moment
-                it is needed. */}
-            {showRankDrum && (
-              <div className="flex flex-col items-center justify-center gap-1.5 shrink-0" data-inspect-id="prematch-rank-drum">
-                <button
-                  type="button"
-                  onClick={() => stepRank(1)}
-                  data-inspect-id="prematch-rank-drum-up"
-                  aria-label="Rank up one division"
-                  className="w-20 h-6 rounded-md border border-ow-border text-[var(--faint)] hover:text-ow-accent hover:border-ow-accent/60 transition-colors leading-none text-xs"
-                >
-                  ▲
-                </button>
-                <div
-                  className={`w-20 aspect-square rounded-lg border-2 grid place-content-center text-center select-none ${
-                    playerRank == null ? 'border-ow-border' : 'is-selected'
-                  }`}
-                  data-inspect-id="prematch-rank-drum-badge"
-                  // The shared selected state, in the tier's own hue — the badge
-                  // IS the current rank, so it should read the way every other
-                  // chosen thing in the app reads. --sel carries the hue;
-                  // .is-selected carries the bottom-lit treatment and flips it
-                  // for light theme on its own.
-                  style={playerRank == null ? undefined : ({ '--sel': RANK_TIER_RGB[rankTier(playerRank)] } as React.CSSProperties)}
-                  title={playerRank == null ? 'No rank set' : rankLabel(playerRank)}
-                >
-                  {playerRank == null ? (
-                    <span className="text-[10px] uppercase tracking-widest text-[var(--faint-2)] px-1 leading-tight">Set<br />rank</span>
-                  ) : (
-                    <>
-                      {/* The tier name is ink, not the tier colour. Measured on
-                          the badge fill, tier-coloured text runs 1.86:1 (Master)
-                          to 3.98:1 (Bronze) in light theme and fails on three
-                          tiers in dark. The fill, border and bottom rule already
-                          say which tier this is; the label does not need to
-                          repeat it in a colour that cannot be read. */}
-                      <span className="text-[9px] uppercase tracking-widest font-bold leading-none text-[var(--ink-2)]">
-                        {rankTier(playerRank)}
-                      </span>
-                      <span className="text-3xl num-display font-black leading-none mt-1 text-[var(--ink)]">
-                        {rankDivision(playerRank)}
-                      </span>
-                    </>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => stepRank(-1)}
-                  data-inspect-id="prematch-rank-drum-down"
-                  aria-label="Rank down one division"
-                  className="w-20 h-6 rounded-md border border-ow-border text-[var(--faint)] hover:text-ow-accent hover:border-ow-accent/60 transition-colors leading-none text-xs"
-                >
-                  ▼
-                </button>
-              </div>
-            )}
-            {(trendingDps || trendingSupport) && !map && ([['DPS', trendingDps], ['Support', trendingSupport]] as const).map(([role, rec]) => {
+        {(trendingDps || trendingSupport) && !map && (
+          <div className="grid gap-3 mt-3 items-stretch grid-cols-1 sm:grid-cols-2" data-inspect-id="prematch-recommended-pick-card">
+            {([['DPS', trendingDps], ['Support', trendingSupport]] as const).map(([role, rec]) => {
               const delta = rec && !rec.is_new && rec.recent_wr != null && rec.prev_wr != null
                 ? Math.round((rec.recent_wr - rec.prev_wr) * 10) / 10 : null;
               return (
@@ -1255,22 +1191,84 @@ export default function Prematch() {
               <span className="text-xs text-[var(--faint-2)]">read it off the scoreboard now</span>
             </div>
 
-            {playerRank == null ? (
-              <p className="text-xs text-[var(--faint-2)]" data-inspect-id="prematch-lobby-rank-needs-rank">
-                Set your rank on the drum above first — the track is built around it.
-              </p>
-            ) : (
-              <LobbyRangeSlider
-                playerRank={playerRank}
-                low={lobbyLow}
-                high={lobbyHigh}
-                width={trayWidth}
-                onChange={setLobbyRange}
-                onRememberWidth={rememberTrayWidth}
-                onResize={resizeTray}
-                onClear={clearLobbyRange}
-              />
-            )}
+            {/* The drum sits in this row, beside the track it defines. Your
+                own rank is the origin the lobby range is measured from, so
+                the two belong in one place rather than a screen apart. The
+                drum keeps its own square width; the track takes the rest and
+                is allowed to shrink (min-w-0), so a 21-box row never pushes
+                the drum off the card. */}
+            <div className="flex items-center gap-4" data-inspect-id="prematch-lobby-rank-row">
+              <div className="flex flex-col items-center justify-center gap-1.5 shrink-0" data-inspect-id="prematch-rank-drum">
+                <button
+                  type="button"
+                  onClick={() => stepRank(1)}
+                  data-inspect-id="prematch-rank-drum-up"
+                  aria-label="Rank up one division"
+                  className="w-20 h-6 rounded-md border border-ow-border text-[var(--faint)] hover:text-ow-accent hover:border-ow-accent/60 transition-colors leading-none text-xs"
+                >
+                  ▲
+                </button>
+                <div
+                  className={`w-20 aspect-square rounded-lg border-2 grid place-content-center text-center select-none ${
+                    playerRank == null ? 'border-ow-border' : 'is-selected'
+                  }`}
+                  data-inspect-id="prematch-rank-drum-badge"
+                  // The shared selected state, in the tier's own hue — the badge
+                  // IS the current rank, so it should read the way every other
+                  // chosen thing in the app reads. --sel carries the hue;
+                  // .is-selected carries the bottom-lit treatment and flips it
+                  // for light theme on its own.
+                  style={playerRank == null ? undefined : ({ '--sel': RANK_TIER_RGB[rankTier(playerRank)] } as React.CSSProperties)}
+                  title={playerRank == null ? 'No rank set' : rankLabel(playerRank)}
+                >
+                  {playerRank == null ? (
+                    <span className="text-[10px] uppercase tracking-widest text-[var(--faint-2)] px-1 leading-tight">Set<br />rank</span>
+                  ) : (
+                    <>
+                      {/* The tier name is ink, not the tier colour. Measured on
+                          the badge fill, tier-coloured text runs 1.86:1 (Master)
+                          to 3.98:1 (Bronze) in light theme and fails on three
+                          tiers in dark. The fill, border and bottom rule already
+                          say which tier this is; the label does not need to
+                          repeat it in a colour that cannot be read. */}
+                      <span className="text-[9px] uppercase tracking-widest font-bold leading-none text-[var(--ink-2)]">
+                        {rankTier(playerRank)}
+                      </span>
+                      <span className="text-3xl num-display font-black leading-none mt-1 text-[var(--ink)]">
+                        {rankDivision(playerRank)}
+                      </span>
+                    </>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => stepRank(-1)}
+                  data-inspect-id="prematch-rank-drum-down"
+                  aria-label="Rank down one division"
+                  className="w-20 h-6 rounded-md border border-ow-border text-[var(--faint)] hover:text-ow-accent hover:border-ow-accent/60 transition-colors leading-none text-xs"
+                >
+                  ▼
+                </button>
+              </div>
+              <div className="flex-1 min-w-0">
+                {playerRank == null ? (
+                  <p className="text-xs text-[var(--faint-2)]" data-inspect-id="prematch-lobby-rank-needs-rank">
+                    Set your rank on the drum first — the track is built around it.
+                  </p>
+                ) : (
+                  <LobbyRangeSlider
+                    playerRank={playerRank}
+                    low={lobbyLow}
+                    high={lobbyHigh}
+                    width={trayWidth}
+                    onChange={setLobbyRange}
+                    onRememberWidth={rememberTrayWidth}
+                    onResize={resizeTray}
+                    onClear={clearLobbyRange}
+                  />
+                )}
+              </div>
+            </div>
           </div>
         )}
 
