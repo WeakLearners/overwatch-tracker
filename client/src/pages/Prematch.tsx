@@ -588,11 +588,13 @@ export default function Prematch() {
       onClick={onClick}
       aria-pressed={active}
       title={title}
-      className={`px-2.5 py-1 border-2 text-[11px] font-semibold tracking-wide transition-all ${
+      className={`px-2 py-0.5 border-2 text-[11px] leading-tight font-semibold tracking-wide transition-all ${
         active ? 'is-selected text-[var(--ink)]' : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)]'
       }`}
       style={{
-        clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)',
+        // 5px corner rather than the 6px the bigger pills use — the notch has
+        // to stay proportional to the pill, or a short pill looks chipped.
+        clipPath: 'polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px)',
         ...(active && sel ? ({ '--sel': sel } as React.CSSProperties) : {}),
       }}
       data-inspect-id={inspectId}
@@ -618,12 +620,16 @@ export default function Prematch() {
           entirely on Quickplay, and the role pick still has work to do there.
           Folding role into that card would have made it vanish exactly when
           Quickplay needs it. */}
+      {/* Deliberately thinner than a card. .card is p-5 — 20px top and bottom —
+          which is right for a panel of content and far too much for one row of
+          pills. Overridden to py-1.5 px-3 so the strip reads as a bar the page
+          wears rather than a card competing with the three below it. */}
       <div
-        className="card mb-4 flex items-center gap-3 flex-wrap"
+        className="card !py-1.5 !px-3 mb-3 flex items-center gap-2.5 flex-wrap"
         data-inspect-id="prematch-identity-strip"
       >
-        <span className="text-xs uppercase tracking-widest text-[var(--faint)] shrink-0">Playing as</span>
-        <div className="flex gap-1.5" data-inspect-id="prematch-account-toggle">
+        <span className="text-[10px] uppercase tracking-widest text-[var(--faint)] shrink-0">Playing as</span>
+        <div className="flex gap-1" data-inspect-id="prematch-account-toggle">
           {ACCOUNTS.map(a =>
             identityPill(
               a,
@@ -638,8 +644,8 @@ export default function Prematch() {
             ),
           )}
         </div>
-        <span className="w-px self-stretch bg-ow-border/70 shrink-0" aria-hidden="true" />
-        <div className="flex gap-1.5" data-inspect-id="prematch-role-pick-toggle">
+        <span className="w-px self-stretch my-0.5 bg-ow-border/70 shrink-0" aria-hidden="true" />
+        <div className="flex gap-1" data-inspect-id="prematch-role-pick-toggle">
           {(['DPS', 'Support'] as const).map(r =>
             identityPill(
               r,
@@ -654,7 +660,7 @@ export default function Prematch() {
         {/* Says out loud which of the eight rank slots the pair selects. The
             drum is far enough down the page that the strip is off screen by
             the time it is read. */}
-        <span className="text-xs text-[var(--faint-2)] ml-auto" data-inspect-id="prematch-identity-rank-readout">
+        <span className="text-[11px] text-[var(--faint-2)] ml-auto" data-inspect-id="prematch-identity-rank-readout">
           rank slot <b className="font-semibold text-[var(--muted)]">{account} · {testRole}</b>
           {playerRank != null && <> — <b className="font-semibold text-[var(--ink-2)]">{rankLabel(playerRank)}</b></>}
         </span>
