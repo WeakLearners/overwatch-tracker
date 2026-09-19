@@ -408,6 +408,19 @@ export const RANK_TIER_COLOR: Record<RankTier, string> = {
 // the lobby slider's CSS reads. Kept beside RANK_TIER_COLOR rather than derived
 // at runtime: a hex-to-rgb helper called once per pane per render is work for
 // values that never change.
+/**
+ * Sean's four Overwatch accounts. Each one carries its own competitive rank, so
+ * the rank drum and the lobby range are stored per account rather than once —
+ * a single stored rank would follow him onto an account it does not belong to.
+ * Short codes, because they sit in a pill row and the full names never fit.
+ */
+export const ACCOUNTS = ['SOJ', 'SKI', '26R', '26J'] as const;
+export type Account = typeof ACCOUNTS[number];
+export const DEFAULT_ACCOUNT: Account = 'SOJ';
+export function isAccount(v: unknown): v is Account {
+  return typeof v === 'string' && (ACCOUNTS as readonly string[]).includes(v);
+}
+
 export const RANK_TIER_RGB: Record<RankTier, string> = {
   Bronze:      '161 102 58',
   Silver:      '154 164 173',

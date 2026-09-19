@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
-import { MAPS, QUEUE_MODES, QueueMode, Recommendation, MatchDeathEntry, RANK_MIN, RANK_MAX, clampRank } from '../types';
+import { MAPS, QUEUE_MODES, QueueMode, Recommendation, MatchDeathEntry, RANK_MIN, RANK_MAX, clampRank, Account, DEFAULT_ACCOUNT, isAccount } from '../types';
 
 // Coaching always shows a DPS and a Support column side by side — the advisor
 // endpoint returns one recommendation per role (either can be null if that
@@ -34,8 +34,36 @@ const DEATH_BUFFER_KEY = 'ow-death-buffer-v4';
 // game. Consecutive matches are nearly always the same lobby, so that was
 // re-entering an unchanged reading. It now holds until Sean moves it or
 // presses the slider's own "clear".
+//
+// Both are stored PER ACCOUNT. Sean plays four, each sitting at its own rank,
+// so one shared value would follow him onto an account it does not describe —
+// and the lobby track is drawn around whatever rank is current, so a wrong
+// rank quietly produces a wrong track. The legacy single-key values are
+// adopted once, by the default account, so nothing is lost on first load.
 const RANK_KEY = 'ow-player-rank';
 const LOBBY_KEY = 'ow-lobby-range';
+const ACCOUNT_KEY = 'ow-account';
+const rankKeyFor = (a: Account) => `${RANK_KEY}:${a}`;
+const lobbyKeyFor = (a: Account) => `${LOBBY_KEY}:${a}`;
+
+function readRank(a: Account): number | null {
+  try {
+    const raw = localStorage.getItem(rankKeyFor(a))
+      // One-time adoption of the pre-per-account value.
+      ?? (a === DEFAULT_ACCOUNT ? localStorage.getItem(RANK_KEY) : null);
+    const v = Number(raw);
+    return v >= RANK_MIN && v <= RANK_MAX ? v : null;
+  } catch { return null; }
+}
+function readLobby(a: Account): { low: number; high: number } | null {
+  try {
+    const raw = localStorage.getItem(lobbyKeyFor(a))
+      ?? (a === DEFAULT_ACCOUNT ? localStorage.getItem(LOBBY_KEY) : null);
+    const v = JSON.parse(raw ?? 'null');
+    if (v && typeof v.low === 'number' && typeof v.high === 'number') return v;
+    return null;
+  } catch { return null; }
+}
 
 // The shared "current match" intent for the single-page Dashboard: one queue
 // mode, one selected map, one advisor recommendation, consumed by both the
@@ -62,6 +90,9 @@ interface MatchContextValue {
   // Competitive rank, on the 1-45 division ladder (see RANK_TIERS in types).
   // Entered in Pre-Match before the match starts, read by Log Match on submit.
   // Same shape as sens: the input and the consumer are in different sections.
+  /** Which of Sean's four accounts is in play. Rank and lobby range are stored per account. */
+  account: Account;
+  setAccount: (a: Account) => void;
   playerRank: number | null;
   setPlayerRank: (r: number | null) => void;
   lobbyLow: number | null;
@@ -122,36 +153,46 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try { localStorage.setItem(TEST_ROLE_KEY, testRole); } catch { /* ignore */ }
   }, [testRole]);
-  const [playerRank, setPlayerRankState] = useState<number | null>(() => {
+  const [account, setAccountState] = useState<Account>(() => {
     try {
-      const v = Number(localStorage.getItem(RANK_KEY));
-      return v >= RANK_MIN && v <= RANK_MAX ? v : null;
-    } catch { return null; }
+      const v = localStorage.getItem(ACCOUNT_KEY);
+      return isAccount(v) ? v : DEFAULT_ACCOUNT;
+    } catch { return DEFAULT_ACCOUNT; }
   });
+
+  const [playerRank, setPlayerRankState] = useState<number | null>(() => readRank(account));
   const setPlayerRank = useCallback((r: number | null) => {
     setPlayerRankState(r);
     try {
-      if (r == null) localStorage.removeItem(RANK_KEY);
-      else localStorage.setItem(RANK_KEY, String(r));
+      if (r == null) localStorage.removeItem(rankKeyFor(account));
+      else localStorage.setItem(rankKeyFor(account), String(r));
     } catch { /* ignore */ }
-  }, []);
+  }, [account]);
 
-  const [lobbyRange, setLobbyRange] = useState<{ low: number; high: number } | null>(() => {
-    try {
-      const raw = JSON.parse(localStorage.getItem(LOBBY_KEY) ?? 'null');
-      if (raw && typeof raw.low === 'number' && typeof raw.high === 'number') return raw;
-      return null;
-    } catch { return null; }
-  });
+  const [lobbyRange, setLobbyRange] = useState<{ low: number; high: number } | null>(() => readLobby(account));
+
+  // Switching accounts swaps the whole rank context in one move: the drum's
+  // rank and the lobby track both come from storage under the new account.
+  // Read, not cleared — each account keeps whatever it was last left at, so
+  // switching back is free.
+  const setAccount = useCallback((a: Account) => {
+    setAccountState(prev => {
+      if (prev === a) return prev;
+      try { localStorage.setItem(ACCOUNT_KEY, a); } catch { /* ignore */ }
+      setPlayerRankState(readRank(a));
+      setLobbyRange(readLobby(a));
+      return a;
+    });
+  }, []);
   // Persisted the same way sens is — an effect on the value, not a write
   // buried inside a setState updater. React calls updaters twice in dev, so a
   // write in there runs twice for every one real change.
   useEffect(() => {
     try {
-      if (lobbyRange == null) localStorage.removeItem(LOBBY_KEY);
-      else localStorage.setItem(LOBBY_KEY, JSON.stringify(lobbyRange));
+      if (lobbyRange == null) localStorage.removeItem(lobbyKeyFor(account));
+      else localStorage.setItem(lobbyKeyFor(account), JSON.stringify(lobbyRange));
     } catch { /* ignore */ }
-  }, [lobbyRange]);
+  }, [lobbyRange, account]);
 
   const applyLobbySpread = useCallback((n: number) => {
     if (playerRank == null) return;
@@ -247,6 +288,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
       rec, recLoading, recError,
       refreshRec: () => fetchRec(true),
       revalidateRec: () => fetchRec(false),
+      account, setAccount,
       playerRank, setPlayerRank,
       lobbyLow: lobbyRange?.low ?? null,
       lobbyHigh: lobbyRange?.high ?? null,

@@ -4,7 +4,7 @@ import { useApi, revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import LobbyRangeSlider from '../components/LobbyRangeSlider';
-import { MAPS, QUEUE_MODES, ROLE_COLORS, ROLE_SEL_RGB, ROLE_TEXT, ROLE_PILL_CLASS, TYPE_COLORS, HEROES, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, MapVotingRow, QueueMode, Streaks, RANK_TIER_RGB, DEFAULT_LOBBY_SPREAD, rankLabel, rankTier, rankDivision, rankFromParts, clampRank } from '../types';
+import { MAPS, QUEUE_MODES, ROLE_COLORS, ROLE_SEL_RGB, ROLE_TEXT, ROLE_PILL_CLASS, TYPE_COLORS, HEROES, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, MapVotingRow, QueueMode, Streaks, RANK_TIER_RGB, DEFAULT_LOBBY_SPREAD, ACCOUNTS, rankLabel, rankTier, rankDivision, rankFromParts, clampRank } from '../types';
 import AdvisorCard from '../components/AdvisorCard';
 import EmptyState from '../components/EmptyState';
 import { useMapDrawer } from '../contexts/MapDrawerContext';
@@ -178,7 +178,7 @@ const TRAY_WIDTH_KEY = 'ow-lobby-tray-width';
 export default function Prematch() {
   // Shared, single-instance match state (queue mode, map, advisor) lives here
   // and is consumed by the Log Match section too.
-  const { queueMode, map, setMap, mapType, rec, recLoading, recError, refreshRec, revalidateRec, testRole, setTestRole, setPendingHeroes, matchLoggedSignal, playerRank, setPlayerRank, lobbyLow, lobbyHigh, setLobbyRange, clearLobbyRange } = useMatch();
+  const { queueMode, map, setMap, mapType, rec, recLoading, recError, refreshRec, revalidateRec, testRole, setTestRole, setPendingHeroes, matchLoggedSignal, account, setAccount, playerRank, setPlayerRank, lobbyLow, lobbyHigh, setLobbyRange, clearLobbyRange } = useMatch();
 
   // The lobby band's width in divisions, remembered across matches. Eleven is
   // +/-5 around Sean's rank, the spread ~99% of lobbies fall inside — so the
@@ -1188,9 +1188,48 @@ export default function Prematch() {
             rather than sitting empty and inviting a guess. */}
         {queueMode !== 'qp_role' && (
           <div className="mt-4 pt-4 border-t border-ow-border/40" data-inspect-id="prematch-lobby-rank-section">
-            <div className="flex items-baseline gap-2 mb-3">
-              <h3 className="text-sm card-title" data-inspect-id="prematch-lobby-rank-header">Lobby Rank</h3>
-              <span className="text-xs text-[var(--faint-2)]">read it off the scoreboard now</span>
+            <div className="flex items-baseline justify-between gap-3 flex-wrap mb-3">
+              <div className="flex items-baseline gap-2">
+                <h3 className="text-sm card-title" data-inspect-id="prematch-lobby-rank-header">Lobby Rank</h3>
+                <span className="text-xs text-[var(--faint-2)]">read it off the scoreboard now</span>
+              </div>
+              {/* Which account is being played. It belongs in this header and
+                  nowhere else: each account sits at its own rank, so the drum
+                  and the track below both change when this changes. Borrowed
+                  wholesale from Map Voting's role pills — same clipped corner,
+                  same .is-selected bottom-lit treatment — because this is the
+                  same kind of control, a small exclusive pick, and a second
+                  visual language for it would be noise. */}
+              <div className="flex gap-1.5 shrink-0" data-inspect-id="prematch-account-toggle">
+                {ACCOUNTS.map(a => {
+                  const active = account === a;
+                  return (
+                    <button
+                      key={a}
+                      type="button"
+                      onClick={() => setAccount(a)}
+                      aria-pressed={active}
+                      title={`Play as ${a} — its own rank and lobby range`}
+                      className={`px-2.5 py-1 border-2 text-[11px] font-semibold tracking-wide transition-all ${
+                        active ? 'is-selected text-[var(--ink)]' : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)]'
+                      }`}
+                      style={{
+                        clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)',
+                        // The selected account takes the hue of the rank it is
+                        // sitting at, so the pill row and the badge below agree
+                        // without being told twice. No rank yet means no hue,
+                        // and .is-selected falls back to its own default.
+                        ...(active && playerRank != null
+                          ? ({ '--sel': RANK_TIER_RGB[rankTier(playerRank)] } as React.CSSProperties)
+                          : {}),
+                      }}
+                      data-inspect-id={`prematch-account-${a.toLowerCase()}-button`}
+                    >
+                      {a}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* The drum sits in this row, beside the track it defines. Your
