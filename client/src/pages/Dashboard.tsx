@@ -608,11 +608,21 @@ export default function Dashboard() {
                         two bars of the same height come out identical — the
                         same rule the candle gradients follow.
 
-                        Two stops across the whole strip, so the warm-up is
-                        one long climb rather than a flare at the bottom. The
-                        lit part is a fixed slice of the STRIP, not a fraction
-                        of each bar, so a one-match day and a fourteen-match
-                        day are lit to the same height off the ground. That is
+                        The ramp holds at roof colour for the top third, then
+                        climbs to the ground. Where that hold sits is set by
+                        how tall a normal bar actually is, not by taste: the
+                        busiest day in the window is 40 matches and a typical
+                        one is 12.3, so a typical bar reaches only about a
+                        third of the strip. Spread the ramp over the FULL
+                        strip and that bar samples just the bottom third of
+                        it — a few percent of colour change, which reads as no
+                        gradient at all. Concentrating the climb in the lower
+                        two-thirds is what puts a visible transition inside an
+                        ordinary day's bar.
+
+                        The lit part is still a fixed slice of the STRIP, not
+                        a fraction of each bar, so a quiet day and a busy day
+                        are lit to the same height off the ground. That is
                         what real light does.
 
                         Both ends are CSS variables (index.css), because they
@@ -631,6 +641,7 @@ export default function Dashboard() {
                       y2={CH_H}
                     >
                       <stop offset="0" style={{ stopColor: 'var(--vol-roof)' }} />
+                      <stop offset="0.32" style={{ stopColor: 'var(--vol-roof)' }} />
                       <stop offset="1" style={{ stopColor: 'var(--vol-base)' }} />
                     </linearGradient>
                   </defs>
@@ -980,7 +991,7 @@ export default function Dashboard() {
                         <span
                           key={i}
                           className="inline-block w-1"
-                          style={{ height: h, background: 'linear-gradient(to top, var(--vol-base), var(--vol-roof))' }}
+                          style={{ height: h, background: 'linear-gradient(to top, var(--vol-base), var(--vol-roof) 68%)' }}
                         />
                       ))}
                     </span>
