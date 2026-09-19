@@ -309,6 +309,12 @@ export default function Dashboard() {
   const slotW = candles.length ? CH_W / candles.length : CH_W;
   // Bodies keep a gap between them so 30 days read as 30 candles, not a block.
   const bodyW = Math.max(2, slotW * 0.6);
+  // The volume bars get their own, wider measure. The candles want air around
+  // them so 100 days read as 100 separate readings. The skyline wants the
+  // opposite: buildings crowd together, and a wide even gap between every
+  // block reads as a comb rather than a city. Sharing bodyW would have fattened
+  // the candles too.
+  const volW = Math.max(2, slotW * 0.82);
   const slotX = (j: number) => slotW * (j + 0.5);
   const chartY = (v: number) =>
     CH_PAD + (1 - (v - lowV) / vSpan) * (PLOT_BOTTOM - CH_PAD);
@@ -780,9 +786,8 @@ export default function Dashboard() {
                       read as a second axis and pulled the eye down, away from
                       the candles. The ramp alone gives the skyline something
                       to stand in without drawing a line to look at. The bars
-                      are 40% opaque, so the ramp reads through their lower
-                      half and the bottom of every bar picks up the glow —
-                      lit from within rather than washed over. Non-interactive,
+                      are near-solid now, so the ramp is read in the gaps
+                      between them rather than through them. Non-interactive,
                       so it never steals a hover from the day columns. */}
                   <rect
                     x="0"
@@ -795,9 +800,9 @@ export default function Dashboard() {
                   {candles.map((c, j) => (
                     <rect
                       key={`vol-${c.date}`}
-                      x={slotX(j) - bodyW / 2}
+                      x={slotX(j) - volW / 2}
                       y={volY(c.volume)}
-                      width={bodyW}
+                      width={volW}
                       height={CH_H - volY(c.volume)}
                       fill="#14161c"
                       fillOpacity="0.88"
