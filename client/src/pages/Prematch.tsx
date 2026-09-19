@@ -571,41 +571,62 @@ export default function Prematch() {
 
   const queueLabel = QUEUE_MODES.find(q => q.value === queueMode)?.label ?? '';
 
-  // One pill, drawn the same way wherever it appears in the identity strip.
-  // Account and role are the same kind of choice — a small exclusive pick —
-  // and giving them two looks would imply a difference that is not there.
-  const identityPill = (
-    label: string,
-    active: boolean,
-    onClick: () => void,
+  // A segmented control: one row of equal-width choices with a single lit
+  // block that SLIDES between them, rather than the lit state blinking off one
+  // pill and on to another. The movement is the point — it shows the choice
+  // travelling from where it was to where it went, so a mis-click is obvious
+  // from the direction alone.
+  //
+  // Three things make the slide exact rather than approximate:
+  //   - auto-cols-fr gives every option the same width, so step N is always
+  //     N x 100% of the indicator's own width. No measuring, no refs, nothing
+  //     to re-read on resize.
+  //   - no gap between options. A gap is not part of that 100%, so the
+  //     indicator would drift further out of register with each step.
+  //   - the indicator carries the border and .is-selected; the buttons carry
+  //     only text. Two elements painting a border would double it mid-slide.
+  const NOTCH = 'polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px)';
+
+  const identityGroup = <T extends string>(
+    options: readonly T[],
+    value: T,
+    onPick: (v: T) => void,
     sel: string | undefined,
     inspectId: string,
-    title: string,
-  ) => (
-    <button
-      key={label}
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      title={title}
-      // text-xs is 12px — 11px plus a shade over 10%, and a scale token
-      // rather than an arbitrary 12.1px nobody else on the page uses.
-      className={`px-3 flex items-center justify-center border-2 text-xs leading-none font-semibold tracking-wide transition-all ${
-        active ? 'is-selected text-[var(--ink)]' : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)]'
-      }`}
-      style={{
-        // The notch scales with the pill. At 34px tall a 5px cut reads as a
-        // nick rather than a cut corner; at 7px it matches the .card's own
-        // 14px notch at half the size, which is the proportion the rest of
-        // the page uses.
-        clipPath: 'polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px)',
-        ...(active && sel ? ({ '--sel': sel } as React.CSSProperties) : {}),
-      }}
-      data-inspect-id={inspectId}
-    >
-      {label}
-    </button>
-  );
+    idFor: (v: T) => string,
+    titleFor: (v: T) => string,
+  ) => {
+    const i = Math.max(0, options.indexOf(value));
+    return (
+      <div className="relative grid grid-flow-col auto-cols-fr" data-inspect-id={inspectId}>
+        <span
+          aria-hidden="true"
+          className="is-selected absolute inset-y-0 left-0 border-2 pointer-events-none transition-[transform,background-color,border-color,box-shadow] duration-200 ease-out motion-reduce:transition-none"
+          style={{
+            width: `${100 / options.length}%`,
+            transform: `translateX(${i * 100}%)`,
+            clipPath: NOTCH,
+            ...(sel ? ({ '--sel': sel } as React.CSSProperties) : {}),
+          }}
+        />
+        {options.map(o => (
+          <button
+            key={o}
+            type="button"
+            onClick={() => onPick(o)}
+            aria-pressed={value === o}
+            title={titleFor(o)}
+            data-inspect-id={idFor(o)}
+            className={`relative z-10 px-3 flex items-center justify-center text-xs leading-none font-semibold tracking-wide transition-colors ${
+              value === o ? 'text-[var(--ink)]' : 'text-[var(--faint)] hover:text-[var(--ink)]'
+            }`}
+          >
+            {o}
+          </button>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div>
@@ -651,34 +672,29 @@ export default function Prematch() {
             true centre. Sizing them to their own content would drift the
             centre every time the readout's rank text changed length. */}
         <div className="flex items-stretch gap-2.5 shrink-0">
-          <div className="flex gap-1" data-inspect-id="prematch-account-toggle">
-            {ACCOUNTS.map(a =>
-              identityPill(
-                a,
-                account === a,
-                () => setAccount(a),
-                // The selected account wears its own rank tier's hue, so this
-                // strip and the rank badge further down agree without being
-                // told twice. No rank in this slot yet means no hue.
-                account === a && playerRank != null ? RANK_TIER_RGB[rankTier(playerRank)] : undefined,
-                `prematch-account-${a.toLowerCase()}-button`,
-                `Play as ${a}`,
-              ),
-            )}
-          </div>
+          {identityGroup(
+            ACCOUNTS,
+            account,
+            setAccount,
+            // The lit block wears the selected account's own rank tier hue, so
+            // this strip and the rank badge further down agree without being
+            // told twice. It transitions with the slide: moving from a Gold
+            // account to a Platinum one shifts colour as it travels.
+            playerRank != null ? RANK_TIER_RGB[rankTier(playerRank)] : undefined,
+            'prematch-account-toggle',
+            a => `prematch-account-${a.toLowerCase()}-button`,
+            a => `Play as ${a}`,
+          )}
           <span className="w-px self-stretch my-1.5 bg-ow-border/70 shrink-0" aria-hidden="true" />
-          <div className="flex gap-1" data-inspect-id="prematch-role-pick-toggle">
-            {(['DPS', 'Support'] as const).map(r =>
-              identityPill(
-                r,
-                testRole === r,
-                () => setTestRole(r),
-                ROLE_SEL_RGB[r],
-                `prematch-role-pick-${r.toLowerCase()}-button`,
-                `Queue as ${r}`,
-              ),
-            )}
-          </div>
+          {identityGroup(
+            ['DPS', 'Support'] as const,
+            testRole,
+            setTestRole,
+            ROLE_SEL_RGB[testRole],
+            'prematch-role-pick-toggle',
+            r => `prematch-role-pick-${r.toLowerCase()}-button`,
+            r => `Queue as ${r}`,
+          )}
         </div>
 
         {/* Says out loud which of the eight rank slots the pair selects. The
