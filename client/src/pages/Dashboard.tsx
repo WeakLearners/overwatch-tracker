@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useApi } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
-import { Overview, Streaks, TrendPoint, ModeComparison, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB, RANK_TIER_RGB, rankTier, rankLabel } from '../types';
+import { Overview, Streaks, TrendPoint, ModeComparison, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB, RANK_TIER_RGB, rankTier, rankLabel, rankDivision } from '../types';
 import StatCard from '../components/StatCard';
 import AnimatedNumber from '../components/AnimatedNumber';
 import EmptyState from '../components/EmptyState';
@@ -379,30 +379,48 @@ export default function Dashboard() {
   // comparing keeps the output order (and so the stacking order below)
   // stable across renders regardless of Map insertion order.
   type TierMark = { j: number; date: string; up: boolean; tier: string; from: string; rank: number; prev: number; account: string | null; role: string };
+
+  // Where each drawn day sits on the chart, so a mark found in the match list
+  // can be placed. A move older than the window has no candle and is dropped.
+  const candleIdxByDate = new Map(candles.map((c, j) => [c.date, j]));
+
+  // Rank moves, walked match by match rather than day by day.
+  //
+  // Two things were wrong before, both found 2026-09-20 when Sean deranked
+  // Gold 1 -> Gold 2 and no marker appeared.
+  //
+  // First, only a TIER change counted. Gold 1 and Gold 2 are both "Gold", so
+  // the comparison saw no change. Every division move now draws a mark; the
+  // triangle carries the new division number, so the size of the move is in
+  // the glyph instead of being the reason to draw one.
+  //
+  // Second, the old pass compared one day's last reading to the previous
+  // day's. A move within a single day was invisible — the day simply closed
+  // on its newer number and nothing was left to compare against. Worse, a
+  // ladder played for the first time today could never produce a mark at all,
+  // because it had no previous day. Walking the matches in order fixes both:
+  // a move is recorded when it happens, and lands on the day it happened.
   const tierMarks: TierMark[] = (() => {
     const out: TierMark[] = [];
     const prevByDrum = new Map<string, number>();
-    candles.forEach((c, j) => {
-      const keys = Array.from(c.drums.keys()).sort();
-      for (const key of keys) {
-        const d = c.drums.get(key)!;
-        const prev = prevByDrum.get(key);
-        if (prev != null && rankTier(d.rank) !== rankTier(prev)) {
-          out.push({
-            j,
-            date: c.date,
-            up: d.rank > prev,
-            tier: rankTier(d.rank),
-            from: rankTier(prev),
-            rank: d.rank,
-            prev,
-            account: d.account,
-            role: d.role,
-          });
-        }
-        prevByDrum.set(key, d.rank);
-      }
-    });
+    for (const g of trends ?? []) {
+      if (g.player_rank == null) continue;
+      // Each account+role pair is its own ladder ("drum"). Overwatch ranks
+      // every role separately on every account, so comparing across them
+      // would invent a move between two unrelated ladders.
+      const key = `${g.account ?? ''}|${g.role}`;
+      const prev = prevByDrum.get(key);
+      prevByDrum.set(key, g.player_rank);
+      if (prev == null || prev === g.player_rank) continue;
+      const date = g.date.slice(0, 10);
+      const j = candleIdxByDate.get(date);
+      if (j == null) continue;
+      out.push({
+        j, date, up: g.player_rank > prev,
+        tier: rankTier(g.player_rank), from: rankTier(prev),
+        rank: g.player_rank, prev, account: g.account, role: g.role,
+      });
+    }
     return out;
   })();
   // Index by day so the day's hover tooltip can name every crossing on it —
@@ -949,16 +967,38 @@ export default function Dashboard() {
                   const c = candles[m.j];
                   const y = m.up ? chartY(c.low) : chartY(c.high);
                   const stack = tierStackIdx.get(m)!;
-                  const outward = stack * 21; // px: the 11px glyph plus its 8px tag, plus a hair
+                  const outward = stack * 24; // px: the 14px triangle plus its 8px tag, plus a hair
                   const label = drumLabel(m.account, m.role);
-                  const glyph = <span key="g">{m.up ? '▲' : '▼'}</span>;
+                  // The triangle says which way, and the number inside says
+                  // which division he landed in. Both halves of "demoted to
+                  // Gold 2" in one 15px mark, which is what a bare arrow
+                  // could never carry.
+                  //
+                  // The digit sits off-centre on purpose. A triangle's width
+                  // is all at one end, so a vertically centred number crowds
+                  // the point and clips. It rides in the wide half: high in a
+                  // down-triangle, low in an up-triangle.
+                  const div = rankDivision(m.rank);
+                  const glyph = (
+                    <svg key="g" width="15" height="14" viewBox="0 0 15 14" className="overflow-visible">
+                      <polygon
+                        points={m.up ? '7.5,0.5 14.5,13.5 0.5,13.5' : '0.5,0.5 14.5,0.5 7.5,13.5'}
+                        fill="currentColor" stroke="var(--surface)" strokeWidth="1.5" strokeLinejoin="round"
+                        paintOrder="stroke"
+                      />
+                      <text
+                        x="7.5" y={m.up ? 11.4 : 8.6} textAnchor="middle"
+                        fontSize="7.5" fontWeight="700" fill="var(--surface)" className="tabular-nums select-none"
+                      >{div}</text>
+                    </svg>
+                  );
                   const tag = <span key="l" className="text-[8px] leading-none font-bold tracking-tight tabular-nums">{label}</span>;
                   return (
                     <span
                       key={`tier-${m.date}-${label}-${m.up}`}
                       data-inspect-id="dash-recent-form-tier-mark"
-                      title={`[${label}] ${m.up ? 'Promoted' : 'Demoted'} ${m.from} → ${m.tier} · ${rankLabel(m.prev)} → ${rankLabel(m.rank)} · ${format(parseISO(m.date), 'MMM d')}`}
-                      aria-label={`${m.account ?? ''} ${m.role} ${m.up ? 'promoted to' : 'demoted to'} ${m.tier} on ${format(parseISO(m.date), 'MMMM d')}`}
+                      title={`[${label}] ${rankLabel(m.prev)} → ${rankLabel(m.rank)}${m.from !== m.tier ? ` · ${m.up ? 'promoted' : 'demoted'} out of ${m.from}` : ''} · ${format(parseISO(m.date), 'MMM d')}`}
+                      aria-label={`${m.account ?? ''} ${m.role} ${m.up ? 'up' : 'down'} from ${rankLabel(m.prev)} to ${rankLabel(m.rank)} on ${format(parseISO(m.date), 'MMMM d')}`}
                       className="absolute flex flex-col items-center text-[11px] leading-none pointer-events-none select-none"
                       style={{
                         left: `calc(1.75rem + ${(slotX(m.j) / CH_W) * 100}% - ${(slotX(m.j) / CH_W) * 1.75}rem)`,
@@ -973,6 +1013,8 @@ export default function Dashboard() {
                         // thin outline in the page's surface colour keeps the
                         // shape legible in both themes without touching the
                         // hue, which is the part carrying the meaning.
+                        // The tag is still text and still needs lifting off the
+                        // chart; the triangle carries its own outline via paintOrder.
                         textShadow: '0 0 2px var(--surface), 0 0 2px var(--surface)',
                       }}
                     >
