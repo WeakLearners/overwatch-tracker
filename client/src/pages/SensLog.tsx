@@ -13,6 +13,7 @@ import {
 } from '../types';
 import { format } from 'date-fns';
 import SensNav from '../components/SensNav';
+import { parseLutString, formatLut } from '../lib/lut';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface PendingMatch {
@@ -274,8 +275,13 @@ export default function SensLog() {
   );
 }
 
-interface CurveParams { smooth: number; input: number; output: number }
-type CurveField = keyof CurveParams;
+interface CurveParams {
+  smooth: number; input: number; output: number;
+  lutSteps: number | null; lutMaxSpeed: number | null; lutPoints: [number, number][] | null;
+}
+// Only the three Jump fields are edited one-at-a-time in the grid. The LUT is
+// entered whole, so it is deliberately not part of this union.
+type CurveField = 'smooth' | 'input' | 'output';
 
 const CURVE_FIELD_META: Record<CurveField, { label: string; step: string; min: string; max?: string; format: (v: number) => string }> = {
   smooth: { label: 'Smooth', step: '0.01', min: '0', max: '1', format: v => String(v) },
@@ -287,6 +293,115 @@ const CURVE_FIELD_META: Record<CurveField, { label: string; step: string; min: s
 const CURVE_FIELD_VALUE_ID: Record<CurveField, string> = {
   smooth: 'sl-curve-growth-rate', input: 'sl-curve-midpoint', output: 'sl-curve-motivity',
 };
+
+// The lookup table itself. Entered whole rather than cell-by-cell: Sean is
+// copying a table that already exists in Rawaccel, so the fast and exact move
+// is to paste its own text and let the app parse it. Nothing here approximates
+// or generates a table — a fabricated table sitting in a column that reads as
+// "what this match ran under" is the precise confound the analysis page warns
+// about, and generating one to be helpful would manufacture it.
+//
+// lutSteps and lutMaxSpeed are derived, never typed: the server validates that
+// steps equals the point count, and max speed is just the largest x. Two boxes
+// that can only ever disagree with the table are two boxes worth removing.
+function LutEditor({ data }: { data: CurveParams }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const editing = draft !== null;
+  const parsed = editing ? parseLutString(draft) : null;
+  const parseError = parsed && 'error' in parsed ? parsed.error : null;
+  const points = parsed && 'points' in parsed ? parsed.points : null;
+
+  async function put(body: Partial<CurveParams>) {
+    setSaving(true); setError(null);
+    try {
+      const res = await fetch('/api/aim/curve', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, ...body }),
+      });
+      if (!res.ok) {
+        setError((await res.json().catch(() => ({}))).error ?? 'Save failed');
+        return false;
+      }
+      revalidateAll();
+      return true;
+    } finally { setSaving(false); }
+  }
+
+  async function save() {
+    if (!points) return;
+    const ok = await put({
+      lutPoints: points,
+      lutSteps: points.length,
+      lutMaxSpeed: Math.max(...points.map(([x]) => x)),
+    });
+    if (ok) setDraft(null);
+  }
+
+  async function clear() {
+    // lutSteps/lutMaxSpeed stay at whatever they were — the server still
+    // requires them in range, and they describe nothing once points are gone.
+    if (await put({ lutPoints: null })) setDraft(null);
+  }
+
+  return (
+    <div data-inspect-id="sl-lut-editor">
+      {data.lutPoints && !editing && (
+        <div className="rounded-lg bg-ow-darker border border-ow-border p-2.5 mb-2" data-inspect-id="sl-lut-points-table">
+          <div className="flex flex-wrap gap-1.5">
+            {data.lutPoints.map(([x, y], i) => (
+              <span key={i} className="num-display text-xs rounded bg-ow-border/40 px-1.5 py-0.5 text-[var(--ink)]">
+                {x}<span className="text-[var(--faint-2)]">,</span>{y}
+              </span>
+            ))}
+          </div>
+          <p className="text-[10px] text-[var(--faint-2)] mt-1.5">
+            speed (counts/ms), multiplier — up to {Math.max(...data.lutPoints.map(([x]) => x))} counts/ms
+          </p>
+        </div>
+      )}
+
+      {editing ? (
+        <div data-inspect-id="sl-lut-edit">
+          <textarea
+            value={draft} onChange={e => setDraft(e.target.value)} autoFocus rows={2}
+            placeholder="1,1; 16,1; 16.1,1.02; 32,1.02; 32.1,1.1; 140,1.1"
+            data-inspect-id="sl-lut-input" className={`${compactField} mb-1.5`}
+          />
+          {parseError
+            ? <p className="text-xs text-red-400 mb-1.5" data-inspect-id="sl-lut-parse-error">{parseError}</p>
+            : points && <p className="text-[10px] text-[var(--faint-2)] mb-1.5">{points.length} points, up to {Math.max(...points.map(([x]) => x))} counts/ms</p>}
+          <div className="flex gap-1.5">
+            <button
+              type="button" onClick={save} disabled={saving || !points}
+              data-inspect-id="sl-lut-save-btn" className={`${btnSecondary} px-2 py-0.5 text-[10px]`}
+            >{saving ? '…' : 'Save table'}</button>
+            <button
+              type="button" onClick={() => { setDraft(null); setError(null); }} disabled={saving}
+              data-inspect-id="sl-lut-cancel-btn" className="text-[10px] text-[var(--faint-2)] hover:text-[var(--ink)] px-1"
+            >Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex gap-1.5">
+          <button
+            type="button" onClick={() => setDraft(data.lutPoints ? formatLut(data.lutPoints) : '')}
+            data-inspect-id="sl-lut-edit-btn" className={`${btnSecondary} px-2 py-0.5 text-[10px]`}
+          >{data.lutPoints ? 'Edit table' : 'Paste table from Rawaccel'}</button>
+          {data.lutPoints && (
+            <button
+              type="button" onClick={clear} disabled={saving}
+              data-inspect-id="sl-lut-clear-btn" className="text-[10px] text-[var(--faint-2)] hover:text-[var(--ink)] px-1"
+            >Clear</button>
+          )}
+        </div>
+      )}
+      {error && <p className="text-xs text-red-400 mt-1.5" data-inspect-id="sl-lut-save-error">{error}</p>}
+    </div>
+  );
+}
 
 // Rawaccel Jump-curve params GET/PUT /api/aim/curve reports/updates — a
 // single live value (not staged, not per-hero, not per-phase) applied on top
@@ -343,11 +458,22 @@ function CurveParamsCard() {
   return (
     <div className="card mb-6" data-inspect-id="sl-curve-params-card">
       <div className="flex items-start justify-between mb-1">
-        <h2 className="text-sm card-title">Mouse acceleration curve</h2>
+        <h2 className="text-sm card-title">Rawaccel lookup table</h2>
+        {data.lutPoints
+          ? <span data-inspect-id="sl-lut-on-file-badge" className="text-[10px] text-[var(--faint-2)]">{data.lutPoints.length} points on file</span>
+          : <span data-inspect-id="sl-lut-missing-badge" className="text-[10px] text-amber-600 dark:text-amber-400">no table on file</span>}
       </div>
       <p className="text-xs text-[var(--faint)] mb-3">
-        The Jump-curve shape the LUT's points are seeded from. Not your live Rawaccel config any more — editing
-        these changes nothing a match ran under. Edit them whenever you want a different starting shape for the table.
+        Paste the table straight out of Rawaccel. Every match you log from then on records exactly this, so a retune
+        shows up in the analysis as its own row instead of blending into the old one. Until a table is here, a match
+        records only that acceleration was on — not what it was set to.
+      </p>
+
+      <LutEditor data={data} />
+
+      <p className="text-xs text-[var(--faint)] mb-3 mt-5 pt-4 border-t border-ow-border">
+        <b className="text-[var(--ink-2)]">Jump seed shape.</b> Left over from before the move to a lookup table.
+        Nothing is stamped on a match from these any more, and editing them changes nothing a game ran under.
       </p>
       <div className="grid grid-cols-3 gap-3" data-inspect-id="sl-curve-params-fields">
         {(Object.keys(CURVE_FIELD_META) as CurveField[]).map(field => {

@@ -213,7 +213,7 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
   // order — not inferred from value agreement alone).
   const rows = db.prepare(`
     SELECT m.id, ah.hero, mh.sens, m.dpi, m.win, m.date, mh.feel, m.blind_trial,
-           m.curve_enabled, m.curve_growth_rate, m.curve_midpoint, m.curve_motivity,
+           m.curve_enabled, m.curve_growth_rate, m.curve_midpoint, m.curve_motivity, m.curve_lut,
            ah.overall_acc, ah.crit_acc, ah.extra_acc, ah.duration_min AS hero_duration_min,
            a.hero_stat_label, a.hero_stat_value, m.hero AS primary_hero, a.created_at,
            -- Output stats. All live on aim_stats, which is one row per MATCH,
@@ -228,7 +228,7 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
     WHERE mh.sens IS NOT NULL AND ah.overall_acc IS NOT NULL
   `).all() as unknown as {
     id: number; hero: string; sens: number; dpi: number | null; win: 0 | 1; blind_trial: 0 | 1 | null;
-    curve_enabled: 0 | 1; curve_growth_rate: number | null; curve_midpoint: number | null; curve_motivity: number | null;
+    curve_enabled: 0 | 1; curve_growth_rate: number | null; curve_midpoint: number | null; curve_motivity: number | null; curve_lut: string | null;
     overall_acc: number; crit_acc: number | null; extra_acc: number | null;
     hero_stat_label: string | null; hero_stat_value: number | null; primary_hero: string;
     damage: number | null; healing: number | null; elims: number | null;
@@ -406,8 +406,15 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
   // than pooling every curve-on match into one number. Deliberately not
   // folded into any existing metric — a presentation-layer breakdown only,
   // per Sean's instruction not to change computations as part of this task.
-  const curveVariantKey = (p: { curve_enabled: 0 | 1; curve_growth_rate: number | null; curve_midpoint: number | null; curve_motivity: number | null }) =>
-    `${p.curve_enabled}|${p.curve_growth_rate ?? ''}|${p.curve_midpoint ?? ''}|${p.curve_motivity ?? ''}`;
+  // curve_lut joins the key 2026-09-20. Two different lookup tables are two
+  // different interventions, exactly as two different Jump settings already
+  // were — without it every LUT match would pool into one "curve on, Jump
+  // columns null" bucket and re-create the confound this breakdown exists to
+  // expose. The stored JSON is written by one code path (JSON.stringify of a
+  // number-pair array), so identical tables produce identical strings and
+  // group together.
+  const curveVariantKey = (p: { curve_enabled: 0 | 1; curve_growth_rate: number | null; curve_midpoint: number | null; curve_motivity: number | null; curve_lut: string | null }) =>
+    `${p.curve_enabled}|${p.curve_growth_rate ?? ''}|${p.curve_midpoint ?? ''}|${p.curve_motivity ?? ''}|${p.curve_lut ?? ''}`;
 
   const summarizeCurveVariants = (items: typeof pts) =>
     [...groupBy(items, curveVariantKey).values()]
@@ -416,6 +423,7 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
         smooth: g[0].curve_growth_rate,
         input: g[0].curve_midpoint,
         output: g[0].curve_motivity,
+        lut: g[0].curve_lut ? (JSON.parse(g[0].curve_lut) as [number, number][]) : null,
         n: g.length,
         avgOverall: mean(g.map(p => p.overall_acc)),
         avgDelta: mean(g.filter(p => p.delta != null).map(p => p.delta as number)),

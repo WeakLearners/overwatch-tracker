@@ -4,6 +4,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ReferenceArea,
 } from 'recharts';
 import { useApi } from '../hooks/useApi';
+import { formatLut } from '../lib/lut';
 import SensNav from '../components/SensNav';
 import { MOUSE_DPI } from '../lib/aim';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
@@ -47,8 +48,13 @@ interface ScaleRow {
 // variant, not "no data". See aim.ts's summarizeCurveVariants.
 interface CurveVariant {
   curveEnabled: boolean; smooth: number | null; input: number | null; output: number | null;
+  // The lookup table this group of matches ran under, once Sean moved off the
+  // Jump curve (2026-09-20). A variant has one or the other, never both: Jump
+  // rows predate the move and carry smooth/input/output, LUT rows carry this.
+  lut: [number, number][] | null;
   n: number; avgOverall: number | null; avgDelta: number | null;
 }
+
 interface Bucket {
   bucket: string; n: number;
   avgOverall: number | null; avgDelta: number | null; avgFeel: number | null; winRate: number | null;
@@ -103,7 +109,13 @@ interface Analysis {
   // The Rawaccel curve currently live (2026-09-17) — same shape GET
   // /api/aim/curve returns, included here so this page can show what curve
   // is actually running without a second request.
-  liveCurve: { smooth: number; input: number; output: number };
+  // Mirrors GET /api/aim/curve. smooth/input/output are the Jump-curve shape
+  // the LUT editor seeds from; lutPoints is the real table, null until Sean
+  // has entered one.
+  liveCurve: {
+    smooth: number; input: number; output: number;
+    lutSteps: number | null; lutMaxSpeed: number | null; lutPoints: [number, number][] | null;
+  };
   // Roster-wide curve-variant breakdown (2026-09-17) — see CurveVariant.
   curveBreakdown: CurveVariant[];
   overallCurveFit: CurveFit | null;
@@ -1339,7 +1351,7 @@ export default function SensAnalysis() {
                     {r.curveVariants.length > 1 && (
                       <span
                         className="text-[10px] font-normal text-amber-600 dark:text-amber-400 ml-1"
-                        title={`Mixes ${r.curveVariants.length} different curve settings: ${r.curveVariants.map(v => `${v.curveEnabled ? `on ${v.smooth}/${v.input}/${v.output}` : 'off'} (n=${v.n})`).join(', ')} — see Curve Confound above`}
+                        title={`Mixes ${r.curveVariants.length} different curve settings: ${r.curveVariants.map(v => `${v.curveEnabled ? (v.lut ? `on LUT ${formatLut(v.lut)}` : `on ${v.smooth}/${v.input}/${v.output}`) : 'off'} (n=${v.n})`).join(', ')} — see Curve Confound above`}
                       >
                         ⎘
                       </span>
@@ -1911,10 +1923,13 @@ export default function SensAnalysis() {
           1.1x; the app's model has a soft transition and currently reads
           1.15x-1.5x), not just different numbers, so the 203 curve_enabled=1
           matches may not accurately describe what was actually running.
-          Investigated, not fixed: the schema has no way to store a LUT
-          (curve_params/matches only ever hold three scalars) — representing
-          one would need a new column shape or table, out of scope here per
-          Sean's explicit no-schema-change instruction. */}
+          Fixed 2026-09-20, partially: curve_params now stores the live LUT
+          and matches.curve_lut stamps the table each new match ran under, so
+          a LUT is a first-class curve variant from that date on. What it
+          cannot do is repair history — the 203 curve_enabled=1 rows logged
+          before then still hold Jump approximations of a staircase, and no
+          record exists of which table was really running for any of them.
+          That half stays a known limit, not a to-do. */}
       {(() => {
         const c = data.liveCurve;
         return (
@@ -1924,12 +1939,22 @@ export default function SensAnalysis() {
             dataInspectId="sensAnalysis-curve-confound"
           >
             <p className="text-xs text-[var(--faint)] rounded-lg bg-ow-darker border border-ow-border px-3 py-2 mb-3">
-              App-recorded live curve (Jump model): <b className="text-[var(--ink)] num-display">{c.smooth}</b> smooth /{' '}
-              <b className="text-[var(--ink)] num-display">{c.input}</b> input /{' '}
-              <b className="text-[var(--ink)] num-display">{c.output}</b> output. Sean's actual Rawaccel setup is a
-              LUT staircase (1,1; 16,1; 16.1,1.02; 32,1.02; 32.1,1.1; 140,1.1) — a different mechanism (no smoothing,
-              capped at 1.1×) than the Jump model above. This app cannot represent a LUT; the columns it writes are
-              Jump parameters that approximate, but do not exactly describe, what was actually running.
+              {c.lutPoints ? (
+                <>
+                  Live lookup table on file: <b className="text-[var(--ink)] num-display">{formatLut(c.lutPoints)}</b>{' '}
+                  ({c.lutPoints.length} points). Every match logged from now on stamps this table, so a change to it
+                  shows up below as a new row rather than blending into the old one.
+                </>
+              ) : (
+                <>
+                  <b className="text-[var(--ink)]">No lookup table on file yet.</b> Rawaccel is running one — the app
+                  just has not been told what it is. Until you enter it on the testing page, matches record only that
+                  acceleration was on, not what it was set to.
+                </>
+              )}{' '}
+              Matches logged before 2026-09-20 are a separate problem and not a fixable one: they hold Jump parameters
+              ({c.smooth} smooth / {c.input} input / {c.output} output was the last such setting) that approximate a
+              staircase rather than describe it. Nothing records which table those games actually ran under.
             </p>
             {curveIsConfounded && (
               <p className="text-xs rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 px-3 py-2 mb-3" data-inspect-id="sensAnalysis-curve-confound-warning">
@@ -1957,8 +1982,21 @@ export default function SensAnalysis() {
                   {curveOnVariants.map((v, i) => (
                     <tr key={i} className="border-t border-ow-border text-[var(--ink-2)]">
                       <td className="py-1.5 pr-3 text-[var(--ink)] font-bold">
-                        On — {v.smooth ?? '—'}/{v.input ?? '—'}/{v.output ?? '—'}
-                        <span className="ml-1 text-[10px] font-normal text-[var(--faint-2)]">(smooth/input/output)</span>
+                        {v.lut ? (
+                          <>
+                            On — LUT <span className="num-display">{formatLut(v.lut)}</span>
+                            <span className="ml-1 text-[10px] font-normal text-[var(--faint-2)]">({v.lut.length} points)</span>
+                          </>
+                        ) : (
+                          <>
+                            On — {v.smooth ?? '—'}/{v.input ?? '—'}/{v.output ?? '—'}
+                            <span className="ml-1 text-[10px] font-normal text-[var(--faint-2)]">
+                              {v.smooth == null && v.input == null && v.output == null
+                                ? '(no table on file — nothing recorded)'
+                                : '(smooth/input/output)'}
+                            </span>
+                          </>
+                        )}
                       </td>
                       <td className="py-1.5 pr-3 font-bold">{v.n}</td>
                       <td className="py-1.5 pr-3">{f1(v.avgOverall)}%</td>

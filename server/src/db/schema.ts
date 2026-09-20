@@ -134,6 +134,23 @@ function initSchema(db: DatabaseSync) {
     db.exec(`ALTER TABLE matches ADD COLUMN curve_motivity REAL`);
   }
 
+  // curve_lut: the Look Up Table this match actually ran under, as a JSON
+  // array of [x, y] pairs — added 2026-09-20 when Sean moved his real
+  // Rawaccel config off the Jump curve onto a LUT. This is the THIRD era of
+  // the three columns above: Motivity values (2026-08-25 to 08-31), Jump
+  // values (09-01 to 09-20), and from 09-20 a LUT recorded here while those
+  // three go null.
+  //
+  // Stamped ONLY when curve_params.lut_points holds a real table Sean has
+  // entered. It is never filled from the seeded approximation the card
+  // pre-fills its editor with. A generated table that merely resembles the
+  // real one is exactly the confound the 2026-09-17 finding was about — a
+  // column that looks like a record of what ran and is not one. Null here
+  // means "no table on file for this match," which is true and checkable.
+  if (!cols.find(c => c.name === 'curve_lut')) {
+    db.exec(`ALTER TABLE matches ADD COLUMN curve_lut TEXT`);
+  }
+
   // curve_enabled: whether mouse acceleration was actually active for this
   // match — ground truth, distinct from curve_growth_rate/curve_midpoint
   // above. Those two got stamped with the same constant on every match

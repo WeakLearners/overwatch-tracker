@@ -33,6 +33,8 @@ export interface MatchInput {
   curve_growth_rate?: number | null;
   curve_midpoint?: number | null;
   curve_motivity?: number | null;
+  // JSON array of [x, y] pairs — the LUT a match ran under (2026-09-20 on).
+  curve_lut?: string | null;
 }
 
 // Inserts a matches row. Does NOT insert the corresponding match_heroes
@@ -41,8 +43,8 @@ export interface MatchInput {
 // insert both explicitly, so fixtures do the same via insertHeroSlot below.
 export function insertMatch(db: DB, m: MatchInput): number {
   const info = db.prepare(`
-    INSERT INTO matches (date, time, day_of_week, hour, hero, role, map, game_type, win, queue_mode, sens, dpi, feel, blind_trial, blind_set_id, stage_index, curve_enabled, curve_growth_rate, curve_midpoint, curve_motivity)
-    VALUES (:date, :time, :day_of_week, :hour, :hero, :role, :map, :game_type, :win, :queue_mode, :sens, :dpi, :feel, :blind_trial, :blind_set_id, :stage_index, :curve_enabled, :curve_growth_rate, :curve_midpoint, :curve_motivity)
+    INSERT INTO matches (date, time, day_of_week, hour, hero, role, map, game_type, win, queue_mode, sens, dpi, feel, blind_trial, blind_set_id, stage_index, curve_enabled, curve_growth_rate, curve_midpoint, curve_motivity, curve_lut)
+    VALUES (:date, :time, :day_of_week, :hour, :hero, :role, :map, :game_type, :win, :queue_mode, :sens, :dpi, :feel, :blind_trial, :blind_set_id, :stage_index, :curve_enabled, :curve_growth_rate, :curve_midpoint, :curve_motivity, :curve_lut)
   `).run({
     date: m.date,
     time: m.time ?? null,
@@ -64,6 +66,7 @@ export function insertMatch(db: DB, m: MatchInput): number {
     curve_growth_rate: m.curve_growth_rate ?? null,
     curve_midpoint: m.curve_midpoint ?? null,
     curve_motivity: m.curve_motivity ?? null,
+    curve_lut: m.curve_lut ?? null,
   });
   return Number(info.lastInsertRowid);
 }

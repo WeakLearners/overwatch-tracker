@@ -672,6 +672,38 @@ describe('computeAnalysis: curve breakdown (2026-09-17 confound)', () => {
     assert.equal(bucket.curveVariants.length, 3);
   });
 
+  test('two different LUTs are two variants, not one pooled "curve on" bucket', () => {
+    // The whole reason curve_lut joins curveVariantKey. Both groups have all
+    // three Jump columns null and curve_enabled = 1, so before the LUT was
+    // part of the key these five matches were one indistinguishable bucket —
+    // the exact confound the 2026-09-17 finding was about, re-created.
+    const lutA = JSON.stringify([[1, 1], [16, 1], [32, 1.1]]);
+    const lutB = JSON.stringify([[1, 1], [16, 1.05], [32, 1.2]]);
+    for (const [i, lut] of [lutA, lutA, lutA, lutB, lutB].entries()) {
+      const matchId = insertMatch(db, {
+        date: `2026-07-0${i + 1}`, hero: 'Ashe', role: 'DPS', win: 1,
+        sens: 2.5, dpi: 1600, blind_trial: 1, curve_enabled: 1, curve_lut: lut,
+      });
+      insertHeroSlot(db, { match_id: matchId, slot: 1, hero: 'Ashe', role: 'DPS', sens: 2.5 });
+      insertAimStats(db, { match_id: matchId, overall_acc: 50, duration_min: 10 });
+      insertAimStatsHero(db, { match_id: matchId, hero: 'Ashe', overall_acc: 50, crit_acc: null });
+    }
+    const r = computeAnalysis(db);
+    assert.equal(r.curveBreakdown.length, 2, 'two distinct LUTs must not pool into one curve-on bucket');
+    const a = r.curveBreakdown.find(v => v.n === 3)!;
+    const b = r.curveBreakdown.find(v => v.n === 2)!;
+    assert.deepEqual(a.lut, [[1, 1], [16, 1], [32, 1.1]]);
+    assert.deepEqual(b.lut, [[1, 1], [16, 1.05], [32, 1.2]]);
+    assert.equal(a.smooth, null, 'a LUT-era row carries no Jump params');
+  });
+
+  test('a match with no LUT on file reports lut null, not an empty table', () => {
+    for (let g = 0; g < 5; g++) insertPoint({ date: `2026-06-0${g + 1}`, hero: 'Ashe', sens: 2.5, overallAcc: 50 });
+    const r = computeAnalysis(db);
+    assert.equal(r.curveBreakdown.length, 1);
+    assert.equal(r.curveBreakdown[0].lut, null, 'absence of a table must read as null, never []');
+  });
+
   test('a single-variant scale reports exactly one curve variant, not a false mix', () => {
     for (let g = 0; g < 5; g++) insertPoint({ date: `2026-08-0${g + 1}`, hero: 'Ashe', sens: 2.5, overallAcc: 50 });
     const r = computeAnalysis(db);
