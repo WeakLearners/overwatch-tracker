@@ -308,6 +308,13 @@ const rowsFromPoints = (pts: [number, number][] | null): LutRow[] =>
 
 const rowsToString = (rows: LutRow[]) => rows.map(r => `${r.x.trim()},${r.y.trim()}`).join('; ');
 
+// Sized to the number, not to the column. A speed tops out around 140 and a
+// multiplier around 1.1, so five characters covers every value either box
+// will ever hold; a full-width field would be mostly empty space. Plain text
+// with a decimal keypad rather than type=number, whose spinner arrows would
+// cost more width than the digits do.
+const lutCell = 'w-[4.5ch] bg-transparent text-xs num-display text-[var(--ink)] text-center outline-none';
+
 function LutEditor({ data }: { data: CurveParams }) {
   const [rows, setRows] = useState<LutRow[]>(() => rowsFromPoints(data.lutPoints));
   const [saving, setSaving] = useState(false);
@@ -357,27 +364,29 @@ function LutEditor({ data }: { data: CurveParams }) {
 
   return (
     <div data-inspect-id="sl-lut-editor">
-      <div className="grid grid-cols-[auto_1fr_1fr_auto] gap-x-2 gap-y-1 items-center mb-2" data-inspect-id="sl-lut-rows">
-        <span />
-        <span className="text-[10px] uppercase tracking-wide text-[var(--faint-2)]">Speed (counts/ms)</span>
-        <span className="text-[10px] uppercase tracking-wide text-[var(--faint-2)]">Multiplier</span>
-        <span />
+      <p className="text-[10px] uppercase tracking-wide text-[var(--faint-2)] mb-1">speed (counts/ms), multiplier</p>
+      <div className="flex flex-wrap gap-1.5 mb-2" data-inspect-id="sl-lut-rows">
         {rows.map((r, i) => (
-          <div key={i} className="contents">
-            <span className="text-[10px] text-[var(--faint-2)] num-display w-4 text-right">{i + 1}</span>
+          <div
+            key={i} data-inspect-id="sl-lut-row"
+            className="inline-flex items-center rounded-md bg-ow-darker border border-ow-border pl-1.5 pr-0.5 py-0.5 focus-within:border-gray-500"
+          >
             <input
-              type="number" step="0.1" min="0" value={r.x} onChange={e => setCell(i, 'x', e.target.value)}
-              data-inspect-id="sl-lut-row-x" className={compactField}
+              value={r.x} onChange={e => setCell(i, 'x', e.target.value)}
+              inputMode="decimal" size={1} aria-label={`Point ${i + 1} speed`}
+              data-inspect-id="sl-lut-row-x" className={lutCell}
             />
+            <span className="text-[var(--faint-2)] text-xs px-px">,</span>
             <input
-              type="number" step="0.01" value={r.y} onChange={e => setCell(i, 'y', e.target.value)}
-              data-inspect-id="sl-lut-row-y" className={compactField}
+              value={r.y} onChange={e => setCell(i, 'y', e.target.value)}
+              inputMode="decimal" size={1} aria-label={`Point ${i + 1} multiplier`}
+              data-inspect-id="sl-lut-row-y" className={lutCell}
             />
             <button
               type="button" onClick={() => setRows(rs => rs.filter((_, j) => j !== i))}
               disabled={rows.length <= 2} title={rows.length <= 2 ? 'A table needs at least 2 points' : 'Remove this point'}
               data-inspect-id="sl-lut-row-remove-btn"
-              className="text-[var(--faint-2)] hover:text-red-400 disabled:opacity-30 disabled:hover:text-[var(--faint-2)] px-1 text-xs"
+              className="text-[var(--faint-2)] hover:text-red-400 disabled:opacity-0 px-1 text-[11px] leading-none"
             >×</button>
           </div>
         ))}
