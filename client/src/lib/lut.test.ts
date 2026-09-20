@@ -69,3 +69,11 @@ test('formatLut output parses back to the identical points', () => {
   const pts: [number, number][] = [[1, 1], [16, 1], [16.1, 1.02], [32, 1.02], [32.1, 1.1], [140, 1.1]];
   assert.deepEqual(ok(formatLut(pts)), pts);
 });
+
+test('the copy separator drops the space, for pasting back into Rawaccel', () => {
+  assert.equal(formatLut([[1, 1], [16, 1], [32, 1.1]], ';'), '1,1;16,1;32,1.1');
+});
+
+test('the tight form still parses back, so a copy can be re-pasted here', () => {
+  assert.deepEqual(ok(formatLut([[1, 1], [16, 1], [32, 1.1]], ';')), [[1, 1], [16, 1], [32, 1.1]]);
+});

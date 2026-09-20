@@ -36,4 +36,9 @@ export function parseLutString(raw: string): { points: [number, number][] } | { 
   return { points };
 }
 
-export const formatLut = (pts: [number, number][]) => pts.map(([x, y]) => `${x},${y}`).join('; ');
+// Default separator has a space after the semicolon, which reads better in a
+// label or an edit box. Rawaccel's own field wants no spaces, so the copy
+// button passes ';' — the round trip through parseLutString is unaffected
+// either way, since it trims every chunk.
+export const formatLut = (pts: [number, number][], sep = '; ') =>
+  pts.map(([x, y]) => `${x},${y}`).join(sep);

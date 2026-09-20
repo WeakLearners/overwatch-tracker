@@ -320,6 +320,7 @@ function LutEditor({ data }: { data: CurveParams }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pasting, setPasting] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [paste, setPaste] = useState('');
 
   // Re-sync when the saved table changes underneath (another tab, or this
@@ -354,6 +355,20 @@ function LutEditor({ data }: { data: CurveParams }) {
   const save = () => points && put({
     lutPoints: points, lutSteps: points.length, lutMaxSpeed: Math.max(...points.map(([x]) => x)),
   });
+
+  // Copies in Rawaccel's own tight form so it can go straight into its LUT
+  // field. Copies what is on screen, not what is saved — after tuning a point
+  // the whole reason to copy is to carry the NEW table over to Rawaccel.
+  async function copyTable() {
+    if (!points) return;
+    try {
+      await navigator.clipboard.writeText(formatLut(points, ';'));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setError('Could not reach the clipboard.');
+    }
+  }
 
   function applyPaste() {
     const r = parseLutString(paste);
@@ -402,6 +417,11 @@ function LutEditor({ data }: { data: CurveParams }) {
           type="button" onClick={() => setPasting(v => !v)}
           data-inspect-id="sl-lut-paste-toggle-btn" className={`${btnSecondary} px-2 py-0.5 text-[10px]`}
         >{pasting ? 'Close paste' : 'Paste from Rawaccel'}</button>
+        <button
+          type="button" onClick={copyTable} disabled={!points}
+          title={points ? "Copy in Rawaccel's format" : 'Fix the table first'}
+          data-inspect-id="sl-lut-copy-btn" className={`${btnSecondary} px-2 py-0.5 text-[10px]`}
+        >{copied ? 'Copied' : 'Copy'}</button>
         {dirty && (
           <button
             type="button" onClick={save} disabled={saving || !points}
