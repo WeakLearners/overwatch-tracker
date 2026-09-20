@@ -236,6 +236,15 @@ export default function Dashboard() {
       // every match logged before it carries null.
       const withRank = games.filter(g => g.player_rank != null);
       const rank = withRank.length ? withRank[withRank.length - 1].player_rank! : null;
+      // Same "last reading of the day" idea as `rank` above, but split by
+      // account+role. Overwatch ranks each role separately on each account,
+      // so "the rank at end of day" isn't one number — it's one number PER
+      // ladder Sean actually played that day. Games arrive ordered by date
+      // then time, so a forward pass leaves each key on its latest reading.
+      const drums = new Map<string, { rank: number; account: string | null; role: string }>();
+      for (const g of withRank) {
+        drums.set(`${g.account ?? ''}|${g.role}`, { rank: g.player_rank!, account: g.account, role: g.role });
+      }
       const open = carry;
       const close = open + compW - compL;
       carry = close;
@@ -248,7 +257,7 @@ export default function Dashboard() {
       const top = Math.max(open, close);
       const bottom = Math.min(open, close);
       return {
-        date, open, close, compW, compL, qpW, qpL, top, bottom, nOpen, nClose, rank,
+        date, open, close, compW, compL, qpW, qpL, top, bottom, nOpen, nClose, rank, drums,
         volume: games.length,
         // Which way the day went, as hue. Normally that is the competitive
         // running total: close above open means a winning day.
@@ -364,29 +373,67 @@ export default function Dashboard() {
   // Only the boundary matters, not every division. Gold 3 to Gold 2 is a good
   // night; Gold 1 to Platinum 5 is the thing you remember, and it is the only
   // one that gets a mark.
-  const tierMarks = (() => {
-    const out: { j: number; date: string; up: boolean; tier: string; from: string; rank: number; prev: number }[] = [];
-    let prev: number | null = null;
+  // Each account+role pair is its own ladder ("drum"), tracked independently
+  // — a drum missing from a given day keeps whatever it read last, so a gap
+  // in play never invents a crossing for that drum. Sorting keys before
+  // comparing keeps the output order (and so the stacking order below)
+  // stable across renders regardless of Map insertion order.
+  type TierMark = { j: number; date: string; up: boolean; tier: string; from: string; rank: number; prev: number; account: string | null; role: string };
+  const tierMarks: TierMark[] = (() => {
+    const out: TierMark[] = [];
+    const prevByDrum = new Map<string, number>();
     candles.forEach((c, j) => {
-      if (c.rank == null) return;
-      if (prev != null && rankTier(c.rank) !== rankTier(prev)) {
-        out.push({
-          j,
-          date: c.date,
-          up: c.rank > prev,
-          tier: rankTier(c.rank),
-          from: rankTier(prev),
-          rank: c.rank,
-          prev,
-        });
+      const keys = Array.from(c.drums.keys()).sort();
+      for (const key of keys) {
+        const d = c.drums.get(key)!;
+        const prev = prevByDrum.get(key);
+        if (prev != null && rankTier(d.rank) !== rankTier(prev)) {
+          out.push({
+            j,
+            date: c.date,
+            up: d.rank > prev,
+            tier: rankTier(d.rank),
+            from: rankTier(prev),
+            rank: d.rank,
+            prev,
+            account: d.account,
+            role: d.role,
+          });
+        }
+        prevByDrum.set(key, d.rank);
       }
-      prev = c.rank;
     });
     return out;
   })();
-  // Index by day so the day's hover tooltip can name the crossing too. The
-  // triangle says a tier changed; only the tooltip can say which two.
-  const tierMarkByDay = new Map(tierMarks.map(m => [m.date, m]));
+  // Index by day so the day's hover tooltip can name every crossing on it —
+  // a day can now hold more than one, one per drum that changed tier.
+  const tierMarkByDay = new Map<string, TierMark[]>();
+  for (const m of tierMarks) {
+    const list = tierMarkByDay.get(m.date) ?? [];
+    list.push(m);
+    tierMarkByDay.set(m.date, list);
+  }
+  // Two-letter tag for a mark's label: account initial + role initial, both
+  // uppercase (Jinx+Support -> "JS"). No account on record (the 7 ranked
+  // rows logged before this column existed) falls back to the role initial
+  // alone, since that's all there is to say.
+  const drumLabel = (account: string | null, role: string) =>
+    (account ? account[0].toUpperCase() : '') + role[0].toUpperCase();
+  // A day can now carry several crossings. Marks pointing the same way on
+  // the same day would land on top of each other, so each successive one
+  // (in the same stable sorted-key order used to build tierMarks) is pushed
+  // a further 14px outward from the candle — up-marks stack down from the
+  // day's low, down-marks stack up from the day's high.
+  const tierStackIdx = new Map<TierMark, number>();
+  {
+    const counters = new Map<string, number>();
+    for (const m of tierMarks) {
+      const key = `${m.date}|${m.up}`;
+      const idx = counters.get(key) ?? 0;
+      tierStackIdx.set(m, idx);
+      counters.set(key, idx + 1);
+    }
+  }
 
   const zeroY = chartY(0);
   const lastCandle = candles.length ? candles[candles.length - 1] : null;
@@ -850,7 +897,7 @@ export default function Dashboard() {
                       fill="transparent"
                     >
                       <title>
-                        {`${format(parseISO(c.date), 'MMM d')} · ${c.volume} played · comp ${c.compW}W ${c.compL}L${c.qpW + c.qpL > 0 ? ` · qp ${c.qpW}W ${c.qpL}L` : ''} · ${c.open > 0 ? '+' : ''}${c.open} → ${c.close > 0 ? '+' : ''}${c.close} · pace ${paceAt(c.nClose) >= 0 ? '+' : ''}${paceAt(c.nClose).toFixed(1)}${tierMarkByDay.has(c.date) ? ` · ${tierMarkByDay.get(c.date)!.up ? 'promoted' : 'demoted'} ${rankLabel(tierMarkByDay.get(c.date)!.prev)} → ${rankLabel(tierMarkByDay.get(c.date)!.rank)}` : ''}`}
+                        {`${format(parseISO(c.date), 'MMM d')} · ${c.volume} played · comp ${c.compW}W ${c.compL}L${c.qpW + c.qpL > 0 ? ` · qp ${c.qpW}W ${c.qpL}L` : ''} · ${c.open > 0 ? '+' : ''}${c.open} → ${c.close > 0 ? '+' : ''}${c.close} · pace ${paceAt(c.nClose) >= 0 ? '+' : ''}${paceAt(c.nClose).toFixed(1)}${(tierMarkByDay.get(c.date) ?? []).map(m => ` · [${drumLabel(m.account, m.role)}] ${m.up ? 'promoted' : 'demoted'} ${rankLabel(m.prev)} → ${rankLabel(m.rank)}`).join('')}`}
                       </title>
                     </rect>
                   ))}
@@ -895,17 +942,24 @@ export default function Dashboard() {
                 {tierMarks.map(m => {
                   const c = candles[m.j];
                   const y = m.up ? chartY(c.low) : chartY(c.high);
+                  const stack = tierStackIdx.get(m)!;
+                  const outward = stack * 14; // px, growing away from the candle per stacked mark
+                  const label = drumLabel(m.account, m.role);
+                  const glyph = <span key="g">{m.up ? '▲' : '▼'}</span>;
+                  const tag = <span key="l" className="text-[8px] leading-none font-bold tracking-tight tabular-nums">{label}</span>;
                   return (
                     <span
-                      key={`tier-${m.date}`}
+                      key={`tier-${m.date}-${label}-${m.up}`}
                       data-inspect-id="dash-recent-form-tier-mark"
-                      title={`${m.up ? 'Promoted' : 'Demoted'} ${m.from} → ${m.tier} · ${rankLabel(m.prev)} → ${rankLabel(m.rank)} · ${format(parseISO(m.date), 'MMM d')}`}
-                      aria-label={`${m.up ? 'Promoted to' : 'Demoted to'} ${m.tier} on ${format(parseISO(m.date), 'MMMM d')}`}
-                      className="absolute text-[11px] leading-none pointer-events-none select-none"
+                      title={`[${label}] ${m.up ? 'Promoted' : 'Demoted'} ${m.from} → ${m.tier} · ${rankLabel(m.prev)} → ${rankLabel(m.rank)} · ${format(parseISO(m.date), 'MMM d')}`}
+                      aria-label={`${m.account ?? ''} ${m.role} ${m.up ? 'promoted to' : 'demoted to'} ${m.tier} on ${format(parseISO(m.date), 'MMMM d')}`}
+                      className="absolute flex flex-col items-center text-[11px] leading-none pointer-events-none select-none"
                       style={{
                         left: `calc(1.75rem + ${(slotX(m.j) / CH_W) * 100}% - ${(slotX(m.j) / CH_W) * 1.75}rem)`,
                         top: `${(y / CH_H) * 100}%`,
-                        transform: m.up ? 'translate(-50%, 2px)' : 'translate(-50%, -100%) translateY(-2px)',
+                        transform: m.up
+                          ? `translate(-50%, ${2 + outward}px)`
+                          : `translate(-50%, -100%) translateY(${-2 - outward}px)`,
                         color: `rgb(${RANK_TIER_RGB[m.tier as keyof typeof RANK_TIER_RGB]})`,
                         // A tier colour chosen to read on a rank badge is not
                         // guaranteed to read on the chart's own background,
@@ -916,7 +970,7 @@ export default function Dashboard() {
                         textShadow: '0 0 2px var(--surface), 0 0 2px var(--surface)',
                       }}
                     >
-                      {m.up ? '▲' : '▼'}
+                      {m.up ? [glyph, tag] : [tag, glyph]}
                     </span>
                   );
                 })}
