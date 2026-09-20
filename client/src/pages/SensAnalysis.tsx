@@ -165,13 +165,13 @@ const wMean = (rows: ScaleRow[], key: 'avgFeel' | 'avgDelta'): number => {
 // Custom tooltip for the Feel vs. Data quadrant chart — the point identity is
 // its sens scale, which neither axis carries, so the default two-axis readout
 // isn't enough.
-function QuadrantTooltip({ active, payload }: { active?: boolean; payload?: { payload: ScaleRow & { sensAt1600: number } }[] }) {
+function QuadrantTooltip({ active, payload }: { active?: boolean; payload?: { payload: ScaleRow & { sensAt1600: number; feelOff: number } }[] }) {
   if (!active || !payload?.length) return null;
   const p = payload[0].payload;
   return (
     <div style={{ background: 'rgb(var(--ow-card))', border: '1px solid rgb(var(--ow-border))', borderRadius: 8, fontSize: 12, padding: '6px 10px' }}>
       <div style={{ fontWeight: 700 }}>{p.sensAt1600.toFixed(2)} sens @ {MOUSE_DPI} DPI</div>
-      <div>Felt speed: <b style={{ fontWeight: 700 }}>{f1(p.avgFeel)}</b>/100</div>
+      <div>Felt speed: <b style={{ fontWeight: 700 }}>{f1(p.avgFeel)}</b>/100 <span style={{ opacity: 0.7 }}>({f1(p.feelOff)} from neutral)</span></div>
       <div>Accuracy vs. your average: <b style={{ fontWeight: 700 }}>{signed(p.avgDelta)}</b></div>
       <div style={{ opacity: 0.7 }}>{p.n} game{p.n === 1 ? '' : 's'}</div>
     </div>
@@ -964,13 +964,30 @@ export default function SensAnalysis() {
   const spreadGridX = gridTicks(spreadXDomain[0], spreadXDomain[1], 0.1);
   const spreadGridY = gridTicks(spreadYDomain[0], spreadYDomain[1], 5);
 
-  // Feel vs. Data quadrant: each scale plotted at (felt speed, accuracy delta),
-  // with the crosshair sitting at Sean's own mean of each — so the four
-  // quadrants read as above/below-average feel × above/below-average accuracy.
-  const feelPts = byScaleSpeed.filter(r => r.avgFeel != null && r.avgDelta != null);
-  const meanFeel = wMean(byScaleSpeed, 'avgFeel');
+  // Feel vs. Data quadrant: each scale plotted at (how far its felt speed sat
+  // from neutral, accuracy delta).
+  //
+  // The X axis is FOLDED to |avgFeel - 50| rather than plotting avgFeel raw.
+  // A scale rated 25 and a scale rated 75 are equally far from feeling neutral,
+  // one slow and one fast, but the raw axis put them at opposite extremes. That
+  // invited reading left-to-right as a preference ranking ("over-rated" vs
+  // "under-rated") when the only thing the axis can actually support is the
+  // SIZE of the mismatch between how a scale felt and how it scored.
+  //
+  // The crosshair sits at Sean's own n-weighted mean of the folded value, not
+  // at 0. At 0 every point would land on one side and the four quadrants would
+  // collapse into two. Centering on his own mean also matches every other chart
+  // on this page, which compares him against himself rather than an absolute.
+  const FEEL_NEUTRAL = 50;
+  const feelPts = byScaleSpeed
+    .filter(r => r.avgFeel != null && r.avgDelta != null)
+    .map(r => ({ ...r, feelOff: Math.abs((r.avgFeel as number) - FEEL_NEUTRAL) }));
+  const feelOffTotalN = feelPts.reduce((s, r) => s + r.n, 0);
+  const meanFeelOff = feelOffTotalN
+    ? feelPts.reduce((s, r) => s + r.feelOff * r.n, 0) / feelOffTotalN
+    : 0;
   const meanDelta = wMean(byScaleSpeed, 'avgDelta');
-  const feelXDomain = centeredDomain(feelPts.map(r => r.avgFeel), meanFeel);
+  const feelXDomain = centeredDomain(feelPts.map(r => r.feelOff), meanFeelOff);
   const feelYDomain = centeredDomain(feelPts.map(r => r.avgDelta), meanDelta);
 
   const insights = buildInsights(data, heroCounts);
@@ -1101,7 +1118,7 @@ export default function SensAnalysis() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Section
           title="Feel vs. Data"
-          hint={`Each dot is a tested scale — how fast it felt (left/right) against how well you actually did (up/down). The crosshair marks your own averages. Bottom-right = feels fast but aims worse than usual (it's over-rated); top-left = feels slow but aims better (it's under-rated).`}
+          hint={`Each dot is a tested scale. Left/right is how far its felt speed sat from neutral — a scale you rated 25 and one you rated 75 both read as equally far off, one slow and one fast. Up/down is how well you actually aimed on it. The crosshair marks your own averages for both. Bottom-right = the scales that felt furthest from neutral are also the ones you aim worst on. Top-right = a scale feels strongly one way and you aim better on it anyway, so the feeling is worth keeping.`}
           dataInspectId="sensAnalysis-feel-vs-data-card"
         >
           <div className="flex gap-2">
@@ -1113,10 +1130,10 @@ export default function SensAnalysis() {
               <ResponsiveContainer width="100%" height={280}>
                 <ScatterChart data={feelPts} margin={{ top: 12, right: 12, bottom: 4, left: 0 }}>
                   <CartesianGrid stroke="rgb(var(--ow-border))" />
-                  <XAxis type="number" dataKey="avgFeel" name="Felt speed" domain={feelXDomain} tick={false} tickLine={false} axisLine={false} />
+                  <XAxis type="number" dataKey="feelOff" name="Distance from neutral feel" domain={feelXDomain} tick={false} tickLine={false} axisLine={false} />
                   <YAxis type="number" dataKey="avgDelta" name="Accuracy vs. avg" domain={feelYDomain} tick={false} tickLine={false} axisLine={false} width={4} />
                   <Tooltip content={<QuadrantTooltip />} cursor={{ strokeDasharray: '3 3' }} />
-                  <ReferenceLine x={meanFeel} stroke="var(--faint-2)" strokeDasharray="4 4" />
+                  <ReferenceLine x={meanFeelOff} stroke="var(--faint-2)" strokeDasharray="4 4" />
                   <ReferenceLine y={meanDelta} stroke="var(--faint-2)" strokeDasharray="4 4" />
                   <Scatter dataKey="avgDelta" fill={FEEL}>
                     <LabelList dataKey="sensAt1600" position="top" formatter={(v: number) => v.toFixed(2)} style={{ fontSize: 10, fill: 'var(--faint)' }} />
@@ -1124,7 +1141,7 @@ export default function SensAnalysis() {
                 </ScatterChart>
               </ResponsiveContainer>
               <div className="flex justify-between text-[10px] text-[var(--faint-2)] px-0.5">
-                <span>Slower</span><span>Faster</span>
+                <span>Felt close to neutral</span><span>Felt far from neutral</span>
               </div>
             </div>
           </div>
