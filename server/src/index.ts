@@ -11,6 +11,7 @@ import advisorRouter from './routes/advisor';
 import aimRouter from './routes/aim';
 import blindRouter from './routes/blind';
 import customPhasesRouter from './routes/customPhases';
+import ranksRouter from './routes/ranks';
 
 const app = express();
 const PORT = 3001;
@@ -25,6 +26,7 @@ app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 
 app.use('/api/matches', matchesRouter);
+app.use('/api/ranks', ranksRouter);
 app.use('/api/stats', statsRouter);
 app.use('/api/advisor', advisorRouter);
 app.use('/api/aim', aimRouter);

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
-import { MAPS, QUEUE_MODES, QueueMode, Recommendation, MatchDeathEntry, RANK_MIN, RANK_MAX, clampRank, Account, DEFAULT_ACCOUNT, isAccount } from '../types';
+import { MAPS, QUEUE_MODES, QueueMode, Recommendation, MatchDeathEntry, RANK_MIN, RANK_MAX, clampRank, Account, ACCOUNTS, DEFAULT_ACCOUNT, isAccount } from '../types';
 
 // Coaching always shows a DPS and a Support column side by side — the advisor
 // endpoint returns one recommendation per role (either can be null if that
@@ -50,6 +50,9 @@ const ACCOUNT_KEY = 'ow-account';
 // lobby is something you are in on one account in one role, and the track it
 // sits on is drawn around that pairing's rank.
 type RankRole = 'DPS' | 'Support';
+// The two ladders Sean actually plays. Listed so the one-time seed below can
+// walk every account/role slot the browser might still be holding a rank for.
+const RANK_ROLES: readonly RankRole[] = ['DPS', 'Support'];
 const rankKeyFor = (a: Account, r: RankRole) => `${RANK_KEY}:${a}:${r}`;
 const lobbyKeyFor = (a: Account, r: RankRole) => `${LOBBY_KEY}:${a}:${r}`;
 
@@ -215,14 +218,71 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     } catch { return DEFAULT_ACCOUNT; }
   });
 
+  // Rank is server-backed as of 2026-09-20. Two surfaces now change it — the
+  // Pre-Match drum and the log page's promote/demote row — and a value living
+  // in one browser's localStorage would give each of them a private copy. The
+  // badge would then disagree with the rank being written onto a match.
+  //
+  // localStorage is still read, but only as a seed: on first load, any slot
+  // the server does not know about is pushed up from whatever the browser was
+  // holding. It is still written too, so the drum renders instantly on reload
+  // instead of flashing empty while the fetch lands.
+  const [rankMap, setRankMap] = useState<Record<string, number> | null>(null);
+  const rankSlotKey = useCallback((a: Account, r: RankRole) => `${a}|${r}`, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/ranks');
+        if (!res.ok) return;
+        const server: Record<string, number> = await res.json();
+        // Seed anything the server has never been told about.
+        for (const a of ACCOUNTS) {
+          for (const r of RANK_ROLES) {
+            const key = `${a}|${r}`;
+            if (server[key] != null) continue;
+            const local = readRank(a, r);
+            if (local == null) continue;
+            await fetch('/api/ranks', {
+              method: 'PUT', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ account: a, role: r, rank: local }),
+            });
+            server[key] = local;
+          }
+        }
+        if (!cancelled) setRankMap(server);
+      } catch { /* offline: the localStorage mirror below still renders */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const [playerRank, setPlayerRankState] = useState<number | null>(() => readRank(account, testRole));
+  // Once the server's map arrives it wins, for the slot currently selected.
+  useEffect(() => {
+    if (!rankMap) return;
+    const v = rankMap[rankSlotKey(account, testRole)];
+    setPlayerRankState(v ?? null);
+  }, [rankMap, account, testRole, rankSlotKey]);
+
   const setPlayerRank = useCallback((r: number | null) => {
     setPlayerRankState(r);
+    const key = rankSlotKey(account, testRole);
+    setRankMap(prev => {
+      const next = { ...(prev ?? {}) };
+      if (r == null) delete next[key]; else next[key] = r;
+      return next;
+    });
+    // Mirror locally so a reload paints before the fetch returns.
     try {
       if (r == null) localStorage.removeItem(rankKeyFor(account, testRole));
       else localStorage.setItem(rankKeyFor(account, testRole), String(r));
     } catch { /* ignore */ }
-  }, [account, testRole]);
+    fetch('/api/ranks', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ account, role: testRole, rank: r }),
+    }).catch(() => { /* the local mirror keeps the UI honest until next load */ });
+  }, [account, testRole, rankSlotKey]);
 
   // Where this ladder stood when its last match was logged. Read on mount and
   // on every account/role swap, the same as the drum itself.

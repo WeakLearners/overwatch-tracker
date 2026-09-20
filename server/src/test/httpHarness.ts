@@ -25,6 +25,7 @@ import matchesRouter from '../routes/matches';
 import aimRouter from '../routes/aim';
 import blindRouter from '../routes/blind';
 import statsRouter from '../routes/stats';
+import ranksRouter from '../routes/ranks';
 
 export interface ApiResponse<T = any> {
   status: number;
@@ -56,6 +57,7 @@ export async function startHarness(): Promise<Harness> {
   const app = express();
   app.use(express.json());
   app.use('/api/matches', matchesRouter);
+  app.use('/api/ranks', ranksRouter);
   app.use('/api/aim', aimRouter);
   app.use('/api/blind', blindRouter);
   app.use('/api/stats', statsRouter);

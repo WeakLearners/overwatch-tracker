@@ -810,6 +810,24 @@ function initSchema(db: DatabaseSync) {
     db.exec(`ALTER TABLE curve_params ADD COLUMN lut_points TEXT`);
   }
 
+  // The live rank of each ladder (account + role), server-side so every
+  // surface reads the same number. Added 2026-09-20 when the log page gained
+  // its own promote/demote control: two surfaces editing a value that lived
+  // in one browser's localStorage would each hold a private copy, and the
+  // rank badge would disagree with the rank being written onto a match.
+  //
+  // rank is nullable so "this ladder exists but has no rank yet" stays
+  // distinct from any real rank. account is '' when unknown, matching the
+  // drum key the dashboard already groups by.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS player_ranks (
+      account TEXT NOT NULL,
+      role    TEXT NOT NULL,
+      rank    INTEGER,
+      PRIMARY KEY (account, role)
+    )
+  `);
+
   // Cache for LLM-generated tactical recommendations, keyed by map+queue_mode.
   db.exec(`
     CREATE TABLE IF NOT EXISTS advisor_cache (

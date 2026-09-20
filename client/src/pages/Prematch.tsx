@@ -13,6 +13,7 @@ import { useMatch } from '../contexts/MatchContext';
 import { Link } from 'react-router-dom';
 import Odometer from '../components/Odometer';
 import { MOUSE_DPI } from '../lib/aim';
+import RankBadge from '../components/RankBadge';
 
 // DPI stage-test HUD state — the dashboard reads this live to show the
 // current stage's DPI plainly (no hiding, no LED colors). Several tests can
@@ -1353,38 +1354,7 @@ export default function Prematch() {
                 >
                   ▲
                 </button>
-                <div
-                  className={`w-20 aspect-square rounded-lg border-2 grid place-content-center text-center select-none ${
-                    playerRank == null ? 'border-ow-border' : 'is-selected'
-                  }`}
-                  data-inspect-id="prematch-rank-drum-badge"
-                  // The shared selected state, in the tier's own hue — the badge
-                  // IS the current rank, so it should read the way every other
-                  // chosen thing in the app reads. --sel carries the hue;
-                  // .is-selected carries the bottom-lit treatment and flips it
-                  // for light theme on its own.
-                  style={playerRank == null ? undefined : ({ '--sel': RANK_TIER_RGB[rankTier(playerRank)] } as React.CSSProperties)}
-                  title={playerRank == null ? 'No rank set' : rankLabel(playerRank)}
-                >
-                  {playerRank == null ? (
-                    <span className="text-[10px] uppercase tracking-widest text-[var(--faint-2)] px-1 leading-tight">Set<br />rank</span>
-                  ) : (
-                    <>
-                      {/* The tier name is ink, not the tier colour. Measured on
-                          the badge fill, tier-coloured text runs 1.86:1 (Master)
-                          to 3.98:1 (Bronze) in light theme and fails on three
-                          tiers in dark. The fill, border and bottom rule already
-                          say which tier this is; the label does not need to
-                          repeat it in a colour that cannot be read. */}
-                      <span className="text-[9px] uppercase tracking-widest font-bold leading-none text-[var(--ink-2)]">
-                        {rankTier(playerRank)}
-                      </span>
-                      <span className="text-3xl num-display font-black leading-none mt-1 text-[var(--ink)]">
-                        {rankDivision(playerRank)}
-                      </span>
-                    </>
-                  )}
-                </div>
+                <RankBadge rank={playerRank} size="lg" dataInspectId="prematch-rank-drum-badge" />
                 <button
                   type="button"
                   onClick={() => stepRank(-1)}

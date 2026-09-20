@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { HEROES, MAPS, ROLE_COLORS, ROLE_PILL_CLASS, ROLE_PILL_CLASS_DARK, TYPE_COLORS, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB, MODE_WASH_CLASS, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, rankLabel } from '../types';
+import { HEROES, MAPS, ROLE_COLORS, ROLE_PILL_CLASS, ROLE_PILL_CLASS_DARK, TYPE_COLORS, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB, MODE_WASH_CLASS, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, rankLabel, clampRank } from '../types';
 import { useMatch } from '../contexts/MatchContext';
 import DeathLogger from '../components/DeathLogger';
 import EmptyState from '../components/EmptyState';
@@ -9,6 +9,10 @@ import { useApi, revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { format } from 'date-fns';
+import RankBadge from '../components/RankBadge';
+
+// Shared by the two rank-outcome buttons so they cannot drift apart.
+const btnSmall = 'border border-ow-border rounded-md px-2.5 py-1 text-[11px] font-semibold text-[var(--ink-2)] transition-colors';
 
 interface FormState {
   date: string;
@@ -304,7 +308,7 @@ interface BlindSetSummary {
 export default function LogMatch() {
   // Map + queue mode are shared with the Pre-Match section via context; this
   // section only owns date/time/hero/win plus the death tags.
-  const { queueMode, setQueueMode, map, setMap, mapType, sens, testRole, pendingHeroes, setPendingHeroes, revalidateRec, notifyMatchLogged, deathBuffer, removeDeathFromBuffer, toggleDeathUlt, clearDeathBuffer, playerRank, rankAtLastLog, commitRankAtLastLog, lobbyLow, lobbyHigh, account } = useMatch();
+  const { queueMode, setQueueMode, map, setMap, mapType, sens, testRole, pendingHeroes, setPendingHeroes, revalidateRec, notifyMatchLogged, deathBuffer, removeDeathFromBuffer, toggleDeathUlt, clearDeathBuffer, playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, lobbyLow, lobbyHigh, account } = useMatch();
   const { data: dpiState } = useApi<DpiTestState>('/api/blind/state');
   const { data: blindSets } = useApi<{ sets: BlindSetSummary[] }>('/api/blind/sets');
   const mapCounts = useTodayMapCounts();
@@ -378,6 +382,29 @@ export default function LogMatch() {
   // QP Support), so restricting the list there just gets in the way — every
   // hero is offered instead.
   const isQP = queueMode === 'qp_role';
+  // Has the ladder already been moved for THIS match? rankAtLastLog is where
+  // it stood when the previous match was logged, so a difference means one of
+  // the buttons below has been pressed (or the Pre-Match drum was nudged).
+  // It drives which of the two buttons is live: you cannot promote twice, and
+  // "No change" only has something to undo once something has changed.
+  const rankMoved = playerRank != null && rankAtLastLog != null && playerRank !== rankAtLastLog;
+  // Which outcome Sean picked for THIS match. Required before logging, the
+  // same as hero and result: a match that moved the ladder and one that did
+  // not are different facts, and leaving it unanswered writes "no change"
+  // silently. Null means unanswered, so the button stays disabled.
+  const [rankOutcome, setRankOutcome] = useState<'moved' | 'none' | null>(null);
+  // Only a loss can demote and only a win can promote, so exactly one
+  // direction is ever on offer. Sean's observation — it halves the control.
+  const rankStep = form.win === '1' ? 1 : -1;
+  // Switching the result after answering would leave a promotion standing on
+  // a loss. Clear the answer and hand the rank back to where it started.
+  const winValue = form.win;
+  useEffect(() => {
+    setRankOutcome(null);
+    if (rankAtLastLog != null && playerRank !== rankAtLastLog) setPlayerRank(rankAtLastLog);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [winValue]);
+  const rankBase = rankAtLastLog ?? playerRank;
   const inTestingHeroes = new Set((dpiState?.actives ?? []).map(a => a.hero).filter((h): h is string => !!h));
   const allBlindSets = blindSets?.sets ?? [];
   const currentPhase = [...allBlindSets].reverse().find(s => s.phase)?.phase ?? null;
@@ -590,7 +617,11 @@ export default function LogMatch() {
   // context `sens` string directly: nothing in the app ever calls setSens, so
   // that value is frozen at whatever localStorage held on load and can go
   // stale independently of what's displayed, silently failing this check.
-  const valid = form.hero && map && form.win !== '' && form.date && displaySens != null;
+  // The rank answer is required on a ranked match that has a rank to move.
+  // With no rank set there is nothing to choose between, so it does not gate
+  // — the row says to go set one instead of trapping the form.
+  const rankAnswered = isQP || playerRank == null || rankOutcome != null;
+  const valid = form.hero && map && form.win !== '' && form.date && displaySens != null && rankAnswered;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -648,6 +679,7 @@ export default function LogMatch() {
       // This match's finishing rank is the next one's starting rank. Written
       // only after the save succeeds — a failed POST must not move the ladder.
       if (!isQP) commitRankAtLastLog(playerRank);
+      setRankOutcome(null);
       clearDeathBuffer();
       setFeelByHero({});
       setTeamRating(0);
@@ -1082,36 +1114,64 @@ export default function LogMatch() {
               </div>
             </div>
 
-            {/* The rank check, immediately above the button that commits it.
-                A match now records where the ladder stood going in and where
-                it stood coming out, and the "coming out" half is whatever the
-                rank drum says at this moment. So the drum being stale is no
-                longer a cosmetic problem — it writes a wrong result onto a
-                real row. This sits here rather than on Prematch because here
-                is where the writing happens, and it reads differently
-                depending on whether the ladder has already moved. */}
+            {/* Rank outcome — required, like hero and result.
+                A match that moved the ladder and one that did not are
+                different facts. Leaving it unanswered used to record "no
+                change" silently, which is how a derank goes missing.
+                The badge is the live server rank, so pressing a button here
+                moves the Pre-Match badge too: rank is one row in
+                player_ranks, not a copy per page. Hidden on quickplay. */}
             {!isQP && (
               <div
-                data-inspect-id="logmatch-rank-check"
-                className={`rounded-lg border px-3 py-2 text-xs ${
-                  playerRank != null && rankAtLastLog != null && playerRank !== rankAtLastLog
-                    ? 'border-ow-accent/40 bg-ow-accent/5 text-[var(--ink)]'
-                    : 'border-ow-border bg-ow-darker text-[var(--faint)]'
+                data-inspect-id="logmatch-rank-outcome"
+                className={`rounded-lg border px-3 py-2.5 flex items-center gap-3 transition-colors ${
+                  rankAnswered ? 'border-ow-border bg-ow-darker' : 'border-ow-accent/50 bg-ow-accent/5'
                 }`}
               >
-                {playerRank == null ? (
-                  <>No rank set for <b className="text-[var(--ink)]">{account} {testRole}</b>. Set it on the Pre-Match page before logging, or this match records no rank at all.</>
-                ) : rankAtLastLog != null && playerRank !== rankAtLastLog ? (
-                  <>
-                    Recording a rank change: <b className="num-display text-[var(--ink)]">{rankLabel(rankAtLastLog)}</b>
-                    {' → '}<b className="num-display text-ow-accent">{rankLabel(playerRank)}</b>. This match gets the marker.
-                  </>
-                ) : (
-                  <>
-                    Rank stays <b className="num-display text-[var(--ink)]">{rankLabel(playerRank)}</b>.
-                    {' '}<span className="text-[var(--faint-2)]">Moved up or down? Change the drum on Pre-Match first — this match records whatever it says now.</span>
-                  </>
-                )}
+                <RankBadge rank={playerRank} size="sm" dataInspectId="logmatch-rank-outcome-badge" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline justify-between gap-2 mb-1.5">
+                    <span className="text-[10px] uppercase tracking-wide text-[var(--faint-2)]">
+                      {account} {testRole}
+                      {rankMoved && <span className="text-ow-accent"> · {rankLabel(rankBase!)} → {rankLabel(playerRank!)}</span>}
+                    </span>
+                    {!rankAnswered && <span className="text-[10px] font-bold text-ow-accent shrink-0">required</span>}
+                  </div>
+                  {playerRank == null ? (
+                    <p className="text-xs text-[var(--faint)]">Set a rank on Pre-Match, or this match records none.</p>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2" data-inspect-id="logmatch-rank-outcome-toggle">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRankOutcome('moved');
+                          if (rankBase != null) setPlayerRank(clampRank(rankBase + rankStep));
+                        }}
+                        aria-pressed={rankOutcome === 'moved'}
+                        data-inspect-id="logmatch-rank-outcome-move-btn"
+                        className={`text-xs font-semibold py-1.5 rounded-lg border transition-colors ${
+                          rankOutcome === 'moved'
+                            ? 'is-selected text-[var(--ink)]'
+                            : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
+                        }`}
+                      >{form.win === '1' ? 'Promoted' : 'Demoted'}</button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRankOutcome('none');
+                          if (rankBase != null) setPlayerRank(rankBase);
+                        }}
+                        aria-pressed={rankOutcome === 'none'}
+                        data-inspect-id="logmatch-rank-outcome-nochange-btn"
+                        className={`text-xs font-semibold py-1.5 rounded-lg border transition-colors ${
+                          rankOutcome === 'none'
+                            ? 'is-selected text-[var(--ink)]'
+                            : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
+                        }`}
+                      >No change</button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
