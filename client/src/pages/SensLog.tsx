@@ -279,40 +279,57 @@ interface CurveParams {
   smooth: number; input: number; output: number;
   lutSteps: number | null; lutMaxSpeed: number | null; lutPoints: [number, number][] | null;
 }
-// Only the three Jump fields are edited one-at-a-time in the grid. The LUT is
-// entered whole, so it is deliberately not part of this union.
-type CurveField = 'smooth' | 'input' | 'output';
+// smooth/input/output stay in the type because PUT /curve still requires
+// them and the editor round-trips them untouched. They are no longer shown or
+// edited anywhere: the Jump grid was removed 2026-09-20 as useless, since
+// nothing seeds from it and nothing is stamped on a match from it.
 
-const CURVE_FIELD_META: Record<CurveField, { label: string; step: string; min: string; max?: string; format: (v: number) => string }> = {
-  smooth: { label: 'Smooth', step: '0.01', min: '0', max: '1', format: v => String(v) },
-  input: { label: 'Input (threshold)', step: '1', min: '0', format: v => String(v) },
-  output: { label: 'Output (multiplier)', step: '0.01', min: '1', format: v => `${v.toFixed(2)}×` },
-};
-// Same ids as the field's stat tile always had, kept stable across this
-// per-field-edit rework so nothing referencing them elsewhere breaks.
-const CURVE_FIELD_VALUE_ID: Record<CurveField, string> = {
-  smooth: 'sl-curve-growth-rate', input: 'sl-curve-midpoint', output: 'sl-curve-motivity',
-};
-
-// The lookup table itself. Entered whole rather than cell-by-cell: Sean is
-// copying a table that already exists in Rawaccel, so the fast and exact move
-// is to paste its own text and let the app parse it. Nothing here approximates
-// or generates a table — a fabricated table sitting in a column that reads as
-// "what this match ran under" is the precise confound the analysis page warns
-// about, and generating one to be helpful would manufacture it.
+// The lookup table, as a row of editable points.
 //
-// lutSteps and lutMaxSpeed are derived, never typed: the server validates that
-// steps equals the point count, and max speed is just the largest x. Two boxes
-// that can only ever disagree with the table are two boxes worth removing.
+// Each point is two boxes: the speed you are moving the mouse at (counts per
+// millisecond) and what your sensitivity gets multiplied by once you reach it.
+// A table is just that pair, repeated, and Rawaccel draws the staircase
+// between them. So the honest control is the pairs themselves, not a smooth
+// curve's parameters that happen to pass near them.
+//
+// Nothing here generates or approximates a table. That matters more than it
+// sounds: matches.curve_lut reads as "what this match ran under," and a
+// plausible-looking invented table sitting in that column is precisely the
+// confound the analysis page exists to warn about.
+//
+// lutSteps and lutMaxSpeed are derived on save, never typed. The server
+// requires steps to equal the point count and max speed to be the largest
+// speed in the table, so a box for either could only ever disagree with the
+// rows above it.
+type LutRow = { x: string; y: string };
+
+const rowsFromPoints = (pts: [number, number][] | null): LutRow[] =>
+  pts ? pts.map(([x, y]) => ({ x: String(x), y: String(y) })) : [{ x: '1', y: '1' }, { x: '40', y: '1' }];
+
+const rowsToString = (rows: LutRow[]) => rows.map(r => `${r.x.trim()},${r.y.trim()}`).join('; ');
+
 function LutEditor({ data }: { data: CurveParams }) {
-  const [draft, setDraft] = useState<string | null>(null);
+  const [rows, setRows] = useState<LutRow[]>(() => rowsFromPoints(data.lutPoints));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pasting, setPasting] = useState(false);
+  const [paste, setPaste] = useState('');
 
-  const editing = draft !== null;
-  const parsed = editing ? parseLutString(draft) : null;
-  const parseError = parsed && 'error' in parsed ? parsed.error : null;
-  const points = parsed && 'points' in parsed ? parsed.points : null;
+  // Re-sync when the saved table changes underneath (another tab, or this
+  // editor's own save landing). Keyed on the stored value, so typing in the
+  // boxes never triggers it.
+  const savedKey = data.lutPoints ? formatLut(data.lutPoints) : '';
+  useEffect(() => { setRows(rowsFromPoints(data.lutPoints)); }, [savedKey]);
+
+  // One validator for both entry paths — the boxes and the paste box are just
+  // two ways of producing the same text.
+  const parsed = parseLutString(rowsToString(rows));
+  const parseError = 'error' in parsed ? parsed.error : null;
+  const points = 'points' in parsed ? parsed.points : null;
+  const dirty = rowsToString(rows) !== rowsToString(rowsFromPoints(data.lutPoints)) || !data.lutPoints;
+
+  const setCell = (i: number, k: keyof LutRow, v: string) =>
+    setRows(rs => rs.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
 
   async function put(body: Partial<CurveParams>) {
     setSaving(true); setError(null);
@@ -321,139 +338,125 @@ function LutEditor({ data }: { data: CurveParams }) {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...data, ...body }),
       });
-      if (!res.ok) {
-        setError((await res.json().catch(() => ({}))).error ?? 'Save failed');
-        return false;
-      }
+      if (!res.ok) { setError((await res.json().catch(() => ({}))).error ?? 'Save failed'); return false; }
       revalidateAll();
       return true;
     } finally { setSaving(false); }
   }
 
-  async function save() {
-    if (!points) return;
-    const ok = await put({
-      lutPoints: points,
-      lutSteps: points.length,
-      lutMaxSpeed: Math.max(...points.map(([x]) => x)),
-    });
-    if (ok) setDraft(null);
-  }
+  const save = () => points && put({
+    lutPoints: points, lutSteps: points.length, lutMaxSpeed: Math.max(...points.map(([x]) => x)),
+  });
 
-  async function clear() {
-    // lutSteps/lutMaxSpeed stay at whatever they were — the server still
-    // requires them in range, and they describe nothing once points are gone.
-    if (await put({ lutPoints: null })) setDraft(null);
+  function applyPaste() {
+    const r = parseLutString(paste);
+    if ('error' in r) { setError(r.error); return; }
+    setRows(rowsFromPoints(r.points));
+    setPasting(false); setPaste(''); setError(null);
   }
 
   return (
     <div data-inspect-id="sl-lut-editor">
-      {data.lutPoints && !editing && (
-        <div className="rounded-lg bg-ow-darker border border-ow-border p-2.5 mb-2" data-inspect-id="sl-lut-points-table">
-          <div className="flex flex-wrap gap-1.5">
-            {data.lutPoints.map(([x, y], i) => (
-              <span key={i} className="num-display text-xs rounded bg-ow-border/40 px-1.5 py-0.5 text-[var(--ink)]">
-                {x}<span className="text-[var(--faint-2)]">,</span>{y}
-              </span>
-            ))}
+      <div className="grid grid-cols-[auto_1fr_1fr_auto] gap-x-2 gap-y-1 items-center mb-2" data-inspect-id="sl-lut-rows">
+        <span />
+        <span className="text-[10px] uppercase tracking-wide text-[var(--faint-2)]">Speed (counts/ms)</span>
+        <span className="text-[10px] uppercase tracking-wide text-[var(--faint-2)]">Multiplier</span>
+        <span />
+        {rows.map((r, i) => (
+          <div key={i} className="contents">
+            <span className="text-[10px] text-[var(--faint-2)] num-display w-4 text-right">{i + 1}</span>
+            <input
+              type="number" step="0.1" min="0" value={r.x} onChange={e => setCell(i, 'x', e.target.value)}
+              data-inspect-id="sl-lut-row-x" className={compactField}
+            />
+            <input
+              type="number" step="0.01" value={r.y} onChange={e => setCell(i, 'y', e.target.value)}
+              data-inspect-id="sl-lut-row-y" className={compactField}
+            />
+            <button
+              type="button" onClick={() => setRows(rs => rs.filter((_, j) => j !== i))}
+              disabled={rows.length <= 2} title={rows.length <= 2 ? 'A table needs at least 2 points' : 'Remove this point'}
+              data-inspect-id="sl-lut-row-remove-btn"
+              className="text-[var(--faint-2)] hover:text-red-400 disabled:opacity-30 disabled:hover:text-[var(--faint-2)] px-1 text-xs"
+            >×</button>
           </div>
-          <p className="text-[10px] text-[var(--faint-2)] mt-1.5">
-            speed (counts/ms), multiplier — up to {Math.max(...data.lutPoints.map(([x]) => x))} counts/ms
-          </p>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+        <button
+          type="button" data-inspect-id="sl-lut-add-row-btn"
+          onClick={() => setRows(rs => [...rs, { x: String(Number(rs[rs.length - 1]?.x || 0) + 10), y: rs[rs.length - 1]?.y ?? '1' }])}
+          disabled={rows.length >= 32} className={`${btnSecondary} px-2 py-0.5 text-[10px]`}
+        >+ Add point</button>
+        <button
+          type="button" onClick={() => setPasting(v => !v)}
+          data-inspect-id="sl-lut-paste-toggle-btn" className={`${btnSecondary} px-2 py-0.5 text-[10px]`}
+        >{pasting ? 'Close paste' : 'Paste from Rawaccel'}</button>
+        {dirty && (
+          <button
+            type="button" onClick={save} disabled={saving || !points}
+            data-inspect-id="sl-lut-save-btn" className={`${btnSecondary} px-2 py-0.5 text-[10px] text-ow-accent`}
+          >{saving ? '…' : 'Save table'}</button>
+        )}
+        {dirty && data.lutPoints && (
+          <button
+            type="button" onClick={() => { setRows(rowsFromPoints(data.lutPoints)); setError(null); }} disabled={saving}
+            data-inspect-id="sl-lut-revert-btn" className="text-[10px] text-[var(--faint-2)] hover:text-[var(--ink)] px-1"
+          >Revert</button>
+        )}
+        {data.lutPoints && !dirty && (
+          <button
+            type="button" onClick={() => put({ lutPoints: null })} disabled={saving}
+            data-inspect-id="sl-lut-clear-btn" className="text-[10px] text-[var(--faint-2)] hover:text-red-400 px-1 ml-auto"
+          >Clear table</button>
+        )}
+      </div>
+
+      {pasting && (
+        <div className="mb-1.5" data-inspect-id="sl-lut-paste">
+          <textarea
+            value={paste} onChange={e => setPaste(e.target.value)} autoFocus rows={2}
+            placeholder="1,1; 16,1; 16.1,1.02; 32,1.02; 32.1,1.1; 140,1.1"
+            data-inspect-id="sl-lut-paste-input" className={`${compactField} mb-1`}
+          />
+          <button
+            type="button" onClick={applyPaste} disabled={!paste.trim()}
+            data-inspect-id="sl-lut-paste-apply-btn" className={`${btnSecondary} px-2 py-0.5 text-[10px]`}
+          >Fill the rows</button>
         </div>
       )}
 
-      {editing ? (
-        <div data-inspect-id="sl-lut-edit">
-          <textarea
-            value={draft} onChange={e => setDraft(e.target.value)} autoFocus rows={2}
-            placeholder="1,1; 16,1; 16.1,1.02; 32,1.02; 32.1,1.1; 140,1.1"
-            data-inspect-id="sl-lut-input" className={`${compactField} mb-1.5`}
-          />
-          {parseError
-            ? <p className="text-xs text-red-400 mb-1.5" data-inspect-id="sl-lut-parse-error">{parseError}</p>
-            : points && <p className="text-[10px] text-[var(--faint-2)] mb-1.5">{points.length} points, up to {Math.max(...points.map(([x]) => x))} counts/ms</p>}
-          <div className="flex gap-1.5">
-            <button
-              type="button" onClick={save} disabled={saving || !points}
-              data-inspect-id="sl-lut-save-btn" className={`${btnSecondary} px-2 py-0.5 text-[10px]`}
-            >{saving ? '…' : 'Save table'}</button>
-            <button
-              type="button" onClick={() => { setDraft(null); setError(null); }} disabled={saving}
-              data-inspect-id="sl-lut-cancel-btn" className="text-[10px] text-[var(--faint-2)] hover:text-[var(--ink)] px-1"
-            >Cancel</button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex gap-1.5">
-          <button
-            type="button" onClick={() => setDraft(data.lutPoints ? formatLut(data.lutPoints) : '')}
-            data-inspect-id="sl-lut-edit-btn" className={`${btnSecondary} px-2 py-0.5 text-[10px]`}
-          >{data.lutPoints ? 'Edit table' : 'Paste table from Rawaccel'}</button>
-          {data.lutPoints && (
-            <button
-              type="button" onClick={clear} disabled={saving}
-              data-inspect-id="sl-lut-clear-btn" className="text-[10px] text-[var(--faint-2)] hover:text-[var(--ink)] px-1"
-            >Clear</button>
-          )}
-        </div>
-      )}
-      {error && <p className="text-xs text-red-400 mt-1.5" data-inspect-id="sl-lut-save-error">{error}</p>}
+      {parseError
+        ? <p className="text-xs text-red-400" data-inspect-id="sl-lut-parse-error">{parseError}</p>
+        : points && <p className="text-[10px] text-[var(--faint-2)]" data-inspect-id="sl-lut-summary">
+            {points.length} points, up to {Math.max(...points.map(([x]) => x))} counts/ms
+            {dirty && <span className="text-amber-600 dark:text-amber-400"> — unsaved</span>}
+          </p>}
+      {error && <p className="text-xs text-red-400 mt-1" data-inspect-id="sl-lut-save-error">{error}</p>}
     </div>
   );
 }
 
-// Rawaccel Jump-curve params GET/PUT /api/aim/curve reports/updates — a
-// single live value (not staged, not per-hero, not per-phase) applied on top
-// of whatever per-hero sens is active. Editable field-by-field here since
-// Sean's real Rawaccel config can drift as he retunes it; every match
-// already gets whatever's currently saved stamped on it server-side (see
-// routes/matches.ts), so editing this is the same kind of "tell the app the
-// truth" action as creating a new test set is for sens.
+// The Rawaccel lookup table card. One live setting — not staged, not
+// per-hero, not per-phase — applied on top of whatever per-hero sens is
+// active, and stamped on every match logged while it is on file.
 //
-// The `locked` prop was removed 2026-09-20 along with the server-side lock in
-// aim.ts's PUT /curve. The lock protected smooth/input/output back when those
-// three WERE Sean's live Rawaccel config, so editing them mid-test silently
-// changed what the test was measuring. He is on a Look Up Table now. These
-// three are only the shape the LUT's points get seeded from, so editing them
-// changes nothing any match actually ran under, and there is nothing left to
-// protect.
+// Two things were removed on 2026-09-20 and should not come back.
+//
+// The Jump grid (smooth/input/output) went because it was useless: Sean is on
+// a lookup table, nothing seeds from those three any more, and nothing is
+// stamped on a match from them. They stay in the type only because PUT
+// /curve still requires them; the editor round-trips them untouched.
+//
+// The stage-test lock went with it. It existed to stop those three changing
+// mid-test, back when they WERE the live config and an edit would silently
+// change what a test was measuring. They are not the live config now, so the
+// lock guarded nothing. The table itself is deliberately NOT locked either —
+// a retune mid-test is a real event, and recording it as its own curve
+// variant is the point of matches.curve_lut.
 function CurveParamsCard() {
   const { data } = useApi<CurveParams>('/api/aim/curve');
-  const [editingField, setEditingField] = useState<CurveField | null>(null);
-  const [draft, setDraft] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  function startEdit(field: CurveField) {
-    if (!data) return;
-    setEditingField(field);
-    setDraft(String(data[field]));
-    setError(null);
-  }
-
-  async function saveField(field: CurveField) {
-    if (!data) return;
-    setSaving(true);
-    setError(null);
-    try {
-      const body = { ...data, [field]: parseFloat(draft) };
-      const res = await fetch('/api/aim/curve', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const resBody = await res.json().catch(() => ({}));
-        setError(resBody.error ?? 'Save failed');
-        return;
-      }
-      revalidateAll();
-      setEditingField(null);
-    } finally {
-      setSaving(false);
-    }
-  }
-
   if (!data) return null;
   return (
     <div className="card mb-6" data-inspect-id="sl-curve-params-card">
@@ -464,60 +467,11 @@ function CurveParamsCard() {
           : <span data-inspect-id="sl-lut-missing-badge" className="text-[10px] text-amber-600 dark:text-amber-400">no table on file</span>}
       </div>
       <p className="text-xs text-[var(--faint)] mb-3">
-        Paste the table straight out of Rawaccel. Every match you log from then on records exactly this, so a retune
-        shows up in the analysis as its own row instead of blending into the old one. Until a table is here, a match
-        records only that acceleration was on — not what it was set to.
+        The points Rawaccel is actually running: at each mouse speed, what your sens gets multiplied by. Every match
+        you log while a table is saved records exactly these, so a retune shows up in the analysis as its own row
+        instead of blending into the old one. With no table saved, a match records only that acceleration was on.
       </p>
-
       <LutEditor data={data} />
-
-      <p className="text-xs text-[var(--faint)] mb-3 mt-5 pt-4 border-t border-ow-border">
-        <b className="text-[var(--ink-2)]">Jump seed shape.</b> Left over from before the move to a lookup table.
-        Nothing is stamped on a match from these any more, and editing them changes nothing a game ran under.
-      </p>
-      <div className="grid grid-cols-3 gap-3" data-inspect-id="sl-curve-params-fields">
-        {(Object.keys(CURVE_FIELD_META) as CurveField[]).map(field => {
-          const meta = CURVE_FIELD_META[field];
-          const isEditing = editingField === field;
-          return (
-            <div key={field} className="rounded-lg bg-ow-darker border border-ow-border p-2.5 text-center">
-              <span className="block text-[10px] uppercase tracking-wide text-[var(--faint-2)] mb-0.5">{meta.label}</span>
-              {isEditing ? (
-                <div data-inspect-id={`sl-curve-params-${field}-edit`}>
-                  <input
-                    type="number" step={meta.step} min={meta.min} max={meta.max} value={draft} onChange={e => setDraft(e.target.value)}
-                    autoFocus data-inspect-id={`sl-curve-params-${field}-input`} className={`${compactField} w-full text-center mb-1.5`}
-                  />
-                  <div className="flex justify-center gap-1.5">
-                    <button
-                      type="button" onClick={() => saveField(field)} disabled={saving}
-                      data-inspect-id={`sl-curve-params-${field}-save-btn`} className={`${btnSecondary} px-2 py-0.5 text-[10px]`}
-                    >
-                      {saving ? '…' : 'Save'}
-                    </button>
-                    <button
-                      type="button" onClick={() => setEditingField(null)} disabled={saving}
-                      data-inspect-id={`sl-curve-params-${field}-cancel-btn`} className="text-[10px] text-[var(--faint-2)] hover:text-[var(--ink)] px-1"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  type="button" onClick={() => startEdit(field)}
-                  data-inspect-id={`sl-curve-params-${field}-edit-btn`}
-                  className="text-lg num-display font-bold w-full text-[var(--ink)] hover:text-ow-accent"
-                  title={`Edit ${meta.label}`}
-                >
-                  <span data-inspect-id={CURVE_FIELD_VALUE_ID[field]}>{meta.format(data[field])}</span>
-                </button>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      {editingField && error && <p className="text-xs text-red-400 mt-2">{error}</p>}
     </div>
   );
 }
