@@ -403,28 +403,21 @@ export default function Dashboard() {
   const tierMarks: TierMark[] = (() => {
     const out: TierMark[] = [];
     const prevByDrum = new Map<string, number>();
-    // The first calendar day a ladder is tracked is setup, not play (Sean's
-    // call, 2026-09-20). Getting the drum onto the right number takes a few
-    // corrections, and those look exactly like rank moves: his Support drum's
-    // first day jumped Platinum 4 -> Emerald 2 between two games, which no
-    // single match can do. Rather than guess which corrections were real by
-    // the size of the jump, the whole first day is treated as setup.
-    //
-    // The BASELINE still carries: day one's last reading is what day two's
-    // first reading is compared against. Only the marks are suppressed, not
-    // the readings, so nothing is lost after the first day.
-    const firstDayByDrum = new Map<string, string>();
+    // "Where tracking started" is the first READING, not the first day. A
+    // drum's opening number is a baseline, so it draws nothing. Everything
+    // after it is a move from a rank he was actually on, including later the
+    // same day — Gold 1 in the morning and Gold 2 by noon is a derank, and
+    // suppressing it because both happened on day one was wrong (tried and
+    // reverted 2026-09-20).
     for (const g of trends ?? []) {
       if (g.player_rank == null) continue;
       // Each account+role pair is its own ladder ("drum"). Overwatch ranks
       // every role separately on every account, so comparing across them
       // would invent a move between two unrelated ladders.
       const key = `${g.account ?? ''}|${g.role}`;
-      if (!firstDayByDrum.has(key)) firstDayByDrum.set(key, g.date.slice(0, 10));
       const prev = prevByDrum.get(key);
       prevByDrum.set(key, g.player_rank);
       if (prev == null || prev === g.player_rank) continue;
-      if (firstDayByDrum.get(key) === g.date.slice(0, 10)) continue;
       const date = g.date.slice(0, 10);
       const j = candleIdxByDate.get(date);
       if (j == null) continue;
