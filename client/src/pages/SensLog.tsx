@@ -260,7 +260,7 @@ export default function SensLog() {
         <p className="text-sm text-[var(--faint)] mt-1">Enter each match's combat details here after the game. DPI stage trials are driven from the panel below and land in the same queue.</p>
       </div>
 
-      <CurveParamsCard locked={(dpiState?.actives.length ?? 0) > 0} />
+      <CurveParamsCard />
 
       <BackfillPanel pending={pending} loading={loading} focusOnMount={focusBacklog} />
 
@@ -296,11 +296,14 @@ const CURVE_FIELD_VALUE_ID: Record<CurveField, string> = {
 // routes/matches.ts), so editing this is the same kind of "tell the app the
 // truth" action as creating a new test set is for sens.
 //
-// `locked`: once any stage-test set is active (a phase's per-hero sens
-// trials are actually in progress), the curve params freeze — changing
-// acceleration mid-test would confound whatever the test is measuring, same
-// reason dpi/sens stay untouchable once a set governs a match.
-function CurveParamsCard({ locked }: { locked: boolean }) {
+// The `locked` prop was removed 2026-09-20 along with the server-side lock in
+// aim.ts's PUT /curve. The lock protected smooth/input/output back when those
+// three WERE Sean's live Rawaccel config, so editing them mid-test silently
+// changed what the test was measuring. He is on a Look Up Table now. These
+// three are only the shape the LUT's points get seeded from, so editing them
+// changes nothing any match actually ran under, and there is nothing left to
+// protect.
+function CurveParamsCard() {
   const { data } = useApi<CurveParams>('/api/aim/curve');
   const [editingField, setEditingField] = useState<CurveField | null>(null);
   const [draft, setDraft] = useState('');
@@ -308,7 +311,7 @@ function CurveParamsCard({ locked }: { locked: boolean }) {
   const [error, setError] = useState<string | null>(null);
 
   function startEdit(field: CurveField) {
-    if (!data || locked) return;
+    if (!data) return;
     setEditingField(field);
     setDraft(String(data[field]));
     setError(null);
@@ -341,17 +344,10 @@ function CurveParamsCard({ locked }: { locked: boolean }) {
     <div className="card mb-6" data-inspect-id="sl-curve-params-card">
       <div className="flex items-start justify-between mb-1">
         <h2 className="text-sm card-title">Mouse acceleration curve</h2>
-        {locked && (
-          <span data-inspect-id="sl-curve-params-lock-badge" title="A stage-test set is active — curve params are frozen until it finishes or is cancelled." className="text-[10px] text-[var(--faint-2)] flex items-center gap-1">
-            🔒 locked while testing
-          </span>
-        )}
       </div>
       <p className="text-xs text-[var(--faint)] mb-3">
-        Set Rawaccel's Jump curve to these values before playing. This is one live setting, not per-hero or per-phase.
-        {locked
-          ? ' A test is in progress, so these are frozen — the curve has to stay fixed for the whole test for its data to stay comparable.'
-          : ' Edit a field below whenever the real Rawaccel config changes; only the per-hero sens trials below vary per stage.'}
+        The Jump-curve shape the LUT's points are seeded from. Not your live Rawaccel config any more — editing
+        these changes nothing a match ran under. Edit them whenever you want a different starting shape for the table.
       </p>
       <div className="grid grid-cols-3 gap-3" data-inspect-id="sl-curve-params-fields">
         {(Object.keys(CURVE_FIELD_META) as CurveField[]).map(field => {
@@ -383,10 +379,10 @@ function CurveParamsCard({ locked }: { locked: boolean }) {
                 </div>
               ) : (
                 <button
-                  type="button" onClick={() => startEdit(field)} disabled={locked}
+                  type="button" onClick={() => startEdit(field)}
                   data-inspect-id={`sl-curve-params-${field}-edit-btn`}
-                  className={`text-lg num-display font-bold w-full ${locked ? 'text-[var(--faint)] cursor-not-allowed' : 'text-[var(--ink)] hover:text-ow-accent'}`}
-                  title={locked ? undefined : `Edit ${meta.label}`}
+                  className="text-lg num-display font-bold w-full text-[var(--ink)] hover:text-ow-accent"
+                  title={`Edit ${meta.label}`}
                 >
                   <span data-inspect-id={CURVE_FIELD_VALUE_ID[field]}>{meta.format(data[field])}</span>
                 </button>

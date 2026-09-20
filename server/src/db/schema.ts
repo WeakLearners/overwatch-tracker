@@ -755,6 +755,27 @@ function initSchema(db: DatabaseSync) {
     )
   `);
 
+  // lut_steps / lut_max_speed / lut_points: added 2026-09-20 when Sean moved
+  // Rawaccel from the Jump curve to a Look Up Table (see aim.ts's comment on
+  // PUT /curve for why the lock above it came off the same day). smooth/
+  // input/output above are kept — they're now just the SHAPE the LUT's
+  // points get seeded from, not the live config — and these three describe
+  // the LUT itself: how many points, how far out the x-axis (counts/ms)
+  // goes, and the points themselves once Sean has hand-adjusted any of them
+  // (JSON array of [x, y] pairs). lut_points starts NULL, meaning "not
+  // edited yet — seed from the curve," same nullable-with-no-default
+  // convention as result_driver above.
+  const curveParamsCols = db.prepare(`PRAGMA table_info(curve_params)`).all() as { name: string }[];
+  if (!curveParamsCols.find(c => c.name === 'lut_steps')) {
+    db.exec(`ALTER TABLE curve_params ADD COLUMN lut_steps INTEGER`);
+  }
+  if (!curveParamsCols.find(c => c.name === 'lut_max_speed')) {
+    db.exec(`ALTER TABLE curve_params ADD COLUMN lut_max_speed REAL`);
+  }
+  if (!curveParamsCols.find(c => c.name === 'lut_points')) {
+    db.exec(`ALTER TABLE curve_params ADD COLUMN lut_points TEXT`);
+  }
+
   // Cache for LLM-generated tactical recommendations, keyed by map+queue_mode.
   db.exec(`
     CREATE TABLE IF NOT EXISTS advisor_cache (

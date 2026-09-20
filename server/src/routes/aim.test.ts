@@ -682,8 +682,8 @@ describe('computeAnalysis: curve breakdown (2026-09-17 confound)', () => {
   });
 
   test('liveCurve mirrors GET /api/aim/curve\'s own getCurveParams read', () => {
-    setCurveParams(db, { smooth: 0.25, input: 14, output: 1.15 });
+    setCurveParams(db, { smooth: 0.25, input: 14, output: 1.15, lutSteps: 8, lutMaxSpeed: 40, lutPoints: null });
     const r = computeAnalysis(db);
-    assert.deepEqual({ ...r.liveCurve }, { smooth: 0.25, input: 14, output: 1.15 });
+    assert.deepEqual({ ...r.liveCurve }, { smooth: 0.25, input: 14, output: 1.15, lutSteps: 8, lutMaxSpeed: 40, lutPoints: null });
   });
 });

@@ -1,6 +1,5 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
-import { getCurveParams } from '../lib/curveParams';
 import { syncSetActive } from './blind';
 
 const router = Router();
@@ -165,16 +164,21 @@ router.post('/', (req: Request, res: Response) => {
     // curve_enabled is ground truth for whether acceleration was on — derived
     // above (finalCurveEnabled) from the active stage-test set's phase-wide
     // flag when one governs this match, same priority as dpi/sens; only falls
-    // back to LogMatch's manual toggle when no set is active at all. The two
-    // curve params themselves are whatever's live right now (getCurveParams,
-    // editable from the testing page — see lib/curveParams.ts) but are only
-    // written when curve_enabled is actually true, so "not recorded" reads
-    // as null, not a false 0/default like sens=null already does for dpi.
-    const curveParams = finalCurveEnabled ? getCurveParams(db) : null;
+    // back to LogMatch's manual toggle when no set is active at all.
+    //
+    // curve_growth_rate/curve_midpoint/curve_motivity (the Jump-curve params)
+    // stopped being stamped 2026-09-20 — Sean moved his real Rawaccel config
+    // to a Look Up Table, so those three columns would no longer describe
+    // what any new match actually ran under. curve_enabled stays live: a LUT
+    // is still acceleration, so a match played under one is still curve-on.
+    // That makes LUT matches their own variant in curveVariantKey (all three
+    // Jump columns null) distinct from every past Jump-curve variant, which
+    // is correct — they ARE a different treatment, not a continuation of the
+    // old one. Existing rows keep whatever was stamped at the time.
     const result = db.prepare(`
       INSERT INTO matches (date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, dpi, blind_trial, blind_set_id, stage_index, feel, team_rating, notes, curve_enabled, curve_growth_rate, curve_midpoint, curve_motivity, match_quality, result_driver, player_rank, lobby_low, lobby_high, account)
       VALUES (:date, :time, :day_of_week, :hour, :hero, :role, :map, :game_type, :win, :deaths, :queue_mode, :sens, :dpi, :blind_trial, :blind_set_id, :stage_index, :feel, :team_rating, :notes, :curve_enabled, :curve_growth_rate, :curve_midpoint, :curve_motivity, :match_quality, :result_driver, :player_rank, :lobby_low, :lobby_high, :account)
-    `).run({ date, time: time ?? null, day_of_week: day_of_week ?? null, hour: hour ?? null, hero, role, map, game_type, win: win ? 1 : 0, deaths: deathsJson, queue_mode: queue_mode ?? 'comp_role', sens: finalSens, dpi: finalDpi, blind_trial: isStudy, blind_set_id: setId, stage_index: stageIdx, feel: feel ?? null, team_rating: team_rating ?? null, notes: notes?.trim() || null, curve_enabled: finalCurveEnabled ? 1 : 0, curve_growth_rate: curveParams?.smooth ?? null, curve_midpoint: curveParams?.input ?? null, curve_motivity: curveParams?.output ?? null, match_quality: match_quality ?? null, result_driver: result_driver ?? null, player_rank: player_rank ?? null, lobby_low: lobby_low ?? null, lobby_high: lobby_high ?? null, account: account ?? null });
+    `).run({ date, time: time ?? null, day_of_week: day_of_week ?? null, hour: hour ?? null, hero, role, map, game_type, win: win ? 1 : 0, deaths: deathsJson, queue_mode: queue_mode ?? 'comp_role', sens: finalSens, dpi: finalDpi, blind_trial: isStudy, blind_set_id: setId, stage_index: stageIdx, feel: feel ?? null, team_rating: team_rating ?? null, notes: notes?.trim() || null, curve_enabled: finalCurveEnabled ? 1 : 0, curve_growth_rate: null, curve_midpoint: null, curve_motivity: null, match_quality: match_quality ?? null, result_driver: result_driver ?? null, player_rank: player_rank ?? null, lobby_low: lobby_low ?? null, lobby_high: lobby_high ?? null, account: account ?? null });
 
     matchId = result.lastInsertRowid as number;
 
@@ -343,14 +347,16 @@ function syncStageCredits(db: ReturnType<typeof getDb>, matchId: string, sensPro
   // fields are never sent as part of a roster/queue_mode edit, only ever
   // corrected directly via their own EDITABLE fields, so there's no risk of
   // clobbering a value this same request just set on purpose.
+  //
+  // curve_growth_rate/curve_midpoint/curve_motivity go null here too, same
+  // reason and same date as the POST insert above — the Jump-curve params
+  // they'd otherwise re-stamp no longer describe Sean's real config now that
+  // he's on a LUT.
   if (primaryStage) {
-    const curveParams = primaryStage.curveEnabled ? getCurveParams(db) : null;
     db.prepare('UPDATE matches SET curve_enabled = :ce, curve_growth_rate = :cgr, curve_midpoint = :cm, curve_motivity = :cmot WHERE id = :id')
       .run({
         id: matchId, ce: primaryStage.curveEnabled ? 1 : 0,
-        cgr: curveParams?.smooth ?? null,
-        cm: curveParams?.input ?? null,
-        cmot: curveParams?.output ?? null,
+        cgr: null, cm: null, cmot: null,
       });
   }
 }
