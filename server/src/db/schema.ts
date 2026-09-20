@@ -396,6 +396,21 @@ function initSchema(db: DatabaseSync) {
     }
   }
 
+  // account: which of Sean's four accounts played this match — 'Pinx' |
+  // 'Jinx' | 'Winx' | 'Linx'. See ACCOUNTS in client/src/types/index.ts for
+  // the canonical list; the two must stay in step. Overwatch ranks each
+  // account separately, so player_rank without this is a number with no
+  // ladder attached to it — the bug this column exists to fix let a
+  // Support rank on one account and a DPS rank on another get compared as
+  // one continuous climb.
+  //
+  // Nullable with NO default, same rule as player_rank above: a guessed
+  // account reads as a real observation. The 7 existing ranked rows are
+  // left null on purpose — no backfill, no guessing which account they were.
+  if (!cols.find(c => c.name === 'account')) {
+    db.exec(`ALTER TABLE matches ADD COLUMN account TEXT`);
+  }
+
   // match_deaths: one row per death, FACT only — who killed Sean and whether
   // it was an ult. Replaces the old matches.deaths JSON column's per-death
   // capture (that column stays frozen, untouched, as historical v1/v2/v3
