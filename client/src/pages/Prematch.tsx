@@ -319,7 +319,13 @@ export default function Prematch() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(row.senses
           ? { senses: row.senses, batch_size: row.gamesPerSlot, hero, phase: nextPhase.key, curve_enabled: nextPhase.curveEnabled }
-          : { in_game_sens: 2.5, dpis: row.dpis, batch_size: row.gamesPerSlot, hero, phase: nextPhase.key, curve_enabled: nextPhase.curveEnabled }),
+          // Starts from whatever this hero's own testing has landed on, not a
+          // flat 2.5. A hero that has already finished a phase has a better
+          // answer than the roster default, and starting the next phase back
+          // at 2.5 throws that away. Falls back to 2.5 only when there is no
+          // reliable scale yet — sensRecFor is gated on the server's own
+          // minimum sample size, so a single lucky game cannot seed a phase.
+          : { in_game_sens: sensRecFor(hero) ?? 2.5, dpis: row.dpis, batch_size: row.gamesPerSlot, hero, phase: nextPhase.key, curve_enabled: nextPhase.curveEnabled }),
       });
       revalidateAll();
       // revalidateAll() only refreshes useApi hooks, and the Advisor card
@@ -567,6 +573,23 @@ export default function Prematch() {
     return h?.bestScaleReliable && h.bestScaleEDPI != null
       ? Math.round((h.bestScaleEDPI / MOUSE_DPI) * 100) / 100
       : null;
+  };
+
+  // What sens to show beside a hero in the picker.
+  //
+  // A hero mid-test shows the sens that test is running at. A hero that has
+  // finished shows the best scale its own data points to. The row used to go
+  // blank the moment a test ended, which read as "nothing known about this
+  // hero" — when finishing the test is precisely when something IS known.
+  //
+  // `settled` separates the two, because they are different claims. One is
+  // "play at this to keep the trial honest". The other is "this is the number
+  // the trial arrived at".
+  const pickerSensFor = (hero: string): { value: string; settled: boolean } | null => {
+    const active = testValueFor(hero);
+    if (active) return { value: active, settled: false };
+    const rec = sensRecFor(hero);
+    return rec != null ? { value: rec.toFixed(2), settled: true } : null;
   };
 
   const queueLabel = QUEUE_MODES.find(q => q.value === queueMode)?.label ?? '';
@@ -1411,6 +1434,7 @@ export default function Prematch() {
                     {heroes.map(h => {
                       const clickIndex = clickedHeroes.indexOf(h.hero);
                       const isClicked = clickIndex !== -1;
+                      const sensTag = pickerSensFor(h.hero);
                       return (
                       // role="button" rather than a real <button> because the
                       // row now nests its own "start next phase" button, and a
@@ -1457,7 +1481,18 @@ export default function Prematch() {
                         )}
                         <span className={`text-sm ${h.win_rate >= 50 ? 'text-emerald-700' : 'text-red-500'}`}>{h.win_rate >= 50 ? '↑' : '↓'}</span>
                         <span className={`flex-1 text-xs hero-name transition-colors ${isClicked ? 'text-ow-accent' : 'text-[var(--ink)] group-hover:text-ow-accent'}`}>
-                          {withHeroCount(h.hero, heroCounts)}{testValueFor(h.hero) && ` @ ${testValueFor(h.hero)}`}
+                          {withHeroCount(h.hero, heroCounts)}
+                          {sensTag && (
+                            <span
+                              className={sensTag.settled ? 'text-emerald-700 dark:text-emerald-400' : undefined}
+                              title={sensTag.settled
+                                ? 'Best sens this hero’s own testing landed on'
+                                : 'Sens this test is running at'}
+                              data-inspect-id="prematch-hero-picker-sens-tag"
+                            >
+                              {` @ ${sensTag.value}`}
+                            </span>
+                          )}
                         </span>
                         {testGaugeFor(h.hero) != null ? (
                           <span

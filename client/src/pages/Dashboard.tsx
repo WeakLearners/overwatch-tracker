@@ -532,6 +532,12 @@ export default function Dashboard() {
   // saturation ends, so the legend swatch matches a candle at the extremes.
   const UP_SWATCH = `hsl(160 ${SAT_CEIL}% 44%)`;
   const DOWN_SWATCH = `hsl(350 ${SAT_CEIL}% 46%)`;
+  // One box for every legend swatch. The five symbols are different shapes
+  // and cannot be the same drawing, but they can occupy the same square and
+  // sit on the same baseline — which is what makes the row read as one key
+  // rather than five diagrams that happen to be adjacent.
+  const LEGEND_SWATCH = 'shrink-0 w-5 h-5 mt-px flex items-center justify-center';
+  const LEGEND_TITLE = 'font-bold text-[var(--muted)]';
 
   // Gridlines. Y every 5 matches, since the height is a match count — a line
   // every 5 gives the eye something to measure a day against without drawing
@@ -1026,74 +1032,86 @@ export default function Dashboard() {
                   data-inspect-id="dash-recent-form-legend"
                   className="flex flex-wrap lg:flex-nowrap items-start gap-x-6 lg:gap-x-4 gap-y-3 text-[10px] leading-[1.6] text-[var(--faint)] mt-4 pt-3 border-t border-ow-border"
                 >
-                  {/* Every item carries min-w-0 so that at lg, where the row is
-                      told not to wrap, a long line breaks INSIDE its own item
-                      instead of pushing the item past the card edge. Without
-                      it a flex child refuses to shrink below its longest word
+                  {/* Two rules hold this row together.
+
+                      Every swatch lives in the same 20x20 box (LEGEND_SWATCH)
+                      and every entry is a bold title over exactly one line.
+                      The candle used to be drawn 44px tall against 12px
+                      neighbours, which read as five unrelated diagrams rather
+                      than one key.
+
+                      And every item carries min-w-0, so that at lg — where the
+                      row is told not to wrap — a long line breaks INSIDE its
+                      own item instead of pushing past the card edge. A flex
+                      child otherwise refuses to shrink below its longest word
                       run, and five of them overflow. */}
                   <div className="flex items-start gap-2 min-w-0">
-                    <svg width="24" height="44" viewBox="0 0 24 44" aria-hidden="true" className="shrink-0 mt-0.5">
-                      <line x1="12" y1="1" x2="12" y2="12" stroke={UP_SWATCH} strokeWidth="2" strokeOpacity="0.9" />
-                      <rect x="3" y="12" width="18" height="19" fill={UP_SWATCH} fillOpacity="0.85" stroke={UP_SWATCH} strokeWidth="1.5" />
-                      <line x1="12" y1="31" x2="12" y2="43" stroke={UP_SWATCH} strokeWidth="2" strokeOpacity="0.9" />
-                    </svg>
+                    <span className={LEGEND_SWATCH} aria-hidden="true">
+                      <svg width="20" height="20" viewBox="0 0 20 20">
+                        <line x1="10" y1="1" x2="10" y2="6" stroke={UP_SWATCH} strokeWidth="2" strokeOpacity="0.9" />
+                        <rect x="4" y="6" width="12" height="8" fill={UP_SWATCH} fillOpacity="0.85" stroke={UP_SWATCH} strokeWidth="1.5" />
+                        <line x1="10" y1="14" x2="10" y2="19" stroke={UP_SWATCH} strokeWidth="2" strokeOpacity="0.9" />
+                      </svg>
+                    </span>
                     <span>
-                      <b className="font-bold text-[var(--muted)]">one candle = one day</b>
-                      <br />body: ranked wins minus losses, from where yesterday ended
-                      <br />wick: quickplay — wins above, losses below
+                      <b className={LEGEND_TITLE}>one candle = one day</b>
+                      <br />body: ranked net · wick: quickplay, wins up / losses down
                     </span>
                   </div>
 
                   <div className="flex items-start gap-2 min-w-0">
-                    <span className="shrink-0 mt-[3px] inline-flex gap-1" aria-hidden="true">
-                      <span className="inline-block w-2.5 h-3 rounded-[1px]" style={{ background: UP_SWATCH, opacity: 0.85 }} />
-                      <span className="inline-block w-2.5 h-3 rounded-[1px]" style={{ background: DOWN_SWATCH, opacity: 0.85 }} />
+                    <span className={LEGEND_SWATCH} aria-hidden="true">
+                      <span className="inline-flex gap-1">
+                        <span className="inline-block w-2 h-3.5 rounded-[1px]" style={{ background: UP_SWATCH, opacity: 0.85 }} />
+                        <span className="inline-block w-2 h-3.5 rounded-[1px]" style={{ background: DOWN_SWATCH, opacity: 0.85 }} />
+                      </span>
                     </span>
                     <span>
-                      <b className="font-bold text-[var(--muted)]">color</b>
-                      <br />green: the day broke even or better
-                      <br />stronger color = further from break-even
+                      <b className={LEGEND_TITLE}>color</b>
+                      <br />green: broke even or better · stronger: further out
                     </span>
                   </div>
 
                   <div className="flex items-start gap-2 min-w-0">
-                    <span className="shrink-0 mt-[3px] relative inline-block w-5 h-3" aria-hidden="true">
-                      <span className="absolute inset-0 rounded-[1px] bg-ow-accent dark:bg-ow-accentLight opacity-[0.14]" />
-                      <span className="absolute left-0 right-0 top-1/2 border-t border-dashed border-ow-accent dark:border-ow-accentLight opacity-90" />
+                    <span className={LEGEND_SWATCH} aria-hidden="true">
+                      <span className="relative inline-block w-[18px] h-3.5">
+                        <span className="absolute inset-0 rounded-[1px] bg-ow-accent dark:bg-ow-accentLight opacity-[0.14]" />
+                        <span className="absolute left-0 right-0 top-1/2 border-t border-dashed border-ow-accent dark:border-ow-accentLight opacity-90" />
+                      </span>
                     </span>
                     <span>
-                      <b className="font-bold text-[var(--muted)]">pace &amp; ±1 SD</b>
+                      <b className={LEGEND_TITLE}>pace &amp; ±1 SD</b>
                       <br />where a run at your career <b className="font-bold">{((careerEdge + 1) * 50).toFixed(1)}</b>% would drift
-                      <br />shading is the room an ordinary run has to wander
                     </span>
                   </div>
 
                   <div className="flex items-start gap-2 min-w-0">
-                    <span className="shrink-0 mt-[3px] inline-flex items-end gap-[2px] h-3" aria-hidden="true">
+                    <span className={LEGEND_SWATCH} aria-hidden="true">
                       {/* All three share one ramp sized to the TALLEST of them
                           and anchored to the bottom, the same rule the chart
                           follows — so the short swatches show a slice of the
                           gradient rather than their own squashed copy. */}
-                      {['0.375rem', '0.75rem', '0.5rem'].map((h, i) => (
-                        <span
-                          key={i}
-                          className="inline-block w-1"
-                          style={{
-                            height: h,
-                            backgroundImage: `linear-gradient(to top, ${VOL_STOPS.map(
-                              st => `${volStopColor(st.mix)} ${Math.round((1 - st.offset) * 100)}%`,
-                            ).reverse().join(', ')})`,
-                            backgroundSize: '100% 0.75rem',
-                            backgroundPosition: 'bottom',
-                            backgroundRepeat: 'no-repeat',
-                          }}
-                        />
-                      ))}
+                      <span className="inline-flex items-end gap-[2px] h-5">
+                        {['0.625rem', '1.25rem', '0.875rem'].map((h, i) => (
+                          <span
+                            key={i}
+                            className="inline-block w-1"
+                            style={{
+                              height: h,
+                              backgroundImage: `linear-gradient(to top, ${VOL_STOPS.map(
+                                st => `${volStopColor(st.mix)} ${Math.round((1 - st.offset) * 100)}%`,
+                              ).reverse().join(', ')})`,
+                              backgroundSize: '100% 1.25rem',
+                              backgroundPosition: 'bottom',
+                              backgroundRepeat: 'no-repeat',
+                            }}
+                          />
+                        ))}
+                      </span>
                     </span>
                     <span>
-                      <b className="font-bold text-[var(--muted)]">bars below</b>
-                      <br />total games that day, ranked and quickplay
-                      <br />tallest bar = your busiest day, <b className="font-bold">{maxVol}</b>
+                      <b className={LEGEND_TITLE}>bars below</b>
+                      <br />games that day, ranked and quickplay · busiest <b className="font-bold">{maxVol}</b>
                     </span>
                   </div>
 
@@ -1104,14 +1122,15 @@ export default function Dashboard() {
                       that reflows depending on the data is harder to read than
                       one entry explaining a symbol you have not hit yet. */}
                   <div className="flex items-start gap-2 min-w-0">
-                    <span className="shrink-0 mt-[3px] inline-flex flex-col leading-[0.6] text-[9px]" aria-hidden="true">
-                      <span style={{ color: `rgb(${RANK_TIER_RGB.Platinum})` }}>▲</span>
-                      <span style={{ color: `rgb(${RANK_TIER_RGB.Gold})` }}>▼</span>
+                    <span className={LEGEND_SWATCH} aria-hidden="true">
+                      <span className="inline-flex flex-col leading-[0.75] text-[11px]">
+                        <span style={{ color: `rgb(${RANK_TIER_RGB.Platinum})` }}>▲</span>
+                        <span style={{ color: `rgb(${RANK_TIER_RGB.Gold})` }}>▼</span>
+                      </span>
                     </span>
                     <span>
-                      <b className="font-bold text-[var(--muted)]">tier change</b>
-                      <br />up under the candle, down above it
-                      <br />colored for the tier you moved <i>into</i>
+                      <b className={LEGEND_TITLE}>tier change</b>
+                      <br />▲ under the candle, ▼ over · colored for the tier entered
                     </span>
                   </div>
                 </div>
