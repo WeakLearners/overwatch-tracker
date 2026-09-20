@@ -422,7 +422,7 @@ export default function Dashboard() {
   // A day can now carry several crossings. Marks pointing the same way on
   // the same day would land on top of each other, so each successive one
   // (in the same stable sorted-key order used to build tierMarks) is pushed
-  // a further 14px outward from the candle — up-marks stack down from the
+  // a further 21px outward from the candle — up-marks stack down from the
   // day's low, down-marks stack up from the day's high.
   const tierStackIdx = new Map<TierMark, number>();
   {
@@ -943,7 +943,7 @@ export default function Dashboard() {
                   const c = candles[m.j];
                   const y = m.up ? chartY(c.low) : chartY(c.high);
                   const stack = tierStackIdx.get(m)!;
-                  const outward = stack * 14; // px, growing away from the candle per stacked mark
+                  const outward = stack * 21; // px: the 11px glyph plus its 8px tag, plus a hair
                   const label = drumLabel(m.account, m.role);
                   const glyph = <span key="g">{m.up ? '▲' : '▼'}</span>;
                   const tag = <span key="l" className="text-[8px] leading-none font-bold tracking-tight tabular-nums">{label}</span>;
