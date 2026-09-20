@@ -1024,9 +1024,14 @@ export default function Dashboard() {
                     shorter than the sentence it would take to say that. */}
                 <div
                   data-inspect-id="dash-recent-form-legend"
-                  className="flex flex-wrap items-start gap-x-6 gap-y-3 text-[10px] leading-[1.6] text-[var(--faint)] mt-4 pt-3 border-t border-ow-border"
+                  className="flex flex-wrap lg:flex-nowrap items-start gap-x-6 lg:gap-x-4 gap-y-3 text-[10px] leading-[1.6] text-[var(--faint)] mt-4 pt-3 border-t border-ow-border"
                 >
-                  <div className="flex items-start gap-2">
+                  {/* Every item carries min-w-0 so that at lg, where the row is
+                      told not to wrap, a long line breaks INSIDE its own item
+                      instead of pushing the item past the card edge. Without
+                      it a flex child refuses to shrink below its longest word
+                      run, and five of them overflow. */}
+                  <div className="flex items-start gap-2 min-w-0">
                     <svg width="24" height="44" viewBox="0 0 24 44" aria-hidden="true" className="shrink-0 mt-0.5">
                       <line x1="12" y1="1" x2="12" y2="12" stroke={UP_SWATCH} strokeWidth="2" strokeOpacity="0.9" />
                       <rect x="3" y="12" width="18" height="19" fill={UP_SWATCH} fillOpacity="0.85" stroke={UP_SWATCH} strokeWidth="1.5" />
@@ -1039,7 +1044,7 @@ export default function Dashboard() {
                     </span>
                   </div>
 
-                  <div className="flex items-start gap-2">
+                  <div className="flex items-start gap-2 min-w-0">
                     <span className="shrink-0 mt-[3px] inline-flex gap-1" aria-hidden="true">
                       <span className="inline-block w-2.5 h-3 rounded-[1px]" style={{ background: UP_SWATCH, opacity: 0.85 }} />
                       <span className="inline-block w-2.5 h-3 rounded-[1px]" style={{ background: DOWN_SWATCH, opacity: 0.85 }} />
@@ -1051,7 +1056,7 @@ export default function Dashboard() {
                     </span>
                   </div>
 
-                  <div className="flex items-start gap-2">
+                  <div className="flex items-start gap-2 min-w-0">
                     <span className="shrink-0 mt-[3px] relative inline-block w-5 h-3" aria-hidden="true">
                       <span className="absolute inset-0 rounded-[1px] bg-ow-accent dark:bg-ow-accentLight opacity-[0.14]" />
                       <span className="absolute left-0 right-0 top-1/2 border-t border-dashed border-ow-accent dark:border-ow-accentLight opacity-90" />
@@ -1063,7 +1068,7 @@ export default function Dashboard() {
                     </span>
                   </div>
 
-                  <div className="flex items-start gap-2">
+                  <div className="flex items-start gap-2 min-w-0">
                     <span className="shrink-0 mt-[3px] inline-flex items-end gap-[2px] h-3" aria-hidden="true">
                       {/* All three share one ramp sized to the TALLEST of them
                           and anchored to the bottom, the same rule the chart
@@ -1092,23 +1097,23 @@ export default function Dashboard() {
                     </span>
                   </div>
 
-                  {/* Only drawn once a crossing exists. An entry explaining a
-                      symbol that is nowhere on the chart is just clutter, and
-                      until enough ranked matches carry a rank there will be
-                      none. */}
-                  {tierMarks.length > 0 && (
-                    <div className="flex items-start gap-2">
-                      <span className="shrink-0 mt-[3px] inline-flex flex-col leading-[0.6] text-[9px]" aria-hidden="true">
-                        <span style={{ color: `rgb(${RANK_TIER_RGB.Platinum})` }}>▲</span>
-                        <span style={{ color: `rgb(${RANK_TIER_RGB.Gold})` }}>▼</span>
-                      </span>
-                      <span>
-                        <b className="font-bold text-[var(--muted)]">tier change</b>
-                        <br />up under the candle, down above it
-                        <br />colored for the tier you moved <i>into</i>
-                      </span>
-                    </div>
-                  )}
+                  {/* A fixture, not conditional on a crossing existing. It was
+                      drawn only when tierMarks was non-empty, which made the
+                      legend five items wide on some days and four on others —
+                      so the row it fits in changed from day to day. A legend
+                      that reflows depending on the data is harder to read than
+                      one entry explaining a symbol you have not hit yet. */}
+                  <div className="flex items-start gap-2 min-w-0">
+                    <span className="shrink-0 mt-[3px] inline-flex flex-col leading-[0.6] text-[9px]" aria-hidden="true">
+                      <span style={{ color: `rgb(${RANK_TIER_RGB.Platinum})` }}>▲</span>
+                      <span style={{ color: `rgb(${RANK_TIER_RGB.Gold})` }}>▼</span>
+                    </span>
+                    <span>
+                      <b className="font-bold text-[var(--muted)]">tier change</b>
+                      <br />up under the candle, down above it
+                      <br />colored for the tier you moved <i>into</i>
+                    </span>
+                  </div>
                 </div>
               </>
             )}
