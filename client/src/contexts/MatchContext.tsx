@@ -53,6 +53,13 @@ type RankRole = 'DPS' | 'Support';
 const rankKeyFor = (a: Account, r: RankRole) => `${RANK_KEY}:${a}:${r}`;
 const lobbyKeyFor = (a: Account, r: RankRole) => `${LOBBY_KEY}:${a}:${r}`;
 
+// The rank the LAST logged match on this ladder ended at. It becomes the next
+// match's player_rank_start, so a row can say "went in at Gold 1, came out at
+// Gold 2" on its own instead of the chart inferring it by comparing two rows.
+// Per account+role, same as the rank drum, because each ladder moves alone.
+const RANK_AT_LAST_LOG_KEY = 'ow-rank-at-last-log';
+const rankAtLastLogKeyFor = (a: Account, r: RankRole) => `${RANK_AT_LAST_LOG_KEY}:${a}:${r}`;
+
 // One-time move of everything that came before the per-role split. The value
 // stored back when there was a single rank is Linx's support rank — Sean said
 // so directly on 2026-09-19 — so it is written there rather than to whichever
@@ -77,6 +84,20 @@ function migrateLegacyRank() {
   } catch { /* ignore */ }
 }
 migrateLegacyRank();
+
+function readRankAtLastLog(a: Account, r: RankRole): number | null {
+  try {
+    const v = Number(localStorage.getItem(rankAtLastLogKeyFor(a, r)));
+    if (v >= RANK_MIN && v <= RANK_MAX) return v;
+    // No entry yet. This key is newer than the rank drum, so on every ladder
+    // Sean has already been playing it is simply missing, and reading null
+    // would make the next match record no starting rank — the one match he
+    // wants marked. The drum is where the ladder stands right now, which is
+    // exactly where the next match starts, so fall back to it. Only ever a
+    // read: the key gets written for real when a match is logged.
+    return readRank(a, r);
+  } catch { return null; }
+}
 
 function readRank(a: Account, r: RankRole): number | null {
   try {
@@ -125,6 +146,9 @@ interface MatchContextValue {
   account: Account;
   setAccount: (a: Account) => void;
   playerRank: number | null;
+  /** Rank the last logged match on this ladder ended at — the next match's start rank. */
+  rankAtLastLog: number | null;
+  commitRankAtLastLog: (r: number | null) => void;
   setPlayerRank: (r: number | null) => void;
   lobbyLow: number | null;
   lobbyHigh: number | null;
@@ -200,6 +224,19 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     } catch { /* ignore */ }
   }, [account, testRole]);
 
+  // Where this ladder stood when its last match was logged. Read on mount and
+  // on every account/role swap, the same as the drum itself.
+  const [rankAtLastLog, setRankAtLastLogState] = useState<number | null>(() => readRankAtLastLog(account, testRole));
+  // Called by LogMatch after a match saves, with the rank that match ended at.
+  // That rank is the next one's starting point.
+  const commitRankAtLastLog = useCallback((r: number | null) => {
+    setRankAtLastLogState(r);
+    try {
+      if (r == null) localStorage.removeItem(rankAtLastLogKeyFor(account, testRole));
+      else localStorage.setItem(rankAtLastLogKeyFor(account, testRole), String(r));
+    } catch { /* ignore */ }
+  }, [account, testRole]);
+
   const [lobbyRange, setLobbyRange] = useState<{ low: number; high: number } | null>(() => readLobby(account, testRole));
 
   // Account and role each swap the whole rank context in one move: the drum's
@@ -216,6 +253,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
       if (prev === a) return prev;
       try { localStorage.setItem(ACCOUNT_KEY, a); } catch { /* ignore */ }
       setPlayerRankState(readRank(a, testRole));
+      setRankAtLastLogState(readRankAtLastLog(a, testRole));
       setLobbyRange(readLobby(a, testRole));
       return a;
     });
@@ -225,6 +263,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     setTestRoleState(prev => {
       if (prev === r) return prev;
       setPlayerRankState(readRank(account, r));
+      setRankAtLastLogState(readRankAtLastLog(account, r));
       setLobbyRange(readLobby(account, r));
       return r;
     });
@@ -334,7 +373,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
       refreshRec: () => fetchRec(true),
       revalidateRec: () => fetchRec(false),
       account, setAccount,
-      playerRank, setPlayerRank,
+      playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog,
       lobbyLow: lobbyRange?.low ?? null,
       lobbyHigh: lobbyRange?.high ?? null,
       setLobbyRange: setLobbyRangeValues, applyLobbySpread, nudgeLobby, clearLobbyRange,

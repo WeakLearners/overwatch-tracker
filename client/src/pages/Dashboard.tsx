@@ -384,47 +384,33 @@ export default function Dashboard() {
   // can be placed. A move older than the window has no candle and is dropped.
   const candleIdxByDate = new Map(candles.map((c, j) => [c.date, j]));
 
-  // Rank moves, walked match by match rather than day by day.
+  // Rank moves, read off the match that caused them.
   //
-  // Two things were wrong before, both found 2026-09-20 when Sean deranked
-  // Gold 1 -> Gold 2 and no marker appeared.
+  // A match now records both ends: player_rank_start going in, player_rank
+  // coming out. If they differ, that match moved the ladder, and the mark
+  // goes on its day. Nothing is compared against any other row.
   //
-  // First, only a TIER change counted. Gold 1 and Gold 2 are both "Gold", so
-  // the comparison saw no change. Every division move now draws a mark; the
-  // triangle carries the new division number, so the size of the move is in
-  // the glyph instead of being the reason to draw one.
-  //
-  // Second, the old pass compared one day's last reading to the previous
-  // day's. A move within a single day was invisible — the day simply closed
-  // on its newer number and nothing was left to compare against. Worse, a
-  // ladder played for the first time today could never produce a mark at all,
-  // because it had no previous day. Walking the matches in order fixes both:
-  // a move is recorded when it happens, and lands on the day it happened.
+  // Sean's call on 2026-09-20, and it retires three bugs at once rather than
+  // patching them. Comparing rows meant the answer depended on which earlier
+  // row the walk happened to land on, so a gap in play, an edited row, or a
+  // match logged before the account column existed all changed it silently.
+  // It also could not tell a real move from the drum being dialled in. Two
+  // columns on one row are decided at log time, by the person who knows, and
+  // an edit to that row corrects the mark instead of shifting every mark
+  // after it.
   const tierMarks: TierMark[] = (() => {
     const out: TierMark[] = [];
-    const prevByDrum = new Map<string, number>();
-    // "Where tracking started" is the first READING, not the first day. A
-    // drum's opening number is a baseline, so it draws nothing. Everything
-    // after it is a move from a rank he was actually on, including later the
-    // same day — Gold 1 in the morning and Gold 2 by noon is a derank, and
-    // suppressing it because both happened on day one was wrong (tried and
-    // reverted 2026-09-20).
     for (const g of trends ?? []) {
-      if (g.player_rank == null) continue;
-      // Each account+role pair is its own ladder ("drum"). Overwatch ranks
-      // every role separately on every account, so comparing across them
-      // would invent a move between two unrelated ladders.
-      const key = `${g.account ?? ''}|${g.role}`;
-      const prev = prevByDrum.get(key);
-      prevByDrum.set(key, g.player_rank);
-      if (prev == null || prev === g.player_rank) continue;
+      const from = g.player_rank_start;
+      const to = g.player_rank;
+      if (from == null || to == null || from === to) continue;
       const date = g.date.slice(0, 10);
       const j = candleIdxByDate.get(date);
       if (j == null) continue;
       out.push({
-        j, date, up: g.player_rank > prev,
-        tier: rankTier(g.player_rank), from: rankTier(prev),
-        rank: g.player_rank, prev, account: g.account, role: g.role,
+        j, date, up: to > from,
+        tier: rankTier(to), from: rankTier(from),
+        rank: to, prev: from, account: g.account, role: g.role,
       });
     }
     return out;

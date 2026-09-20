@@ -255,11 +255,18 @@ export interface TrendPoint {
   queue_mode: QueueMode;
   rolling_win_rate: number;
   /**
-   * Sean's own rank at the time of the match, 1-45, or null for every match
-   * logged before the rank drum existed. The dashboard's candle chart reads it
-   * only to spot the day a tier boundary was crossed.
+   * The rank this match ENDED at, 1-45, or null for quickplay and for every
+   * match logged before the rank drum existed.
    */
   player_rank: number | null;
+  /**
+   * The rank this match STARTED at. Together with player_rank it makes the
+   * move a property of the match that caused it, so the chart reads one row
+   * instead of comparing two. Null on quickplay and on every row logged
+   * before this column existed (2026-09-20), and never backfilled — the rank
+   * those matches began at is not recorded anywhere.
+   */
+  player_rank_start: number | null;
   /** Role played, e.g. 'Support' | 'DPS' | 'Tank' — Overwatch ranks each role separately. */
   role: string;
   /**

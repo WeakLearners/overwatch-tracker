@@ -151,6 +151,23 @@ function initSchema(db: DatabaseSync) {
     db.exec(`ALTER TABLE matches ADD COLUMN curve_lut TEXT`);
   }
 
+  // player_rank_start: the rank going INTO this match, where player_rank is
+  // the rank coming out of it. Added 2026-09-20.
+  //
+  // A rank change belongs to the match that caused it. Before this the app
+  // inferred changes by comparing one row's player_rank against an earlier
+  // row's, which is fragile in every direction: a gap in play, a corrected
+  // row, or a match logged with no account all shift what "the earlier row"
+  // means, and the comparison silently answers a different question. Two
+  // columns on one row answer it once and keep answering it after an edit.
+  //
+  // Null on every row logged before this column existed, and on quickplay,
+  // which has no rank at all. No backfill: the ranks those rows went into
+  // are not recorded anywhere, and inventing them is how a confound starts.
+  if (!cols.find(c => c.name === 'player_rank_start')) {
+    db.exec(`ALTER TABLE matches ADD COLUMN player_rank_start INTEGER`);
+  }
+
   // curve_enabled: whether mouse acceleration was actually active for this
   // match — ground truth, distinct from curve_growth_rate/curve_midpoint
   // above. Those two got stamped with the same constant on every match

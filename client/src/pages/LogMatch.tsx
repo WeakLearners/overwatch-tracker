@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { HEROES, MAPS, ROLE_COLORS, ROLE_PILL_CLASS, ROLE_PILL_CLASS_DARK, TYPE_COLORS, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB, MODE_WASH_CLASS, MODE_COMPACT, OLDEST_DASH_FADE_STYLE } from '../types';
+import { HEROES, MAPS, ROLE_COLORS, ROLE_PILL_CLASS, ROLE_PILL_CLASS_DARK, TYPE_COLORS, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB, MODE_WASH_CLASS, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, rankLabel } from '../types';
 import { useMatch } from '../contexts/MatchContext';
 import DeathLogger from '../components/DeathLogger';
 import EmptyState from '../components/EmptyState';
@@ -304,7 +304,7 @@ interface BlindSetSummary {
 export default function LogMatch() {
   // Map + queue mode are shared with the Pre-Match section via context; this
   // section only owns date/time/hero/win plus the death tags.
-  const { queueMode, setQueueMode, map, setMap, mapType, sens, testRole, pendingHeroes, setPendingHeroes, revalidateRec, notifyMatchLogged, deathBuffer, removeDeathFromBuffer, toggleDeathUlt, clearDeathBuffer, playerRank, lobbyLow, lobbyHigh, account } = useMatch();
+  const { queueMode, setQueueMode, map, setMap, mapType, sens, testRole, pendingHeroes, setPendingHeroes, revalidateRec, notifyMatchLogged, deathBuffer, removeDeathFromBuffer, toggleDeathUlt, clearDeathBuffer, playerRank, rankAtLastLog, commitRankAtLastLog, lobbyLow, lobbyHigh, account } = useMatch();
   const { data: dpiState } = useApi<DpiTestState>('/api/blind/state');
   const { data: blindSets } = useApi<{ sets: BlindSetSummary[] }>('/api/blind/sets');
   const mapCounts = useTodayMapCounts();
@@ -628,6 +628,11 @@ export default function LogMatch() {
           match_quality: matchQuality,
           result_driver: resultDriver,
           player_rank: isQP ? null : playerRank,
+          // Where the ladder stood going in. Carried from the rank the last
+          // match on this account+role ended at, so the row records the move
+          // itself rather than leaving the chart to infer one by comparing
+          // against whichever earlier row it can find.
+          player_rank_start: isQP ? null : rankAtLastLog,
           lobby_low: isQP ? null : lobbyLow,
           lobby_high: isQP ? null : lobbyHigh,
           // Unlike rank, the account isn't gated on isQP — who played is a
@@ -640,6 +645,9 @@ export default function LogMatch() {
       const loggedMode = queueMode;
       const loggedWin = form.win === '1';
       setStatus('success');
+      // This match's finishing rank is the next one's starting rank. Written
+      // only after the save succeeds — a failed POST must not move the ladder.
+      if (!isQP) commitRankAtLastLog(playerRank);
       clearDeathBuffer();
       setFeelByHero({});
       setTeamRating(0);
@@ -1073,6 +1081,39 @@ export default function LogMatch() {
                 </div>
               </div>
             </div>
+
+            {/* The rank check, immediately above the button that commits it.
+                A match now records where the ladder stood going in and where
+                it stood coming out, and the "coming out" half is whatever the
+                rank drum says at this moment. So the drum being stale is no
+                longer a cosmetic problem — it writes a wrong result onto a
+                real row. This sits here rather than on Prematch because here
+                is where the writing happens, and it reads differently
+                depending on whether the ladder has already moved. */}
+            {!isQP && (
+              <div
+                data-inspect-id="logmatch-rank-check"
+                className={`rounded-lg border px-3 py-2 text-xs ${
+                  playerRank != null && rankAtLastLog != null && playerRank !== rankAtLastLog
+                    ? 'border-ow-accent/40 bg-ow-accent/5 text-[var(--ink)]'
+                    : 'border-ow-border bg-ow-darker text-[var(--faint)]'
+                }`}
+              >
+                {playerRank == null ? (
+                  <>No rank set for <b className="text-[var(--ink)]">{account} {testRole}</b>. Set it on the Pre-Match page before logging, or this match records no rank at all.</>
+                ) : rankAtLastLog != null && playerRank !== rankAtLastLog ? (
+                  <>
+                    Recording a rank change: <b className="num-display text-[var(--ink)]">{rankLabel(rankAtLastLog)}</b>
+                    {' → '}<b className="num-display text-ow-accent">{rankLabel(playerRank)}</b>. This match gets the marker.
+                  </>
+                ) : (
+                  <>
+                    Rank stays <b className="num-display text-[var(--ink)]">{rankLabel(playerRank)}</b>.
+                    {' '}<span className="text-[var(--faint-2)]">Moved up or down? Change the drum on Pre-Match first — this match records whatever it says now.</span>
+                  </>
+                )}
+              </div>
+            )}
 
             <button
               type="submit"

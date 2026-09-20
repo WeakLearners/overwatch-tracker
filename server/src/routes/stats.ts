@@ -164,7 +164,7 @@ router.get('/trends', (req: Request, res: Response) => {
   const w = Math.max(1, Math.min(100, parseInt(window)));
   const rows = db.prepare(`
     SELECT
-      id, date, hero, map, game_type, win, queue_mode, player_rank, role, account,
+      id, date, hero, map, game_type, win, queue_mode, player_rank, player_rank_start, role, account,
       ROUND(AVG(win) OVER (ORDER BY date, time ROWS BETWEEN ${w - 1} PRECEDING AND CURRENT ROW) * 100, 1) as rolling_win_rate
     FROM matches
     ORDER BY date, time

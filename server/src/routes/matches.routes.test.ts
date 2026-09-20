@@ -43,7 +43,7 @@ const credits = (matchId: number) =>
     .map(r => ({ hero: r.hero, blind_set_id: Number(r.blind_set_id), stage_index: Number(r.stage_index) }));
 
 const matchRow = (matchId: number) =>
-  h.db.prepare('SELECT hero, sens, dpi, blind_trial, blind_set_id, stage_index, queue_mode FROM matches WHERE id = ?')
+  h.db.prepare('SELECT hero, sens, dpi, blind_trial, blind_set_id, stage_index, queue_mode, player_rank, player_rank_start FROM matches WHERE id = ?')
     .get(matchId) as any;
 
 const heroSlots = (matchId: number) =>
@@ -151,6 +151,49 @@ describe('POST /api/matches — who gets credited', () => {
     const r = await h.post('/api/matches', { date: '2026-09-12', hero: 'Ashe' });
     assert.equal(r.status, 400);
     assert.equal((h.db.prepare('SELECT COUNT(*) n FROM matches').get() as any).n, 0);
+  });
+});
+
+// A rank move is a property of the match that caused it, not of the gap
+// between two matches. These pin both ends of that pair, because the whole
+// point is that the row answers the question on its own — a later edit to
+// some other row must not be able to change what this one says happened.
+describe('POST /api/matches — the rank a match started and ended at', () => {
+  test('both ends persist, so the row states the move by itself', async () => {
+    const id = await logMatch({ hero: 'Ashe', role: 'DPS', player_rank_start: 15, player_rank: 14 });
+    const m = matchRow(id);
+    assert.equal(m.player_rank_start, 15, 'Gold 1 going in');
+    assert.equal(m.player_rank, 14, 'Gold 2 coming out');
+  });
+
+  test('a match that moved nothing stores the same rank at both ends', async () => {
+    const m = matchRow(await logMatch({ hero: 'Ashe', role: 'DPS', player_rank_start: 15, player_rank: 15 }));
+    assert.equal(m.player_rank_start, 15);
+    assert.equal(m.player_rank, 15);
+  });
+
+  test("a ladder's first match has no starting rank, and that reads as null", async () => {
+    // Nothing recorded where this ladder stood before, so the app must not
+    // invent one. Null here is what keeps the chart from drawing a move on
+    // the day Sean merely began tracking.
+    const m = matchRow(await logMatch({ hero: 'Ashe', role: 'DPS', player_rank: 15 }));
+    assert.equal(m.player_rank_start, null);
+    assert.equal(m.player_rank, 15);
+  });
+
+  test('quickplay stores neither end', async () => {
+    const m = matchRow(await logMatch({ hero: 'Ashe', role: 'DPS', queue_mode: 'qp_role' }));
+    assert.equal(m.player_rank_start, null);
+    assert.equal(m.player_rank, null);
+  });
+
+  test('an edit can correct the start rank without touching any other row', async () => {
+    const id = await logMatch({ hero: 'Ashe', role: 'DPS', player_rank_start: 15, player_rank: 14 });
+    const other = await logMatch({ hero: 'Ashe', role: 'DPS', player_rank_start: 14, player_rank: 14 });
+    const r = await h.put(`/api/matches/${id}`, { player_rank_start: 16 });
+    assert.equal(r.status, 200);
+    assert.equal(matchRow(id).player_rank_start, 16);
+    assert.equal(matchRow(other).player_rank_start, 14, 'correcting one row must not disturb another');
   });
 });
 
