@@ -403,15 +403,28 @@ export default function Dashboard() {
   const tierMarks: TierMark[] = (() => {
     const out: TierMark[] = [];
     const prevByDrum = new Map<string, number>();
+    // The first calendar day a ladder is tracked is setup, not play (Sean's
+    // call, 2026-09-20). Getting the drum onto the right number takes a few
+    // corrections, and those look exactly like rank moves: his Support drum's
+    // first day jumped Platinum 4 -> Emerald 2 between two games, which no
+    // single match can do. Rather than guess which corrections were real by
+    // the size of the jump, the whole first day is treated as setup.
+    //
+    // The BASELINE still carries: day one's last reading is what day two's
+    // first reading is compared against. Only the marks are suppressed, not
+    // the readings, so nothing is lost after the first day.
+    const firstDayByDrum = new Map<string, string>();
     for (const g of trends ?? []) {
       if (g.player_rank == null) continue;
       // Each account+role pair is its own ladder ("drum"). Overwatch ranks
       // every role separately on every account, so comparing across them
       // would invent a move between two unrelated ladders.
       const key = `${g.account ?? ''}|${g.role}`;
+      if (!firstDayByDrum.has(key)) firstDayByDrum.set(key, g.date.slice(0, 10));
       const prev = prevByDrum.get(key);
       prevByDrum.set(key, g.player_rank);
       if (prev == null || prev === g.player_rank) continue;
+      if (firstDayByDrum.get(key) === g.date.slice(0, 10)) continue;
       const date = g.date.slice(0, 10);
       const j = candleIdxByDate.get(date);
       if (j == null) continue;
@@ -967,7 +980,7 @@ export default function Dashboard() {
                   const c = candles[m.j];
                   const y = m.up ? chartY(c.low) : chartY(c.high);
                   const stack = tierStackIdx.get(m)!;
-                  const outward = stack * 24; // px: the 14px triangle plus its 8px tag, plus a hair
+                  const outward = stack * 29; // px: the 19px triangle plus its 8px tag, plus a hair
                   const label = drumLabel(m.account, m.role);
                   // The triangle says which way, and the number inside says
                   // which division he landed in. Both halves of "demoted to
@@ -980,19 +993,26 @@ export default function Dashboard() {
                   // down-triangle, low in an up-triangle.
                   const div = rankDivision(m.rank);
                   const glyph = (
-                    <svg key="g" width="15" height="14" viewBox="0 0 15 14" className="overflow-visible">
+                    <svg key="g" width="20" height="19" viewBox="0 0 20 19" className="overflow-visible">
                       <polygon
-                        points={m.up ? '7.5,0.5 14.5,13.5 0.5,13.5' : '0.5,0.5 14.5,0.5 7.5,13.5'}
+                        points={m.up ? '10,0.75 19.25,18.25 0.75,18.25' : '0.75,0.75 19.25,0.75 10,18.25'}
                         fill="currentColor" stroke="var(--surface)" strokeWidth="1.5" strokeLinejoin="round"
                         paintOrder="stroke"
                       />
                       <text
-                        x="7.5" y={m.up ? 11.4 : 8.6} textAnchor="middle"
-                        fontSize="7.5" fontWeight="700" fill="var(--surface)" className="tabular-nums select-none"
+                        x="10" y={m.up ? 15.4 : 11.6} textAnchor="middle"
+                        fontSize="11" fontWeight="800" fill="var(--surface)"
+                        className="tabular-nums select-none"
+                        style={{ textShadow: 'none' }}
                       >{div}</text>
                     </svg>
                   );
-                  const tag = <span key="l" className="text-[8px] leading-none font-bold tracking-tight tabular-nums">{label}</span>;
+                  const tag = (
+                    <span
+                      key="l" className="text-[8px] leading-none font-bold tracking-tight tabular-nums"
+                      style={{ textShadow: '0 0 2px var(--surface), 0 0 2px var(--surface)' }}
+                    >{label}</span>
+                  );
                   return (
                     <span
                       key={`tier-${m.date}-${label}-${m.up}`}
@@ -1013,9 +1033,12 @@ export default function Dashboard() {
                         // thin outline in the page's surface colour keeps the
                         // shape legible in both themes without touching the
                         // hue, which is the part carrying the meaning.
-                        // The tag is still text and still needs lifting off the
-                        // chart; the triangle carries its own outline via paintOrder.
-                        textShadow: '0 0 2px var(--surface), 0 0 2px var(--surface)',
+                        // No text-shadow here. It used to sit on this wrapper and
+                        // reached the SVG's digit, which is filled in the surface
+                        // colour — a surface-coloured halo around a surface-coloured
+                        // number, softening the one edge that had to stay sharp. The
+                        // triangle has its own outline via paintOrder, and the tag
+                        // carries the glow itself.
                       }}
                     >
                       {m.up ? [glyph, tag] : [tag, glyph]}
