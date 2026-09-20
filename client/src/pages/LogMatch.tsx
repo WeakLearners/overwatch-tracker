@@ -304,7 +304,7 @@ interface BlindSetSummary {
 export default function LogMatch() {
   // Map + queue mode are shared with the Pre-Match section via context; this
   // section only owns date/time/hero/win plus the death tags.
-  const { queueMode, setQueueMode, map, setMap, mapType, sens, testRole, pendingHeroes, setPendingHeroes, revalidateRec, notifyMatchLogged, deathBuffer, removeDeathFromBuffer, toggleDeathUlt, clearDeathBuffer, playerRank, lobbyLow, lobbyHigh } = useMatch();
+  const { queueMode, setQueueMode, map, setMap, mapType, sens, testRole, pendingHeroes, setPendingHeroes, revalidateRec, notifyMatchLogged, deathBuffer, removeDeathFromBuffer, toggleDeathUlt, clearDeathBuffer, playerRank, lobbyLow, lobbyHigh, account } = useMatch();
   const { data: dpiState } = useApi<DpiTestState>('/api/blind/state');
   const { data: blindSets } = useApi<{ sets: BlindSetSummary[] }>('/api/blind/sets');
   const mapCounts = useTodayMapCounts();
@@ -630,6 +630,9 @@ export default function LogMatch() {
           player_rank: isQP ? null : playerRank,
           lobby_low: isQP ? null : lobbyLow,
           lobby_high: isQP ? null : lobbyHigh,
+          // Unlike rank, the account isn't gated on isQP — who played is a
+          // fact about the match regardless of whether the queue has a ladder.
+          account,
           notes: form.notes.trim() || null,
         }),
       });

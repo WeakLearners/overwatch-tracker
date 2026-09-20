@@ -260,6 +260,14 @@ export interface TrendPoint {
    * only to spot the day a tier boundary was crossed.
    */
   player_rank: number | null;
+  /** Role played, e.g. 'Support' | 'DPS' | 'Tank' — Overwatch ranks each role separately. */
+  role: string;
+  /**
+   * Which of Sean's four accounts played the match, or null for matches
+   * logged before this column existed. Same ladder-identity role as `role`
+   * above: a rank means nothing without knowing which account/role climbed it.
+   */
+  account: Account | null;
 }
 
 export interface WeeklyTrend {
