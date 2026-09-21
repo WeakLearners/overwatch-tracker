@@ -1079,6 +1079,64 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
         )}
         {description}
       </p>
+      {/* Fallback order. A hero gets banned or picked before you, and the question
+          in the lobby is "who instead". Answer: the next name down in your own role.
+          Plan order IS rank order (heroes are listed most- to least-informative), so
+          this reads straight off the plan rather than being a second list to maintain.
+          Sens proximity is deliberately NOT the ordering: each hero's bracket is its
+          own, and changing sens between matches costs nothing measurable (accuracy
+          p=0.89). Struck-through heroes have finished their block. */}
+      {plan.length > 0 && (() => {
+        const byRole = new Map<string, PlanHero[]>();
+        for (const h of plan) {
+          const role = HEROES[h.hero] ?? 'Other';
+          if (!byRole.has(role)) byRole.set(role, []);
+          byRole.get(role)!.push(h);
+        }
+        const roles = ['Tank', 'DPS', 'Support', 'Other'].filter(r => byRole.has(r));
+        return (
+          <div
+            data-inspect-id="sl-plan-fallback-order"
+            className="mb-3 rounded-lg border border-ow-border bg-ow-darker px-3 py-2"
+          >
+            <div className="text-[10px] uppercase tracking-wide text-[var(--faint-2)] mb-1.5">
+              Banned or taken? Drop to the next name in your role
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {roles.map(role => {
+                const list = byRole.get(role)!;
+                const nextUp = list.find(h => statuses.get(h.hero)?.status !== 'completed');
+                return (
+                  <div key={role} className="flex items-center gap-2 flex-wrap">
+                    <span className={`text-[10px] font-semibold text-white px-1.5 py-0.5 rounded shrink-0 ${ROLE_PILL_CLASS[role] ?? ROLE_PILL_CLASS.Support}`}>
+                      {role}
+                    </span>
+                    {list.map((h, i) => {
+                      const done = statuses.get(h.hero)?.status === 'completed';
+                      const isNext = h.hero === nextUp?.hero;
+                      return (
+                        <span key={h.hero} className="flex items-center gap-2">
+                          {i > 0 && <span aria-hidden="true" className="text-[var(--faint-2)] text-xs">&rsaquo;</span>}
+                          <span
+                            className={`text-xs hero-name ${
+                              done ? 'line-through text-[var(--faint-2)]'
+                                : isNext ? 'text-[var(--ink)] font-semibold'
+                                : 'text-[var(--faint)]'
+                            }`}
+                            title={done ? `${h.hero} — block complete` : isNext ? `${h.hero} — next up for ${role}` : h.hero}
+                          >
+                            {h.hero}
+                          </span>
+                        </span>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
       {(() => {
         const pendingCount = plan.filter(h => statuses.get(h.hero)?.status === 'none').length;
         if (pendingCount === 0) return null;
