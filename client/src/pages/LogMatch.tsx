@@ -253,6 +253,13 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueM
 // Perceived sens speed, 0 (felt slow) to 10 (felt fast) — not a quality rating.
 // Captured here, live, rather than backfilled later on /sens: the sensation is
 // gone by the next match, so this is the only point it can honestly be logged.
+// FEEL_MID is a display-only starting position for the slider thumb — it is
+// never allowed to reach the database on its own. 50 is also the fulcrum the
+// whole sens study scores against (|feel - 50|, minimised), so an untouched
+// slider silently recording 50 was indistinguishable from Sean deliberately
+// rating a sens "just right". Fixed 2026-09-21 — see the CUTOVER note by
+// matches.feel in server/src/db/schema.ts for the full history and the
+// pre-cutover rows this deliberately left ambiguous rather than backfilling.
 const FEEL_MIN = 0, FEEL_MAX = 100, FEEL_MID = 50;
 
 
@@ -316,9 +323,14 @@ export default function LogMatch() {
   // One feel reading per hero actually played (mirrors switchHeroes/duration_min
   // per-hero) — a mid-match switch can feel different on the hero you started
   // on than the one you switched to, especially if they're on different sens.
-  // Keyed by hero name; a hero not yet in here just reads as FEEL_MID.
+  // Keyed by hero name. A hero absent from this map has not answered — feelFor
+  // below is a DISPLAY position only, so the slider thumb has somewhere to
+  // rest before it's touched, and must never be read to decide what gets
+  // saved. feelAnswered/feelValueFor are the only things submit() may read.
   const [feelByHero, setFeelByHero] = useState<Record<string, number>>({});
   const feelFor = (h: string) => feelByHero[h] ?? FEEL_MID;
+  const feelAnswered = (h: string) => Object.prototype.hasOwnProperty.call(feelByHero, h);
+  const feelValueFor = (h: string): number | null => feelAnswered(h) ? feelByHero[h] : null;
   const setFeelFor = (h: string, v: number) => setFeelByHero(prev => ({ ...prev, [h]: v }));
   const [teamRating, setTeamRating] = useState(0);
   // Both start unselected and stay null if untouched — no pre-selection, and
@@ -621,7 +633,10 @@ export default function LogMatch() {
   // With no rank set there is nothing to choose between, so it does not gate
   // — the row says to go set one instead of trapping the form.
   const rankAnswered = isQP || playerRank == null || rankOutcome != null;
-  const valid = form.hero && map && form.win !== '' && form.date && displaySens != null && rankAnswered;
+  // Every hero actually played needs an explicit feel answer — an untouched
+  // slider must not reach the database at all (see FEEL_MID note above).
+  const feelsAnswered = playedHeroes.length > 0 && playedHeroes.every(feelAnswered);
+  const valid = form.hero && map && form.win !== '' && form.date && displaySens != null && rankAnswered && feelsAnswered;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -647,14 +662,14 @@ export default function LogMatch() {
           hour,
           hero: form.hero,
           role: heroRole,
-          heroes: switchHeroes.filter(h => h).map(h => ({ hero: h, role: HEROES[h], feel: feelFor(h), sens: displaySensForHero(h) })),
+          heroes: switchHeroes.filter(h => h).map(h => ({ hero: h, role: HEROES[h], feel: feelValueFor(h), sens: displaySensForHero(h) })),
           map,
           game_type: mapType,
           win: form.win === '1',
           match_deaths: deathBuffer,
           queue_mode: queueMode,
           sens: displaySens,
-          feel: feelFor(form.hero),
+          feel: feelValueFor(form.hero),
           team_rating: teamRating,
           match_quality: matchQuality,
           result_driver: resultDriver,
@@ -1041,11 +1056,15 @@ export default function LogMatch() {
             <div className="space-y-3" data-inspect-id="logmatch-feel-sliders">
               {playedHeroes.map(h => {
                 const heroSens = displaySensForHero(h);
+                const answered = feelAnswered(h);
                 return (
                   <div key={h}>
-                    <label className="block text-xs text-[var(--muted)] mb-1.5">
-                      Feel <span className="text-[var(--ink)] font-bold">— {h}{heroSens != null ? ` @ ${heroSens.toFixed(2)}` : ''}</span>
-                      <span className="text-[var(--faint-2)]"> — did the sens feel floaty or jittery?</span>
+                    <label className="block text-xs text-[var(--muted)] mb-1.5 flex items-baseline justify-between gap-2">
+                      <span>
+                        Feel <span className="text-[var(--ink)] font-bold">— {h}{heroSens != null ? ` @ ${heroSens.toFixed(2)}` : ''}</span>
+                        <span className="text-[var(--faint-2)]"> — did the sens feel floaty or jittery?</span>
+                      </span>
+                      {!answered && <span className="text-[10px] font-bold text-ow-accent shrink-0">required</span>}
                     </label>
                     <input
                       type="range"
@@ -1054,10 +1073,11 @@ export default function LogMatch() {
                       step={1}
                       value={feelFor(h)}
                       onChange={e => setFeelFor(h, Number(e.target.value))}
-                      className="w-full accent-ow-accent"
+                      className={`w-full accent-ow-accent ${!answered ? 'opacity-50' : ''}`}
                       aria-label={`Feel — floaty to jittery — ${h}`}
                       data-inspect-id="logmatch-feel-slider"
                     />
+                    {!answered && <p className="text-[10px] text-[var(--faint-2)] mt-0.5">Not touched yet — drag it to answer. Left alone, this match records no feel for {h} rather than a silent 50.</p>}
                     <div className="flex justify-between text-xs text-[var(--muted)] mt-0.5 px-0.5"><span>Floaty</span><span>Snappy</span><span>Jittery</span></div>
                   </div>
                 );

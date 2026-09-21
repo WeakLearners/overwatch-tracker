@@ -322,6 +322,20 @@ function initSchema(db: DatabaseSync) {
   // aim_stats — it's an immediate perception, not a post-hoc combat stat. The
   // old aim_stats.feel column above is kept (harmless, additive-only migrations)
   // but no longer written to — this is the column of record going forward.
+  //
+  // CUTOVER, 2026-09-21: until this date, an untouched feel slider silently
+  // wrote FEEL_MID (50) — see client/src/pages/LogMatch.tsx. 50 is also the
+  // fulcrum the sens study scores against (|feel - 50|, minimised), so a
+  // never-answered slider and a deliberate "just right" rating were stored
+  // identically. 287 of 1,171 rows as of the fix are exactly 50 and are
+  // permanently ambiguous — left untouched on purpose, not backfilled or
+  // nulled, since destroying them would destroy the evidence the defect
+  // existed. LogMatch.tsx now requires an explicit answer per hero before a
+  // match can be logged, and sends NULL (never a number) for a hero that
+  // wasn't touched. Rows logged 2026-09-21 or later: NULL means unanswered,
+  // 50 means Sean chose 50. Rows before: 50 means either. Any analysis
+  // reading `feel` should filter or weight on `matches.date < '2026-09-21'`
+  // accordingly rather than treating the column as uniformly trustworthy.
   if (!cols.find(c => c.name === 'feel')) {
     db.exec(`ALTER TABLE matches ADD COLUMN feel INTEGER`);
     // One-time carry-forward of anything already captured under the old flow.
