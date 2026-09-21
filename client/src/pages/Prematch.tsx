@@ -622,10 +622,18 @@ export default function Prematch() {
   ) => {
     const i = Math.max(0, options.indexOf(value));
     return (
-      <div className="relative grid grid-flow-col auto-cols-fr" data-inspect-id={inspectId}>
+      // The group sits 3px inboard of the strip, and the lit block reaches back
+      // out to the strip's own edge. Net effect: the selected option stands 6px
+      // taller than its neighbours and meets the card border, which is what
+      // reads as raised. It CANNOT overhang the border: .card carries a
+      // clip-path for its notched corner, and a clip-path cuts its descendants,
+      // so anything past the edge is silently sliced off. Growing outward looks
+      // like nothing happened. Insetting the resting state is the same illusion
+      // without fighting the card's own shape.
+      <div className="relative grid grid-flow-col auto-cols-fr my-[3px]" data-inspect-id={inspectId}>
         <span
           aria-hidden="true"
-          className="is-selected absolute inset-y-0 left-0 border-2 pointer-events-none transition-[transform,background-color,border-color,box-shadow] duration-200 ease-out motion-reduce:transition-none"
+          className="is-selected is-raised absolute -inset-y-[3px] left-0 border-2 pointer-events-none transition-[transform,background-color,border-color,box-shadow] duration-200 ease-out motion-reduce:transition-none"
           style={{
             width: `${100 / options.length}%`,
             transform: `translateX(${i * 100}%)`,

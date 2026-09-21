@@ -338,6 +338,16 @@
   }
   /* DARK THEME. Here the surface is near-black, the glow has headroom to add
      light, and the bottom-lit reading works as intended. */
+  /* The raised lit block. .is-selected paints the hue; .is-raised is the lift.
+     It stands 6px taller than the options beside it and reaches the strip's
+     edge, so a drop shadow under it reads as a key sitting above its keyboard.
+     Light and dark need different shadows for the same reason .is-selected
+     does: a glow adds light on a dark card and only smudges a white one. */
+  .is-raised {
+    box-shadow:
+      0 1px 0 0 rgb(var(--sel) / 0.55),
+      0 3px 6px -2px rgb(0 0 0 / 0.28);
+  }
   html.dark .is-selected {
     background-image: linear-gradient(
       to top,
@@ -348,6 +358,14 @@
     box-shadow:
       inset 0 -2px 0 0 rgb(var(--sel) / 0.85),
       inset 0 -7px 11px -6px rgb(var(--sel) / 0.95);
+  }
+
+  html.dark .is-raised {
+    box-shadow:
+      inset 0 -2px 0 0 rgb(var(--sel) / 0.85),
+      inset 0 -7px 11px -6px rgb(var(--sel) / 0.95),
+      0 3px 7px -2px rgb(0 0 0 / 0.55),
+      0 0 10px -3px rgb(var(--sel) / 0.45);
   }
 
   /* ------------------------------------------------------------------
