@@ -1054,10 +1054,13 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
   return (
     <div className="card mb-6" data-inspect-id="sl-plan-card">
       <div className="flex items-center gap-1 mb-3 border-b border-ow-border">
-        {allTabs.map(t => {
+        {allTabs.map((t, i) => {
           const isCustom = customPhases.some(c => c.key === t.key);
           return (
             <div key={t.key} className="relative flex items-center -mb-px">
+              {/* Hairline between tabs. The labels are bare numbers now, so without
+                  a divider "10 11" reads as one run of digits rather than two tabs. */}
+              {i > 0 && <span aria-hidden="true" className="h-3.5 w-px bg-ow-border/70 mr-1" />}
               <button
                 type="button" onClick={() => setTabKey(t.key)}
                 data-inspect-id="sl-plan-tabs"
@@ -1085,7 +1088,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
         <button
           type="button" onClick={openAddPhase} disabled={loadingAddPhase}
           data-inspect-id="sl-plan-add-phase-tab"
-          className="text-sm heading-display px-3 py-1.5 -mb-px border-b-2 border-transparent text-[var(--faint)] hover:text-[var(--ink-2)] transition-colors disabled:opacity-40"
+          className="text-sm heading-display ml-3 pl-3 border-l border-ow-border px-3 py-1.5 -mb-px text-[var(--faint)] hover:text-[var(--ink-2)] transition-colors disabled:opacity-40"
         >
           {loadingAddPhase ? 'Analyzing last phase…' : '+ Add new phase'}
         </button>
