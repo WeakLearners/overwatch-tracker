@@ -1,7 +1,7 @@
 #!/bin/bash
 # Idle-triggered working-tree checkpoint for the overwatch repo.
 #
-# Fires shortly after Sean STOPS working, not on the hour. launchd polls this
+# Fires shortly after the operator STOPS working, not on the hour. launchd polls this
 # every 5 minutes; the quiescence check below is what actually decides. The old
 # hourly schedule looked fine and quietly did nothing: on 2026-09-15 it ran at
 # 14:45, 15:45 and 16:45 and skipped all three, because a session was in
@@ -34,9 +34,9 @@
 # saved".
 set -uo pipefail
 
-REPO="/Users/Sean/Code/overwatch"
+REPO="$HOME/Code/overwatch"
 # How long the tree must sit untouched before this counts as "he stepped away".
-# 15 rather than 20 on Sean's request — with a 5-minute poll that means a
+# 15 rather than 20 by preference — with a 5-minute poll that means a
 # checkpoint lands within ~20 minutes of the last keystroke.
 QUIET_MINUTES=15
 LOG="$HOME/Library/Logs/overwatch-auto-commit.log"
@@ -48,7 +48,7 @@ RUNSTATE="$HOME/Library/Logs/.overwatch-auto-commit-running"
 LOCK="$HOME/Library/Logs/.overwatch-auto-commit.lock"
 # Webhook for #hq-briefing, kept in the vault's automation env rather than
 # copied here — one file owns that URL.
-HQ_ENV="/Users/Sean/second-brain/.claude/automation/.env"
+HQ_ENV="$HOME/second-brain/.claude/automation/.env"
 
 log() { printf '%s  %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$LOG"; }
 
