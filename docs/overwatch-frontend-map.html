@@ -498,7 +498,13 @@ const DATA = {
     "repo": "~/Code/overwatch",
     "description": "Frontend-only map of the Overwatch match-tracker React app: every page and component down to individual UI elements (buttons, inputs, cards, charts, etc.), each carrying a copy-pasteable `grep` command that jumps straight to its exact source line. Intended both for Sean to click through in the browser and for Claude Code to read directly as a lookup table when asked to change a specific piece of UI.",
     "generated": "frontend UI-element snapshot, extracted from live source (client/src) via parallel agent read + grep-verified anchors, at analysis time",
-    "howToUse": "Click a node to see its file and, for page/component nodes, a 'UI Elements' list. Each element's locate.grep is a ready-to-paste `grep -n -F -- \"<anchor>\" <file>` command \u2014 run it in the repo root (~/Code/overwatch) to land on the exact line. Uses plain grep (not ripgrep) deliberately: ripgrep isn't installed on this machine outside the Claude Code sandbox, so grep is what will actually work when pasted into a real terminal. locate.path is the file:line at extraction time as a secondary reference (may drift if the file is edited above that line; the grep command will not)."
+    "howToUse": "Click a node to see its file and, for page/component nodes, a 'UI Elements' list. Each element's locate.grep is a ready-to-paste `grep -n -F -- \"<anchor>\" <file>` command \u2014 run it in the repo root (~/Code/overwatch) to land on the exact line. Uses plain grep (not ripgrep) deliberately: ripgrep isn't installed on this machine outside the Claude Code sandbox, so grep is what will actually work when pasted into a real terminal. locate.path is the file:line at extraction time as a secondary reference (may drift if the file is edited above that line; the grep command will not).",
+    "rules": [
+      "An inspect id is unique across the whole app, not just within its own component or page. The overlay resolves the first element carrying an id and stops, so two elements sharing one id leaves the second unreachable. Worse, the inspector then reports an element the reader is not looking at, with a description that does not match what is on their screen. On 2026-09-20 in nfl-props the shortlist pill reused the card pill's id. A request to move one moved the other, and two rounds were spent describing different parts of the page to each other before the cause surfaced.",
+      "A function that emits an element and is called from more than one place must take its id as a parameter. Reusing markup is good; reusing the id that identifies it is not. This is the shape the 2026-09-20 duplicate took, and it is the one a uniqueness grep cannot catch, because the id appears exactly once in the source.",
+      "When one id is a prefix of others (prematch-rank-drum against prematch-rank-drum-up), anchor the grep on the full attribute so it cannot match a child.",
+      "Every entry here is added, renamed or removed in the same change as the element it describes. A map that lags the code is worse than no map: it answers confidently and wrongly."
+    ]
   },
   "nodes": [
     {
@@ -4629,6 +4635,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 
