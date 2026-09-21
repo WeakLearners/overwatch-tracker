@@ -679,6 +679,12 @@ interface PlanTab { key: string; label: string; description: string; plan: reado
 
 const valuesOf = (h: PlanHero): readonly number[] => h.senses ?? h.dpis ?? [];
 
+// Tab labels are stored as "Phase 2" / "Phase 11" — in PLAN_TABS above and in
+// custom_phases.label server-side. The tab row shows just the number; the word is
+// redundant once the row is read as a row. Display-only on purpose: the stored
+// label is still the DB's field and still what the delete tooltip names.
+const tabDisplay = (label: string) => label.replace(/^Phase\s+/i, '');
+
 const PLAN_TABS: readonly PlanTab[] = [
   {
     key: 'phase2', label: 'Phase 2', plan: PHASE2_PLAN,
@@ -1061,7 +1067,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                     : 'text-[var(--faint)] border-transparent hover:text-[var(--ink-2)]'
                 }`}
               >
-                {t.label}
+                {tabDisplay(t.label)}
               </button>
               {isCustom && (
                 <button
