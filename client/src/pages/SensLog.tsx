@@ -975,22 +975,11 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
     setPhaseCurveEnabled(false);
   }
 
-  // Only custom (session-built) phases are deletable — the hardcoded
-  // PLAN_TABS entries are historical record. Cancel any test sets for its
-  // heroes first (via the plan tile's own "Cancel test" button); this only
-  // removes the tab/plan definition, not any sets already created from it.
-  async function deleteCustomPhase(key: string) {
-    const target = customPhases.find(t => t.key === key);
-    if (!target || !confirm(`Delete "${target.label}"? This only removes the plan tab — cancel any test sets for its heroes separately first.`)) return;
-    await fetch(`/api/custom-phases/${key}`, { method: 'DELETE' });
-    revalidateAll();
-    if (tabKey === key) {
-      const next = customPhases.filter(t => t.key !== key);
-      const fallback = [...tabs, ...next].reverse().find(t => t.plan.length > 0) ?? tabs[tabs.length - 1];
-      setTabKey(fallback.key);
-    }
-  }
-
+  // The per-tab "×" delete control was removed 2026-09-21 at Sean's request —
+  // a phase is a record of work done, and a delete button sitting on every tab is
+  // an accident waiting to happen. DELETE /api/custom-phases/:key still exists
+  // server-side, so a phase can still be removed deliberately if one is ever
+  // created by mistake.
   function setBodyFor(h: PlanHero) {
     return h.senses
       ? { senses: h.senses, batch_size: h.gamesPerSlot, hero: h.hero, phase: tabKey, curve_enabled: !!tabCurveEnabled }
@@ -1055,7 +1044,6 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
     <div className="card mb-6" data-inspect-id="sl-plan-card">
       <div className="flex items-center gap-1 mb-3 border-b border-ow-border">
         {allTabs.map((t, i) => {
-          const isCustom = customPhases.some(c => c.key === t.key);
           return (
             <div key={t.key} className="relative flex items-center -mb-px">
               {/* Hairline between tabs. The labels are bare numbers now, so without
@@ -1064,7 +1052,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
               <button
                 type="button" onClick={() => setTabKey(t.key)}
                 data-inspect-id="sl-plan-tabs"
-                className={`text-sm heading-display px-3 py-1.5 border-b-2 transition-colors ${isCustom ? 'pr-5' : ''} ${
+                className={`text-sm heading-display px-3 py-1.5 border-b-2 transition-colors ${
                   t.key === tabKey
                     ? 'text-[var(--ink)] border-[var(--ink)]'
                     : 'text-[var(--faint)] border-transparent hover:text-[var(--ink-2)]'
@@ -1072,16 +1060,6 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
               >
                 {tabDisplay(t.label)}
               </button>
-              {isCustom && (
-                <button
-                  type="button" onClick={() => deleteCustomPhase(t.key)}
-                  data-inspect-id="sl-plan-delete-phase-btn"
-                  className="absolute right-0.5 top-1/2 -translate-y-1/2 text-[var(--faint)] hover:text-red-400 text-base font-bold leading-none"
-                  title={`Delete ${t.label}`}
-                >
-                  ×
-                </button>
-              )}
             </div>
           );
         })}
