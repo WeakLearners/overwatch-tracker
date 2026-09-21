@@ -521,12 +521,24 @@ export default function Prematch() {
   // Quantizes remaining-games-in-stage onto a 5-segment gauge (like a battery
   // meter) regardless of the set's actual batch_size, so every hero's gauge
   // reads on the same 5-bar scale.
+  //
+  // ROUNDS UP, and that is the whole point. This used to Math.round, which was
+  // exact while a stage was 5 games (one game per bar) and quietly wrong the
+  // moment Phase 11 raised it to 40: the gauge went fully dark with up to four
+  // games still to play. An empty fuel gauge has to mean empty. Rounding up
+  // means any remaining game keeps at least one bar lit, so dark means done,
+  // and every bar covers the same batch_size/5 games instead of the end bars
+  // being half-width.
   const GAUGE_SEGMENTS = 5;
-  const testGaugeFor = (hero: string): number | null => {
+  const testStageLeftFor = (hero: string): { left: number; total: number } | null => {
     const a = btActives.find(a => a.hero === hero);
     if (!a || a.batch_size <= 0) return null;
-    const remaining = Math.max(0, a.batch_size - a.games_on_stage);
-    return Math.min(GAUGE_SEGMENTS, Math.round((remaining / a.batch_size) * GAUGE_SEGMENTS));
+    return { left: Math.max(0, a.batch_size - a.games_on_stage), total: a.batch_size };
+  };
+  const testGaugeFor = (hero: string): number | null => {
+    const r = testStageLeftFor(hero);
+    if (!r) return null;
+    return Math.min(GAUGE_SEGMENTS, Math.ceil((r.left / r.total) * GAUGE_SEGMENTS));
   };
 
   // In Quickplay, "Select Your Hero" isn't feeding a DPI test, so the
@@ -1475,7 +1487,11 @@ export default function Prematch() {
                         {testGaugeFor(h.hero) != null ? (
                           <span
                             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-0.5 pointer-events-none"
-                            title={`${testGaugeFor(h.hero)}/${GAUGE_SEGMENTS} games left at current sens`}
+                            // Says games, not bars. It used to print the bar
+                            // count with the word "games" beside it — identical
+                            // numbers while a stage was 5 games, and off by a
+                            // factor of eight once stages became 40.
+                            title={`${testStageLeftFor(h.hero)?.left ?? 0} of ${testStageLeftFor(h.hero)?.total ?? 0} games left at this sens`}
                             data-inspect-id="prematch-hero-picker-gauge"
                           >
                             {/* Which stage of the set, encircled, immediately
