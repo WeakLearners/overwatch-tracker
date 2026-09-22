@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useApi, revalidateAll } from '../hooks/useApi';
 // Per-hero stat-slot labels — shared with SensAnalysis so a label travels
 // with its data instead of living only in this form. See lib/heroStatLabels.
@@ -248,10 +248,12 @@ export default function SensLog() {
   const { data: dpiState } = useApi<DpiTestState>('/api/blind/state');
   const { data: pendingData, loading } = useApi<{ rows: PendingMatch[] }>('/api/aim/pending?limit=40');
   const pending = pendingData?.rows ?? [];
-  // Prematch's backlog "Go →" sends this. Arriving from the nav tabs does not,
-  // and should not: the tab means "open the study", the counter means "show me
-  // the matches I still owe stats for".
-  const focusBacklog = (useLocation().state as { focus?: string } | null)?.focus === 'backlog';
+  // This page always opens at the top, however it was reached. It used to
+  // deep-link into the backlog when arriving from Prematch's "Go →", which
+  // dropped the user mid-page with the curve params and the header scrolled
+  // off. A single-page app keeps the old scroll position across a route
+  // change, so landing at the top has to be asked for explicitly.
+  useEffect(() => { window.scrollTo(0, 0); }, []);
 
   return (
     <div className="mt-2">
@@ -263,7 +265,7 @@ export default function SensLog() {
 
       <CurveParamsCard />
 
-      <BackfillPanel pending={pending} loading={loading} focusOnMount={focusBacklog} />
+      <BackfillPanel pending={pending} loading={loading} />
 
       <div className="mt-10 pt-8 border-t border-ow-border">
         <h2 data-inspect-id="sl-header-stage-trials" className="text-sm card-title mb-1">Sens stage trials</h2>
@@ -1614,8 +1616,8 @@ function AnswerTable({ stages }: { stages: AnswerStage[] }) {
 }
 
 // ── Non-blind backfill (matches logged elsewhere that still need stats) ───────
-function BackfillPanel({ pending, loading, focusOnMount = false }: {
-  pending: PendingMatch[]; loading: boolean; focusOnMount?: boolean;
+function BackfillPanel({ pending, loading }: {
+  pending: PendingMatch[]; loading: boolean;
 }) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   // Keyed by hero name, not slot — every hero actually played gets its own
@@ -1631,19 +1633,6 @@ function BackfillPanel({ pending, loading, focusOnMount = false }: {
   const durationRef = useRef<HTMLInputElement>(null);
   const mapCounts = useTodayMapCounts();
   const navigate = useNavigate();
-  // Where the backlog "Go →" lands. Held until the pending list has loaded:
-  // scrolling first would aim at a card that is still one line tall, and the
-  // rows arriving afterwards push the page out from under the target. Fires
-  // once — a later refetch must not yank the page back.
-  const sectionRef = useRef<HTMLDivElement>(null);
-  const landed = useRef(false);
-  useEffect(() => {
-    if (!focusOnMount || loading || landed.current) return;
-    landed.current = true;
-    sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    sectionRef.current?.focus({ preventScroll: true });
-  }, [focusOnMount, loading]);
-
   // Matches already logged today — a record of what's been entered, with the
   // same select-to-expand editing as the pending list above.
   const today = format(new Date(), 'yyyy-MM-dd');
@@ -1740,7 +1729,7 @@ function BackfillPanel({ pending, loading, focusOnMount = false }: {
   }
 
   return (
-    <div ref={sectionRef} tabIndex={-1} className="outline-none scroll-mt-4">
+    <div>
       <h2 data-inspect-id="sl-record-combat-header" className="text-sm card-title mb-1">Record combat details</h2>
       <p className="text-xs text-[var(--faint)] mb-4">Every match awaiting its aim stats. Matches are logged in the Match Tracker; while a stage test is running they arrive here already tagged with that stage's DPI.</p>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

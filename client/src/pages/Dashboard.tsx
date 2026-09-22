@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
@@ -579,6 +580,25 @@ export default function Dashboard() {
   // top margin clears both sticky bars (header + this nav) before a section
   // counts as "current".
   const [activeSection, setActiveSection] = useState(sections[0].id);
+
+  // A link may name a section in the URL (SensNav's "← Match Tracker" asks for
+  // #sec-match). The browser cannot honour that on its own here: this is a
+  // single-page app, so arriving is a re-render, not a page load, and the
+  // section is still empty at that moment. Wait for the panels above it to
+  // have their data — otherwise the scroll aims at a target that the arriving
+  // chart immediately pushes further down the page. Fires once; a later
+  // refetch must not yank the page back.
+  const { hash } = useLocation();
+  const landed = useRef(false);
+  const aboveLoaded = Boolean(overview && trends && modeComparison);
+  useEffect(() => {
+    if (!hash || landed.current || !aboveLoaded) return;
+    const el = document.getElementById(hash.slice(1));
+    if (!el) return;
+    landed.current = true;
+    // One frame, so the just-rendered panels are laid out before measuring.
+    requestAnimationFrame(() => el.scrollIntoView({ block: 'start' }));
+  }, [hash, aboveLoaded]);
   useEffect(() => {
     const observer = new IntersectionObserver(
       entries => {

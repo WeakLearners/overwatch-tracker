@@ -24,8 +24,11 @@ export default function SensNav({ dataInspectId }: { dataInspectId?: string }) {
     <div className="flex items-center gap-2 mb-5" data-inspect-id={dataInspectId}>
       {tab('/sens', 'Study', 'sensNav-study-tab')}
       {tab('/sens/analysis', 'Analysis', 'sensNav-analysis-tab')}
+      {/* Lands on the dashboard's Match section rather than the top of the
+          page. Coming back from the sens study, the next thing wanted is
+          almost always prep-or-log, which is what that section holds. */}
       <Link
-        to="/"
+        to="/#sec-match"
         data-inspect-id="sensNav-back-link"
         className="pill heading-display tracking-[0.08em] ml-auto border border-ow-border text-[var(--faint)] hover:text-[var(--ink)] hover:border-gray-500 transition-all"
       >

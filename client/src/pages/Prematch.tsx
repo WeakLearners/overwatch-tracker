@@ -851,14 +851,9 @@ export default function Prematch() {
               <div className="leading-tight">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">backlog</span>
-                  {/* Lands on the backlog, not the top of the page. The Sens
-                      page opens on the curve params with the stage trials
-                      below, and the matches awaiting stats sit between them —
-                      so arriving at the top showed everything except the one
-                      thing this counter is about. */}
+                  {/* Opens the Sens page at the top, like any other arrival. */}
                   <Link
                     to="/sens"
-                    state={{ focus: 'backlog' }}
                     className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-lg bg-gradient-to-r from-ow-accent to-ow-accentLight text-white shadow-md shadow-ow-accent/30 hover:brightness-110 active:brightness-95 transition-all whitespace-nowrap"
                     data-inspect-id="prematch-backlog-go-link"
                   >
@@ -884,10 +879,8 @@ export default function Prematch() {
               <div className="leading-tight">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">backlog</span>
-                  {/* Same link as the active-test layout above, same landing. */}
                   <Link
                     to="/sens"
-                    state={{ focus: 'backlog' }}
                     className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-lg bg-gradient-to-r from-ow-accent to-ow-accentLight text-white shadow-md shadow-ow-accent/30 hover:brightness-110 active:brightness-95 transition-all whitespace-nowrap"
                     data-inspect-id="prematch-backlog-go-link"
                   >
