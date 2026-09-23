@@ -290,6 +290,11 @@
   .grad-win     { @apply bg-gradient-to-br from-emerald-500 to-emerald-700 bg-clip-text text-transparent; }
   .grad-loss    { @apply bg-gradient-to-br from-rose-500 to-red-700 bg-clip-text text-transparent; }
   .grad-neutral { @apply bg-gradient-to-br from-stone-500 to-stone-700 bg-clip-text text-transparent; }
+  /* Hero-picker gauge battery colours: the card-title gradient's two ends.
+     Full = cyan end, empty = gold end. Light mode uses the page's own darker
+     teal and the light-mode card-title orange, for contrast on white. */
+  :root          { --gauge-full: #0F766E; --gauge-empty: #B44309; }
+  html.dark      { --gauge-full: #29D3F2; --gauge-empty: #FFC069; }
   html.dark .grad-brand   { @apply bg-gradient-to-br from-ow-accentLight to-ow-blue bg-clip-text text-transparent; }
   html.dark .grad-win     { @apply from-emerald-300 to-emerald-500; }
   html.dark .grad-loss    { @apply from-rose-300 to-red-500; }

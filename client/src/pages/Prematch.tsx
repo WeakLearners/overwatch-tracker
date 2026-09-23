@@ -406,11 +406,12 @@ export default function Prematch() {
   // and every bar covers the same batch_size/5 games instead of the end bars
   // being half-width.
   const GAUGE_SEGMENTS = 5;
-  // Battery colour for a gauge's lit bars, from the fraction still left:
-  // green when full, yellow around half, red when nearly empty. One colour
+  // Battery colour for a gauge's lit bars, from the fraction still left. It
+  // slides along the card-title gradient: cyan when full, gold when nearly
+  // empty (--gauge-full/--gauge-empty in index.css, per theme). One colour
   // for every lit bar, like a phone battery, not a per-bar rainbow.
   const batteryColor = (fractionLeft: number) =>
-    `hsl(${Math.round(130 * Math.max(0, Math.min(1, fractionLeft)))}, 75%, 45%)`;
+    `color-mix(in oklab, var(--gauge-full) ${Math.round(100 * Math.max(0, Math.min(1, fractionLeft)))}%, var(--gauge-empty))`;
   const testStageLeftFor = (hero: string): { left: number; total: number } | null => {
     const a = btActives.find(a => a.hero === hero);
     if (!a || a.batch_size <= 0) return null;
