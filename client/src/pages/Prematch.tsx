@@ -406,6 +406,11 @@ export default function Prematch() {
   // and every bar covers the same batch_size/5 games instead of the end bars
   // being half-width.
   const GAUGE_SEGMENTS = 5;
+  // Battery colour for a gauge's lit bars, from the fraction still left:
+  // green when full, yellow around half, red when nearly empty. One colour
+  // for every lit bar, like a phone battery, not a per-bar rainbow.
+  const batteryColor = (fractionLeft: number) =>
+    `hsl(${Math.round(130 * Math.max(0, Math.min(1, fractionLeft)))}, 75%, 45%)`;
   const testStageLeftFor = (hero: string): { left: number; total: number } | null => {
     const a = btActives.find(a => a.hero === hero);
     if (!a || a.batch_size <= 0) return null;
@@ -1461,7 +1466,8 @@ export default function Prematch() {
                                 return (
                                   <span
                                     key={i}
-                                    className={`w-[5px] h-3 -skew-x-[20deg] ${i < c.left ? 'bg-emerald-500' : 'bg-gray-400/50'} ${i === c.chunk_size / 2 ? 'border-l border-dashed border-gray-600/50 dark:border-gray-300/40' : ''}`}
+                                    style={i < c.left ? { backgroundColor: batteryColor(c.left / c.chunk_size) } : undefined}
+                                    className={`w-[5px] h-3 -skew-x-[20deg] ${i < c.left ? '' : 'bg-gray-400/50'} ${i === c.chunk_size / 2 ? 'border-l border-dashed border-gray-600/50 dark:border-gray-300/40' : ''}`}
                                   />
                                 );
                               })
@@ -1469,11 +1475,8 @@ export default function Prematch() {
                               Array.from({ length: GAUGE_SEGMENTS }).map((_, i) => (
                                 <span
                                   key={i}
-                                  className={`w-1.5 h-3 -skew-x-[20deg] ${
-                                    i < testGaugeFor(h.hero)!
-                                      ? 'bg-emerald-500'
-                                      : 'bg-gray-400/50'
-                                  }`}
+                                  style={i < testGaugeFor(h.hero)! ? { backgroundColor: batteryColor(testGaugeFor(h.hero)! / GAUGE_SEGMENTS) } : undefined}
+                                  className={`w-1.5 h-3 -skew-x-[20deg] ${i < testGaugeFor(h.hero)! ? '' : 'bg-gray-400/50'}`}
                                 />
                               ))
                             )}
