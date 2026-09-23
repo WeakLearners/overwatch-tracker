@@ -3357,7 +3357,7 @@ const DATA = {
           "kind": "card",
           "description": "The outer card container that shows the recommended hero, death-axis insights, and coaching tip for the current map/queue; renders without its own chrome/border when nested in bare mode.",
           "locate": {
-            "path": "client/src/components/AdvisorCard.tsx:69",
+            "path": "client/src/components/AdvisorCard.tsx:24",
             "grep": "grep -n -F -- 'border-emerald-500/30 bg-emerald-500/5 px-4 py-3' client/src/components/AdvisorCard.tsx"
           }
         },
@@ -3367,7 +3367,7 @@ const DATA = {
           "kind": "header",
           "description": "Small uppercase header showing the current map (with today's play count) and the queue label (e.g. Competitive/Quick Play) above the recommendation.",
           "locate": {
-            "path": "client/src/components/AdvisorCard.tsx:75",
+            "path": "client/src/components/AdvisorCard.tsx:30",
             "grep": "grep -n -F -- 'text-emerald-600 uppercase tracking-widest font-semibold' client/src/components/AdvisorCard.tsx"
           }
         },
@@ -3377,7 +3377,7 @@ const DATA = {
           "kind": "icon-button",
           "description": "Icon button showing an ellipsis while loading or a refresh glyph (\u21bb) otherwise; clicking it calls onRefresh to re-fetch the hero recommendation for the current map/queue.",
           "locate": {
-            "path": "client/src/components/AdvisorCard.tsx:83",
+            "path": "client/src/components/AdvisorCard.tsx:38",
             "grep": "grep -n -F -- 'onClick={onRefresh}' client/src/components/AdvisorCard.tsx"
           }
         },
@@ -3387,7 +3387,7 @@ const DATA = {
           "kind": "banner",
           "description": "Small \"Loading\u2026\" text shown while the recommendation is being fetched and no cached recommendation exists yet.",
           "locate": {
-            "path": "client/src/components/AdvisorCard.tsx:92",
+            "path": "client/src/components/AdvisorCard.tsx:47",
             "grep": "grep -n -F -- 'Loading\u2026</div>' client/src/components/AdvisorCard.tsx"
           }
         },
@@ -3397,7 +3397,7 @@ const DATA = {
           "kind": "banner",
           "description": "Red inline error message shown when fetching the advisor recommendation fails.",
           "locate": {
-            "path": "client/src/components/AdvisorCard.tsx:93",
+            "path": "client/src/components/AdvisorCard.tsx:48",
             "grep": "grep -n -F -- 'text-xs text-red-600' client/src/components/AdvisorCard.tsx"
           }
         },
@@ -3407,7 +3407,7 @@ const DATA = {
           "kind": "button",
           "description": "Bold button showing the recommended primary hero (with today's play count); clicking it opens that hero's detail drawer via onOpenHero.",
           "locate": {
-            "path": "client/src/components/AdvisorCard.tsx:101",
+            "path": "client/src/components/AdvisorCard.tsx:56",
             "grep": "grep -n -F -- 'onClick={() => onOpenHero(rec.primary)}' client/src/components/AdvisorCard.tsx"
           }
         },
@@ -3417,7 +3417,7 @@ const DATA = {
           "kind": "stat-tile",
           "description": "Small badge next to the primary hero showing that hero's win rate percentage and game count, when stats are available.",
           "locate": {
-            "path": "client/src/components/AdvisorCard.tsx:108",
+            "path": "client/src/components/AdvisorCard.tsx:63",
             "grep": "grep -n -F -- rec.primary_stats.win_rate client/src/components/AdvisorCard.tsx"
           }
         },
@@ -3427,7 +3427,7 @@ const DATA = {
           "kind": "button",
           "description": "Button showing an alternate \"stretch\" hero pick, colored amber if untested/meta or green if a proven off-main pick; clicking it opens that hero's detail drawer via onOpenHero.",
           "locate": {
-            "path": "client/src/components/AdvisorCard.tsx:116",
+            "path": "client/src/components/AdvisorCard.tsx:71",
             "grep": "grep -n -F -- 'onClick={() => onOpenHero(rec.stretch!)}' client/src/components/AdvisorCard.tsx"
           }
         },
@@ -3437,58 +3437,8 @@ const DATA = {
           "kind": "badge",
           "description": "Small italic label next to the stretch hero reading \"untested \u00b7 meta\" or \"stretch\", with a tooltip explaining whether the pick is a data-backed off-main or an untested meta suggestion.",
           "locate": {
-            "path": "client/src/components/AdvisorCard.tsx:134",
+            "path": "client/src/components/AdvisorCard.tsx:89",
             "grep": "grep -n -F -- ''\"'\"'untested \u00b7 meta'\"'\"' : '\"'\"'stretch'\"'\"'' client/src/components/AdvisorCard.tsx"
-          }
-        },
-        {
-          "id": "advisorCard-scopeCaption",
-          "label": "Death-axes scope caption",
-          "kind": "header",
-          "description": "Small caption stating which slice of the player's own death logs the axes below are drawn from (this map, the map type, or overall pattern), including game and death counts.",
-          "locate": {
-            "path": "client/src/components/AdvisorCard.tsx:147",
-            "grep": "grep -n -F -- 'scopeCaption(rec, map, rec.death_axes, mapCounts)' client/src/components/AdvisorCard.tsx"
-          }
-        },
-        {
-          "id": "advisorCard-spectrumBars",
-          "label": "Death-axis spectrum bars",
-          "kind": "chart",
-          "description": "A stack of horizontal spectrum bars, one per death axis, each showing a marker at the player's mean position between two labeled poles (with a \"no data yet\" state per axis when unsampled).",
-          "locate": {
-            "path": "client/src/components/AdvisorCard.tsx:150",
-            "grep": "grep -n -F -- 'DEATH_AXES.map(a => {' client/src/components/AdvisorCard.tsx"
-          }
-        },
-        {
-          "id": "advisorCard-strongestLean",
-          "label": "Strongest-lean callout",
-          "kind": "stat-tile",
-          "description": "One-line readout naming the death axis with the strongest observed lean and its label, along with the sample count logged for it.",
-          "locate": {
-            "path": "client/src/components/AdvisorCard.tsx:160",
-            "grep": "grep -n -F -- 'Strongest lean: <span' client/src/components/AdvisorCard.tsx"
-          }
-        },
-        {
-          "id": "advisorCard-noDeathTagsMessage",
-          "label": "No-death-tags fallback message",
-          "kind": "banner",
-          "description": "Fallback note shown instead of the death-axis chart when the player has no death-tagged matches yet, prompting them to log some with the death tagger.",
-          "locate": {
-            "path": "client/src/components/AdvisorCard.tsx:167",
-            "grep": "grep -n -F -- 'No death tags yet \u2014 log a few matches' client/src/components/AdvisorCard.tsx"
-          }
-        },
-        {
-          "id": "advisorCard-insightCallout",
-          "label": "Coaching insight callout",
-          "kind": "card",
-          "description": "Bordered callout with a \"\u25b8\" bullet showing one grounded coaching insight generated from the player's own data, shown when the recommendation includes one.",
-          "locate": {
-            "path": "client/src/components/AdvisorCard.tsx:172",
-            "grep": "grep -n -F -- 'border-t border-emerald-500/15 pt-2' client/src/components/AdvisorCard.tsx"
           }
         }
       ]
@@ -4635,6 +4585,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 
