@@ -1412,11 +1412,12 @@ export default function Prematch() {
                         </span>
                         {testGaugeFor(h.hero) != null ? (
                           <span
-                            // Chunked gauge bars are 1px wider than w-1 (10
-                            // bars x 1px = 10px wider overall). ml-[5px] shifts
-                            // the centered container right by half of that, so
-                            // the left edge stays put and it grows rightward only.
-                            className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-0.5 pointer-events-none ${chunkFor(h.hero) ? 'ml-[5px]' : ''}`}
+                            // Chunked gauge bars are 1px wider than w-1 and 1px
+                            // further apart than gap-0.5, so the gauge is about
+                            // 20px wider overall. ml-[10px] shifts the centered
+                            // container right by half of that, so the left edge
+                            // stays put and it grows rightward only.
+                            className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center pointer-events-none ${chunkFor(h.hero) ? 'gap-[3px] ml-[10px]' : 'gap-0.5'}`}
                             // Says games, not bars. It used to print the bar
                             // count with the word "games" beside it — identical
                             // numbers while a stage was 5 games, and off by a

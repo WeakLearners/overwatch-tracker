@@ -1291,7 +1291,7 @@ const DATA = {
           "kind": "meter",
           "description": "Parallelogram gauge (battery-meter style) centered horizontally inside each hero picker row. For an UNCHUNKED/legacy set: 5 bars, green = games remaining in the current DPI/sens stage, grey (50% opacity) = already logged, quantized from batch_size/games_on_stage onto the 5-bar scale. For a CHUNKED (ABBA) set: one narrower bar per match in the CURRENT chunk (chunk_size bars, 10 for every live set), green = matches left in that chunk (GET /api/blind/state's chunk.left), with a subtle static tick (left border) on the bar past the midpoint. Changed 2026-09-23 from 5 bars at 2 matches each with a half bar. prematch-hero-picker-stage-badge sits immediately left of it either way; a hover title carries the chunk label and matches left. Lit bars share one battery colour set by the fraction left (batteryColor: color-mix along the card-title gradient, cyan full \u2192 gold near empty; --gauge-full/--gauge-empty in index.css, per theme), added 2026-09-23. Only shown for a hero with an active test.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1427",
+            "path": "client/src/pages/Prematch.tsx:1428",
             "grep": "grep -n -F -- 'prematch-hero-picker-gauge' client/src/pages/Prematch.tsx"
           }
         },
@@ -1301,7 +1301,7 @@ const DATA = {
           "kind": "badge",
           "description": "Encircled indicator immediately left of the remaining-matches gauge. For an UNCHUNKED/legacy set: the bare stage number (hover shows \"Stage X of Y\"), reading cur_stage/n_stages off GET /api/blind/state \u2014 unchanged since before 2026-09-23. For a CHUNKED (ABBA) set: the \"A1\".\"B4\" chunk label instead (lib/blind.ts's chunkLabelFor, GET /api/blind/state's chunk.label) \u2014 a bare stage number no longer says which of up to four A-chunks or four B-chunks Sean is actually on. Two mutually-exclusive JSX branches share this one id (same convention as every other per-row badge in this map \u2014 see prematch-hero-picker-order-badge). Outlined rather than filled so it does not read as a second prematch-hero-picker-order-badge, which is solid and marks click position at the row's top-left corner. Rendered inside the gauge's own absolutely-positioned container so the badge and the bars travel together at any row width. Only shown for a hero with an active test.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1444",
+            "path": "client/src/pages/Prematch.tsx:1445",
             "grep": "grep -n -F -- 'prematch-hero-picker-stage-badge' client/src/pages/Prematch.tsx"
           }
         },
@@ -1311,7 +1311,7 @@ const DATA = {
           "kind": "badge",
           "description": "Shown on a hero row in Select Your Hero when that hero belongs to the current DPI/sens testing phase's roster but has already finished it (no active test, blind_stage_sets completed=true for that phase) \u2014 lets the whole phase roster stay visible instead of dropping a hero the moment its test completes.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1493",
+            "path": "client/src/pages/Prematch.tsx:1494",
             "grep": "grep -n -F -- 'prematch-hero-picker-done-badge' client/src/pages/Prematch.tsx"
           }
         },
@@ -1321,7 +1321,7 @@ const DATA = {
           "kind": "banner",
           "description": "Empty-state message shown when no games have been logged for the current map/filter, prompting the user to pick a map or log a match.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1517",
+            "path": "client/src/pages/Prematch.tsx:1518",
             "grep": "grep -n -F -- 'dataInspectId=\"prematch-empty-state-banner\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -4962,6 +4962,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 
