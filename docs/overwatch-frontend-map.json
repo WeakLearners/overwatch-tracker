@@ -484,7 +484,7 @@
           "kind": "search-box",
           "description": "Text input for filtering/searching maps by name to add to the up-to-3 voting picks; auto-focused whenever no map is currently selected.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:958",
+            "path": "client/src/pages/Prematch.tsx:964",
             "grep": "grep -n -F -- ''\"'\"'Type a map name…'\"'\"'' client/src/pages/Prematch.tsx"
           }
         },
@@ -574,7 +574,7 @@
           "kind": "select",
           "description": "Dropdown to choose the current match's map, which drives hero recommendations, coaching, and the your-heroes breakdown across the page.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1167",
+            "path": "client/src/pages/Prematch.tsx:1173",
             "grep": "grep -n -F -- '— Select map —' client/src/pages/Prematch.tsx"
           }
         },
@@ -624,7 +624,7 @@
           "kind": "card",
           "description": "Main card below the top row combining the recommended hero pick, LLM coaching, and the full your-heroes-by-role breakdown for the selected map.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1254",
+            "path": "client/src/pages/Prematch.tsx:1260",
             "grep": "grep -n -F -- 'Consolidated advisor — recommendation + coaching' client/src/pages/Prematch.tsx"
           }
         },
