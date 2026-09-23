@@ -1406,7 +1406,11 @@ export default function Prematch() {
                         </span>
                         {testGaugeFor(h.hero) != null ? (
                           <span
-                            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-0.5 pointer-events-none"
+                            // Chunked gauge bars are 1px wider than w-1 (10
+                            // bars x 1px = 10px wider overall). ml-[5px] shifts
+                            // the centered container right by half of that, so
+                            // the left edge stays put and it grows rightward only.
+                            className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-0.5 pointer-events-none ${chunkFor(h.hero) ? 'ml-[5px]' : ''}`}
                             // Says games, not bars. It used to print the bar
                             // count with the word "games" beside it — identical
                             // numbers while a stage was 5 games, and off by a
@@ -1457,7 +1461,7 @@ export default function Prematch() {
                                 return (
                                   <span
                                     key={i}
-                                    className={`w-1 h-3 -skew-x-[20deg] ${i < c.left ? 'bg-emerald-500' : 'bg-gray-400/50'} ${i === c.chunk_size / 2 ? 'border-l border-dashed border-gray-600/50 dark:border-gray-300/40' : ''}`}
+                                    className={`w-[5px] h-3 -skew-x-[20deg] ${i < c.left ? 'bg-emerald-500' : 'bg-gray-400/50'} ${i === c.chunk_size / 2 ? 'border-l border-dashed border-gray-600/50 dark:border-gray-300/40' : ''}`}
                                   />
                                 );
                               })
