@@ -121,16 +121,6 @@ export function leftInCurrentChunk(totalGamesCreditedBefore: number, chunkSize: 
   return chunkSize - (totalGamesCreditedBefore % chunkSize);
 }
 
-// 5-segment battery gauge over the CURRENT CHUNK — Sean's decision,
-// 2026-09-23: full segments = floor(left/2), plus one half segment when left
-// is odd. This is written for a 10-game chunk (2 games/segment over 5
-// segments), which is every live chunked set today; it is not re-derived
-// from chunkSize the way chunkLabelFor/leftInCurrentChunk above are, because
-// the brief specified the /2 constant directly rather than "chunkSize/5".
-export function chunkGaugeSegments(left: number): { full: number; half: boolean } {
-  return { full: Math.floor(left / 2), half: left % 2 === 1 };
-}
-
 // ── Queue-mode study eligibility ────────────────────────────────────────────
 // Switched off 2026-09-23 at Sean's request: from now on ONLY Competitive
 // matches earn a stage-test credit, for every role. Support briefly had a QP

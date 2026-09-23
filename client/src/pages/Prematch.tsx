@@ -39,12 +39,12 @@ interface DpiTestHud {
     batch_size: number; games_on_stage: number; dpi: number | null; sens: number | null;
     // Present only for a chunked (ABBA) 2-stage set — see routes/blind.ts's
     // GET /state and lib/blind.ts's chunkLabelFor/leftInCurrentChunk/
-    // chunkGaugeSegments. label is the "A1".."B4" chunk badge; left/
-    // gaugeFull/gaugeHalf count down the CURRENT 10-match chunk, not the
-    // whole stage.
+    // label is the "A1".."B4" chunk badge; left counts down the CURRENT
+    // chunk, not the whole stage. The gauge draws chunk_size bars, one per
+    // match.
     chunk?: {
       chunk_size: number; n_chunks_per_stage: number; chunk_number: number; chunk_position: number;
-      label: string; left: number; gaugeFull: number; gaugeHalf: boolean;
+      label: string; left: number;
     } | null;
   }[];
 }
@@ -52,11 +52,6 @@ interface DpiTestHud {
 const ALL_MAPS = Object.keys(MAPS).sort();
 const DPI_TEST_HERO_KEY = 'ow-dpi-test-hero';
 const AD_HOC_KEY = '__adhoc__';
-// Hero-picker "next" button labels. Worded to match SensLog's own advance
-// control ("Get next stage →") so the two read as the same action in two
-// places, rather than two different features.
-const STAGE_LABEL = 'Next stage →';
-const PHASE_LABEL = 'Next phase →';
 
 interface HeroRow { hero: string; role: string; games: number; wins: number; win_rate: number }
 
@@ -72,87 +67,6 @@ interface BlindSetSummary {
   phase: string | null;
   active: boolean;
   completed: boolean;
-}
-
-// /api/custom-phases — the phase *plans* (brackets per hero), which are
-// separate from the sets those plans get turned into. A plan existing is what
-// makes "there's a next phase to move on to" true; a set existing for
-// (hero, phase) is what makes that hero already started on it. Shape mirrors
-// SensLog's PlanTab/PlanHero, narrowed to the fields needed to create a set.
-interface PhasePlanHero {
-  hero: string;
-  gamesPerSlot: number;
-  senses?: number[];
-  dpis?: number[];
-}
-interface PhasePlan {
-  key: string;
-  label: string;
-  plan: PhasePlanHero[];
-  curveEnabled: boolean;
-}
-
-// "Next" means "move this hero forward", and forward has two sizes. The small
-// step is the next STAGE inside the current set (2.61 -> 2.68) — that is a
-// manual POST /api/blind/advance, not something logging a game does on its
-// own, so a hero whose stage is full just sits there until this is clicked.
-// The big step is the next PHASE, which only exists once every stage in the
-// set is done. Stage first, phase as the fallback: a set that still has
-// stages left can never be the phase case.
-//
-// Advancing short of batch_size is deliberately NOT offered here. The server
-// allows it with force, but abandons the stage permanently in exchange, so
-// that stays on SensLog behind its confirm.
-export type NextAction =
-  | { kind: 'advance'; setId: number }
-  | { kind: 'phase' }
-  | null;
-export interface NextState { enabled: boolean; title: string; action: NextAction; label: string }
-
-// Pure — takes every input it reads as an explicit argument instead of
-// closing over Prematch's component state, so it can be unit-tested without
-// mounting the page. `label` names the move the click will actually perform,
-// because "stage" and "phase" are two different things in this app and every
-// other control says which one it means ("Get next stage →" on SensLog,
-// "Create phase" in its builder). A bare "Next" here was the one control that
-// dropped the noun, and that is exactly what made it read as the stage move
-// when it was wired to the phase one. The disabled states carry the same
-// noun, so the greyed-out button still says which move is being waited on.
-export function nextStateFor(
-  activeSets: DpiTestHud['actives'],
-  allSets: BlindSetSummary[],
-  nextPhase: PhasePlan | null,
-  hero: string,
-): NextState {
-  const act = activeSets.find(a => a.hero === hero);
-  if (act && act.cur_stage < act.n_stages) {
-    const left = act.batch_size - act.games_on_stage;
-    if (left > 0) {
-      return {
-        enabled: false,
-        action: null,
-        label: STAGE_LABEL,
-        title: `${left} more game${left === 1 ? '' : 's'} on stage ${act.cur_stage} of ${act.n_stages} before ${hero} can move to the next stage`,
-      };
-    }
-    return {
-      enabled: true,
-      action: { kind: 'advance', setId: act.set_id },
-      label: STAGE_LABEL,
-      title: `Move ${hero} to stage ${act.cur_stage + 1} of ${act.n_stages}`,
-    };
-  }
-  // The plan entry for this hero in the next phase, or null if the phase's
-  // roster doesn't include them (a hero can be dropped between phases) or
-  // they're already on it.
-  const row = nextPhase && !allSets.some(s => s.hero === hero && s.phase === nextPhase.key)
-    ? nextPhase.plan.find(p => p.hero === hero) ?? null
-    : null;
-  if (!row) return { enabled: false, action: null, label: PHASE_LABEL, title: 'No further test phase for this hero — build one on the Sens Log page' };
-  const latest = allSets.filter(s => s.hero === hero).sort((a, b) => b.set_id - a.set_id)[0] ?? null;
-  if (!latest) return { enabled: false, action: null, label: PHASE_LABEL, title: 'No test set for this hero yet — start one on the Sens Log page' };
-  if (!latest.completed) return { enabled: false, action: null, label: PHASE_LABEL, title: 'Games still left in this hero’s current phase' };
-  return { enabled: true, action: { kind: 'phase' }, label: PHASE_LABEL, title: `Start ${nextPhase!.label} for ${hero}` };
 }
 
 // /api/advisor/test-pick response — top 3 (map, hero) combos ranked by win
@@ -303,81 +217,6 @@ export default function Prematch() {
   const phaseHeroes = new Set(phaseRoster.map(s => s.hero).filter((h): h is string => !!h));
   const doneThisPhase = new Set(phaseRoster.filter(s => s.completed && s.hero).map(s => s.hero!));
 
-  // ── "Start next phase", per hero ──────────────────────────────────────────
-  // The newest phase *plan* is the one to move on to. Deliberately not keyed
-  // off currentPhase/doneThisPhase above: those derive from the newest set, so
-  // the instant the first hero is moved onto the next phase, currentPhase
-  // flips to it and every hero still awaiting the move would read as "not in
-  // this phase, not done" and lose both its badge and its button mid-migration.
-  // A hero's own latest set is the stable signal instead.
-  const { data: customPhasesData } = useApi<{ phases: PhasePlan[] }>('/api/custom-phases');
-  const phasePlans = customPhasesData?.phases ?? [];
-  const nextPhase = phasePlans.length ? phasePlans[phasePlans.length - 1] : null;
-  const latestSetOf = (hero: string) =>
-    allSets.filter(s => s.hero === hero).sort((a, b) => b.set_id - a.set_id)[0] ?? null;
-  // The plan entry for this hero in the next phase, or null if the phase's
-  // roster doesn't include them (a hero can be dropped between phases) or
-  // they're already on it.
-  const nextPhaseRowFor = (hero: string): PhasePlanHero | null => {
-    if (!nextPhase) return null;
-    if (allSets.some(s => s.hero === hero && s.phase === nextPhase.key)) return null;
-    return nextPhase.plan.find(p => p.hero === hero) ?? null;
-  };
-  const [startingPhase, setStartingPhase] = useState<string | null>(null);
-  // Same POST body SensLog's "Create test set" builds — sens path when the
-  // plan specifies sens values (the post-DPI-lock convention), legacy DPI path
-  // otherwise.
-  // Dispatches whichever move the module-level nextStateFor decided on. Both
-  // paths end in revalidateAll(), so the button re-evaluates itself from
-  // fresh server state.
-  async function startNext(hero: string) {
-    const { enabled, action } = nextStateFor(btActives, allSets, nextPhase, hero);
-    if (!enabled || !action) return;
-    if (action.kind === 'phase') { await startNextPhase(hero); return; }
-    setStartingPhase(hero);
-    try {
-      const r = await fetch('/api/blind/advance', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ set_id: action.setId }),
-      });
-      if (r.ok) revalidateAll();
-      else {
-        const body = await r.json().catch(() => ({}));
-        alert(`Advance failed: ${body.error ?? r.statusText}`);
-      }
-    } finally { setStartingPhase(null); }
-  }
-
-  async function startNextPhase(hero: string) {
-    const row = nextPhaseRowFor(hero);
-    if (!row || !nextPhase) return;
-    setStartingPhase(hero);
-    try {
-      await fetch('/api/blind/sets', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(row.senses
-          ? { senses: row.senses, batch_size: row.gamesPerSlot, hero, phase: nextPhase.key, curve_enabled: nextPhase.curveEnabled }
-          // Starts from whatever this hero's own testing has landed on, not a
-          // flat 2.5. A hero that has already finished a phase has a better
-          // answer than the roster default, and starting the next phase back
-          // at 2.5 throws that away. Falls back to 2.5 only when there is no
-          // reliable scale yet — sensRecFor is gated on the server's own
-          // minimum sample size, so a single lucky game cannot seed a phase.
-          : { in_game_sens: sensRecFor(hero) ?? 2.5, dpis: row.dpis, batch_size: row.gamesPerSlot, hero, phase: nextPhase.key, curve_enabled: nextPhase.curveEnabled }),
-      });
-      revalidateAll();
-      // revalidateAll() only refreshes useApi hooks, and the Advisor card
-      // sitting directly above this picker isn't one — it's MatchContext's
-      // `rec`, a plain fetch + useState. It matters here because
-      // /api/advisor/recommend scopes its whole pool to heroes with an ACTIVE
-      // set (advisor.ts getInTestingHeroes), so creating one changes its
-      // answer. Deliberately revalidateRec (no refresh=1) rather than
-      // refreshRec: the route recomputes the primary/stretch picks live on
-      // every request and only the LLM insight text is cached, so this picks
-      // up the new hero without burning an LLM call.
-      revalidateRec();
-    } finally { setStartingPhase(null); }
-  }
 
   const params = new URLSearchParams();
   if (map) params.set('map', map);
@@ -528,12 +367,7 @@ export default function Prematch() {
   // now it stays visible with a "Done" badge instead (see the button render
   // below) so Sean can see the whole phase roster at a glance.
   const inTestingHeroes = new Set(btActives.map(a => a.hero).filter((h): h is string => !!h));
-  // The next phase's roster joins the union too, so a hero waiting to be moved
-  // onto it doesn't drop out of the picker (and out of reach of its own "start
-  // next phase" button) the moment some other hero is moved first and
-  // currentPhase flips. No-op while the newest plan is also the live phase.
-  const nextPhaseHeroes = nextPhase ? nextPhase.plan.map(p => p.hero) : [];
-  const selectableHeroes = new Set([...inTestingHeroes, ...phaseHeroes, ...nextPhaseHeroes]);
+  const selectableHeroes = new Set([...inTestingHeroes, ...phaseHeroes]);
   // Every hero surfaced below is actively testing, so always has a sens/DPI
   // value here. Sens supersedes DPI post-lock; DPI is the fallback for any
   // pre-lock stage still running on the old axis.
@@ -1611,21 +1445,19 @@ export default function Prematch() {
                               </span>
                             )}
                             {chunkFor(h.hero) ? (
-                              // Gauge counts down the CURRENT 10-match chunk,
-                              // not the whole 40-match stage: full segments =
-                              // floor(left/2), plus one half segment (dimmed,
-                              // not a second full bar) when left is odd. A
-                              // subtle tick (a left border on the 3rd of 5
-                              // segments) marks the fixed "5 left" halfway
-                              // point of every chunk, regardless of fill.
-                              Array.from({ length: GAUGE_SEGMENTS }).map((_, i) => {
+                              // Gauge counts down the CURRENT chunk, not the
+                              // whole 40-match stage: one bar per match
+                              // (chunk_size bars), lit bars = matches left.
+                              // Narrower bars than the stage gauge so ten
+                              // still fit the row. A subtle tick (a left
+                              // border on the bar past the midpoint) marks
+                              // the halfway point of every chunk.
+                              Array.from({ length: chunkFor(h.hero)!.chunk_size }).map((_, i) => {
                                 const c = chunkFor(h.hero)!;
-                                const lit = i < c.gaugeFull || (i === c.gaugeFull && c.gaugeHalf);
-                                const isHalf = i === c.gaugeFull && c.gaugeHalf;
                                 return (
                                   <span
                                     key={i}
-                                    className={`w-1.5 h-3 -skew-x-[20deg] ${lit ? 'bg-emerald-500' : 'bg-gray-400/50'} ${isHalf ? 'opacity-50' : ''} ${i === 2 ? 'border-l border-dashed border-gray-600/50 dark:border-gray-300/40' : ''}`}
+                                    className={`w-1 h-3 -skew-x-[20deg] ${i < c.left ? 'bg-emerald-500' : 'bg-gray-400/50'} ${i === c.chunk_size / 2 ? 'border-l border-dashed border-gray-600/50 dark:border-gray-300/40' : ''}`}
                                   />
                                 );
                               })
@@ -1655,42 +1487,10 @@ export default function Prematch() {
                             ✓ Done
                           </span>
                         )}
-                        {/* Move this hero forward — to the next stage inside
-                            the current set, or, once every stage is done, into
-                            the newest phase plan (same POST as SensLog's
-                            "Create test set"). Either way it happens in place
-                            instead of making Sean leave Prematch. Always
-                            rendered so the next step is visible from the row;
-                            greyed out when neither move is available yet.
-                            stopPropagation so it doesn't also toggle the row's
-                            hero pick. */}
-                        {(() => {
-                          const ph = nextStateFor(btActives, allSets, nextPhase, h.hero);
-                          const busy = startingPhase === h.hero;
-                          return (
-                            <button
-                              type="button"
-                              onClick={e => { e.stopPropagation(); startNext(h.hero); }}
-                              disabled={!ph.enabled || busy}
-                              title={ph.title}
-                              aria-label={ph.title}
-                              data-inspect-id="prematch-hero-picker-next-phase-button"
-                              className={`shrink-0 relative right-[8%] w-[4.25rem] whitespace-nowrap text-center text-[9px] font-bold tracking-tight py-0.5 rounded border transition-colors ${
-                                ph.enabled && !busy
-                                  ? 'border-ow-accent/70 text-ow-accent hover:bg-ow-accent/15'
-                                  : 'border-ow-border text-[var(--faint-2)] opacity-50 cursor-not-allowed'
-                              }`}
-                            >
-                              {busy ? '…' : ph.label}
-                            </button>
-                          );
-                        })()}
                         {/* Fixed width + right-aligned so the win rate can't
                             change the column's width — "0%" and "100%" occupy
-                            the same box, which is what keeps the Next button to
-                            its left pinned in place instead of sliding row to
-                            row. Same reason the button itself is w-12: its "…"
-                            busy label is narrower than "Next". */}
+                            the same box, so the row's layout doesn't slide
+                            from row to row. */}
                         <span className={`shrink-0 w-11 text-right text-sm font-bold ${h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
                         <span className="text-xs text-[var(--faint-2)] w-7 text-right font-bold">{h.games}g</span>
                       </div>

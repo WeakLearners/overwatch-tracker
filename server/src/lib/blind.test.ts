@@ -7,7 +7,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   stagesFromSens, generateStages, stagesFromDpis, LOCKED_DPI, abbaStageFor,
-  chunkLabelFor, leftInCurrentChunk, chunkGaugeSegments,
+  chunkLabelFor, leftInCurrentChunk,
 } from './blind';
 
 describe('stagesFromSens', () => {
@@ -155,27 +155,5 @@ describe('leftInCurrentChunk', () => {
     assert.equal(leftInCurrentChunk(3, 10), 7);
     assert.equal(leftInCurrentChunk(9, 10), 1);
     assert.equal(leftInCurrentChunk(10, 10), 10); // fresh chunk, full again
-  });
-});
-
-describe('chunkGaugeSegments', () => {
-  test('a full chunk (10 left) is 5 full segments, no half', () => {
-    assert.deepEqual(chunkGaugeSegments(10), { full: 5, half: false });
-  });
-
-  test('7 left is 3 full segments plus a half (matches the brief\'s "B3 · 7 left" example)', () => {
-    assert.deepEqual(chunkGaugeSegments(7), { full: 3, half: true });
-  });
-
-  test('an even count has no half segment', () => {
-    assert.deepEqual(chunkGaugeSegments(4), { full: 2, half: false });
-  });
-
-  test('1 left is 0 full segments plus a half — never fully empty while a game remains', () => {
-    assert.deepEqual(chunkGaugeSegments(1), { full: 0, half: true });
-  });
-
-  test('0 left is fully empty', () => {
-    assert.deepEqual(chunkGaugeSegments(0), { full: 0, half: false });
   });
 });

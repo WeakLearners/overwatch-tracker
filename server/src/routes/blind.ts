@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
 import {
   generateStages, stagesFromDpis, stagesFromSens, LOCKED_DPI, abbaStageFor, isStudyQueueMode, NOT_QP_SQL,
-  chunkLabelFor, leftInCurrentChunk, chunkGaugeSegments,
+  chunkLabelFor, leftInCurrentChunk,
 } from '../lib/blind';
 import { cm360, eDPI } from '../lib/aim';
 import { computeNextTest, projectPhaseFinish, type HeroTestProgress, type StintInfo } from '../lib/nextTest';
@@ -340,15 +340,14 @@ router.get('/state', (_req: Request, res: Response) => {
     // "which chunk, how far into it" is a plain division — no need to
     // track a separate running chunk index anywhere.
     //
-    // label/left/gaugeFull/gaugeHalf (added 2026-09-23) replace the plain
+    // label/left (added 2026-09-23) replace the plain
     // stage-number badge and stage-wide gauge on the Select Your Hero HUD
     // for a chunked set: `label` is the "A1".."B4" chunk badge
     // (chunkLabelFor — built from the same abbaStageFor the switch-prompt
-    // logic already uses, not a parallel counter), and left/gaugeFull/
-    // gaugeHalf count down the CURRENT 10-match chunk rather than the whole
-    // 40-match stage.
+    // logic already uses, not a parallel counter), and `left` counts down
+    // the CURRENT chunk rather than the whole 40-match stage. The client
+    // draws one gauge bar per match, chunk_size bars in all.
     const chunkLeft = set.chunk_size != null ? leftInCurrentChunk(totalGames, set.chunk_size) : 0;
-    const chunkGauge = chunkGaugeSegments(chunkLeft);
     const chunkInfo = (set.chunk_size != null && n_stages === 2)
       ? {
           chunk_size: set.chunk_size,
@@ -357,8 +356,6 @@ router.get('/state', (_req: Request, res: Response) => {
           chunk_position: gamesOnStage > 0 ? ((gamesOnStage - 1) % set.chunk_size) + 1 : 0,
           label: chunkLabelFor(totalGames, set.chunk_size),
           left: chunkLeft,
-          gaugeFull: chunkGauge.full,
-          gaugeHalf: chunkGauge.half,
         }
       : null;
 
