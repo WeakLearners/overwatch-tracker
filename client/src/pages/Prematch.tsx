@@ -1265,6 +1265,55 @@ export default function Prematch() {
             </h2>
             <p className="text-xs text-[var(--faint)] mt-0.5">By role · min 2 games · tap hero to pre-fill log</p>
           </div>
+          <div className="flex flex-col items-end gap-2">
+            {/* Next test — the sens-study round-robin recommender (GET
+                /api/blind/next, lib/nextTest.ts). Gated on the sens-study
+                category since it has nothing to say when that data isn't being
+                collected. Sits top-right of the advisor header, opposite
+                "Your Best Heroes". */}
+            {sensStudyOn && nextTest && (
+              <div className="shrink-0 max-w-[16rem] text-right" data-inspect-id="prematch-next-test-card">
+                <h3 className="text-sm card-title mb-1">Next test</h3>
+                {nextTest.isQuickplay ? (
+                  <p className="text-xs text-[var(--faint)]" data-inspect-id="prematch-next-test-qp">
+                    Quickplay doesn't count toward testing — queue Competitive
+                  </p>
+                ) : nextTest.allFinished ? (
+                  <p className="text-xs text-[var(--faint)]" data-inspect-id="prematch-next-test-finished">
+                    Every hero in this phase is done — next phase needs creating on the Sens page.
+                  </p>
+                ) : nextTest.stint ? (
+                  <p className="text-xs text-[var(--ink)]" data-inspect-id="prematch-next-test-stint">
+                    Stay on <b className="hero-name">{nextTest.stint.hero}</b> — {nextTest.stint.position} of {nextTest.stint.length} this stint
+                    <span className="text-[var(--faint-2)]"> · queue {nextTest.stint.role}</span>
+                  </p>
+                ) : (
+                  <div data-inspect-id="prematch-next-test-list">
+                    <p className="text-xs text-[var(--ink)] mb-1.5">
+                      Queue <b>{nextTest.recommendedRole}</b> → {nextTest.orderedHeroes?.map(h => h.hero).join(', ')}
+                    </p>
+                    <div className="flex flex-col gap-0.5">
+                      {nextTest.orderedHeroes?.map(h => (
+                        <div key={h.hero} className="flex items-center justify-end gap-1.5 text-[11px] text-[var(--faint-2)]" data-inspect-id="prematch-next-test-hero-row">
+                          <span className="hero-name truncate">{h.hero}</span>
+                          <span className="num-display">{h.credited}/{h.target}</span>
+                          {h.cold && (
+                            <span className="text-[9px] font-bold uppercase tracking-wide text-blue-500" title={`${h.daysSinceLastPlayed} days since last played`}>
+                              cold
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {!!nextTest.finishedHeroes?.length && !nextTest.allFinished && (
+                  <p className="text-[10px] text-[var(--faint-2)] mt-1.5" data-inspect-id="prematch-next-test-done-heroes">
+                    Done this phase: {nextTest.finishedHeroes.join(', ')}
+                  </p>
+                )}
+              </div>
+            )}
           {map && (
             <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest shrink-0 pt-0.5">
               <span className="text-[var(--faint)]">{queueLabel}</span>
@@ -1279,6 +1328,7 @@ export default function Prematch() {
               </button>
             </div>
           )}
+          </div>
         </div>
 
         {/* Recommended pick — only with no map selected; once a map is chosen the
@@ -1436,55 +1486,6 @@ export default function Prematch() {
           </div>
         )}
 
-        {/* Next test — the sens-study round-robin recommender (GET
-            /api/blind/next, lib/nextTest.ts). Gated on the sens-study
-            category since it has nothing to say when that data isn't being
-            collected. Sits directly above "Select Your Hero" — it answers
-            the question that picker is about to ask. */}
-        {sensStudyOn && nextTest && (
-          <div className="mt-4 pt-4 border-t border-ow-border/40" data-inspect-id="prematch-next-test-card">
-            <h3 className="text-sm card-title mb-2">Next test</h3>
-            {nextTest.isQuickplay ? (
-              <p className="text-xs text-[var(--faint)]" data-inspect-id="prematch-next-test-qp">
-                Quickplay doesn't count toward testing — queue Competitive
-              </p>
-            ) : nextTest.allFinished ? (
-              <p className="text-xs text-[var(--faint)]" data-inspect-id="prematch-next-test-finished">
-                Every hero in this phase is done — next phase needs creating on the Sens page.
-              </p>
-            ) : nextTest.stint ? (
-              <p className="text-xs text-[var(--ink)]" data-inspect-id="prematch-next-test-stint">
-                Stay on <b className="hero-name">{nextTest.stint.hero}</b> — {nextTest.stint.position} of {nextTest.stint.length} this stint
-                <span className="text-[var(--faint-2)]"> · queue {nextTest.stint.role}</span>
-              </p>
-            ) : (
-              <div data-inspect-id="prematch-next-test-list">
-                <p className="text-xs text-[var(--ink)] mb-1.5">
-                  Queue <b>{nextTest.recommendedRole}</b> → {nextTest.orderedHeroes?.map(h => h.hero).join(', ')}
-                </p>
-                <div className="flex flex-col gap-0.5">
-                  {nextTest.orderedHeroes?.map(h => (
-                    <div key={h.hero} className="flex items-center gap-1.5 text-[11px] text-[var(--faint-2)]" data-inspect-id="prematch-next-test-hero-row">
-                      <span className="hero-name flex-1 truncate">{h.hero}</span>
-                      <span className="num-display">{h.credited}/{h.target}</span>
-                      {h.cold && (
-                        <span className="text-[9px] font-bold uppercase tracking-wide text-blue-500" title={`${h.daysSinceLastPlayed} days since last played`}>
-                          cold
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {!!nextTest.finishedHeroes?.length && !nextTest.allFinished && (
-              <p className="text-[10px] text-[var(--faint-2)] mt-1.5" data-inspect-id="prematch-next-test-done-heroes">
-                Done this phase: {nextTest.finishedHeroes.join(', ')}
-              </p>
-            )}
-          </div>
-        )}
-
         {/* Your heroes by role — the full breakdown, and the actual hero-select
             control (tapping a hero pre-fills the Match Log). Styled as its own
             selection panel — bordered, tinted, chip buttons — rather than a
@@ -1632,14 +1633,6 @@ export default function Prematch() {
                                   }`}
                                 />
                               ))
-                            )}
-                            {chunkFor(h.hero) && (
-                              <span
-                                className="text-[8px] ml-1 text-[var(--faint-2)] tabular-nums whitespace-nowrap"
-                                data-inspect-id="prematch-hero-picker-chunk-label"
-                              >
-                                {chunkFor(h.hero)!.label} · {chunkFor(h.hero)!.left} left
-                              </span>
                             )}
                           </span>
                         ) : doneThisPhase.has(h.hero) && (
