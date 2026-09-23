@@ -516,6 +516,25 @@
     background-color: rgb(var(--sel, 247 147 30) / 0.10);
   }
 
+  /* Pulsing halo on the hero the Next test card points at. Drawn on ::after
+     so it doesn't fight .is-selected's own box-shadow. Uses the row's --sel,
+     so it glows in the role's colour. */
+  .test-glow::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    pointer-events: none;
+    animation: test-glow-pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes test-glow-pulse {
+    0%, 100% { box-shadow: 0 0 0 1px rgb(var(--sel, 247 147 30) / 0.5), 0 0 4px 0 rgb(var(--sel, 247 147 30) / 0.25); }
+    50%      { box-shadow: 0 0 0 2px rgb(var(--sel, 247 147 30) / 0.9), 0 0 16px 3px rgb(var(--sel, 247 147 30) / 0.55); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .test-glow::after { animation: none; box-shadow: 0 0 0 2px rgb(var(--sel, 247 147 30) / 0.8); }
+  }
+
   /* Card titles. Lifted from the Lobby Rank header, which Sean picked as the
      house treatment for every card heading: the brand ramp instead of plain
      ink, heavier weight, wider tracking.

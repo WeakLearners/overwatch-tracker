@@ -1024,7 +1024,7 @@ export default function LogMatch() {
                   the new .is-selected class, so the SVG was picking up a border
                   and a gradient meant for buttons. Win keeps teal, Loss keeps
                   pink; --sel carries the hue, .is-selected the treatment. */}
-              <div className="grid grid-cols-2 gap-2" data-inspect-id="logmatch-result-buttons">
+              <div className="grid grid-cols-[1fr_1fr_3.25rem] gap-2" data-inspect-id="logmatch-result-buttons">
                 {/* Light theme needs the dark end of each ramp: teal-300 on the
                     pale selected fill measures 1.35:1, pink-300 1.61:1 — both
                     invisible. The 700s measure 5.00:1 and 5.36:1. */}
@@ -1049,25 +1049,27 @@ export default function LogMatch() {
                     </button>
                   );
                 })}
-              </div>
-              {/* Leaver sits inside the Result row on purpose: whether somebody
-                  walked out is part of what the result means, not a separate
-                  rating. Default unchecked — see the `leaver` state comment. */}
-              <label
-                data-inspect-id="logmatch-leaver-checkbox"
-                className="mt-2 flex items-center gap-2 cursor-pointer select-none w-fit"
-              >
-                <input
-                  type="checkbox"
-                  checked={leaver}
-                  onChange={e => setLeaver(e.target.checked)}
-                  className="h-4 w-4 accent-ow-accent cursor-pointer"
-                />
-                <span className={`text-xs transition-colors ${leaver ? 'text-[var(--ink)] font-bold' : 'text-[var(--muted)]'}`}>
+                {/* Leaver sits inside the Result row on purpose: whether somebody
+                    walked out is part of what the result means, not a separate
+                    rating. A square toggle beside Loss, same height as the
+                    Win/Loss buttons. Default off — see the `leaver` state comment. */}
+                <button
+                  type="button"
+                  onClick={() => setLeaver(l => !l)}
+                  aria-pressed={leaver}
+                  aria-label="Leaver — someone left the match"
+                  title="Leaver — someone left the match"
+                  data-inspect-id="logmatch-leaver-checkbox"
+                  style={{ '--sel': '245 158 11' } as React.CSSProperties}
+                  className={`h-[3.25rem] w-[3.25rem] rounded-lg border-2 font-display italic font-black text-[10px] uppercase tracking-wider transition-all ${
+                    leaver
+                      ? 'is-selected text-amber-700 dark:text-amber-300'
+                      : 'border-ow-border text-[var(--faint)] hover-sel hover:text-[var(--ink)]'
+                  }`}
+                >
                   Leaver
-                </span>
-                <span className="text-[10px] text-[var(--faint-2)]">— someone left the match</span>
-              </label>
+                </button>
+              </div>
             </div>
 
             <div>

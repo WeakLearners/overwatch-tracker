@@ -274,6 +274,12 @@ export default function Prematch() {
   // the fetch itself unconditional also means flipping the toggle on shows
   // fresh data immediately rather than a stale null from before it was on.
   const { data: nextTest } = useApi<NextTestResponse>(`/api/blind/next?queue_mode=${queueMode}`, [queueMode]);
+  // The hero the Next test card is pointing at: the locked stint hero, else
+  // the top of the recommended list. Its picker row pulses (.test-glow) so
+  // it can be found at a glance.
+  const testHero = sensStudyOn && nextTest && !nextTest.isQuickplay && !nextTest.allFinished
+    ? (nextTest.stint?.hero ?? nextTest.orderedHeroes?.[0]?.hero ?? null)
+    : null;
   const mapCounts = useTodayMapCounts();
   const heroCounts = useTodayHeroCounts();
 
@@ -1504,6 +1510,7 @@ export default function Prematch() {
                       const clickIndex = clickedHeroes.indexOf(h.hero);
                       const isClicked = clickIndex !== -1;
                       const sensTag = pickerSensFor(h.hero);
+                      const isTestHero = h.hero === testHero;
                       return (
                       // role="button" rather than a real <button> because the
                       // row now nests its own "start next phase" button, and a
@@ -1527,7 +1534,7 @@ export default function Prematch() {
                         // for the same reason: the row should read as "this
                         // role's pick", not as a generic accent highlight.
                         style={{ '--sel': ROLE_SEL_RGB[role] } as React.CSSProperties}
-                        className={`relative flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-lg border cursor-pointer active:scale-[0.98] transition-all group ${
+                        className={`relative flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-lg border cursor-pointer active:scale-[0.98] transition-all group ${isTestHero ? 'test-glow' : ''} ${
                           isClicked
                             ? 'is-selected'
                             : 'border-ow-border bg-ow-darker hover-sel'
