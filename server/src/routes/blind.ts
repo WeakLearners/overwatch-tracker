@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
-import { generateStages, stagesFromDpis, stagesFromSens, LOCKED_DPI } from '../lib/blind';
+import { generateStages, stagesFromDpis, stagesFromSens, LOCKED_DPI, abbaStageFor } from '../lib/blind';
 import { cm360, eDPI } from '../lib/aim';
 
 const router = Router();
@@ -8,7 +8,7 @@ const router = Router();
 export interface SetRow {
   id: number; in_game_sens: number; base_dpi: number; created_at: string;
   batch_size: number; cur_rel: number; games_on_stage: number; hero: string | null;
-  phase: string | null; curve_enabled: number;
+  phase: string | null; curve_enabled: number; chunk_size: number | null;
 }
 export interface StageRow {
   stage_index: number; dpi: number; sens: number | null; pct_delta: number; abandoned: number;
@@ -42,6 +42,49 @@ export const totalGamesOf = (db: ReturnType<typeof getDb>, setId: number) =>
 export const gamesOnStageOf = (db: ReturnType<typeof getDb>, setId: number, stageIndex: number) =>
   (db.prepare('SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id AND stage_index = :si')
     .get({ id: setId, si: stageIndex }) as { n: number }).n;
+
+// ── Live stage resolution (legacy cur_rel, or ABBA-derived) ─────────────────
+// The physical stage_index that the NEXT credited game for this set will
+// land on — the single thing every caller that used to read `cur_rel`
+// directly (findActiveStage in matches.ts, /state, nightlyReport.ts's
+// computeStageStatus) now asks this function instead.
+//
+// Legacy/contiguous sets (chunk_size null, or anything other than exactly
+// 2 stages — ABBA is only defined for 2) keep reading the stored, manually
+// advanced cur_rel column exactly as before: this function is a no-op for
+// them.
+//
+// Chunked 2-stage sets have no manual advance at all — cur_rel is never
+// written for them and stays at its insert-time value of 1, unused. The
+// current stage is derived live from totalGamesOf, the same "derive from
+// blind_credits, never trust a hand-maintained counter" rule this file
+// already applies to gamesOnStageOf/totalGamesOf above.
+export type StageResolvableSet = Pick<SetRow, 'id' | 'chunk_size' | 'cur_rel' | 'batch_size'>;
+
+export function liveStageIndex(db: ReturnType<typeof getDb>, set: StageResolvableSet, nStages: number): number {
+  if (set.chunk_size == null || nStages !== 2) return set.cur_rel;
+  return abbaStageFor(totalGamesOf(db, set.id), set.chunk_size);
+}
+
+// Whether Sean needs to switch his physical setting before the NEXT game.
+// For a chunked set this compares the stage the next game would land on
+// against the stage the last-credited game landed on — not just "did we
+// cross a multiple of chunk_size," because two consecutive chunks can
+// legitimately share a stage (A,B,B,A's 3rd and 4th chunks, both A, run
+// back to back with no switch between them) and that must not fire a
+// false prompt. For a legacy set this is the original rule, unchanged:
+// the current stage's own running total has reached the full batch_size.
+export function needsSwitchNow(
+  db: ReturnType<typeof getDb>, set: StageResolvableSet, nStages: number, completed: boolean,
+): boolean {
+  if (completed) return false;
+  if (set.chunk_size == null || nStages !== 2) {
+    return gamesOnStageOf(db, set.id, set.cur_rel) >= set.batch_size;
+  }
+  const total = totalGamesOf(db, set.id);
+  if (total === 0) return false;
+  return abbaStageFor(total, set.chunk_size) !== abbaStageFor(total - 1, set.chunk_size);
+}
 
 // ── Completion, per stage ────────────────────────────────────────────────────
 // A set is finished when EVERY stage has its batch_size games — not when the
@@ -127,6 +170,14 @@ router.post('/sets', (req: Request, res: Response) => {
     return;
   }
 
+  // chunk_size: optional, per-set, ABBA alternation block length (see
+  // lib/blind.ts's abbaStageFor). Only meaningful for exactly 2 stages —
+  // rejected outright for anything else rather than silently ignored,
+  // since a silently-ignored chunk_size would look configured but do
+  // nothing. Must evenly divide batch_size or a stage would never land on
+  // a clean chunk boundary.
+  const chunkSizeInput = req.body.chunk_size != null ? Number(req.body.chunk_size) : null;
+
   const curveEnabled = req.body.curve_enabled === true || req.body.curve_enabled === 1;
   const sensesInput: number[] | null = Array.isArray(req.body.senses) ? (req.body.senses as unknown[]).map(Number) : null;
   const dpisInput: number[] | null = Array.isArray(req.body.dpis) ? (req.body.dpis as unknown[]).map(Number) : null;
@@ -169,6 +220,17 @@ router.post('/sets', (req: Request, res: Response) => {
     stages = generateStages(base_dpi, pct_range, n_stages);
   }
 
+  if (chunkSizeInput != null) {
+    if (n_stages !== 2) {
+      res.status(400).json({ error: 'chunk_size only applies to a 2-stage set' });
+      return;
+    }
+    if (!(chunkSizeInput > 0) || !Number.isInteger(chunkSizeInput) || batch_size % chunkSizeInput !== 0) {
+      res.status(400).json({ error: 'chunk_size must be a positive integer that evenly divides batch_size' });
+      return;
+    }
+  }
+
   // Insert-set + insert-stages must land together — if a restart or error
   // interrupts between them, an uncommitted transaction rolls back cleanly
   // instead of leaving a set with no stages.
@@ -179,9 +241,9 @@ router.post('/sets', (req: Request, res: Response) => {
     // hidden-DPI design (schema.ts's comment on these columns) — left off
     // here rather than hardcoded on every set, since nothing reads them.
     const r = db.prepare(`
-      INSERT INTO blind_stage_sets (in_game_sens, base_dpi, active, note, batch_size, cur_rel, games_on_stage, hero, phase, curve_enabled)
-      VALUES (:s, :d, 1, :note, :b, 1, 0, :hero, :phase, :curve_enabled)
-    `).run({ s: in_game_sens, d: base_dpi, note: req.body.note ?? null, b: batch_size, hero, phase, curve_enabled: curveEnabled ? 1 : 0 });
+      INSERT INTO blind_stage_sets (in_game_sens, base_dpi, active, note, batch_size, cur_rel, games_on_stage, hero, phase, curve_enabled, chunk_size)
+      VALUES (:s, :d, 1, :note, :b, 1, 0, :hero, :phase, :curve_enabled, :chunk_size)
+    `).run({ s: in_game_sens, d: base_dpi, note: req.body.note ?? null, b: batch_size, hero, phase, curve_enabled: curveEnabled ? 1 : 0, chunk_size: chunkSizeInput });
     set_id = Number(r.lastInsertRowid);
     const ins = db.prepare('INSERT INTO blind_stages (set_id, stage_index, dpi, sens, pct_delta) VALUES (:set_id, :stage_index, :dpi, :sens, :pct_delta)');
     for (const st of stages) ins.run({ set_id, stage_index: st.stage_index, dpi: st.dpi, sens: st.sens, pct_delta: st.pct_delta });
@@ -191,7 +253,7 @@ router.post('/sets', (req: Request, res: Response) => {
     throw err;
   }
 
-  res.json({ set_id, in_game_sens, base_dpi, n_stages, batch_size, hero, phase, stages, curve_enabled: curveEnabled });
+  res.json({ set_id, in_game_sens, base_dpi, n_stages, batch_size, hero, phase, stages, curve_enabled: curveEnabled, chunk_size: chunkSizeInput });
 });
 
 // ── Cancel a set ─────────────────────────────────────────────────────────────
@@ -261,17 +323,32 @@ router.get('/state', (_req: Request, res: Response) => {
   const actives = sets.map(set => {
     const stages = stagesOf(db, set.id);
     const n_stages = stages.length;
-    const curStage = stages.find(s => s.stage_index === set.cur_rel) ?? stages[0];
+    const curRel = liveStageIndex(db, set, n_stages);
+    const curStage = stages.find(s => s.stage_index === curRel) ?? stages[0];
     const totalGames = totalGamesOf(db, set.id);
     const completed = isSetComplete(db, set.id);
-    const gamesOnStage = gamesOnStageOf(db, set.id, set.cur_rel);
+    const gamesOnStage = gamesOnStageOf(db, set.id, curRel);
+
+    // Chunk-local display, only meaningful when this set is actually
+    // chunked. gamesOnStage always counts in complete chunk_size blocks in
+    // order for a chunked set (chunk_size divides batch_size evenly), so
+    // "which chunk, how far into it" is a plain division — no need to
+    // track a separate running chunk index anywhere.
+    const chunkInfo = (set.chunk_size != null && n_stages === 2)
+      ? {
+          chunk_size: set.chunk_size,
+          n_chunks_per_stage: Math.ceil(set.batch_size / set.chunk_size),
+          chunk_number: gamesOnStage > 0 ? Math.ceil(gamesOnStage / set.chunk_size) : 1,
+          chunk_position: gamesOnStage > 0 ? ((gamesOnStage - 1) % set.chunk_size) + 1 : 0,
+        }
+      : null;
 
     return {
       set_id: set.id, in_game_sens: set.in_game_sens, base_dpi: set.base_dpi, created_at: set.created_at,
-      batch_size: set.batch_size, cur_stage: set.cur_rel, games_on_stage: gamesOnStage,
+      batch_size: set.batch_size, cur_stage: curRel, games_on_stage: gamesOnStage,
       dpi: curStage?.dpi ?? null, sens: curStage?.sens ?? null, n_stages, hero: set.hero, phase: set.phase, totalGames, completed,
-      needSwitch: !completed && gamesOnStage >= set.batch_size,
-      stages, curveEnabled: !!set.curve_enabled,
+      needSwitch: needsSwitchNow(db, set, n_stages, completed),
+      stages, curveEnabled: !!set.curve_enabled, chunk: chunkInfo,
     };
   });
 
@@ -297,6 +374,16 @@ router.post('/advance', (req: Request, res: Response) => {
   if (!set) { res.status(409).json({ error: 'no such active set' }); return; }
   const stages = stagesOf(db, set.id);
   const n = stages.length;
+
+  // Chunked sets have no manual step at all — see liveStageIndex/
+  // needsSwitchNow above. cur_rel is never written for them (stays at its
+  // insert-time 1, unused), so honoring a call here would silently do
+  // nothing useful while looking like it worked.
+  if (set.chunk_size != null && n === 2) {
+    res.status(409).json({ error: 'chunked sets alternate automatically — there is no manual advance step' });
+    return;
+  }
+
   if (set.cur_rel >= n) { res.status(409).json({ error: 'already at the last stage' }); return; }
 
   const force = req.body?.force === true || req.body?.force === 1

@@ -749,6 +749,15 @@ function initSchema(db: DatabaseSync) {
     // the UI exactly as they are today. The new per-stage rule governs every
     // set from here on.
     ['legacy_closed', `ALTER TABLE blind_stage_sets ADD COLUMN legacy_closed INTEGER NOT NULL DEFAULT 0`],
+    // chunk_size: added 2026-09-23 for ABBA alternation (see blind.ts's
+    // abbaStageFor). NULL means "old contiguous behavior" — all
+    // batch_size games on stage 1, then all on stage 2 — which is what
+    // every historical/legacy set keeps getting from this default, with
+    // no UPDATE needed. A set with chunk_size set instead alternates its
+    // two stages in blocks of that size (Sean's live sets use 10).
+    // Meaningless outside exactly 2 stages — the code falls back to
+    // legacy behavior rather than guessing at an ABBA pattern for 3+.
+    ['chunk_size', `ALTER TABLE blind_stage_sets ADD COLUMN chunk_size INTEGER`],
   ] as const) {
     if (!setCols.find(c => c.name === col)) db.exec(ddl);
   }

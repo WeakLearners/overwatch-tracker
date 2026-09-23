@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
 import { getCurveParams } from '../lib/curveParams';
-import { syncSetActive } from './blind';
+import { syncSetActive, liveStageIndex, stagesOf } from './blind';
 
 const router = Router();
 
@@ -39,19 +39,26 @@ router.get('/', (req: Request, res: Response) => {
 function findActiveStage(db: ReturnType<typeof getDb>, hero: string, isCompetitive: boolean) {
   if (!isCompetitive) return undefined;
   const activeSet = db.prepare(`
-    SELECT id, cur_rel, in_game_sens, curve_enabled FROM blind_stage_sets
+    SELECT id, cur_rel, in_game_sens, curve_enabled, chunk_size, batch_size FROM blind_stage_sets
     WHERE active = 1 AND hero = :hero
     UNION ALL
-    SELECT id, cur_rel, in_game_sens, curve_enabled FROM blind_stage_sets
+    SELECT id, cur_rel, in_game_sens, curve_enabled, chunk_size, batch_size FROM blind_stage_sets
     WHERE active = 1 AND hero IS NULL AND NOT EXISTS (SELECT 1 FROM blind_stage_sets WHERE active = 1 AND hero = :hero)
     LIMIT 1
-  `).get({ hero }) as { id: number; cur_rel: number; in_game_sens: number; curve_enabled: number } | undefined;
+  `).get({ hero }) as { id: number; cur_rel: number; in_game_sens: number; curve_enabled: number; chunk_size: number | null; batch_size: number } | undefined;
   if (!activeSet) return undefined;
+  // Chunked 2-stage sets derive the live stage from total credits so far
+  // (ABBA — see blind.ts's liveStageIndex/abbaStageFor) instead of trusting
+  // cur_rel, which is never written for them. stagesOf's length is the
+  // n_stages guard liveStageIndex needs to fall back correctly for
+  // anything other than a real 2-stage chunked set.
+  const nStages = stagesOf(db, activeSet.id).length;
+  const stageIdx = liveStageIndex(db, activeSet, nStages);
   const stage = db.prepare('SELECT dpi, sens FROM blind_stages WHERE set_id = :sid AND stage_index = :si')
-    .get({ sid: activeSet.id, si: activeSet.cur_rel }) as { dpi: number; sens: number | null } | undefined;
+    .get({ sid: activeSet.id, si: stageIdx }) as { dpi: number; sens: number | null } | undefined;
   if (!stage) return undefined;
   return {
-    setId: activeSet.id, stageIdx: activeSet.cur_rel, dpi: stage.dpi, sens: stage.sens ?? activeSet.in_game_sens,
+    setId: activeSet.id, stageIdx, dpi: stage.dpi, sens: stage.sens ?? activeSet.in_game_sens,
     curveEnabled: !!activeSet.curve_enabled,
   };
 }

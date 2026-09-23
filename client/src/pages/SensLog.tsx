@@ -50,6 +50,8 @@ interface DpiTestActive {
   needSwitch: boolean;
   stages: { stage_index: number; dpi: number; sens: number | null }[];
   curveEnabled: boolean;
+  // ABBA alternation (2026-09-23) — null for a legacy contiguous set.
+  chunk: { chunk_size: number; n_chunks_per_stage: number; chunk_number: number; chunk_position: number } | null;
 }
 interface DpiTestState {
   actives: DpiTestActive[];
@@ -1471,13 +1473,30 @@ function ActiveTestCard({ active }: { active: DpiTestActive }) {
         )}
         {active.needSwitch ? (
           <>
-            <div className="text-xs text-amber-500 font-semibold mt-4 mb-1">Batch complete — switch stages</div>
-            <button type="button" onClick={advance} disabled={busy} data-inspect-id="sl-advance-stage-btn" className={`${btnSecondary} w-full py-2 text-sm mt-2`}>Get next stage →</button>
+            <div className="text-xs text-amber-500 font-semibold mt-4 mb-1" data-inspect-id="sl-switch-banner">
+              {active.chunk ? 'Chunk complete — switch stages' : 'Batch complete — switch stages'}
+            </div>
+            {active.chunk ? (
+              // Chunked sets alternate automatically (see lib/blind.ts's
+              // abbaStageFor) — there is nothing to click. Change the
+              // physical setting shown above, then just log the next
+              // match; it auto-credits to the new stage.
+              <p className="text-[11px] text-[var(--faint-2)] mt-2" data-inspect-id="sl-chunk-autoswitch-note">
+                No button to press — set your sens/DPI to the value above, then log your next match as usual.
+              </p>
+            ) : (
+              <button type="button" onClick={advance} disabled={busy} data-inspect-id="sl-advance-stage-btn" className={`${btnSecondary} w-full py-2 text-sm mt-2`}>Get next stage →</button>
+            )}
           </>
         ) : (
           <>
             <div className="text-2xl heading-display text-[var(--ink)] mt-4">{gamesLeft}</div>
             <div className="text-xs text-[var(--faint)]">game{gamesLeft === 1 ? '' : 's'} left in this batch (of <b className="font-bold">{active.batch_size}</b>)</div>
+            {active.chunk && (
+              <div className="text-[11px] text-[var(--faint-2)] mt-1" data-inspect-id="sl-chunk-progress">
+                chunk <b className="font-bold">{active.chunk.chunk_number}</b> of <b className="font-bold">{active.chunk.n_chunks_per_stage}</b> · <b className="num-display">{active.chunk.chunk_position}</b>/<b className="num-display">{active.chunk.chunk_size}</b>
+              </div>
+            )}
             <p className="text-[11px] text-[var(--faint-2)] mt-3">Log each game in the <b>Match Tracker</b> — it auto-tags to this stage and lands in the queue above for its combat details.</p>
           </>
         )}

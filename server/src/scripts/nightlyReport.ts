@@ -27,6 +27,7 @@ import {
   describeSweep,
 } from './nightlyAnalysis';
 import { computeAnalysis } from '../routes/aim';
+import { abbaStageFor } from '../lib/blind';
 
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
 // --dry-run prints the assembled report to stdout instead of posting it, so
@@ -47,7 +48,7 @@ function todayLocal(): string {
 export interface HeroMatchRow { match_id: number; hero: string; }
 export interface ActiveSetRow {
   id: number; hero: string | null; phase: string | null;
-  batch_size: number; cur_rel: number;
+  batch_size: number; cur_rel: number; chunk_size: number | null;
 }
 interface StageCountRow { n_stages: number; }
 
@@ -74,15 +75,25 @@ export function computeStageStatus(db: ReturnType<typeof getDb>, set: ActiveSetR
   const { n_stages } = db.prepare(
     `SELECT COUNT(*) n_stages FROM blind_stages WHERE set_id = :id`
   ).get({ id: set.id }) as unknown as StageCountRow;
-  const gamesOnStage = (db.prepare(
-    `SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id AND stage_index = :si`
-  ).get({ id: set.id, si: set.cur_rel }) as { n: number }).n;
   const totalGames = (db.prepare(
     `SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id`
   ).get({ id: set.id }) as { n: number }).n;
+
+  // ABBA-chunked 2-stage sets never write cur_rel — the live stage is
+  // derived from totalGames instead (shared with routes/blind.ts via the
+  // pure abbaStageFor formula; the credit-counting SQL below stays this
+  // script's own independent query, per the module comment above).
+  const chunked = set.chunk_size != null && n_stages === 2;
+  const curRel = chunked ? abbaStageFor(totalGames, set.chunk_size as number) : set.cur_rel;
+
+  const gamesOnStage = (db.prepare(
+    `SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id AND stage_index = :si`
+  ).get({ id: set.id, si: curRel }) as { n: number }).n;
   const completed = totalGames >= set.batch_size * n_stages;
-  const dueToAdvance = !completed && gamesOnStage >= set.batch_size;
-  return { hero: set.hero, cur_rel: set.cur_rel, n_stages, gamesOnStage, totalGames, batchSize: set.batch_size, completed, dueToAdvance };
+  const dueToAdvance = chunked
+    ? !completed && totalGames > 0 && abbaStageFor(totalGames, set.chunk_size as number) !== abbaStageFor(totalGames - 1, set.chunk_size as number)
+    : !completed && gamesOnStage >= set.batch_size;
+  return { hero: set.hero, cur_rel: curRel, n_stages, gamesOnStage, totalGames, batchSize: set.batch_size, completed, dueToAdvance };
 }
 
 async function postToSlack(text: string): Promise<void> {
@@ -146,7 +157,7 @@ async function main() {
   // games_on_stage column), reimplemented here as plain queries since this
   // script doesn't run through Express.
   const activeSets = db.prepare(`
-    SELECT id, hero, phase, batch_size, cur_rel
+    SELECT id, hero, phase, batch_size, cur_rel, chunk_size
     FROM blind_stage_sets WHERE active = 1 ORDER BY id
   `).all() as unknown as ActiveSetRow[];
 

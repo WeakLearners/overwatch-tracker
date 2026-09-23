@@ -166,12 +166,16 @@ export interface BlindSetInput {
   phase?: string | null;
   batch_size?: number;
   cur_rel?: number;
+  // ABBA alternation (2026-09-23) — null (default) is the old contiguous
+  // behavior; a real value chunks the set's two stages. See lib/blind.ts's
+  // abbaStageFor.
+  chunk_size?: number | null;
 }
 
 export function insertBlindSet(db: DB, s: BlindSetInput = {}): number {
   const info = db.prepare(`
-    INSERT INTO blind_stage_sets (in_game_sens, base_dpi, active, hero, phase, batch_size, cur_rel)
-    VALUES (:in_game_sens, :base_dpi, :active, :hero, :phase, :batch_size, :cur_rel)
+    INSERT INTO blind_stage_sets (in_game_sens, base_dpi, active, hero, phase, batch_size, cur_rel, chunk_size)
+    VALUES (:in_game_sens, :base_dpi, :active, :hero, :phase, :batch_size, :cur_rel, :chunk_size)
   `).run({
     in_game_sens: s.in_game_sens ?? 2.5,
     base_dpi: s.base_dpi ?? 800,
@@ -180,6 +184,7 @@ export function insertBlindSet(db: DB, s: BlindSetInput = {}): number {
     phase: s.phase ?? null,
     batch_size: s.batch_size ?? 5,
     cur_rel: s.cur_rel ?? 1,
+    chunk_size: s.chunk_size ?? null,
   });
   return Number(info.lastInsertRowid);
 }

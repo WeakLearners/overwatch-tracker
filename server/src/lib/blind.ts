@@ -52,3 +52,41 @@ export function stagesFromSens(senses: number[]): StageSpec[] {
     stage_index: i + 1, dpi: LOCKED_DPI, sens, pct_delta: Math.round(((sens - baseSens) / baseSens) * 1000) / 10,
   }));
 }
+
+// ── ABBA alternation ─────────────────────────────────────────────────────────
+// Added 2026-09-23. Each live 2-stage set (ids 141-148, one per hero,
+// batch_size 40) used to run all 40 games of stage 1 before any of stage 2.
+// The 8 sets run concurrently over roughly an 85-day phase, so Sean's own
+// improvement/patches/form drift over that span gets credited entirely to
+// whichever stage happens to run second — a confound, not noise, since it
+// has a direction. Alternating the two stages in chunks removes it.
+//
+// Order is A,B,B,A, not A,B,A,B. Picture a straight-line drift (Sean slowly
+// getting better) drawn across the 8 chunks of a 40-game stage split into
+// 4 chunks of 10: A,B,B,A repeated twice puts stage A's 4 chunks at
+// positions {1,4,5,8} and stage B's at {2,3,6,7} — each pair is symmetric
+// around the run's midpoint, so the drift's average contribution to A and
+// to B is identical. A,B,A,B puts B's chunks at {2,4,6,8}, systematically
+// later than A's {1,3,5,7} — B absorbs more of the drift, every time.
+//
+// "A" and "B" are literally stage_index 1 and 2. This is not a hidden
+// label: this codebase's blind-trial mechanism has never hidden the
+// physical sens/DPI value from Sean — he has to type it into Rawaccel, and
+// SensLog.tsx (`active.sens.toFixed(2)`) and Prematch.tsx both show it
+// plainly. lib/blind.ts's own original header comment already said so:
+// "no blinding math (no shuffle, no relative-position tracking, no
+// reveal)" — the scramble/reveal columns on blind_stage_sets
+// (scramble_done, revealed_slot) are confirmed-dead leftovers from an
+// earlier design that was never finished. "Blind" here has always meant
+// Sean doesn't precompute which stage will win, not that the number is
+// concealed. So alternating stages changes nothing about that: it was
+// exactly this transparent before, and it is exactly this transparent now.
+//
+// Only meaningful for exactly 2 stages — callers fall back to the legacy
+// contiguous behavior (set.chunk_size == null, or stages.length !== 2)
+// rather than guessing at a pattern for more.
+export function abbaStageFor(totalGamesCreditedBefore: number, chunkSize: number): 1 | 2 {
+  const chunkIndex = Math.floor(totalGamesCreditedBefore / chunkSize);
+  const pattern: [1, 2, 2, 1] = [1, 2, 2, 1];
+  return pattern[chunkIndex % 4];
+}
