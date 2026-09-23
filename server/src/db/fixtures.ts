@@ -208,3 +208,13 @@ export function insertBlindCredit(db: DB, c: { match_id: number; hero: string; b
     VALUES (:match_id, :hero, :blind_set_id, :stage_index)
   `).run(c);
 }
+
+export function insertMatchDeath(db: DB, d: { match_id: number; seq: number; killer: string; killer_role: string; ult?: 0 | 1; owner_id?: number }): void {
+  db.prepare(`
+    INSERT INTO match_deaths (match_id, seq, killer, killer_role, ult, owner_id)
+    VALUES (:match_id, :seq, :killer, :killer_role, :ult, :owner_id)
+  `).run({
+    match_id: d.match_id, seq: d.seq, killer: d.killer, killer_role: d.killer_role,
+    ult: d.ult ?? 0, owner_id: d.owner_id ?? 1,
+  });
+}

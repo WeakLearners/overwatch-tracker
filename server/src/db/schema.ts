@@ -496,6 +496,17 @@ function initSchema(db: DatabaseSync) {
     CREATE INDEX IF NOT EXISTS idx_match_deaths_killer ON match_deaths(killer);
   `);
 
+  // owner_id: added 2026-09-23 for the field registry's killer-frequency
+  // query (see modular-tracking-roadmap.md's Phase 1 requirement 3 —
+  // "every new query takes an owner id as a parameter, even though it's
+  // always 1 today"). Defaults to 1, so the 494 existing death rows and
+  // every INSERT already in matches.ts (which doesn't name this column)
+  // pick it up for free — nothing else changes.
+  const matchDeathsCols = db.prepare(`PRAGMA table_info(match_deaths)`).all() as { name: string }[];
+  if (!matchDeathsCols.find(c => c.name === 'owner_id')) {
+    db.exec(`ALTER TABLE match_deaths ADD COLUMN owner_id INTEGER NOT NULL DEFAULT 1`);
+  }
+
   // match_heroes: which hero(es) were actually played during a match, in
   // order (slot 1 = the hero the match started on, 2/3 = switches made
   // mid-match). matches.hero/role stay the column of record for slot 1 (every
@@ -869,6 +880,22 @@ function initSchema(db: DatabaseSync) {
       PRIMARY KEY (map, queue_mode)
     )
   `);
+
+  // user_config: field-registry Phase 1 (modular-tracking-roadmap.md).
+  // One row per user, holding which non-core CATEGORIES they've turned on
+  // (JSON array of category ids, same style as curve_lut's JSON blob
+  // elsewhere in this schema). 'core' is never stored here — it's always
+  // on and has no disable control. user_id defaults to 1 and is threaded
+  // through from day one even though exactly one row will ever exist
+  // under Branch A — see the roadmap's "shaped for Branch B" requirements.
+  // Brand-new table, additive only: doesn't touch any existing row.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_config (
+      user_id            INTEGER PRIMARY KEY DEFAULT 1,
+      enabled_categories TEXT NOT NULL DEFAULT '[]'
+    )
+  `);
+
     db.exec('COMMIT');
   } catch (err) {
     db.exec('ROLLBACK');

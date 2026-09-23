@@ -15,6 +15,8 @@ import { format, parseISO } from 'date-fns';
 import Prematch from './Prematch';
 import LogMatch from './LogMatch';
 import TrendsSummary from '../components/TrendsSummary';
+import KillerFrequencyCard from '../components/KillerFrequencyCard';
+import { useFieldConfig } from '../contexts/FieldConfigContext';
 
 
 type ModeMeta = typeof QUEUE_MODES[number];
@@ -162,6 +164,7 @@ function ModeComparisonCard({ data }: { data: ModeComparison[] }) {
 }
 
 export default function Dashboard() {
+  const { isFieldEnabled } = useFieldConfig();
   const { data: overview } = useApi<Overview>('/api/stats/overview');
   const { data: streaks } = useApi<Streaks>('/api/stats/streaks');
   const { data: trends } = useApi<TrendPoint[]>('/api/stats/trends?window=20');
@@ -1240,6 +1243,12 @@ export default function Dashboard() {
         <PageHeader dataInspectId="dash-trends-section-header" title="Trends" sub="Recent form and momentum." />
         <TrendsSummary />
       </div>
+
+      {isFieldEnabled('deaths') && (
+      <div id="sec-killer-frequency" className="mt-8 border-t border-ow-border pt-6 reveal scroll-mt-32" data-inspect-id="dash-killer-frequency-section" style={{ '--reveal-delay': '200ms' } as React.CSSProperties}>
+        <KillerFrequencyCard />
+      </div>
+      )}
 
       <div id="sec-career" className="mt-8 border-t border-ow-border pt-6 reveal scroll-mt-32" style={{ '--reveal-delay': '240ms' } as React.CSSProperties}>
         <PageHeader dataInspectId="dash-career-section-header" title="Career" sub="All-time totals across every mode." />

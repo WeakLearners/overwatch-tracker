@@ -10,6 +10,7 @@ import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { format } from 'date-fns';
 import RankBadge from '../components/RankBadge';
+import { useFieldConfig } from '../contexts/FieldConfigContext';
 
 // Shared by the two rank-outcome buttons so they cannot drift apart.
 const btnSmall = 'border border-ow-border rounded-md px-2.5 py-1 text-[11px] font-semibold text-[var(--ink-2)] transition-colors';
@@ -317,6 +318,7 @@ export default function LogMatch() {
   // section only owns date/time/hero/win plus the death tags.
   const { queueMode, setQueueMode, map, setMap, mapType, sens, testRole, pendingHeroes, setPendingHeroes, revalidateRec, notifyMatchLogged, deathBuffer, removeDeathFromBuffer, toggleDeathUlt, clearDeathBuffer, playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, lobbyLow, lobbyHigh, account } = useMatch();
   const { data: dpiState } = useApi<DpiTestState>('/api/blind/state');
+  const { isFieldEnabled } = useFieldConfig();
   const { data: blindSets } = useApi<{ sets: BlindSetSummary[] }>('/api/blind/sets');
   const mapCounts = useTodayMapCounts();
   const heroCounts = useTodayHeroCounts();
@@ -751,6 +753,7 @@ export default function LogMatch() {
           so a growing list never pushes the capture control down the screen
           mid-match. Below lg they stack, history first and picker last, which
           keeps that same "new deaths appear above the picker" reading. */}
+      {isFieldEnabled('deaths') && (
       <div id="notable-deaths" className="card mb-6 scroll-mt-24" data-inspect-id="logmatch-deaths-card">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm card-title">Deaths</h2>
@@ -812,6 +815,7 @@ export default function LogMatch() {
           </div>
         </div>
       </div>
+      )}
 
       <div id="match-details" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card" data-inspect-id="logmatch-match-details-card">

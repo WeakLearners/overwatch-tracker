@@ -844,4 +844,65 @@ router.get('/mode-comparison', (_req: Request, res: Response) => {
   })));
 });
 
+// ── Killer frequency ────────────────────────────────────────────────────────
+// Field registry Phase 1's dashboard card (modular-tracking-roadmap.md) —
+// match_deaths is captured on every match's Log Match Deaths card and, until
+// now, read by nothing. This is the first read surface for it.
+//
+// Owner-scoped per the roadmap's Phase 1 requirement 3 (every new query
+// against match_deaths takes an owner id, even though it's always 1 today —
+// see schema.ts's match_deaths.owner_id column, added the same day as this
+// endpoint).
+//
+// Mandatory sample-size guard: only ~124 matches have any match_deaths rows
+// at all, split across ~40 possible killer heroes. A "you die most to X"
+// headline on 3-4 deaths is exactly the small-sample trap that retired the
+// map and hour patterns (see CLAUDE.md). KILLER_FREQ_MIN_N=10 matches this
+// codebase's own existing per-side reliability floor (HOT_HAND_MIN_GAMES,
+// QUEUE_SWITCH_MIN_GAMES, CRIT_ACC_MIN_GAMES, KILL_SECURE_MIN_GAMES are all
+// 8 or 10 in lib/statsInsights.ts) rather than inventing a new number — real
+// per-hero counts run 27-82 deaths today, so this floor suppresses genuine
+// noise (a 3-death cell) without hiding the real signal.
+const KILLER_FREQ_MIN_N = 10;
+router.get('/killer-frequency', (_req: Request, res: Response) => {
+  const db = getDb();
+  const OWNER = 1; // see routes/config.ts — same constant, same reason.
+
+  const totals = db.prepare(`
+    SELECT COUNT(*) AS total_deaths, SUM(ult) AS total_ult_deaths
+    FROM match_deaths WHERE owner_id = :owner
+  `).get({ owner: OWNER }) as { total_deaths: number; total_ult_deaths: number | null };
+
+  const rows = db.prepare(`
+    SELECT killer, killer_role,
+           COUNT(*) AS deaths,
+           SUM(ult) AS ult_deaths
+    FROM match_deaths
+    WHERE owner_id = :owner
+    GROUP BY killer, killer_role
+    ORDER BY deaths DESC, killer ASC
+  `).all({ owner: OWNER }) as { killer: string; killer_role: string; deaths: number; ult_deaths: number | null }[];
+
+  const killers = rows.map(r => ({
+    killer: r.killer,
+    killer_role: r.killer_role,
+    deaths: r.deaths,
+    ult_deaths: r.ult_deaths ?? 0,
+    ult_share: r.deaths > 0 ? Math.round(((r.ult_deaths ?? 0) / r.deaths) * 1000) / 10 : null,
+    reliable: r.deaths >= KILLER_FREQ_MIN_N,
+  }));
+
+  res.json({
+    total_deaths: totals.total_deaths,
+    total_ult_deaths: totals.total_ult_deaths ?? 0,
+    // Roster-wide ult-death share doesn't need the per-killer min-n guard —
+    // it's one pooled rate over every logged death, not a thin per-hero cut.
+    overall_ult_share: totals.total_deaths > 0
+      ? Math.round(((totals.total_ult_deaths ?? 0) / totals.total_deaths) * 1000) / 10
+      : null,
+    min_n: KILLER_FREQ_MIN_N,
+    killers,
+  });
+});
+
 export default router;

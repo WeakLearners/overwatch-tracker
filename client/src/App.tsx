@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import SensLog from './pages/SensLog';
 import SensAnalysis from './pages/SensAnalysis';
+import Settings from './pages/Settings';
+import { FieldConfigProvider } from './contexts/FieldConfigContext';
 import { MapDrawerProvider } from './contexts/MapDrawerContext';
 import MapDrawer from './components/MapDrawer';
 import { HeroDrawerProvider } from './contexts/HeroDrawerContext';
@@ -27,6 +30,7 @@ export default function App() {
     <MapDrawerProvider>
     <MatchProvider>
     <MatchEditDrawerProvider>
+    <FieldConfigProvider>
     <BrowserRouter>
       <div className="min-h-screen">
         {/* HUD top bar: sticky, chamfered wordmark tile with the orange/cyan
@@ -59,16 +63,27 @@ export default function App() {
                 </div>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setDark(d => !d)}
-              aria-label="Toggle theme"
-              data-inspect-id="app-theme-toggle"
-              className="w-9 h-9 shrink-0 grid place-items-center bg-ow-card border border-ow-border text-[var(--ink-2)] hover:text-ow-accent transition-all"
-              style={{ clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)' }}
-            >
-              {dark ? '☀' : '☾'}
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <Link
+                to="/settings"
+                aria-label="Settings"
+                data-inspect-id="app-settings-link"
+                className="w-9 h-9 shrink-0 grid place-items-center bg-ow-card border border-ow-border text-[var(--ink-2)] hover:text-ow-accent transition-all"
+                style={{ clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)' }}
+              >
+                ⚙
+              </Link>
+              <button
+                type="button"
+                onClick={() => setDark(d => !d)}
+                aria-label="Toggle theme"
+                data-inspect-id="app-theme-toggle"
+                className="w-9 h-9 shrink-0 grid place-items-center bg-ow-card border border-ow-border text-[var(--ink-2)] hover:text-ow-accent transition-all"
+                style={{ clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)' }}
+              >
+                {dark ? '☀' : '☾'}
+              </button>
+            </div>
           </div>
         </header>
         <main className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 pt-6 pb-10">
@@ -84,6 +99,7 @@ export default function App() {
                 shares the same backend/DB. Not woven into the Dashboard. */}
             <Route path="/sens" element={<SensLog />} />
             <Route path="/sens/analysis" element={<SensAnalysis />} />
+            <Route path="/settings" element={<Settings />} />
           </Routes>
         </main>
       </div>
@@ -92,6 +108,7 @@ export default function App() {
     <HeroDrawer />
     <MatchEditDrawer />
     {import.meta.env.DEV && <InspectorOverlay />}
+    </FieldConfigProvider>
     </MatchEditDrawerProvider>
     </MatchProvider>
     </MapDrawerProvider>

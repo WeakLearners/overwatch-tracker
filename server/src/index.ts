@@ -12,6 +12,7 @@ import aimRouter from './routes/aim';
 import blindRouter from './routes/blind';
 import customPhasesRouter from './routes/customPhases';
 import ranksRouter from './routes/ranks';
+import configRouter from './routes/config';
 
 const app = express();
 const PORT = 3001;
@@ -32,6 +33,7 @@ app.use('/api/advisor', advisorRouter);
 app.use('/api/aim', aimRouter);
 app.use('/api/blind', blindRouter);
 app.use('/api/custom-phases', customPhasesRouter);
+app.use('/api/config', configRouter);
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);

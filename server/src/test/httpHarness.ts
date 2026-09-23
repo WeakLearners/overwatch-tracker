@@ -26,6 +26,7 @@ import aimRouter from '../routes/aim';
 import blindRouter from '../routes/blind';
 import statsRouter from '../routes/stats';
 import ranksRouter from '../routes/ranks';
+import configRouter from '../routes/config';
 
 export interface ApiResponse<T = any> {
   status: number;
@@ -61,6 +62,7 @@ export async function startHarness(): Promise<Harness> {
   app.use('/api/aim', aimRouter);
   app.use('/api/blind', blindRouter);
   app.use('/api/stats', statsRouter);
+  app.use('/api/config', configRouter);
 
   const server = http.createServer(app);
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
