@@ -627,7 +627,13 @@ router.get('/next', (req: Request, res: Response) => {
       AND m.created_at >= datetime('now', '-${PROJECTION_WINDOW_DAYS} days')
   `).get(...setIds.map(s => s.id)) as { n: number }).n : 0;
   const remaining = heroes.reduce((sum, h) => sum + Math.max(0, h.target - h.credited), 0);
-  const projection = projectPhaseFinish(remaining, gamesInWindow, PROJECTION_WINDOW_DAYS);
+  // Divide by the days the phase has actually run, capped at the window.
+  // A 2-day-old phase divided by 14 read 18 games as 1.3/day (~484 days).
+  const phaseStart = db.prepare('SELECT MIN(created_at) s FROM blind_stage_sets WHERE phase = :phase')
+    .get({ phase }) as { s: string | null };
+  const daysRunning = phaseStart.s ? (Date.now() - new Date(phaseStart.s + 'Z').getTime()) / 86_400_000 : PROJECTION_WINDOW_DAYS;
+  const windowDays = Math.min(PROJECTION_WINDOW_DAYS, Math.max(1, daysRunning));
+  const projection = projectPhaseFinish(remaining, gamesInWindow, windowDays);
 
   res.json({ isQuickplay: false, phase, heroes, projection, ...rec });
 });
