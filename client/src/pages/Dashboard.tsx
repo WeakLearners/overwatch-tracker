@@ -1244,8 +1244,8 @@ export default function Dashboard() {
       <div id="sec-career" className="mt-8 border-t border-ow-border pt-6 reveal scroll-mt-32" style={{ '--reveal-delay': '240ms' } as React.CSSProperties}>
         <PageHeader dataInspectId="dash-career-section-header" title="Career" sub="All-time totals across every mode." />
         {/* One continuous readout strip rather than two stacked 4-tile grids —
-            all seven career totals scan as a single row on wide screens. */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+            all eight career totals scan as a single row on wide screens. */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
           <StatCard compact dataInspectId="dash-stat-total-games" label="Total Games" value={overview?.total ?? '—'} />
           <StatCard
             compact
@@ -1267,6 +1267,21 @@ export default function Dashboard() {
             color={streaks?.currentStreakType === 1 ? 'win' : 'loss'}
           />
           <StatCard compact dataInspectId="dash-stat-longest-win-streak" label="Longest Win Streak" value={streaks?.longestWin ?? '—'} color="win" />
+          {/* Counted only over matches where the question was asked, which is
+              why the sub-line prints the denominator instead of a bare
+              percentage. The old rows are silent here, not zero. */}
+          <StatCard
+            compact
+            dataInspectId="dash-stat-leavers"
+            label="Leavers"
+            value={overview?.leaver_games ?? '—'}
+            sub={
+              overview && overview.leaver_logged > 0
+                ? `of ${overview.leaver_logged} asked · ${overview.win_rate_no_leaver ?? '—'}% WR without`
+                : 'not logged yet'
+            }
+            color="loss"
+          />
         </div>
       </div>
     </div>

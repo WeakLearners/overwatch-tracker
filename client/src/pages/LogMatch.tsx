@@ -337,6 +337,10 @@ export default function LogMatch() {
   // clicking the already-selected option deselects it back to null.
   const [matchQuality, setMatchQuality] = useState<'stomp' | 'close' | null>(null);
   const [resultDriver, setResultDriver] = useState<'me' | 'team' | null>(null);
+  // Did somebody leave this match. Unlike matchQuality/resultDriver this one
+  // defaults to false rather than null: "nobody left" is the normal case, so
+  // an untouched box is a true answer, not a skipped question.
+  const [leaver, setLeaver] = useState(false);
 
   const [form, setForm] = useState<FormState>(() => {
     const n = new Date();
@@ -673,6 +677,7 @@ export default function LogMatch() {
           team_rating: teamRating,
           match_quality: matchQuality,
           result_driver: resultDriver,
+          leaver,
           player_rank: isQP ? null : playerRank,
           // Where the ladder stood going in. Carried from the rank the last
           // match on this account+role ended at, so the row records the move
@@ -699,7 +704,7 @@ export default function LogMatch() {
       setFeelByHero({});
       setTeamRating(0);
       setMatchQuality(null);
-      setResultDriver(null);
+      setResultDriver(null); setLeaver(false);
       // The lobby range deliberately survives the submit. It is a reading of
       // the ladder you are playing in, not a property of the match just
       // logged, and the next lobby is nearly always the same one. Wiping it
@@ -823,7 +828,7 @@ export default function LogMatch() {
                   setFeelByHero({});
                   setTeamRating(0);
                   setMatchQuality(null);
-                  setResultDriver(null);
+                  setResultDriver(null); setLeaver(false);
                   clearDeathBuffer();
                   notifyMatchLogged();
                   // Wait a paint cycle so the layout has settled from the resets above
@@ -845,7 +850,7 @@ export default function LogMatch() {
               </button>
               <button
                 type="button"
-                onClick={() => { setForm(f => ({ ...f, hero: '', notes: '' })); setSwitchHeroes(['', '']); setMap(''); setFeelByHero({}); setTeamRating(0); setMatchQuality(null); setResultDriver(null); }}
+                onClick={() => { setForm(f => ({ ...f, hero: '', notes: '' })); setSwitchHeroes(['', '']); setMap(''); setFeelByHero({}); setTeamRating(0); setMatchQuality(null); setResultDriver(null); setLeaver(false); }}
                 disabled={!form.hero && !map}
                 data-inspect-id="logmatch-reset-button"
                 className="text-xs text-[var(--faint)] hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--faint)]"
@@ -1039,6 +1044,24 @@ export default function LogMatch() {
                   );
                 })}
               </div>
+              {/* Leaver sits inside the Result row on purpose: whether somebody
+                  walked out is part of what the result means, not a separate
+                  rating. Default unchecked — see the `leaver` state comment. */}
+              <label
+                data-inspect-id="logmatch-leaver-checkbox"
+                className="mt-2 flex items-center gap-2 cursor-pointer select-none w-fit"
+              >
+                <input
+                  type="checkbox"
+                  checked={leaver}
+                  onChange={e => setLeaver(e.target.checked)}
+                  className="h-4 w-4 accent-ow-accent cursor-pointer"
+                />
+                <span className={`text-xs transition-colors ${leaver ? 'text-[var(--ink)] font-bold' : 'text-[var(--muted)]'}`}>
+                  Leaver
+                </span>
+                <span className="text-[10px] text-[var(--faint-2)]">— someone left the match</span>
+              </label>
             </div>
 
             <div>

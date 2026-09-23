@@ -298,3 +298,51 @@ describe('DELETE /api/matches/:id — credits cascade', () => {
     assert.deepEqual(heroSlots(id), []);
   });
 });
+
+// ── leaver ───────────────────────────────────────────────────────────────────
+// Added 2026-09-23 with the Leaver checkbox. The thing worth pinning is the
+// denominator. Matches logged before the column existed hold NULL, meaning the
+// question was never put to them. The overview stat must divide by the rows
+// that were asked, not by every row ever logged — otherwise the rate drifts
+// toward zero as the 3,489-match archive drowns out the answered ones.
+describe('leaver: recorded on the match, rated only over answered matches', () => {
+  test('the checkbox round-trips, and an unchecked box stores 0 rather than NULL', async () => {
+    const yes = await logMatch({ hero: 'Ashe', role: 'Damage', leaver: true });
+    const no = await logMatch({ hero: 'Ashe', role: 'Damage', leaver: false });
+    const omitted = await logMatch({ hero: 'Ashe', role: 'Damage' });
+    const leaverOf = (id: number) =>
+      (h.db.prepare('SELECT leaver FROM matches WHERE id = ?').get(id) as { leaver: number | null }).leaver;
+    assert.equal(leaverOf(yes), 1);
+    assert.equal(leaverOf(no), 0);
+    // A client that never sends the field still records "no leaver" — the form
+    // always sends one, so this only covers older/other callers.
+    assert.equal(leaverOf(omitted), 0);
+  });
+
+  test('a mis-click is fixable through PUT', async () => {
+    const id = await logMatch({ hero: 'Ashe', role: 'Damage', leaver: true });
+    const r = await h.put(`/api/matches/${id}`, { leaver: 0 });
+    assert.equal(r.status, 200);
+    assert.equal((h.db.prepare('SELECT leaver FROM matches WHERE id = ?').get(id) as { leaver: number }).leaver, 0);
+  });
+
+  test('overview counts leavers against answered matches, and skips NULL rows on both sides', async () => {
+    // Three answered matches: one leaver (a loss), two clean (one win, one loss).
+    await logMatch({ hero: 'Ashe', role: 'Damage', win: false, leaver: true });
+    await logMatch({ hero: 'Ashe', role: 'Damage', win: true, leaver: false });
+    await logMatch({ hero: 'Ashe', role: 'Damage', win: false, leaver: false });
+    // One legacy row, written straight to the DB the way the archive holds it.
+    const legacy = await logMatch({ hero: 'Ashe', role: 'Damage', win: true });
+    h.db.prepare('UPDATE matches SET leaver = NULL WHERE id = ?').run(legacy);
+
+    const r = await h.get('/api/stats/overview');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.total, 4);
+    // Asked: 3, not 4. The legacy row is silent, not a "no".
+    assert.equal(r.body.leaver_logged, 3);
+    assert.equal(r.body.leaver_games, 1);
+    // Leaver-free win rate: the leaver loss drops out, leaving 1 win and 1
+    // loss among answered rows plus the legacy win — 2 of 3 = 66.7%.
+    assert.equal(r.body.win_rate_no_leaver, 66.7);
+  });
+});

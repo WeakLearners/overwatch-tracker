@@ -30,7 +30,29 @@ router.get('/overview', (req: Request, res: Response) => {
   const { heroes_played } = db.prepare(`
     SELECT COUNT(DISTINCT hero) as heroes_played FROM matches_by_hero ${where}
   `).get(params) as { heroes_played: number };
-  res.json({ ...row, heroes_played });
+  // Leavers. Every match logged before 2026-09-23 has leaver NULL, because the
+  // question was never asked. Those rows are excluded from BOTH sides of the
+  // ratio: `leaver_logged` is the denominator, not `total`. Counting them as
+  // "no leaver" would report a rate near zero over 3,489 games and make a real
+  // effect invisible. win_rate_no_leaver is the win rate with leaver matches
+  // dropped — a game somebody walked out of says little about how Sean played.
+  const leaverRow = db.prepare(`
+    SELECT
+      COUNT(*) as leaver_logged,
+      SUM(leaver) as leaver_games
+    FROM matches ${where ? where + ' AND' : 'WHERE'} leaver IS NOT NULL
+  `).get(params) as { leaver_logged: number; leaver_games: number | null };
+  const cleanRow = db.prepare(`
+    SELECT ROUND(AVG(win) * 100, 1) as win_rate_no_leaver
+    FROM matches ${where ? where + ' AND' : 'WHERE'} COALESCE(leaver, 0) = 0
+  `).get(params) as { win_rate_no_leaver: number | null };
+  res.json({
+    ...row,
+    heroes_played,
+    leaver_logged: leaverRow.leaver_logged,
+    leaver_games: leaverRow.leaver_games ?? 0,
+    win_rate_no_leaver: cleanRow.win_rate_no_leaver,
+  });
 });
 
 router.get('/by-hero', (req: Request, res: Response) => {

@@ -198,6 +198,12 @@ export interface Overview {
   win_rate: number;
   heroes_played: number;
   maps_played: number;
+  /** Matches where the leaver question was actually asked. Rows logged before
+   *  2026-09-23 are not counted here — see schema.ts's `leaver` comment. */
+  leaver_logged: number;
+  leaver_games: number;
+  /** Win rate with leaver matches dropped. Null until any match is logged. */
+  win_rate_no_leaver: number | null;
 }
 
 export interface TrendPoint {

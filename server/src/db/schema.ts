@@ -415,6 +415,21 @@ function initSchema(db: DatabaseSync) {
     db.exec(`ALTER TABLE matches ADD COLUMN result_driver TEXT`);
   }
 
+  // leaver: 1 | 0 | NULL — did somebody leave the match. Added 2026-09-23.
+  // A fact about the game, not a judgment call, so unlike match_quality and
+  // result_driver a checkbox with a default answer is safe here: leaving the
+  // box alone genuinely means "nobody left."
+  //
+  // NULL means something different from 0, and the difference matters. Every
+  // row logged before today is NULL — the question was never put. Rows logged
+  // from now on are 0 or 1, because the form always sends an answer. Any rate
+  // computed off this column MUST divide by the rows where leaver IS NOT NULL.
+  // Divide by every match instead and the answer is ~0% across 3,489 games,
+  // which is the same small-sample lie that retired the map and hour patterns.
+  if (!cols.find(c => c.name === 'leaver')) {
+    db.exec(`ALTER TABLE matches ADD COLUMN leaver INTEGER`);
+  }
+
   // player_rank / lobby_low / lobby_high: competitive rank captured as a
   // single integer on a 1-45 division ladder — Bronze 5 = 1, Gold 5 = 11,
   // Champion 1 = 45. Nine tiers of five divisions, Emerald included (it sits
