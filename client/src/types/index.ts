@@ -116,11 +116,6 @@ export interface DeathSlice {
   pct: number;
 }
 
-// hero_* scopes are narrowed to the coaching column's own recommended hero;
-// the plain map/map_type/overall scopes fall back to all heroes when that
-// hero-specific slice is too thin.
-export type DeathScope = 'hero_map' | 'hero_type' | 'hero' | 'map' | 'map_type' | 'overall';
-
 export interface DeathReasonCorrelation {
   reason: string;
   in_wins: number;
@@ -130,36 +125,8 @@ export interface DeathReasonCorrelation {
   loss_multiplier: number | null;
 }
 
-// Factual death axes (v1/v2/v3 logging, historical — matches.deaths JSON).
-// No longer captured (see MatchDeathEntry/match_deaths below, 2026-09-09) —
-// the axis sliders decayed the same way this codebase already scars for:
-// per-event judgment calls don't survive contact with real use. Kept here
-// only because AdvisorCard still renders the axis breakdown computed
-// server-side from that frozen historical data.
-export type DeathAxisKey = 'trade' | 'timing' | 'grouping' | 'awareness';
-
-// Axis metadata — drives the spectrum bars in AdvisorCard (historical data
-// only; no longer drives a capture UI — see DEATH_AXES comment above).
-// Endpoint convention: value→0 is the "low" pole, value→1 the "high" pole.
-// Where an axis has a clear worse end, it sits at 0 (rendered red).
-export interface DeathAxis {
-  key: DeathAxisKey;
-  label: string;
-  low: string;   // full label for value → 0
-  high: string;  // full label for value → 1
-  lowShort: string;
-  highShort: string;
-}
-
-export const DEATH_AXES: DeathAxis[] = [
-  { key: 'trade',     label: 'Trade',     low: 'Wasted — nothing gained', high: 'Traded — got value',    lowShort: 'Wasted',    highShort: 'Got value' },
-  { key: 'timing',    label: 'Timing',    low: 'Died first (over-eager)', high: 'Died last (staggered)',  lowShort: 'First',     highShort: 'Last'      },
-  { key: 'grouping',  label: 'Grouping',  low: 'Alone / isolated',        high: 'With the team',          lowShort: 'Alone',     highShort: 'Grouped'   },
-  { key: 'awareness', label: 'Awareness', low: 'Caught by surprise',      high: 'Full read, lost anyway', lowShort: 'Caught out', highShort: 'Read it'  },
-];
-
 // Per-death FACTS (2026-09-09 on) — who killed Sean, and whether it was an
-// ult. Replaces the axis-judgment capture above. Buffered client-side during
+// ult. Replaced the old per-death axis judgments (matches.deaths, frozen). Buffered client-side during
 // a match (MatchContext.deathBuffer) and sent as match_deaths on match
 // create; the server writes one match_deaths row per entry, in array order.
 export interface MatchDeathEntry {
@@ -168,22 +135,10 @@ export interface MatchDeathEntry {
   ult: boolean;
 }
 
-// Per-axis mean position (0–1) and sample count for a scope, from the advisor.
-export interface AxisPayload {
-  deaths: number; // total death records counted
-  games: number;
-  axes: Record<DeathAxisKey, { mean: number; n: number }>;
-  // The axis leaning furthest from neutral (0.5), with enough samples to trust.
-  strongest_lean: { axis: DeathAxisKey; mean: number; n: number; label: string } | null;
-}
-
 export interface Recommendation {
   primary: string;
   stretch: string | null;
   stretch_untested: boolean;
-  insight: string;
-  death_axes: AxisPayload | null;
-  death_scope: DeathScope;
   primary_stats: { games: number; win_rate: number } | null;
   user_map_stats: { games: number; win_rate: number | null };
   cached: boolean;
