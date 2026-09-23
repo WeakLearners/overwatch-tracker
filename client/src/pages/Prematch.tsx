@@ -37,6 +37,15 @@ interface DpiTestHud {
   actives: {
     set_id: number; hero: string | null; cur_stage: number; n_stages: number; totalGames: number;
     batch_size: number; games_on_stage: number; dpi: number | null; sens: number | null;
+    // Present only for a chunked (ABBA) 2-stage set — see routes/blind.ts's
+    // GET /state and lib/blind.ts's chunkLabelFor/leftInCurrentChunk/
+    // chunkGaugeSegments. label is the "A1".."B4" chunk badge; left/
+    // gaugeFull/gaugeHalf count down the CURRENT 10-match chunk, not the
+    // whole stage.
+    chunk?: {
+      chunk_size: number; n_chunks_per_stage: number; chunk_number: number; chunk_position: number;
+      label: string; left: number; gaugeFull: number; gaugeHalf: boolean;
+    } | null;
   }[];
 }
 
@@ -539,6 +548,11 @@ export default function Prematch() {
     if (!a || a.n_stages <= 0) return null;
     return { cur: a.cur_stage, total: a.n_stages };
   };
+
+  // Chunk badge/gauge for a chunked (ABBA) set — see the DpiTestHud.chunk
+  // comment above. null for an unchunked/legacy set, which keeps the
+  // encircled-stage-number badge and stage-wide gauge exactly as before.
+  const chunkFor = (hero: string) => btActives.find(a => a.hero === hero)?.chunk ?? null;
 
   // Quantizes remaining-games-in-stage onto a 5-segment gauge (like a battery
   // meter) regardless of the set's actual batch_size, so every hero's gauge
@@ -1555,18 +1569,31 @@ export default function Prematch() {
                             // count with the word "games" beside it — identical
                             // numbers while a stage was 5 games, and off by a
                             // factor of eight once stages became 40.
-                            title={`${testStageLeftFor(h.hero)?.left ?? 0} of ${testStageLeftFor(h.hero)?.total ?? 0} games left at this sens`}
+                            title={chunkFor(h.hero)
+                              ? `${chunkFor(h.hero)!.label} · ${chunkFor(h.hero)!.left} left in this chunk`
+                              : `${testStageLeftFor(h.hero)?.left ?? 0} of ${testStageLeftFor(h.hero)?.total ?? 0} games left at this sens`}
                             data-inspect-id="prematch-hero-picker-gauge"
                           >
-                            {/* Which stage of the set, encircled, immediately
-                                left of the gauge. Outlined rather than filled so
-                                it cannot be mistaken for the solid pick-order
-                                badge at the row's top-left corner — that one is a
-                                click position, this one is test progress. Lives
-                                inside the gauge's own absolutely-positioned
-                                container so the pair stays together at any row
-                                width instead of drifting apart. */}
-                            {testStageFor(h.hero) && (
+                            {/* Which stage of the set (or, for a chunked ABBA
+                                set, which lettered/ordinal CHUNK — "A1".."B4",
+                                lib/blind.ts's chunkLabelFor), encircled,
+                                immediately left of the gauge. Outlined rather
+                                than filled so it cannot be mistaken for the
+                                solid pick-order badge at the row's top-left
+                                corner — that one is a click position, this one
+                                is test progress. Lives inside the gauge's own
+                                absolutely-positioned container so the pair
+                                stays together at any row width instead of
+                                drifting apart. */}
+                            {chunkFor(h.hero) ? (
+                              <span
+                                className="h-4 min-w-[1rem] px-0.5 mr-1 shrink-0 relative right-[1%] rounded-full border border-ow-accent/70 text-[#9A3412] dark:text-ow-accent text-[9px] font-bold flex items-center justify-center leading-none tabular-nums"
+                                title={`Chunk ${chunkFor(h.hero)!.label} — ${chunkFor(h.hero)!.left} left`}
+                                data-inspect-id="prematch-hero-picker-stage-badge"
+                              >
+                                {chunkFor(h.hero)!.label}
+                              </span>
+                            ) : testStageFor(h.hero) && (
                               <span
                                 className="w-4 h-4 mr-1 shrink-0 relative right-[1%] rounded-full border border-ow-accent/70 text-[#9A3412] dark:text-ow-accent text-[9px] font-bold flex items-center justify-center leading-none tabular-nums"
                                 title={`Stage ${testStageFor(h.hero)!.cur} of ${testStageFor(h.hero)!.total}`}
@@ -1575,16 +1602,45 @@ export default function Prematch() {
                                 {testStageFor(h.hero)!.cur}
                               </span>
                             )}
-                            {Array.from({ length: GAUGE_SEGMENTS }).map((_, i) => (
+                            {chunkFor(h.hero) ? (
+                              // Gauge counts down the CURRENT 10-match chunk,
+                              // not the whole 40-match stage: full segments =
+                              // floor(left/2), plus one half segment (dimmed,
+                              // not a second full bar) when left is odd. A
+                              // subtle tick (a left border on the 3rd of 5
+                              // segments) marks the fixed "5 left" halfway
+                              // point of every chunk, regardless of fill.
+                              Array.from({ length: GAUGE_SEGMENTS }).map((_, i) => {
+                                const c = chunkFor(h.hero)!;
+                                const lit = i < c.gaugeFull || (i === c.gaugeFull && c.gaugeHalf);
+                                const isHalf = i === c.gaugeFull && c.gaugeHalf;
+                                return (
+                                  <span
+                                    key={i}
+                                    className={`w-1.5 h-3 -skew-x-[20deg] ${lit ? 'bg-emerald-500' : 'bg-gray-400/50'} ${isHalf ? 'opacity-50' : ''} ${i === 2 ? 'border-l border-dashed border-gray-600/50 dark:border-gray-300/40' : ''}`}
+                                  />
+                                );
+                              })
+                            ) : (
+                              Array.from({ length: GAUGE_SEGMENTS }).map((_, i) => (
+                                <span
+                                  key={i}
+                                  className={`w-1.5 h-3 -skew-x-[20deg] ${
+                                    i < testGaugeFor(h.hero)!
+                                      ? 'bg-emerald-500'
+                                      : 'bg-gray-400/50'
+                                  }`}
+                                />
+                              ))
+                            )}
+                            {chunkFor(h.hero) && (
                               <span
-                                key={i}
-                                className={`w-1.5 h-3 -skew-x-[20deg] ${
-                                  i < testGaugeFor(h.hero)!
-                                    ? 'bg-emerald-500'
-                                    : 'bg-gray-400/50'
-                                }`}
-                              />
-                            ))}
+                                className="text-[8px] ml-1 text-[var(--faint-2)] tabular-nums whitespace-nowrap"
+                                data-inspect-id="prematch-hero-picker-chunk-label"
+                              >
+                                {chunkFor(h.hero)!.label} · {chunkFor(h.hero)!.left} left
+                              </span>
+                            )}
                           </span>
                         ) : doneThisPhase.has(h.hero) && (
                           // No active test right now, but this hero belongs to the

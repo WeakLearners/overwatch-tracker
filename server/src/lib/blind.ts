@@ -93,6 +93,44 @@ export function abbaStageFor(totalGamesCreditedBefore: number, chunkSize: number
   return pattern[chunkIndex % 4];
 }
 
+// ── Stage badge label ("A1".."B4") ──────────────────────────────────────────
+// Added 2026-09-23 alongside the stint/gauge rework below. The HUD used to
+// show a bare stage number (1 or 2) in a circle next to the gauge — useless
+// once two stages alternate in chunks, since "stage 1" no longer tells Sean
+// which of the (up to) four A-chunks or four B-chunks he's actually on.
+// The letter is just abbaStageFor's own 1/2 relabeled A/B; the ordinal counts
+// how many chunks of THAT letter have occurred up to and including the
+// current one. Deliberately built by walking abbaStageFor chunk-by-chunk
+// (bounded — at most batch_size/chunk_size chunks, 4-8 for every live set)
+// rather than a closed-form formula, so this label can never drift from the
+// alternation pattern the switch-prompt/completion logic (liveStageIndex,
+// needsSwitchNow in routes/blind.ts) already derives the same way.
+export function chunkLabelFor(totalGamesCreditedBefore: number, chunkSize: number): string {
+  const chunkIndex = Math.floor(totalGamesCreditedBefore / chunkSize);
+  let aCount = 0, bCount = 0;
+  for (let i = 0; i <= chunkIndex; i++) {
+    if (abbaStageFor(i * chunkSize, chunkSize) === 1) aCount++; else bCount++;
+  }
+  return abbaStageFor(chunkIndex * chunkSize, chunkSize) === 1 ? `A${aCount}` : `B${bCount}`;
+}
+
+// Games left in the CURRENT chunk (not the whole stage) — what the gauge
+// below counts down, instead of the stage-wide count testStageLeftFor
+// already shows elsewhere on this HUD.
+export function leftInCurrentChunk(totalGamesCreditedBefore: number, chunkSize: number): number {
+  return chunkSize - (totalGamesCreditedBefore % chunkSize);
+}
+
+// 5-segment battery gauge over the CURRENT CHUNK — Sean's decision,
+// 2026-09-23: full segments = floor(left/2), plus one half segment when left
+// is odd. This is written for a 10-game chunk (2 games/segment over 5
+// segments), which is every live chunked set today; it is not re-derived
+// from chunkSize the way chunkLabelFor/leftInCurrentChunk above are, because
+// the brief specified the /2 constant directly rather than "chunkSize/5".
+export function chunkGaugeSegments(left: number): { full: number; half: boolean } {
+  return { full: Math.floor(left / 2), half: left % 2 === 1 };
+}
+
 // ── Queue-mode study eligibility ────────────────────────────────────────────
 // Switched off 2026-09-23 at Sean's request: from now on ONLY Competitive
 // matches earn a stage-test credit, for every role. Support briefly had a QP
