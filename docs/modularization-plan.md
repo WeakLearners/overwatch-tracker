@@ -1,5 +1,18 @@
 # Modularization plan — overwatch client/server
 
+> **Superseded 2026-09-23, same day this was written.** Sean clarified
+> that "modularize the app" meant the field registry in
+> `projects/overwatch-analysis/modular-tracking-roadmap.md` (Branch A
+> shaped for Branch B, decided 2026-09-22), not a hand-split of the big
+> page files. **Slice 1 (below) stands** — the server-only stats.ts
+> extraction is real and unaffected. **Slices 2–6 (Dashboard/LogMatch
+> hand-splitting) are superseded**: the registry rebuilds those two files
+> around one field/category list, and hand-splitting them first would
+> mean cutting them twice. **`schema.ts` stays whole, permanently, not
+> just deferred** — its ~40 migrations are order-dependent and a split's
+> only payoff would have been line count, not any real seam. See the
+> roadmap doc for what's actually being built instead.
+
 Written 2026-09-23. Survey of `client/src` and `server/src`, ranked by line
 count, with proposed seams and an execution order. Phase 2 of this task
 executes only the first slice below; everything else is plan, not code.
