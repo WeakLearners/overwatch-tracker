@@ -374,8 +374,10 @@ router.get('/recommend', async (req: Request, res: Response) => {
 });
 
 // Static list of all heroes by role — kept in sync with the client's HEROES map.
-// (Server-side so we don't depend on importing client code.)
-const HEROES_BY_ROLE: Record<string, string[]> = {
+// (Server-side so we don't depend on importing client code.) Exported so
+// routes/blind.ts's next-test recommender can look up a hero's role without
+// a second, independently-drifting copy of this list.
+export const HEROES_BY_ROLE: Record<string, string[]> = {
   DPS: ['Anran', 'Ashe', 'Bastion', 'Cassidy', 'Echo', 'Emre', 'Freja', 'Genji', 'Hanzo', 'Junkrat', 'Mei', 'Pharah', 'Reaper', 'Shion', 'Sierra', 'Sojourn', 'Soldier: 76', 'Sombra', 'Symmetra', 'Torbjorn', 'Tracer', 'Vendetta', 'Venture', 'Widowmaker'],
   Support: ['Ana', 'Baptiste', 'Brigitte', 'Illari', 'Jetpack Cat', 'Juno', 'Kiriko', 'Lifeweaver', 'Lucio', 'Mercy', 'Mizuki', 'Moira', 'Wuyang', 'Zenyatta'],
   Tank: ['D.Mon', 'D.Va', 'Domina', 'Doomfist', 'Hazard', 'Junker Queen', 'Mauga', 'Orisa', 'Ramattra', 'Reinhardt', 'Roadhog', 'Sigma', 'Winston', 'Wrecking Ball', 'Zarya'],

@@ -14,6 +14,23 @@ import {
 import { format } from 'date-fns';
 import SensNav from '../components/SensNav';
 import { parseLutString, formatLut } from '../lib/lut';
+import { useFieldConfig } from '../contexts/FieldConfigContext';
+
+// GET /api/blind/next's shape (see server/src/lib/nextTest.ts) — this page
+// reads the same endpoint Prematch's "Next test" card does, since both are
+// views onto the one round-robin roster, just at different grain (this one
+// shows every hero, not only the recommended role).
+interface NextTestResponse {
+  isQuickplay: boolean;
+  phase: string | null;
+  heroes?: { hero: string; role: string; credited: number; target: number; daysSinceLastPlayed: number | null; completed: boolean }[];
+  projection?: { ratePerDay: number; projectedDays: number | null };
+  allFinished?: boolean;
+}
+// Mirrors lib/nextTest.ts's COLD_DAYS — a display-only threshold, not a
+// second copy of the recommender's decision logic (that logic stays
+// server-side; this just colors a badge the same way the card above does).
+const COLD_DAYS = 7;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface PendingMatch {
@@ -250,6 +267,12 @@ export default function SensLog() {
   const { data: dpiState } = useApi<DpiTestState>('/api/blind/state');
   const { data: pendingData, loading } = useApi<{ rows: PendingMatch[] }>('/api/aim/pending?limit=40');
   const pending = pendingData?.rows ?? [];
+  const { isCategoryEnabled } = useFieldConfig();
+  const sensStudyOn = isCategoryEnabled('sens-study');
+  // queue_mode is fixed at comp_role here — this page is a status overview,
+  // not tied to whatever queue Sean is about to play, so it always asks for
+  // the real roster rather than the Quickplay short-circuit.
+  const { data: nextTest } = useApi<NextTestResponse>('/api/blind/next?queue_mode=comp_role');
   // This page always opens at the top, however it was reached. It used to
   // deep-link into the backlog when arriving from Prematch's "Go →", which
   // dropped the user mid-page with the curve params and the header scrolled
@@ -264,6 +287,38 @@ export default function SensLog() {
         <h1 data-inspect-id="sl-header-title" className="text-2xl heading-display text-[var(--ink)]">Sensitivity Study</h1>
         <p className="text-sm text-[var(--faint)] mt-1">Enter each match's combat details here after the game. DPI stage trials are driven from the panel below and land in the same queue.</p>
       </div>
+
+      {sensStudyOn && nextTest && !nextTest.allFinished && (nextTest.heroes?.length ?? 0) > 0 && (
+        <div className="card mb-6" data-inspect-id="sl-phase-overview-card">
+          <h2 className="text-sm card-title mb-1">Phase overview</h2>
+          <p className="text-xs text-[var(--faint)] mb-3">
+            {nextTest.projection?.projectedDays != null
+              ? <>Projected finish in ~{Math.ceil(nextTest.projection.projectedDays)} days at the trailing 14-day pace ({nextTest.projection.ratePerDay.toFixed(1)} games/day) — a projection, not a promise.</>
+              : 'No games credited in the last 14 days — no basis for a finish projection yet.'}
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1" data-inspect-id="sl-phase-overview-hero-grid">
+            {nextTest.heroes?.map(h => (
+              <div key={h.hero} className="flex items-center gap-2 text-xs" data-inspect-id="sl-phase-overview-hero-row">
+                <span className="hero-name flex-1 truncate">{h.hero}</span>
+                <span className="text-[10px] text-[var(--faint-2)]">
+                  {h.daysSinceLastPlayed == null ? 'never played' : `${h.daysSinceLastPlayed}d ago`}
+                </span>
+                {!h.completed && h.daysSinceLastPlayed != null && h.daysSinceLastPlayed >= COLD_DAYS && (
+                  <span className="text-[9px] font-bold uppercase tracking-wide text-blue-500">cold</span>
+                )}
+                <span className={`num-display ${h.completed ? 'text-emerald-700 dark:text-emerald-400' : ''}`}>
+                  {h.completed ? 'Done' : `${h.credited}/${h.target}`}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {sensStudyOn && nextTest?.allFinished && (
+        <div className="card mb-6" data-inspect-id="sl-phase-overview-finished">
+          <p className="text-xs text-[var(--faint)]">Every hero in this phase is done — the next phase needs creating below.</p>
+        </div>
+      )}
 
       <CurveParamsCard />
 

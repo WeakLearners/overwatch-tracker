@@ -14,6 +14,21 @@ import { Link } from 'react-router-dom';
 import Odometer from '../components/Odometer';
 import { MOUSE_DPI } from '../lib/aim';
 import RankBadge from '../components/RankBadge';
+import { useFieldConfig } from '../contexts/FieldConfigContext';
+
+// GET /api/blind/next's shape — see server/src/lib/nextTest.ts for what each
+// field means (role pick, stint lock, cold flag). Fetched fresh whenever
+// queueMode changes (Quickplay gets its own no-list response) and whenever
+// any match is logged, via useApi's shared revalidateAll() subscription.
+interface NextTestResponse {
+  isQuickplay: boolean;
+  allFinished?: boolean;
+  finishedHeroes?: string[];
+  phase?: string | null;
+  stint?: { hero: string; role: string; position: number; length: number } | null;
+  recommendedRole?: string | null;
+  orderedHeroes?: { hero: string; role: string; credited: number; target: number; daysSinceLastPlayed: number | null; cold: boolean }[];
+}
 
 // DPI stage-test HUD state — the dashboard reads this live to show the
 // current stage's DPI plainly (no hiding, no LED colors). Several tests can
@@ -243,6 +258,13 @@ export default function Prematch() {
   const btTestLeft = bt ? Math.max(0, bt.n_stages * bt.batch_size - bt.totalGames) : 0;
   const { data: pendingData } = useApi<{ total: number }>('/api/aim/pending?limit=1');
   const backlogCount = pendingData?.total ?? 0;
+  const { isCategoryEnabled } = useFieldConfig();
+  const sensStudyOn = isCategoryEnabled('sens-study');
+  // Fetched unconditionally — the category toggle is a display gate on the
+  // card below, not a reason to skip a cheap, side-effect-free GET. Keeping
+  // the fetch itself unconditional also means flipping the toggle on shows
+  // fresh data immediately rather than a stale null from before it was on.
+  const { data: nextTest } = useApi<NextTestResponse>(`/api/blind/next?queue_mode=${queueMode}`, [queueMode]);
   const mapCounts = useTodayMapCounts();
   const heroCounts = useTodayHeroCounts();
 
@@ -1397,6 +1419,55 @@ export default function Prematch() {
                 )}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Next test — the sens-study round-robin recommender (GET
+            /api/blind/next, lib/nextTest.ts). Gated on the sens-study
+            category since it has nothing to say when that data isn't being
+            collected. Sits directly above "Select Your Hero" — it answers
+            the question that picker is about to ask. */}
+        {sensStudyOn && nextTest && (
+          <div className="mt-4 pt-4 border-t border-ow-border/40" data-inspect-id="prematch-next-test-card">
+            <h3 className="text-sm card-title mb-2">Next test</h3>
+            {nextTest.isQuickplay ? (
+              <p className="text-xs text-[var(--faint)]" data-inspect-id="prematch-next-test-qp">
+                Quickplay doesn't count toward testing — queue Competitive
+              </p>
+            ) : nextTest.allFinished ? (
+              <p className="text-xs text-[var(--faint)]" data-inspect-id="prematch-next-test-finished">
+                Every hero in this phase is done — next phase needs creating on the Sens page.
+              </p>
+            ) : nextTest.stint ? (
+              <p className="text-xs text-[var(--ink)]" data-inspect-id="prematch-next-test-stint">
+                Stay on <b className="hero-name">{nextTest.stint.hero}</b> — {nextTest.stint.position} of {nextTest.stint.length} this stint
+                <span className="text-[var(--faint-2)]"> · queue {nextTest.stint.role}</span>
+              </p>
+            ) : (
+              <div data-inspect-id="prematch-next-test-list">
+                <p className="text-xs text-[var(--ink)] mb-1.5">
+                  Queue <b>{nextTest.recommendedRole}</b> → {nextTest.orderedHeroes?.map(h => h.hero).join(', ')}
+                </p>
+                <div className="flex flex-col gap-0.5">
+                  {nextTest.orderedHeroes?.map(h => (
+                    <div key={h.hero} className="flex items-center gap-1.5 text-[11px] text-[var(--faint-2)]" data-inspect-id="prematch-next-test-hero-row">
+                      <span className="hero-name flex-1 truncate">{h.hero}</span>
+                      <span className="num-display">{h.credited}/{h.target}</span>
+                      {h.cold && (
+                        <span className="text-[9px] font-bold uppercase tracking-wide text-blue-500" title={`${h.daysSinceLastPlayed} days since last played`}>
+                          cold
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {!!nextTest.finishedHeroes?.length && !nextTest.allFinished && (
+              <p className="text-[10px] text-[var(--faint-2)] mt-1.5" data-inspect-id="prematch-next-test-done-heroes">
+                Done this phase: {nextTest.finishedHeroes.join(', ')}
+              </p>
+            )}
           </div>
         )}
 

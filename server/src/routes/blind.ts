@@ -1,7 +1,9 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
-import { generateStages, stagesFromDpis, stagesFromSens, LOCKED_DPI, abbaStageFor, NOT_QP_SQL } from '../lib/blind';
+import { generateStages, stagesFromDpis, stagesFromSens, LOCKED_DPI, abbaStageFor, isStudyQueueMode, NOT_QP_SQL } from '../lib/blind';
 import { cm360, eDPI } from '../lib/aim';
+import { computeNextTest, projectPhaseFinish, type HeroTestProgress, type StintInfo } from '../lib/nextTest';
+import { HEROES_BY_ROLE } from './advisor';
 
 const router = Router();
 
@@ -488,6 +490,129 @@ router.get('/sets/:id', (req: Request, res: Response) => {
     },
     stages: rows,
   });
+});
+
+// ── Next-test recommender ────────────────────────────────────────────────────
+// GET /api/blind/next?queue_mode=... — see lib/nextTest.ts for the actual
+// decision logic (round-robin pick, stint math, cold guard). Everything
+// below is just gathering that function's plain-data inputs from the DB;
+// nothing here is stored or computed ahead of time — it's all derived fresh
+// on every call, same as /state above.
+
+function roleOfHero(hero: string): string | null {
+  for (const [role, heroes] of Object.entries(HEROES_BY_ROLE)) {
+    if (heroes.includes(hero)) return role;
+  }
+  return null;
+}
+
+// Same "which phase is current" rule the client already applies to GET
+// /api/blind/sets's response (Prematch.tsx's currentPhase: the LAST set, by
+// id, that carries a phase tag at all). Kept identical on purpose — this
+// endpoint and the Select Your Hero picker must agree on which 8 heroes are
+// "the current phase," or the recommender could point at a phase that
+// picker isn't even showing.
+function currentPhaseKey(db: ReturnType<typeof getDb>): string | null {
+  const rows = db.prepare('SELECT phase FROM blind_stage_sets ORDER BY id ASC').all() as { phase: string | null }[];
+  for (let i = rows.length - 1; i >= 0; i--) {
+    if (rows[i].phase) return rows[i].phase;
+  }
+  return null;
+}
+
+function heroProgressForPhase(db: ReturnType<typeof getDb>, phase: string): HeroTestProgress[] {
+  const rows = db.prepare('SELECT id, hero FROM blind_stage_sets WHERE phase = :phase AND hero IS NOT NULL')
+    .all({ phase }) as { id: number; hero: string }[];
+  const now = Date.now();
+  return rows.map(row => {
+    const role = roleOfHero(row.hero) ?? 'DPS';
+    const nStages = stagesOf(db, row.id).length;
+    const credited = totalGamesOf(db, row.id);
+    const batch = (db.prepare('SELECT batch_size FROM blind_stage_sets WHERE id = :id').get({ id: row.id }) as { batch_size: number }).batch_size;
+    const last = db.prepare(`
+      SELECT MAX(m.created_at) last FROM blind_credits bc JOIN matches m ON m.id = bc.match_id
+      WHERE bc.blind_set_id = :id
+    `).get({ id: row.id }) as { last: string | null };
+    // Same UTC-parse convention as advisor.ts's cache-age check: created_at
+    // is sqlite's `datetime('now')`, which has no timezone suffix of its
+    // own but is always UTC — appending 'Z' is what tells JS's Date that.
+    const daysSinceLastPlayed = last.last
+      ? Math.floor((now - new Date(last.last + 'Z').getTime()) / 86_400_000)
+      : null;
+    return {
+      hero: row.hero, role, credited, target: batch * nStages,
+      daysSinceLastPlayed, completed: isSetComplete(db, row.id),
+    };
+  });
+}
+
+// The stint: how many of the most recent test-credited matches, in a row,
+// share the same PRIMARY hero (matches.hero — the hero Sean queued as, not
+// a mid-match switch). Reads straight off the match log, no stored state —
+// per the brief, a non-test match (no blind_credits row for its primary
+// hero) neither breaks nor advances this count, so it's simplest to just
+// never fetch them: the query below already filters to test-credited rows
+// only, so consecutive ROWS here are already consecutive TEST matches, with
+// any ordinary/QP matches in between invisibly skipped.
+function currentStint(db: ReturnType<typeof getDb>): StintInfo | null {
+  const rows = db.prepare(`
+    SELECT m.hero FROM matches m
+    JOIN blind_credits bc ON bc.match_id = m.id AND bc.hero = m.hero
+    ORDER BY m.created_at DESC, m.id DESC
+    LIMIT 200
+  `).all() as { hero: string }[];
+  if (rows.length === 0) return null;
+  const hero = rows[0].hero;
+  let count = 0;
+  for (const r of rows) {
+    if (r.hero !== hero) break;
+    count++;
+  }
+  return { hero, count };
+}
+
+router.get('/next', (req: Request, res: Response) => {
+  const db = getDb();
+  const queueMode = typeof req.query.queue_mode === 'string' ? req.query.queue_mode : null;
+
+  // Quickplay earns no test credit for any role (be23788) — the recommender
+  // has nothing to recommend, and showing a role/hero list here would imply
+  // otherwise. Same shared rule the write path uses, so this can never
+  // disagree with what actually gets credited.
+  if (!isStudyQueueMode(queueMode)) {
+    res.json({ isQuickplay: true });
+    return;
+  }
+
+  const phase = currentPhaseKey(db);
+  if (!phase) {
+    res.json({
+      isQuickplay: false, phase: null, heroes: [], projection: { ratePerDay: 0, projectedDays: null },
+      allFinished: true, finishedHeroes: [], stint: null, recommendedRole: null, orderedHeroes: [],
+    });
+    return;
+  }
+
+  const heroes = heroProgressForPhase(db, phase);
+  const stint = currentStint(db);
+  const rec = computeNextTest(heroes, stint);
+
+  // Phase-wide projection (the /sens overview's job, not Prematch's card —
+  // included here rather than a second endpoint since it's the same roster
+  // query with one more aggregate on top). Trailing 14 days, phase-wide
+  // across every hero's set, not just the recommended role.
+  const PROJECTION_WINDOW_DAYS = 14;
+  const setIds = db.prepare('SELECT id FROM blind_stage_sets WHERE phase = :phase AND hero IS NOT NULL')
+    .all({ phase }) as { id: number }[];
+  const gamesInWindow = setIds.length ? (db.prepare(`
+    SELECT COUNT(*) n FROM blind_credits bc JOIN matches m ON m.id = bc.match_id
+    WHERE bc.blind_set_id IN (${setIds.map(() => '?').join(',')})
+      AND m.created_at >= datetime('now', '-${PROJECTION_WINDOW_DAYS} days')
+  `).get(...setIds.map(s => s.id)) as { n: number }).n : 0;
+  const remaining = heroes.reduce((sum, h) => sum + Math.max(0, h.target - h.credited), 0);
+  const projection = projectPhaseFinish(remaining, gamesInWindow, PROJECTION_WINDOW_DAYS);
+
+  res.json({ isQuickplay: false, phase, heroes, projection, ...rec });
 });
 
 export default router;
