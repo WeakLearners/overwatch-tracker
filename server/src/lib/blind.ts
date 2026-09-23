@@ -71,7 +71,9 @@ export function stagesFromSens(senses: number[]): StageSpec[] {
 //
 // "A" and "B" are literally stage_index 1 and 2. This is not a hidden
 // label: this codebase's blind-trial mechanism has never hidden the
-// physical sens/DPI value from Sean — he has to type it into Rawaccel, and
+// physical sens/DPI value from Sean — he has to type it into Overwatch's own
+// in-game sensitivity setting (Rawaccel only carries the separate
+// mouse-acceleration curve, curve_params/LUT — not this value), and
 // SensLog.tsx (`active.sens.toFixed(2)`) and Prematch.tsx both show it
 // plainly. lib/blind.ts's own original header comment already said so:
 // "no blinding math (no shuffle, no relative-position tracking, no
