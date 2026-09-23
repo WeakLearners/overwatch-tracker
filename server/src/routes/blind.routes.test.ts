@@ -329,3 +329,32 @@ describe('set retirement is derived, in both directions', () => {
     assert.equal(await stateOf(setId), null, 'a deletion does not wake it either');
   });
 });
+
+// GET /api/blind/sets/:id — per-stage accuracy summary excludes QP-credited
+// rows (Sean's decision 2026-09-23, lib/blind.ts's isStudyQueueMode /
+// NOT_QP_SQL). The current write path (matches.ts) can no longer produce a
+// QP-tagged blind_credits row at all, so this reaches directly into the DB
+// to reproduce what a historical (pre-2026-08-23) row actually looks like.
+describe('GET /api/blind/sets/:id excludes QP-credited rows from the per-stage summary', () => {
+  test('a QP-credited game does not move n, feelMean, winRate, or accMean', async () => {
+    const setId = await makeSet({ batch_size: 10 }); // default 2 stages, senses [2.0, 3.0]
+    await playGames('Ashe', 2); // 2 Competitive-credited games on stage 1 (batch_size 10 keeps them there)
+
+    const lastCompId = (h.db.prepare('SELECT MAX(id) id FROM matches').get() as { id: number }).id;
+    // Give the two comp games a known feel/acc so the QP row's effect (or
+    // lack of it) is checkable, then add one historical QP-credited row.
+    h.db.prepare('UPDATE match_heroes SET feel = 4 WHERE match_id <= ?').run(lastCompId);
+    const qpMatch = h.db.prepare(`
+      INSERT INTO matches (date, hero, role, map, game_type, win, queue_mode, blind_trial, blind_set_id, stage_index)
+      VALUES ('2026-08-01', 'Ashe', 'DPS', 'Test Map', 'comp', 1, 'qp_role', 1, ?, 1)
+    `).run(setId).lastInsertRowid as number;
+    h.db.prepare(`INSERT INTO match_heroes (match_id, slot, hero, role, feel) VALUES (?, 1, 'Ashe', 'DPS', 1)`).run(qpMatch);
+    h.db.prepare(`INSERT INTO blind_credits (match_id, hero, blind_set_id, stage_index) VALUES (?, 'Ashe', ?, 1)`).run(qpMatch, setId);
+
+    const { body } = await h.get(`/api/blind/sets/${setId}`);
+    const stage1 = body.stages.find((s: any) => s.stage_index === 1);
+    assert.equal(stage1.n, 2, 'the QP-credited row must not count toward n');
+    assert.equal(stage1.feelMean, 4, 'a feel=1 QP row must not pull the mean down');
+    assert.equal(stage1.games, 2, 'perf query must also exclude the QP row');
+  });
+});

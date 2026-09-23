@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
-import { generateStages, stagesFromDpis, stagesFromSens, LOCKED_DPI, abbaStageFor } from '../lib/blind';
+import { generateStages, stagesFromDpis, stagesFromSens, LOCKED_DPI, abbaStageFor, NOT_QP_SQL } from '../lib/blind';
 import { cm360, eDPI } from '../lib/aim';
 
 const router = Router();
@@ -427,10 +427,15 @@ router.get('/sets/:id', (req: Request, res: Response) => {
     // before blind_credits existed. feel is read per credited hero via
     // match_heroes rather than matches.feel, since match_heroes has its own
     // per-hero feel value for every slot (matches.feel only mirrors slot 1's).
+    // Excludes QP-credited rows (lib/blind.ts's isStudyQueueMode) — see the
+    // 469-row note on that function; this "per-stage accuracy" summary is
+    // one of the analysis surfaces those historical credits are filtered
+    // out of, without touching the blind_credits rows themselves.
     const trials = db.prepare(`
       SELECT mh.feel FROM blind_credits bc
       JOIN match_heroes mh ON mh.match_id = bc.match_id AND mh.hero = bc.hero
-      WHERE bc.blind_set_id = :sid AND bc.stage_index = :si
+      JOIN matches m ON m.id = bc.match_id
+      WHERE bc.blind_set_id = :sid AND bc.stage_index = :si AND ${NOT_QP_SQL}
     `).all({ sid: set.id, si: st.stage_index }) as { feel: number | null }[];
     const feels = trials.map(t => t.feel).filter((f): f is number => f != null);
     const feelMean = feels.length ? feels.reduce((a, b) => a + b, 0) / feels.length : null;
@@ -443,13 +448,15 @@ router.get('/sets/:id', (req: Request, res: Response) => {
     // around the old midpoint. overall_acc is per-hero (aim_stats_heroes);
     // elims/damage/duration are match-level (aim_stats) like the rest of the
     // codebase's per-10min rate stats (see stats.ts computePerformanceOutcome).
+    // Same QP exclusion as `trials` above — one shared condition, applied at
+    // both query sites in this endpoint.
     const perf = db.prepare(`
       SELECT m.win, ah.overall_acc, a.elims, a.damage, a.duration_min
       FROM blind_credits bc
       JOIN matches m ON m.id = bc.match_id
       LEFT JOIN aim_stats_heroes ah ON ah.match_id = bc.match_id AND ah.hero = bc.hero
       LEFT JOIN aim_stats a ON a.match_id = bc.match_id
-      WHERE bc.blind_set_id = :sid AND bc.stage_index = :si
+      WHERE bc.blind_set_id = :sid AND bc.stage_index = :si AND ${NOT_QP_SQL}
     `).all({ sid: set.id, si: st.stage_index }) as {
       win: number; overall_acc: number | null; elims: number | null; damage: number | null; duration_min: number | null;
     }[];

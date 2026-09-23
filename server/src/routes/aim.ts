@@ -5,6 +5,7 @@ import {
   fitQuadraticPeak, fitLinearTrend, CurvePoint,
 } from '../lib/aim';
 import { getCurveParams, setCurveParams } from '../lib/curveParams';
+import { isStudyQueueMode } from '../lib/blind';
 
 const router = Router();
 
@@ -211,8 +212,8 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
   // (verified 2026-09-17 against matches.ts's INSERT, which stamps
   // curveParams.smooth/input/output into exactly those three columns in that
   // order — not inferred from value agreement alone).
-  const rows = db.prepare(`
-    SELECT m.id, ah.hero, mh.sens, m.dpi, m.win, m.date, mh.feel, m.blind_trial,
+  const rowsUnfiltered = db.prepare(`
+    SELECT m.id, ah.hero, mh.sens, m.dpi, m.win, m.date, mh.feel, m.blind_trial, m.queue_mode,
            m.curve_enabled, m.curve_growth_rate, m.curve_midpoint, m.curve_motivity, m.curve_lut,
            ah.overall_acc, ah.crit_acc, ah.extra_acc, ah.duration_min AS hero_duration_min,
            a.hero_stat_label, a.hero_stat_value, m.hero AS primary_hero, a.created_at,
@@ -228,6 +229,7 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
     WHERE mh.sens IS NOT NULL AND ah.overall_acc IS NOT NULL
   `).all() as unknown as {
     id: number; hero: string; sens: number; dpi: number | null; win: 0 | 1; blind_trial: 0 | 1 | null;
+    queue_mode: string | null;
     curve_enabled: 0 | 1; curve_growth_rate: number | null; curve_midpoint: number | null; curve_motivity: number | null; curve_lut: string | null;
     overall_acc: number; crit_acc: number | null; extra_acc: number | null;
     hero_stat_label: string | null; hero_stat_value: number | null; primary_hero: string;
@@ -236,6 +238,16 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
     hero_duration_min: number | null; match_duration_min: number | null;
     feel: number | null; created_at: string; date: string;
   }[];
+
+  // Sean's decision 2026-09-23: 469 blind_credits rows written under the old
+  // QP-Support exception (see lib/blind.ts's isStudyQueueMode) stay in the DB
+  // untouched, but never feed a study analysis surface — byScale, curve fit,
+  // heroStatCurveFit, metricTrends/findings, everything downstream of `rows`
+  // in this function. Only rows that were actually credited as a blind trial
+  // are affected; a legacy manual-sens QP match (blind_trial != 1) was never
+  // part of the study's stage comparison and is untouched by this filter.
+  // Reverse by removing this filter.
+  const rows = rowsUnfiltered.filter(r => r.blind_trial !== 1 || isStudyQueueMode(r.queue_mode));
 
   // Most recent aim_stats write among the rows actually feeding this analysis.
   // String comparison is safe: datetime('now') always formats as

@@ -16,6 +16,7 @@
 //      curve looks like; it never recommends narrowing or recentering on
 //      convention alone.
 import { fitQuadraticPeak, CurvePoint } from '../lib/aim';
+import { NOT_QP_SQL } from '../lib/blind';
 
 // A stage needs this many credited games before its mean accuracy is stable
 // enough to be a point in the fit. Below it the point is dropped from the
@@ -43,6 +44,10 @@ export interface StagePoint {
 // match. LEFT JOIN on aim_stats_heroes deliberately: a match with no accuracy
 // row still counts toward the stage's game count (it really was played), it
 // just contributes nothing to the accuracy mean.
+// Excludes QP-credited rows (lib/blind.ts's isStudyQueueMode / NOT_QP_SQL) —
+// see the 469-row note on that function. This feeds readBracket, so a
+// historical set's bracket read never counts a QP-credited game as if it
+// were Competitive.
 export function stagePointsFor(db: any, setId: number): StagePoint[] {
   return db.prepare(`
     SELECT bs.stage_index      AS stage_index,
@@ -57,7 +62,7 @@ export function stagePointsFor(db: any, setId: number): StagePoint[] {
     JOIN matches m ON m.id = bc.match_id
     LEFT JOIN aim_stats_heroes ash
       ON ash.match_id = bc.match_id AND ash.hero = bc.hero
-    WHERE bc.blind_set_id = :setId
+    WHERE bc.blind_set_id = :setId AND ${NOT_QP_SQL}
     GROUP BY bs.stage_index, bs.sens, bs.dpi
     ORDER BY bs.stage_index
   `).all({ setId }) as unknown as StagePoint[];
@@ -66,14 +71,17 @@ export function stagePointsFor(db: any, setId: number): StagePoint[] {
 // Raw per-match accuracy values for one stage, needed for a real two-sample
 // test — means alone can't tell a 4-point gap backed by tight spread from a
 // 4-point gap that's pure coin-flip.
+// Same QP exclusion as stagePointsFor above, so the two-sample Welch's t-test
+// in readBracket sees the same population its means were computed from.
 export function stageSamplesFor(db: any, setId: number, stageIndex: number): number[] {
   return (db.prepare(`
     SELECT ash.overall_acc AS acc
     FROM blind_credits bc
     JOIN aim_stats_heroes ash
       ON ash.match_id = bc.match_id AND ash.hero = bc.hero
+    JOIN matches m ON m.id = bc.match_id
     WHERE bc.blind_set_id = :setId AND bc.stage_index = :si
-      AND ash.overall_acc IS NOT NULL
+      AND ash.overall_acc IS NOT NULL AND ${NOT_QP_SQL}
   `).all({ setId, si: stageIndex }) as { acc: number }[]).map(r => r.acc);
 }
 

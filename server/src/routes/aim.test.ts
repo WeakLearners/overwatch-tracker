@@ -42,11 +42,12 @@ afterEach(() => {
 // match.
 function insertStudyPoint(db: ReturnType<typeof getDb>, opts: {
   date: string; hero: string; role?: string; sens: number; dpi?: number;
-  win: 0 | 1; blindTrial?: 0 | 1; overallAcc: number;
+  win: 0 | 1; blindTrial?: 0 | 1; overallAcc: number; queueMode?: string;
 }) {
   const matchId = insertMatch(db, {
     date: opts.date, hero: opts.hero, role: opts.role ?? 'DPS', win: opts.win,
     sens: opts.sens, dpi: opts.dpi ?? 1600, blind_trial: opts.blindTrial ?? 0,
+    queue_mode: opts.queueMode ?? 'comp_role',
   });
   insertHeroSlot(db, { match_id: matchId, slot: 1, hero: opts.hero, role: opts.role ?? 'DPS', sens: opts.sens });
   insertAimStats(db, { match_id: matchId, overall_acc: opts.overallAcc, duration_min: 10 });
@@ -170,6 +171,53 @@ describe('computeAnalysis', () => {
     const r = computeAnalysis(db);
     assert.equal(r.byScale.length, 1);
     assert.equal(r.byScale[0].avgDelta, null, 'a single scale bucket has no "other scales" to score against');
+  });
+});
+
+// --- QP-credited rows excluded from analysis (Sean's decision 2026-09-23) --
+// lib/blind.ts's isStudyQueueMode. The 469 historical blind_credits rows
+// written under the old QP-Support exception stay in the DB (never
+// deleted/modified) but must not move byScale/curve-fit numbers. Only rows
+// that were actually CREDITED (blind_trial=1) and tagged QP are affected —
+// a legacy manual-sens QP match (blind_trial=0) was never part of the
+// study's stage comparison and keeps appearing exactly as before.
+describe('computeAnalysis: QP-credited rows excluded from analysis (2026-09-23)', () => {
+  test('a QP-credited row does not enter byScale at all', () => {
+    for (const acc of [40, 44, 48]) {
+      insertStudyPoint(db, { date: '2026-01-01', hero: 'Ashe', sens: 2.0, win: 0, blindTrial: 1, overallAcc: acc, queueMode: 'comp_role' });
+    }
+    // Historical QP-Support-era credit at a DIFFERENT scale — if it leaked
+    // in, it would show up as its own byScale bucket.
+    insertStudyPoint(db, { date: '2026-07-20', hero: 'Ashe', sens: 9.9, win: 1, blindTrial: 1, overallAcc: 90, queueMode: 'qp_role' });
+
+    const r = computeAnalysis(db);
+    assert.equal(r.summary.n, 3, 'the QP-credited row must not count toward the total');
+    assert.equal(r.byScale.length, 1, 'no second bucket for the QP-only scale');
+  });
+
+  test('a non-credited legacy QP match (blind_trial=0) is untouched by the filter', () => {
+    // Out of scope for this filter — it was never a stage-test credit, just
+    // a manually-recorded sens on a QP match. Same scale as below so it can
+    // absorb normally; the point is that queueMode alone does not exclude it.
+    insertStudyPoint(db, { date: '2026-01-01', hero: 'Ashe', sens: 2.0, win: 1, blindTrial: 0, overallAcc: 55, queueMode: 'qp_role' });
+    insertStudyPoint(db, { date: '2026-01-02', hero: 'Ashe', sens: 2.0, win: 1, blindTrial: 1, overallAcc: 45, queueMode: 'comp_role' });
+    const r = computeAnalysis(db);
+    assert.equal(r.summary.n, 2, 'the non-credited QP row still counts — only blind_trial=1 QP rows are filtered');
+  });
+
+  test('a bucket that drops below MIN_SCALE_N once QP is filtered is greyed, never removed', () => {
+    // 4 comp-credited games at one scale (below MIN_SCALE_N=5) plus 3 QP
+    // rows that would have pushed it over the bar under the old rule.
+    for (const acc of [40, 42, 44, 46]) {
+      insertStudyPoint(db, { date: '2026-01-01', hero: 'Ashe', sens: 2.0, win: 1, blindTrial: 1, overallAcc: acc, queueMode: 'comp_role' });
+    }
+    for (const acc of [80, 82, 84]) {
+      insertStudyPoint(db, { date: '2026-07-20', hero: 'Ashe', sens: 2.0, win: 1, blindTrial: 1, overallAcc: acc, queueMode: 'qp_role' });
+    }
+    const r = computeAnalysis(db);
+    assert.equal(r.byScale.length, 1);
+    assert.equal(r.byScale[0].n, 4, 'QP rows dropped, comp rows kept');
+    assert.equal(r.byScale[0].reliable, false, 'below MIN_SCALE_N — greyed, not hidden');
   });
 });
 

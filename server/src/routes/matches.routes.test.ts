@@ -89,6 +89,21 @@ describe('POST /api/matches — who gets credited', () => {
     assert.equal(m.sens, 9.9, 'and the stage does not overwrite the sens either');
   });
 
+  test('Quick Play never feeds the study for Support either — the old QP-Support exception is gone', async () => {
+    // Support briefly earned a QP credit while its data was still thin (see
+    // lib/blind.ts's isStudyQueueMode); retired 2026-08-23 (commit 7d80e90)
+    // and switched off again for good 2026-09-23 at Sean's request. Pin the
+    // Support branch explicitly, not just DPS above — a role-specific
+    // exception is exactly the kind of thing that regresses silently.
+    await makeSet({ hero: 'Ana' });
+    const id = await logMatch({ hero: 'Ana', role: 'Support', queue_mode: 'qp_role', sens: 6.5 });
+
+    assert.deepEqual(credits(id), []);
+    const m = matchRow(id);
+    assert.equal(m.blind_trial, 0);
+    assert.equal(m.sens, 6.5);
+  });
+
   test('a mid-match switch credits the switched-to hero’s OWN set at its OWN stage', async () => {
     const ashe = await makeSet({ hero: 'Ashe', senses: [2.0, 3.0] });
     const cass = await makeSet({ hero: 'Cassidy', senses: [5.0, 6.0] });

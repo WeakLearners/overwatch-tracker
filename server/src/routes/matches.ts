@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
 import { getCurveParams } from '../lib/curveParams';
 import { syncSetActive, liveStageIndex, stagesOf } from './blind';
+import { isStudyQueueMode } from '../lib/blind';
 
 const router = Router();
 
@@ -133,12 +134,12 @@ router.post('/', (req: Request, res: Response) => {
   let setId: number | null = null;
   let stageIdx: number | null = null;
 
-  // Quick Play games are loggable but normally never feed the DPI study —
-  // only Competitive matches move a stage-test's counters, so QP play
-  // doesn't dilute the data. Support used to get a QP exception while its
-  // data was still being gathered; retired 2026-08-23 now that support is on
-  // the same comp-only phase DPS was already in.
-  const isCompetitive = (queue_mode ?? 'comp_role') !== 'qp_role';
+  // Quick Play games are loggable but never feed the DPI study — only
+  // Competitive matches move a stage-test's counters, for every role. See
+  // lib/blind.ts's isStudyQueueMode for the history (Support had a QP
+  // exception until 2026-08-23) and why this must be the one place the
+  // condition lives.
+  const isCompetitive = isStudyQueueMode(queue_mode);
 
   // Every hero actually played gets checked against its own active set, not
   // just slot 1 — the primary hero's lookup also determines the sens/dpi
@@ -314,7 +315,7 @@ function syncStageCredits(db: ReturnType<typeof getDb>, matchId: string, sensPro
   const oldCreditByHero = new Map(oldCredits.map(c => [c.hero, c]));
   db.prepare('DELETE FROM blind_credits WHERE match_id = :id').run({ id: matchId });
 
-  const isCompetitive = (match.queue_mode ?? 'comp_role') !== 'qp_role';
+  const isCompetitive = isStudyQueueMode(match.queue_mode);
   const insertCredit = db.prepare(
     'INSERT OR IGNORE INTO blind_credits (match_id, hero, blind_set_id, stage_index) VALUES (:match_id, :hero, :blind_set_id, :stage_index)'
   );
