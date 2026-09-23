@@ -13,13 +13,14 @@ beforeEach(async () => { h = await startHarness(); });
 afterEach(async () => { await h.close(); });
 
 describe('GET /api/config', () => {
-  test('with no saved row, core is on and everything else is off', async () => {
+  test('with no saved row, every category is on — adding the switches changes nothing for an existing user', async () => {
     const r = await h.get('/api/config');
     assert.equal(r.status, 200);
-    assert.deepEqual(r.body.enabledCategories, ['core']);
+    assert.deepEqual([...r.body.enabledCategories].sort(), ['combat', 'core', 'mouse-settings', 'rank', 'sens-study', 'subjective']);
     assert.deepEqual(r.body.lockedCategories, []);
+    // The Log Match Deaths card must stay visible for the existing user.
     const deaths = r.body.fields.find((f: any) => f.id === 'deaths');
-    assert.equal(deaths.enabled, false);
+    assert.equal(deaths.enabled, true);
   });
 
   test('reflects a saved PUT', async () => {
@@ -47,6 +48,10 @@ describe('PUT /api/config — plain toggle', () => {
 
 describe('PUT /api/config — dependency auto-enable', () => {
   test('enabling sens-study alone also enables mouse-settings', async () => {
+    // Start from everything off. With no saved row every category is on, so
+    // mouse-settings would already be on and there'd be nothing to auto-enable.
+    const off = await h.put('/api/config', { enabledCategories: [] });
+    assert.equal(off.status, 200);
     const r = await h.put('/api/config', { enabledCategories: ['sens-study'] });
     assert.equal(r.status, 200);
     assert.ok(r.body.enabledCategories.includes('sens-study'));

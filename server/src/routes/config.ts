@@ -12,10 +12,19 @@ const router = Router();
 const OWNER = 1;
 
 // The stored set, plus 'core' which is always on and never persisted.
+//
+// No saved row means EVERY category is on. That is deliberate, and it is not
+// the roadmap's Casual preset. The one user who exists today already captures
+// all of these — deaths on every match, a sens study mid-stage — and the app
+// did so unconditionally before the registry existed. A "core only" fallback
+// silently hid the Log Match Deaths card on the day this shipped (2026-09-23),
+// and reported the running sens study's category as off while locking it.
+// Adding the switches must not change what an existing user sees. Presets for
+// a brand-new user are Phase 3's job, and they will write a row explicitly.
 function currentEnabled(db: ReturnType<typeof getDb>): CategoryId[] {
   const row = db.prepare('SELECT enabled_categories FROM user_config WHERE user_id = :user_id')
     .get({ user_id: OWNER }) as { enabled_categories: string } | undefined;
-  const stored: string[] = row ? JSON.parse(row.enabled_categories) : [];
+  const stored: string[] = row ? JSON.parse(row.enabled_categories) : CATEGORY_REGISTRY.map(c => c.id);
   return ['core', ...stored.filter(c => c !== 'core')] as CategoryId[];
 }
 
