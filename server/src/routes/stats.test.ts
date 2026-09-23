@@ -1,8 +1,9 @@
-// Tier 2: DB-backed tests for stats.ts's compute functions (computeHotHand,
-// computePerformanceOutcome, computeQueueSwitchTax, computeCritAccuracy,
-// computeKillSecure, computeDayHourWindow). Each function was exported
-// (previously module-private) purely to make it importable here — no logic
-// was changed in that extraction (see the `export` diff in stats.ts).
+// Tier 2: DB-backed tests for lib/statsInsights.ts's compute functions
+// (computeHotHand, computePerformanceOutcome, computeQueueSwitchTax,
+// computeCritAccuracy, computeKillSecure, computeDayHourWindow). These lived
+// in stats.ts until the 2026-09-23 modularization slice moved them into
+// their own module — no logic changed in that move, only location and this
+// import path.
 //
 // Every fixture's expected values are computed by hand in the comment above
 // it, not asserted against whatever the function happens to return, per this
@@ -25,7 +26,7 @@ import {
   computeCritAccuracy,
   computeKillSecure,
   computeDayHourWindow,
-} from './stats';
+} from '../lib/statsInsights';
 
 let tmpPath: string;
 let db: ReturnType<typeof getDb>;
