@@ -12,7 +12,8 @@ import { QueueMode, ModeWatermarkVariant, QUEUE_MODE_COLORS, MODE_TAG, MODE_TAG_
 // font-weight utility landing on the same element and racing this one for
 // cascade order.
 // `lit` gives the tag .lit-text (brightest at the tile's glowing bottom edge,
-// falling off upward) for a selected mode tile. The colour class is dropped
+// falling off upward) for a selected mode tile, at 1.5x the usual 15%
+// opacity so the gradient reads. The colour class is dropped
 // when lit, because a Tailwind text colour would paint over the gradient.
 export default function ModeWatermark({ mode, variant, className = '', color, style, lit = false }: { mode: QueueMode; variant: ModeWatermarkVariant; className?: string; color?: string; style?: React.CSSProperties; lit?: boolean }) {
   return (
@@ -20,7 +21,7 @@ export default function ModeWatermark({ mode, variant, className = '', color, st
       aria-hidden="true"
       style={style}
       data-inspect-id="modeWatermark-tag"
-      className={`pointer-events-none select-none absolute inset-0 flex items-center justify-center num-display italic leading-none tracking-[-0.07em] opacity-15 ${MODE_TAG_CLS[variant][mode]} ${lit ? 'lit-text' : (color ?? QUEUE_MODE_COLORS[mode].accent)} ${className}`}
+      className={`pointer-events-none select-none absolute inset-0 flex items-center justify-center num-display italic leading-none tracking-[-0.07em] ${lit ? 'opacity-[0.225]' : 'opacity-15'} ${MODE_TAG_CLS[variant][mode]} ${lit ? 'lit-text' : (color ?? QUEUE_MODE_COLORS[mode].accent)} ${className}`}
     >
       {MODE_TAG[mode]}
     </span>
