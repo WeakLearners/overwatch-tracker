@@ -204,6 +204,11 @@ export interface Overview {
   leaver_games: number;
   /** Win rate with leaver matches dropped. Null until any match is logged. */
   win_rate_no_leaver: number | null;
+  /** Of leaver_games, how many are known to be on Sean's team vs. the enemy's.
+   *  Rows logged before 2026-09-24 (leaver_side didn't exist yet) count in
+   *  neither — leaver_mine + leaver_theirs can be less than leaver_games. */
+  leaver_mine: number;
+  leaver_theirs: number;
 }
 
 export interface TrendPoint {

@@ -342,10 +342,14 @@ export default function LogMatch() {
   // clicking the already-selected option deselects it back to null.
   const [matchQuality, setMatchQuality] = useState<'stomp' | 'close' | null>(null);
   const [resultDriver, setResultDriver] = useState<'me' | 'team' | null>(null);
-  // Did somebody leave this match. Unlike matchQuality/resultDriver this one
-  // defaults to false rather than null: "nobody left" is the normal case, so
-  // an untouched box is a true answer, not a skipped question.
-  const [leaver, setLeaver] = useState(false);
+  // Did somebody leave this match, and whose team. null means "nobody left" —
+  // unlike matchQuality/resultDriver, an untouched control here is a true
+  // answer, not a skipped question, so the submit payload derives the old
+  // boolean `leaver` fact from whether a side got picked rather than
+  // tracking it separately. Was a plain boolean until 2026-09-24, when which
+  // team mattered enough to become its own column (schema.ts's `leaver_side`
+  // comment).
+  const [leaverSide, setLeaverSide] = useState<'mine' | 'theirs' | null>(null);
 
   const [form, setForm] = useState<FormState>(() => {
     const n = new Date();
@@ -699,7 +703,8 @@ export default function LogMatch() {
           team_rating: teamRating,
           match_quality: matchQuality,
           result_driver: resultDriver,
-          leaver,
+          leaver: leaverSide !== null,
+          leaver_side: leaverSide,
           player_rank: isQP ? null : playerRank,
           // Where the ladder stood going in. Carried from the rank the last
           // match on this account+role ended at, so the row records the move
@@ -726,7 +731,7 @@ export default function LogMatch() {
       setFeelByHero({});
       setTeamRating(0);
       setMatchQuality(null);
-      setResultDriver(null); setLeaver(false);
+      setResultDriver(null); setLeaverSide(null);
       // The lobby range deliberately survives the submit. It is a reading of
       // the ladder you are playing in, not a property of the match just
       // logged, and the next lobby is nearly always the same one. Wiping it
@@ -853,7 +858,7 @@ export default function LogMatch() {
                   setFeelByHero({});
                   setTeamRating(0);
                   setMatchQuality(null);
-                  setResultDriver(null); setLeaver(false);
+                  setResultDriver(null); setLeaverSide(null);
                   clearDeathBuffer();
                   notifyMatchLogged();
                   // Wait a paint cycle so the layout has settled from the resets above
@@ -875,7 +880,7 @@ export default function LogMatch() {
               </button>
               <button
                 type="button"
-                onClick={() => { setForm(f => ({ ...f, hero: '', notes: '' })); setSwitchHeroes(['', '']); setMap(''); setFeelByHero({}); setTeamRating(0); setMatchQuality(null); setResultDriver(null); setLeaver(false); }}
+                onClick={() => { setForm(f => ({ ...f, hero: '', notes: '' })); setSwitchHeroes(['', '']); setMap(''); setFeelByHero({}); setTeamRating(0); setMatchQuality(null); setResultDriver(null); setLeaverSide(null); }}
                 disabled={!form.hero && !map}
                 data-inspect-id="logmatch-reset-button"
                 className="text-xs text-[var(--faint)] hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--faint)]"
@@ -1043,7 +1048,7 @@ export default function LogMatch() {
                   the new .is-selected class, so the SVG was picking up a border
                   and a gradient meant for buttons. Win keeps teal, Loss keeps
                   pink; --sel carries the hue, .is-selected the treatment. */}
-              <div className="grid grid-cols-[1fr_1fr_3.25rem] gap-2" data-inspect-id="logmatch-result-buttons">
+              <div className="grid grid-cols-2 gap-2" data-inspect-id="logmatch-result-buttons">
                 {/* Light theme needs the dark end of each ramp: teal-300 on the
                     pale selected fill measures 1.35:1, pink-300 1.61:1 — both
                     invisible. The 700s measure 5.00:1 and 5.36:1. */}
@@ -1068,26 +1073,37 @@ export default function LogMatch() {
                     </button>
                   );
                 })}
-                {/* Leaver sits inside the Result row on purpose: whether somebody
-                    walked out is part of what the result means, not a separate
-                    rating. A square toggle beside Loss, same height as the
-                    Win/Loss buttons. Default off — see the `leaver` state comment. */}
-                <button
-                  type="button"
-                  onClick={() => setLeaver(l => !l)}
-                  aria-pressed={leaver}
-                  aria-label="Leaver — someone left the match"
-                  title="Leaver — someone left the match"
-                  data-inspect-id="logmatch-leaver-checkbox"
-                  style={{ '--sel': '245 158 11' } as React.CSSProperties}
-                  className={`h-[3.25rem] w-[3.25rem] rounded-lg border-2 font-display italic font-black text-[10px] uppercase tracking-wider transition-all ${
-                    leaver
-                      ? 'is-selected text-amber-700 dark:text-amber-300'
-                      : 'border-ow-border text-[var(--faint)] hover-sel hover:text-[var(--ink)]'
-                  }`}
-                >
-                  Leaver
-                </button>
+              </div>
+              {/* Leaver, moved 2026-09-24 from a square button beside Loss to a
+                  sliver strip directly under the Win/Loss row — almost an
+                  underline under it, because which team's leaver it was now
+                  matters more than the old yes/no did and needed room for a
+                  second choice without growing back into a full-size control.
+                  Tap the selected side again to clear, same grammar as Match
+                  quality / Result driver above. Same amber hue ('245 158 11')
+                  the old checkbox used. */}
+              <div className="grid grid-cols-2 gap-1 mt-1.5" data-inspect-id="logmatch-leaver-side-toggle">
+                {(['mine', 'theirs'] as const).map(side => {
+                  const selected = leaverSide === side;
+                  return (
+                    <button
+                      key={side}
+                      type="button"
+                      onClick={() => setLeaverSide(prev => (prev === side ? null : side))}
+                      aria-pressed={selected}
+                      aria-label={`Leaver on ${side === 'mine' ? 'my' : 'their'} team`}
+                      title={`Leaver — ${side === 'mine' ? 'my team' : 'their team'}`}
+                      data-inspect-id="logmatch-leaver-side-option"
+                      style={{ '--sel': '245 158 11' } as React.CSSProperties}
+                      className={`h-1.5 rounded-full transition-all ${
+                        selected ? 'bg-[rgb(var(--sel))]' : 'bg-ow-border hover:bg-[rgb(var(--sel)/0.4)]'
+                      }`}
+                    />
+                  );
+                })}
+              </div>
+              <div className="text-center text-[9px] text-[var(--faint-2)] mt-1 uppercase tracking-wide" data-inspect-id="logmatch-leaver-side-label">
+                {leaverSide ? `Leaver — ${leaverSide === 'mine' ? 'my team' : 'their team'}` : 'Leaver'}
               </div>
             </div>
 

@@ -430,6 +430,19 @@ function initSchema(db: DatabaseSync) {
     db.exec(`ALTER TABLE matches ADD COLUMN leaver INTEGER`);
   }
 
+  // leaver_side: 'mine' | 'theirs' | NULL. Added 2026-09-24 — which team the
+  // leaver was on matters a lot more than the bare yes/no `leaver` answers.
+  // Additive and nullable on purpose: every row with leaver=1 logged before
+  // this column existed has an unknown side, and stays unknown rather than
+  // being guessed at. `leaver` keeps meaning exactly what it always meant —
+  // "a leaver happened" — so every existing `leaver` consumer (leaver rate,
+  // stats, tests) is unaffected by this column's addition. A rate broken out
+  // by side must divide by rows where leaver_side IS NOT NULL, same rule as
+  // the `leaver` column's own NULL-means-unasked convention above.
+  if (!cols.find(c => c.name === 'leaver_side')) {
+    db.exec(`ALTER TABLE matches ADD COLUMN leaver_side TEXT`);
+  }
+
   // player_rank / lobby_low / lobby_high: competitive rank captured as a
   // single integer on a 1-45 division ladder — Bronze 5 = 1, Gold 5 = 11,
   // Champion 1 = 45. Nine tiers of five divisions, Emerald included (it sits

@@ -392,6 +392,56 @@ describe('leaver: recorded on the match, rated only over answered matches', () =
   });
 });
 
+// ── leaver_side ──────────────────────────────────────────────────────────────
+// Added 2026-09-24: which team the leaver was on. Additive/nullable column —
+// leaver keeps meaning exactly what it always meant, leaver_side only ever
+// has a value when leaver is actually 1.
+describe('leaver_side: which team, kept consistent with leaver', () => {
+  test('round-trips mine/theirs, and is forced NULL when leaver is false regardless of what the client sends', async () => {
+    const mine = await logMatch({ hero: 'Ashe', role: 'Damage', leaver: true, leaver_side: 'mine' });
+    const theirs = await logMatch({ hero: 'Ashe', role: 'Damage', leaver: true, leaver_side: 'theirs' });
+    const noLeaverButSideSent = await logMatch({ hero: 'Ashe', role: 'Damage', leaver: false, leaver_side: 'mine' });
+    const sideOf = (id: number) =>
+      (h.db.prepare('SELECT leaver_side FROM matches WHERE id = ?').get(id) as { leaver_side: string | null }).leaver_side;
+    assert.equal(sideOf(mine), 'mine');
+    assert.equal(sideOf(theirs), 'theirs');
+    assert.equal(sideOf(noLeaverButSideSent), null);
+  });
+
+  test('editing leaver back to false through PUT clears a previously-set side', async () => {
+    const id = await logMatch({ hero: 'Ashe', role: 'Damage', leaver: true, leaver_side: 'theirs' });
+    const r = await h.put(`/api/matches/${id}`, { leaver: 0 });
+    assert.equal(r.status, 200);
+    const row = h.db.prepare('SELECT leaver, leaver_side FROM matches WHERE id = ?').get(id) as { leaver: number; leaver_side: string | null };
+    assert.equal(row.leaver, 0);
+    assert.equal(row.leaver_side, null);
+  });
+
+  test('editing leaver_side alone (leaver already 1) updates just the side', async () => {
+    const id = await logMatch({ hero: 'Ashe', role: 'Damage', leaver: true, leaver_side: 'mine' });
+    const r = await h.put(`/api/matches/${id}`, { leaver_side: 'theirs' });
+    assert.equal(r.status, 200);
+    const row = h.db.prepare('SELECT leaver, leaver_side FROM matches WHERE id = ?').get(id) as { leaver: number; leaver_side: string | null };
+    assert.equal(row.leaver, 1);
+    assert.equal(row.leaver_side, 'theirs');
+  });
+
+  test('overview breaks leaver_games down by side, unknown-side rows counted in neither', async () => {
+    await logMatch({ hero: 'Ashe', role: 'Damage', leaver: true, leaver_side: 'mine' });
+    await logMatch({ hero: 'Ashe', role: 'Damage', leaver: true, leaver_side: 'theirs' });
+    await logMatch({ hero: 'Ashe', role: 'Damage', leaver: true, leaver_side: 'theirs' });
+    // A pre-migration-style leaver row with no side on record.
+    const unknown = await logMatch({ hero: 'Ashe', role: 'Damage', leaver: true });
+    h.db.prepare('UPDATE matches SET leaver_side = NULL WHERE id = ?').run(unknown);
+
+    const r = await h.get('/api/stats/overview');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.leaver_games, 4);
+    assert.equal(r.body.leaver_mine, 1);
+    assert.equal(r.body.leaver_theirs, 2);
+  });
+});
+
 // ── Only slot 1 earns credit (mid-match-switch build, 2026-09-24) ──────────
 describe('slots 2/3 never earn test credit, on insert or on edit', () => {
   test('POST: a switched-to hero records its stage sens but blind_credits gets only the starting hero', async () => {

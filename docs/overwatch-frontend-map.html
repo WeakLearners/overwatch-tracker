@@ -1627,6 +1627,26 @@ const DATA = {
             "path": "client/src/components/LobbyRangeSlider.tsx:254",
             "grep": "grep -n -F -- 'data-inspect-id=\"lobby-range-slider-halo\"' client/src/components/LobbyRangeSlider.tsx"
           }
+        },
+        {
+          "id": "prematch-today-dots-strip",
+          "label": "Today's matches dot strip",
+          "kind": "card",
+          "description": "Right 1/3 of the 'Playing as' identity strip (added 2026-09-24, splitting it 2/3 left for the existing account/role pills + rank-slot text, 1/3 right for this). Shows today's matches as small win/loss dots, oldest left, most recent right, reading the same today-scoped /api/matches query already used elsewhere on this page. Shrinks and wraps rather than scrolling once the day has many matches.",
+          "locate": {
+            "path": "client/src/pages/Prematch.tsx:682",
+            "grep": "grep -n -F -- 'data-inspect-id=\"prematch-today-dots-strip\"' client/src/pages/Prematch.tsx"
+          }
+        },
+        {
+          "id": "prematch-today-dot",
+          "label": "Today's match result dot",
+          "kind": "badge",
+          "description": "One dot per match logged today inside prematch-today-dots-strip \u2014 emerald for a win, rose for a loss, same hue pairing the mode-tile win/loss flash uses. Shared id across all dots (repeated per match). Tooltip/aria-label names the hero and map.",
+          "locate": {
+            "path": "client/src/pages/Prematch.tsx:690",
+            "grep": "grep -n -F -- 'data-inspect-id=\"prematch-today-dot\"' client/src/pages/Prematch.tsx"
+          }
         }
       ]
     },
@@ -2183,16 +2203,6 @@ const DATA = {
           }
         },
         {
-          "id": "logmatch-leaver-checkbox",
-          "label": "Leaver toggle",
-          "kind": "button",
-          "description": "Records whether somebody left the match. A square toggle to the right of Loss, same height as Win/Loss, because a leaver is part of what the result means. Defaults to off, unlike match_quality and result_driver which start unanswered: those ask for a judgment, this asks for a fact, so an untouched toggle is a true answer rather than a skipped question.",
-          "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1081",
-            "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-leaver-checkbox\"' client/src/pages/LogMatch.tsx"
-          }
-        },
-        {
           "id": "logmatch-result-option",
           "label": "Result \u2014 one option (Win or Loss)",
           "kind": "button",
@@ -2200,6 +2210,36 @@ const DATA = {
           "locate": {
             "path": "client/src/pages/LogMatch.tsx:1059",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-result-option\"' client/src/pages/LogMatch.tsx"
+          }
+        },
+        {
+          "id": "logmatch-leaver-side-toggle",
+          "label": "Leaver side toggle",
+          "kind": "button-group",
+          "description": "Two thin sliver buttons directly below the Win/Loss row: 'My team' / 'Their team'. Replaced the old square Leaver checkbox 2026-09-24 \u2014 which team the leaver was on matters more than a bare yes/no. Tap the selected side again to clear back to 'no leaver'.",
+          "locate": {
+            "path": "client/src/pages/LogMatch.tsx:1085",
+            "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-leaver-side-toggle\"' client/src/pages/LogMatch.tsx"
+          }
+        },
+        {
+          "id": "logmatch-leaver-side-option",
+          "label": "Leaver side option (mine/theirs)",
+          "kind": "button",
+          "description": "One of the two sliver buttons inside logmatch-leaver-side-toggle. Shared id across both (mine/theirs) \u2014 same convention as the identity-group toggles elsewhere on this app. Selected state fills amber; tapping the already-selected one clears leaverSide back to null.",
+          "locate": {
+            "path": "client/src/pages/LogMatch.tsx:1096",
+            "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-leaver-side-option\"' client/src/pages/LogMatch.tsx"
+          }
+        },
+        {
+          "id": "logmatch-leaver-side-label",
+          "label": "Leaver side small-print label",
+          "kind": "text",
+          "description": "Tiny caption beneath the leaver-side slivers. Reads 'Leaver' when unset, or 'Leaver \u2014 my team'/'Leaver \u2014 their team' once a side is picked.",
+          "locate": {
+            "path": "client/src/pages/LogMatch.tsx:1105",
+            "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-leaver-side-label\"' client/src/pages/LogMatch.tsx"
           }
         }
       ]
@@ -4965,6 +5005,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 

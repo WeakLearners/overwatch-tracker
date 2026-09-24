@@ -1286,7 +1286,11 @@ export default function Dashboard() {
             value={overview?.leaver_games ?? '—'}
             sub={
               overview && overview.leaver_logged > 0
-                ? `of ${overview.leaver_logged} asked · ${overview.win_rate_no_leaver ?? '—'}% WR without`
+                ? `of ${overview.leaver_logged} asked · ${overview.win_rate_no_leaver ?? '—'}% WR without${
+                    overview.leaver_mine + overview.leaver_theirs > 0
+                      ? ` · ${overview.leaver_mine} mine / ${overview.leaver_theirs} theirs`
+                      : ''
+                  }`
                 : 'not logged yet'
             }
             color="loss"

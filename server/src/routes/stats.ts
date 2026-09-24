@@ -56,12 +56,24 @@ router.get('/overview', (req: Request, res: Response) => {
     SELECT ROUND(AVG(win) * 100, 1) as win_rate_no_leaver
     FROM matches ${where ? where + ' AND' : 'WHERE'} COALESCE(leaver, 0) = 0
   `).get(params) as { win_rate_no_leaver: number | null };
+  // Side breakdown of the leaver games counted above. leaver_side is NULL on
+  // every leaver=1 row logged before 2026-09-24 (the column didn't exist yet)
+  // as well as any leaver=0 row (no leaver, no side to have) — both correctly
+  // excluded here rather than counted as a known side either way.
+  const sideRow = db.prepare(`
+    SELECT
+      SUM(CASE WHEN leaver_side = 'mine' THEN 1 ELSE 0 END) as leaver_mine,
+      SUM(CASE WHEN leaver_side = 'theirs' THEN 1 ELSE 0 END) as leaver_theirs
+    FROM matches ${where ? where + ' AND' : 'WHERE'} leaver = 1
+  `).get(params) as { leaver_mine: number | null; leaver_theirs: number | null };
   res.json({
     ...row,
     heroes_played,
     leaver_logged: leaverRow.leaver_logged,
     leaver_games: leaverRow.leaver_games ?? 0,
     win_rate_no_leaver: cleanRow.win_rate_no_leaver,
+    leaver_mine: sideRow.leaver_mine ?? 0,
+    leaver_theirs: sideRow.leaver_theirs ?? 0,
   });
 });
 
