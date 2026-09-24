@@ -1212,7 +1212,7 @@ export default function LogMatch() {
                     <button
                       key={v}
                       type="button"
-                      onClick={() => setForm(f => ({ ...f, win: v as '0' | '1' }))}
+                      onClick={() => setForm(f => ({ ...f, win: f.win === v ? '' : v as '0' | '1' }))}
                       aria-pressed={selected}
                       data-inspect-id="logmatch-result-option"
                       style={{ '--sel': sel } as React.CSSProperties}
