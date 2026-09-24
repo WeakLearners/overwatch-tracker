@@ -497,6 +497,21 @@
       0 0 24px 4px rgb(255 255 255 / 0.25);
   }
 
+  /* Mode cards (Dashboard tiles, Log Match mode toggle) when selected. Same
+     move as .leaver-lamp: in light theme the glow takes the card's own hue
+     (--sel) and is boosted, because the old faint drop shadow barely showed
+     on white. Dark theme keeps the original soft drop shadow. */
+  .is-selected.mode-glow {
+    box-shadow:
+      inset 0 -2px 0 0 rgb(var(--sel) / 0.9),
+      0 0 6px 1px rgb(var(--sel) / 0.55),
+      0 0 18px 4px rgb(var(--sel) / 0.32),
+      0 8px 22px -6px rgb(var(--sel) / 0.5);
+  }
+  html.dark .is-selected.mode-glow {
+    box-shadow: 0 10px 30px -12px rgb(var(--sel) / 0.45);
+  }
+
   /* The halo above the lit run, and the lamp's upward spill. Both exist in both
      themes; only the strength changes. Dark was turned DOWN (2026-09-18) to
      close the gap: several of its layers sat at full alpha, so dark read as a
