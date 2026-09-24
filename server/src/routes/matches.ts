@@ -35,10 +35,18 @@ router.get('/', (req: Request, res: Response) => {
 // Looks up the active stage-test set for a given hero (hero-tagged set takes
 // priority over the shared ad-hoc, hero-less one) and its current stage.
 // Shared by the POST insert path and the PUT roster-recompute path below —
-// both need to know "if this hero logged a game right now, which stage would
-// it credit."
-function findActiveStage(db: ReturnType<typeof getDb>, hero: string, isCompetitive: boolean) {
-  if (!isCompetitive) return undefined;
+// both need to know "what sens/dpi is this hero actually at right now."
+//
+// Deliberately mode-agnostic (fixed 2026-09-24). "What sens was this hero
+// at" and "does this match count for the study" are two different
+// questions — a hero under an active stage test is at that stage's sens
+// whether the match is Competitive or QP; only crediting (blind_trial,
+// blind_credits, games_on_stage) is Competitive-only, and that gate lives
+// at each call site below via isCompetitive, not in this lookup. Before the
+// fix, this function itself refused to look anything up off Competitive, so
+// every QP match on a tested hero silently fell back to the frozen 2.5
+// default instead of showing/recording the hero's real current sens.
+function findActiveStage(db: ReturnType<typeof getDb>, hero: string) {
   const activeSet = db.prepare(`
     SELECT id, cur_rel, in_game_sens, curve_enabled, chunk_size, batch_size FROM blind_stage_sets
     WHERE active = 1 AND hero = :hero
@@ -75,16 +83,20 @@ function findActiveStage(db: ReturnType<typeof getDb>, hero: string, isCompetiti
 // gets stuck one game short forever even though it was genuinely completed.
 // Safe to reuse here because we only reinstate a credit the hero is still
 // actually rostered for, never resurrect an unrelated closed set.
+// This function answers "does this match count for the study" (crediting),
+// not "what sens was the hero at" — so it stays Competitive-only in full,
+// unlike the mode-agnostic findActiveStage it wraps.
 function findStageForRecredit(
   db: ReturnType<typeof getDb>, hero: string, isCompetitive: boolean,
   priorCredit: { blind_set_id: number; stage_index: number } | undefined,
 ) {
-  const active = findActiveStage(db, hero, isCompetitive);
-  if (active) return active;
   // A queue_mode edit off comp (isCompetitive false) must drop the credit
   // outright — reusing priorCredit here would resurrect it every time,
   // silently undoing the very correction the edit was making.
-  if (!isCompetitive || !priorCredit) return undefined;
+  if (!isCompetitive) return undefined;
+  const active = findActiveStage(db, hero);
+  if (active) return active;
+  if (!priorCredit) return undefined;
   const set = db.prepare('SELECT id, in_game_sens, curve_enabled FROM blind_stage_sets WHERE id = :id')
     .get({ id: priorCredit.blind_set_id }) as { id: number; in_game_sens: number; curve_enabled: number } | undefined;
   if (!set) return undefined;
@@ -143,11 +155,17 @@ router.post('/', (req: Request, res: Response) => {
 
   // Every hero actually played gets checked against its own active set, not
   // just slot 1 — the primary hero's lookup also determines the sens/dpi
-  // stamped onto the match row itself.
-  const primaryStage = findActiveStage(db, hero, isCompetitive);
+  // stamped onto the match row itself. Looked up unconditionally (mode
+  // doesn't change what sens the hero was actually at) — isStudy/setId/
+  // stageIdx (the crediting fields) are gated on isCompetitive separately
+  // just below, so a QP match on a tested hero shows/records that hero's
+  // real sens but still never earns a stage credit.
+  const primaryStage = findActiveStage(db, hero);
   if (primaryStage) {
     finalDpi = primaryStage.dpi;
     finalSens = primaryStage.sens;
+  }
+  if (primaryStage && isCompetitive) {
     isStudy = 1;
     setId = primaryStage.setId;
     stageIdx = primaryStage.stageIdx;
@@ -236,7 +254,7 @@ router.post('/', (req: Request, res: Response) => {
     // to whatever LogMatch sent for that hero (its own manual/display value —
     // see LogMatch.tsx's displaySensForHero), never the primary's sens.
     const extraHeroStages = (Array.isArray(heroes) ? heroes.filter((h: any) => h?.hero && h?.role).slice(0, 2) : [])
-      .map((h: any) => ({ hero: h.hero, role: h.role, feel: h.feel, sens: h.sens, stage: findActiveStage(db, h.hero, isCompetitive) }));
+      .map((h: any) => ({ hero: h.hero, role: h.role, feel: h.feel, sens: h.sens, stage: findActiveStage(db, h.hero) }));
     const heroSlots: { hero: string; role: string; feel: number | null; sens: number | null }[] = [
       { hero, role, feel: typeof feel === 'number' ? feel : null, sens: finalSens },
       ...extraHeroStages.map(h => ({
@@ -256,11 +274,13 @@ router.post('/', (req: Request, res: Response) => {
     // only as a mid-match switch (slot 2/3) still logged games at its own
     // active test's current stage, and needs its own set's counters moved.
     // Primary and extras both reuse the lookups already done above rather
-    // than re-querying.
-    const creditsToApply = [
+    // than re-querying. Gated on isCompetitive here (not inside the lookups
+    // above) — a QP match's heroSlots/sens above are stamped with the real
+    // stage sens same as Competitive, but QP earns no credit at all.
+    const creditsToApply = isCompetitive ? [
       ...(primaryStage ? [{ hero, ...primaryStage }] : []),
       ...extraHeroStages.flatMap(h => (h.stage ? [{ hero: h.hero, ...h.stage }] : [])),
-    ];
+    ] : [];
 
     for (const credit of creditsToApply) {
       // Guards against double-crediting if the same hero somehow appears twice
@@ -320,24 +340,33 @@ function syncStageCredits(db: ReturnType<typeof getDb>, matchId: string, sensPro
     'INSERT OR IGNORE INTO blind_credits (match_id, hero, blind_set_id, stage_index) VALUES (:match_id, :hero, :blind_set_id, :stage_index)'
   );
 
+  // Two lookups per slot now (fixed 2026-09-24, same split as the POST
+  // path): sensStage answers "what sens was this hero at" (any mode);
+  // creditStage answers "does this match count for the study" (Competitive
+  // only, via findStageForRecredit). primaryStage below drives the credit
+  // bookkeeping (blind_trial/blind_set_id/stage_index); primarySensStage
+  // drives the dpi/sens/curve facts stamped onto the match row.
   let primaryStage: ReturnType<typeof findActiveStage> | undefined;
+  let primarySensStage: ReturnType<typeof findActiveStage> | undefined;
   const touchedSets = new Set<number>(oldCredits.map(c => c.blind_set_id));
   heroSlots.forEach((slot, i) => {
-    const stage = findStageForRecredit(db, slot.hero, isCompetitive, oldCreditByHero.get(slot.hero));
-    if (i === 0) primaryStage = stage;
+    const sensStage = findActiveStage(db, slot.hero);
+    const creditStage = findStageForRecredit(db, slot.hero, isCompetitive, oldCreditByHero.get(slot.hero));
+    if (i === 0) { primaryStage = creditStage; primarySensStage = sensStage; }
     // Slot 1's match_heroes.sens mirrors matches.sens below instead (honoring
     // `sensProvided` — an explicit sens in this same request beats a
     // recomputed stage for the primary hero). Slots 2/3 have no such manual-
-    // override concept on a roster edit, so an active stage is authoritative
-    // here whenever one exists, same priority as the POST insert path.
-    if (stage && i > 0) {
+    // override concept on a roster edit, so the hero's real active-stage sens
+    // is authoritative here whenever one exists, same priority as the POST
+    // insert path — and, same as that path, not gated on isCompetitive.
+    if (sensStage && i > 0) {
       db.prepare('UPDATE match_heroes SET sens = :sens WHERE match_id = :id AND slot = :slot')
-        .run({ id: matchId, slot: i + 1, sens: stage.sens });
+        .run({ id: matchId, slot: i + 1, sens: sensStage.sens });
     }
-    if (!stage) return;
-    const { changes } = insertCredit.run({ match_id: matchId, hero: slot.hero, blind_set_id: stage.setId, stage_index: stage.stageIdx });
+    if (!creditStage) return;
+    const { changes } = insertCredit.run({ match_id: matchId, hero: slot.hero, blind_set_id: creditStage.setId, stage_index: creditStage.stageIdx });
     if (changes === 0) return;
-    touchedSets.add(stage.setId);
+    touchedSets.add(creditStage.setId);
   });
 
   // Re-derive active for every set this edit touched, including the ones it
@@ -353,11 +382,16 @@ function syncStageCredits(db: ReturnType<typeof getDb>, matchId: string, sensPro
   // primary hero's recomputed credit.
   db.prepare('UPDATE matches SET blind_trial = :bt, blind_set_id = :sid, stage_index = :si WHERE id = :id')
     .run({ id: matchId, bt: primaryStage ? 1 : 0, sid: primaryStage?.setId ?? null, si: primaryStage?.stageIdx ?? null });
-  if (primaryStage && !sensProvided) {
+  // dpi/sens/curve below use primarySensStage, not primaryStage — these are
+  // "what was the hero at" facts (mode-agnostic), while primaryStage above
+  // is the "does this count" credit (Competitive-only). A QP edit on a
+  // tested hero must still show/stamp the real current sens even though
+  // primaryStage is undefined and blind_trial stays 0.
+  if (primarySensStage && !sensProvided) {
     db.prepare('UPDATE matches SET dpi = :dpi, sens = :sens WHERE id = :id')
-      .run({ id: matchId, dpi: primaryStage.dpi, sens: primaryStage.sens });
+      .run({ id: matchId, dpi: primarySensStage.dpi, sens: primarySensStage.sens });
     db.prepare('UPDATE match_heroes SET sens = :sens WHERE match_id = :id AND slot = 1')
-      .run({ id: matchId, sens: primaryStage.sens });
+      .run({ id: matchId, sens: primarySensStage.sens });
   }
   // Same priority as dpi/sens above: a set's phase-wide curve_enabled flag
   // overrides whatever was recorded before, whenever a set actually governs
@@ -372,11 +406,11 @@ function syncStageCredits(db: ReturnType<typeof getDb>, matchId: string, sensPro
   // he's on a LUT. curve_lut is re-stamped on the same rule the POST uses:
   // the live table when one is on file and this stage says acceleration was
   // on, null otherwise.
-  if (primaryStage) {
-    const lut = primaryStage.curveEnabled ? getCurveParams(db).lutPoints : null;
+  if (primarySensStage) {
+    const lut = primarySensStage.curveEnabled ? getCurveParams(db).lutPoints : null;
     db.prepare('UPDATE matches SET curve_enabled = :ce, curve_growth_rate = :cgr, curve_midpoint = :cm, curve_motivity = :cmot, curve_lut = :clut WHERE id = :id')
       .run({
-        id: matchId, ce: primaryStage.curveEnabled ? 1 : 0,
+        id: matchId, ce: primarySensStage.curveEnabled ? 1 : 0,
         cgr: null, cm: null, cmot: null,
         clut: lut ? JSON.stringify(lut) : null,
       });

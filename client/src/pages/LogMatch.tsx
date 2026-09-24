@@ -10,7 +10,6 @@ import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { format } from 'date-fns';
 import RankBadge from '../components/RankBadge';
 import { useFieldConfig } from '../contexts/FieldConfigContext';
-import { isStudyQueueMode } from '../lib/blind';
 
 // Shared by the two rank-outcome buttons so they cannot drift apart.
 const btnSmall = 'border border-ow-border rounded-md px-2.5 py-1 text-[11px] font-semibold text-[var(--ink-2)] transition-colors';
@@ -370,18 +369,22 @@ export default function LogMatch() {
     });
   };
 
-  // The in-game sens this match will actually be tagged with. No QP hero
-  // lands on a stage any more (lib/blind.ts's isStudyQueueMode — Support's
-  // QP exception was retired 2026-08-23, same as DPS before it), so QP
-  // always falls straight to the frozen fallback below, for every role.
-  // Competitive checks for a set tagged to the selected hero, then the
-  // hero-less ad-hoc set — same priority order the server uses when it
-  // stamps the match.
+  // The in-game sens this match will actually be tagged with. Fixed
+  // 2026-09-24: "what sens is this hero at" and "does this match count for
+  // the study" are two different questions — isStudyQueueMode answers the
+  // second one only (Competitive vs QP), and used to gate this lookup too,
+  // which meant a hero under an active stage test displayed and recorded
+  // the frozen fallback sens (2.5) in QP instead of its real current sens.
+  // A hero under test is at that sens whichever queue it's played in; QP
+  // simply never earns a credit for it (server-side gate, matches.ts's
+  // findActiveStage/isCompetitive — unchanged). Checks for a set tagged to
+  // the selected hero, then the hero-less ad-hoc set — same priority order
+  // the server uses when it stamps the match.
   // Same lookup as activeSetSens below, generalized to any hero — used to
   // label each hero's own Feel slider with the sens it was actually played
   // at, since a mid-match switch can land on a different hero's own test.
   const sensForHero = (h: string): number | null => {
-    if (!h || !isStudyQueueMode(queueMode)) return null;
+    if (!h) return null;
     const actives = dpiState?.actives ?? [];
     const active = actives.find(a => a.hero === h) ?? actives.find(a => a.hero === null);
     return active ? active.sens ?? active.in_game_sens : null;
@@ -397,10 +400,11 @@ export default function LogMatch() {
   // this phase — same phaseHeroes/currentPhase logic as Prematch's Select
   // Your Hero, so a hero clicked there always has a matching option here),
   // unioned with any currently-active test so an active ad-hoc/legacy test
-  // outside the current phase still shows too. QP is the exception: it
-  // doesn't feed a DPI test at all any more, for any role (sensForHero above
-  // always returns null in QP), so restricting the list there just gets in
-  // the way — every hero is offered instead.
+  // outside the current phase still shows too. QP is the exception: no QP
+  // match ever earns a stage credit (server-side gate, unrelated to
+  // sensForHero above, which now labels a tested hero's real sens in QP
+  // too), so restricting the list there just gets in the way — every hero
+  // is offered instead.
   const isQP = queueMode === 'qp_role';
   // Has the ladder already been moved for THIS match? rankAtLastLog is where
   // it stood when the previous match was logged, so a difference means one of

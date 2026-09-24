@@ -77,16 +77,31 @@ describe('POST /api/matches — who gets credited', () => {
     assert.equal(m.blind_set_id, null);
   });
 
-  test('Quick Play never feeds the study, even on a hero under test', async () => {
-    await makeSet({ hero: 'Ashe' });
+  test('Quick Play never feeds the study, even on a hero under test — but still records that hero\'s real stage sens', async () => {
+    await makeSet({ hero: 'Ashe', senses: [2.0, 3.0] });
     const id = await logMatch({ hero: 'Ashe', role: 'DPS', queue_mode: 'qp_role', sens: 9.9 });
 
     // The whole point of the comp-only rule: QP play must not dilute a stage's
-    // sample. The match still logs — it just carries no credit.
+    // sample. The match still logs — it just carries no credit. Fixed
+    // 2026-09-24: "what sens was the hero at" and "does this count for the
+    // study" are separate questions — a hero under an active test is at that
+    // stage's sens whichever queue it's played in, so the match is still
+    // stamped with the real stage sens (2.0), not whatever the client sent.
     assert.deepEqual(credits(id), []);
     const m = matchRow(id);
     assert.equal(m.blind_trial, 0);
-    assert.equal(m.sens, 9.9, 'and the stage does not overwrite the sens either');
+    assert.equal(m.blind_set_id, null);
+    assert.equal(m.sens, 2.0, 'QP still shows/records the hero\'s real current stage sens');
+  });
+
+  test('Quick Play on an untested hero keeps whatever sens the client sent (the 2.5 default)', async () => {
+    await makeSet({ hero: 'Ashe' });
+    const id = await logMatch({ hero: 'Genji', role: 'DPS', queue_mode: 'qp_role', sens: 2.5 });
+
+    assert.deepEqual(credits(id), []);
+    const m = matchRow(id);
+    assert.equal(m.blind_trial, 0);
+    assert.equal(m.sens, 2.5, 'no active set for Genji, so the client-sent/default sens stands');
   });
 
   test('Quick Play never feeds the study for Support either — the old QP-Support exception is gone', async () => {
@@ -95,13 +110,13 @@ describe('POST /api/matches — who gets credited', () => {
     // and switched off again for good 2026-09-23 at Sean's request. Pin the
     // Support branch explicitly, not just DPS above — a role-specific
     // exception is exactly the kind of thing that regresses silently.
-    await makeSet({ hero: 'Ana' });
+    await makeSet({ hero: 'Ana', senses: [4.0, 6.5] });
     const id = await logMatch({ hero: 'Ana', role: 'Support', queue_mode: 'qp_role', sens: 6.5 });
 
     assert.deepEqual(credits(id), []);
     const m = matchRow(id);
     assert.equal(m.blind_trial, 0);
-    assert.equal(m.sens, 6.5);
+    assert.equal(m.sens, 4.0, 'stamped with Ana\'s real stage sens, not the client-sent value');
   });
 
   test('a mid-match switch credits the switched-to hero’s OWN set at its OWN stage', async () => {
@@ -229,8 +244,8 @@ describe('PUT /api/matches/:id — credits follow the edit', () => {
     assert.equal(m.sens, 5.0, 'sens is restamped from the new hero’s stage');
   });
 
-  test('correcting queue_mode to Quick Play drops the credit entirely', async () => {
-    const setId = await makeSet({ hero: 'Ashe' });
+  test('correcting queue_mode to Quick Play drops the credit entirely but keeps the real stage sens', async () => {
+    const setId = await makeSet({ hero: 'Ashe', senses: [2.0, 3.0] });
     const id = await logMatch({ hero: 'Ashe', role: 'DPS' });
     assert.equal((h.db.prepare('SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = ?').get(setId) as any).n, 1);
 
@@ -239,8 +254,14 @@ describe('PUT /api/matches/:id — credits follow the edit', () => {
     // This is the correction the recredit fallback must NOT undo — reinstating
     // a prior credit here would silently reverse the very edit being made.
     assert.deepEqual(credits(id), []);
-    assert.equal(matchRow(id).blind_trial, 0);
+    const m = matchRow(id);
+    assert.equal(m.blind_trial, 0);
     assert.equal((h.db.prepare('SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = ?').get(setId) as any).n, 0);
+    // Fixed 2026-09-24: dropping the credit is a crediting decision, not a
+    // "what sens was the hero at" decision — Ashe is still on stage 1 (2.0)
+    // after the flip, so the match keeps showing that, not the pre-fix
+    // frozen-fallback value.
+    assert.equal(m.sens, 2.0, 'the edit path still restamps the real stage sens even with no credit');
   });
 
   test('an explicit sens in the same edit beats the recomputed stage value', async () => {
