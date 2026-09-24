@@ -3,6 +3,7 @@ import { useMatchEditDrawer } from '../contexts/MatchEditDrawerContext';
 import { revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
+import { useDfHeroes, withDfBadge } from '../hooks/useDfHeroes';
 import {
   HEROES, MAPS, ROLE_COLORS, TYPE_COLORS,
   QUEUE_MODES, QUEUE_MODE_COLORS, QueueMode, TrendPoint,
@@ -48,6 +49,7 @@ function DrawerForm({ match }: { match: TrendPoint }) {
   const [extraHeroes, setExtraHeroes] = useState<string[]>([]);
   const mapCounts = useTodayMapCounts();
   const heroCounts = useTodayHeroCounts();
+  const dfMap = useDfHeroes();
 
   useEffect(() => {
     let cancelled = false;
@@ -150,7 +152,7 @@ function DrawerForm({ match }: { match: TrendPoint }) {
           {(['DPS', 'Tank', 'Support'] as const).map(role => (
             <optgroup key={role} label={role}>
               {HERO_LIST.filter(([, r]) => r === role).map(([h]) => (
-                <option key={h} value={h} className="uppercase">{withHeroCount(h, heroCounts)}</option>
+                <option key={h} value={h} className="uppercase">{withDfBadge(withHeroCount(h, heroCounts), dfMap, h)}</option>
               ))}
             </optgroup>
           ))}
@@ -173,7 +175,7 @@ function DrawerForm({ match }: { match: TrendPoint }) {
                     {(['DPS', 'Tank', 'Support'] as const).map(role => (
                       <optgroup key={role} label={role}>
                         {HERO_LIST.filter(([, rr]) => rr === role).map(([hh]) => (
-                          <option key={hh} value={hh} className="uppercase">{hh}</option>
+                          <option key={hh} value={hh} className="uppercase">{withDfBadge(hh, dfMap, hh)}</option>
                         ))}
                       </optgroup>
                     ))}

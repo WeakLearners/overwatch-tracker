@@ -7,6 +7,7 @@ import {
 import { cm360, eDPI } from '../lib/aim';
 import { computeNextTest, projectPhaseFinish, type HeroTestProgress, type StintInfo } from '../lib/nextTest';
 import { HEROES_BY_ROLE } from './advisor';
+import { isDfHero } from '../lib/df';
 
 const router = Router();
 
@@ -172,6 +173,15 @@ router.post('/sets', (req: Request, res: Response) => {
   const dupe = db.prepare('SELECT id FROM blind_stage_sets WHERE active = 1 AND hero IS :hero').get({ hero }) as { id: number } | undefined;
   if (dupe) {
     res.status(409).json({ error: hero ? `${hero} already has an active test running` : 'an ad-hoc test is already active' });
+    return;
+  }
+
+  // Designated Fallback (lib/df.ts, schema.ts's df_heroes) is never under
+  // test — refused here outright rather than left to quietly never earn
+  // credit, so an accidental test set on a DF hero can't sit there looking
+  // active while matches.ts's credit gate silently no-ops on every game.
+  if (hero && isDfHero(db, hero)) {
+    res.status(409).json({ error: `${hero} is a Designated Fallback and can't have a test set created` });
     return;
   }
 
@@ -486,6 +496,28 @@ router.get('/sets/:id', (req: Request, res: Response) => {
     const dmgPer10 = rateRows.length
       ? Math.round((rateRows.reduce((s, p) => s + p.damage / p.duration_min * 10, 0) / rateRows.length) * 10) / 10 : null;
 
+    // "Switched out" — the starting hero's own game where Sean bailed to a
+    // different hero mid-match (a match with any match_heroes row at
+    // slot > 1). Added 2026-09-24 alongside "only slot 1 earns credit":
+    // since blind_credits now only ever holds slot-1 (starting-hero) rows,
+    // every credited match here already IS one of this hero's own games —
+    // this just asks how many of them didn't stay played through. Deliberately
+    // derived, not a stored column — a match's roster is already the fact of
+    // record (match_heroes), so a second place to write "was this switched"
+    // would just be another way for the two to drift. The rate is itself a
+    // signal (bailing more at one sens than another is worth seeing), not
+    // just a caveat on the other numbers — switched-out games still count
+    // normally in every stat above.
+    const switchInfo = db.prepare(`
+      SELECT COUNT(*) AS total,
+        SUM(CASE WHEN (SELECT COUNT(*) FROM match_heroes mh2 WHERE mh2.match_id = bc.match_id) > 1 THEN 1 ELSE 0 END) AS switchedOut
+      FROM blind_credits bc
+      JOIN matches m ON m.id = bc.match_id
+      WHERE bc.blind_set_id = :sid AND bc.stage_index = :si AND ${NOT_QP_SQL}
+    `).get({ sid: set.id, si: st.stage_index }) as { total: number; switchedOut: number | null };
+    const switchedOut = switchInfo.switchedOut ?? 0;
+    const switchedOutRate = switchInfo.total > 0 ? Math.round((switchedOut / switchInfo.total) * 1000) / 10 : null;
+
     // Legacy stages (sens null) vary dpi with sens frozen on the set; current
     // stages (sens populated) vary sens with dpi frozen at LOCKED_DPI.
     const stageSens = st.sens ?? set.in_game_sens;
@@ -494,6 +526,7 @@ router.get('/sets/:id', (req: Request, res: Response) => {
       eDPI: eDPI(stageSens, st.dpi), cm360: Math.round(cm360(stageSens, st.dpi) * 100) / 100,
       n: trials.length, feelMean, feelVar,
       games: perf.length, winRate, accMean, elimsPer10, dmgPer10,
+      switchedOut, switchedOutRate,
     };
   });
 

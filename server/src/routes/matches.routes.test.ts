@@ -119,7 +119,13 @@ describe('POST /api/matches — who gets credited', () => {
     assert.equal(m.sens, 4.0, 'stamped with Ana\'s real stage sens, not the client-sent value');
   });
 
-  test('a mid-match switch credits the switched-to hero’s OWN set at its OWN stage', async () => {
+  test('a mid-match switch records the switched-to hero’s OWN sens but earns it NO credit', async () => {
+    // Fixed 2026-09-24 (mid-match-switch build): only the starting hero
+    // (slot 1) ever earns test credit now — a switch mid-match is a partial
+    // game entered from behind, and crediting it the same as a full game
+    // silently mixed 188 of 762 credits (25%, since Aug 1) into the study
+    // this way before the fix. Cassidy's own stage sens still shows/records
+    // correctly (display only), it just never moves Cassidy's counters.
     const ashe = await makeSet({ hero: 'Ashe', senses: [2.0, 3.0] });
     const cass = await makeSet({ hero: 'Cassidy', senses: [5.0, 6.0] });
     // Put Cassidy's set on stage 2 so the two sets disagree about which stage
@@ -132,9 +138,12 @@ describe('POST /api/matches — who gets credited', () => {
 
     assert.deepEqual(credits(id), [
       { hero: 'Ashe', blind_set_id: ashe, stage_index: 1 },
-      { hero: 'Cassidy', blind_set_id: cass, stage_index: 2 },
     ]);
-    // Each hero's slot carries its own stage's sens, not the primary's.
+    assert.equal(
+      (h.db.prepare('SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = ?').get(cass) as any).n, 0,
+      'Cassidy played this match only as a mid-match switch — no credit');
+    // Each hero's slot still carries its own stage's sens, not the primary's —
+    // recording "what sens was this hero at" is unchanged by the credit fix.
     assert.deepEqual(heroSlots(id), [
       { slot: 1, hero: 'Ashe', sens: 2.0 },
       { slot: 2, hero: 'Cassidy', sens: 6.0 },
@@ -380,5 +389,117 @@ describe('leaver: recorded on the match, rated only over answered matches', () =
     // Leaver-free win rate: the leaver loss drops out, leaving 1 win and 1
     // loss among answered rows plus the legacy win — 2 of 3 = 66.7%.
     assert.equal(r.body.win_rate_no_leaver, 66.7);
+  });
+});
+
+// ── Only slot 1 earns credit (mid-match-switch build, 2026-09-24) ──────────
+describe('slots 2/3 never earn test credit, on insert or on edit', () => {
+  test('POST: a switched-to hero records its stage sens but blind_credits gets only the starting hero', async () => {
+    const ashe = await makeSet({ hero: 'Ashe', senses: [2.0, 3.0] });
+    const cass = await makeSet({ hero: 'Cassidy', senses: [5.0, 6.0] });
+    const id = await logMatch({ hero: 'Ashe', role: 'DPS', heroes: [{ hero: 'Cassidy', role: 'DPS' }] });
+
+    assert.deepEqual(credits(id), [{ hero: 'Ashe', blind_set_id: ashe, stage_index: 1 }]);
+    assert.equal((h.db.prepare('SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = ?').get(cass) as any).n, 0);
+    assert.deepEqual(heroSlots(id), [
+      { slot: 1, hero: 'Ashe', sens: 2.0 },
+      { slot: 2, hero: 'Cassidy', sens: 5.0 },
+    ]);
+  });
+
+  test('PUT: replacing the switch roster never credits the new switched-to hero either', async () => {
+    await makeSet({ hero: 'Ashe' });
+    const cass = await makeSet({ hero: 'Cassidy', senses: [5.0, 6.0] });
+    const id = await logMatch({ hero: 'Ashe', role: 'DPS' });
+
+    assert.equal((await h.put(`/api/matches/${id}`, {
+      heroes: [{ hero: 'Cassidy', role: 'DPS' }],
+    })).status, 200);
+
+    assert.equal((h.db.prepare('SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = ?').get(cass) as any).n, 0);
+    assert.deepEqual(heroSlots(id), [
+      { slot: 1, hero: 'Ashe', sens: 2.0 },
+      { slot: 2, hero: 'Cassidy', sens: 5.0 },
+    ]);
+  });
+});
+
+// ── Designated Fallback (df_heroes) ─────────────────────────────────────────
+// Soldier: 76 @ 2.645 is seeded by schema.ts's migration, so every test DB
+// (a fresh temp file per test, per httpHarness) already carries the real row.
+describe('Designated Fallback: Soldier: 76 never earns credit, always shows its own sens', () => {
+  test('POST: an ad-hoc hero-less active set must not sweep the DF hero in', async () => {
+    // Without the DF gate, findActiveStage's hero-IS-NULL fallback branch
+    // would match ANY hero, including the DF — this is the exact "sweep-in
+    // by accident" case sensStageFor's comment describes.
+    const adhoc = await makeSet({ hero: null, senses: [7.0, 8.0] });
+    const id = await logMatch({ hero: 'Soldier: 76', role: 'DPS' });
+
+    assert.deepEqual(credits(id), []);
+    assert.equal((h.db.prepare('SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = ?').get(adhoc) as any).n, 0);
+    const m = matchRow(id);
+    assert.equal(m.blind_trial, 0);
+    assert.equal(m.sens, 2.645, 'DF always shows its own fixed sens, never the ad-hoc set’s');
+    assert.equal(m.dpi, 1600);
+  });
+
+  test('PUT: correcting a match onto the DF hero drops any credit and restamps the DF sens', async () => {
+    const ashe = await makeSet({ hero: 'Ashe', senses: [2.0, 3.0] });
+    const id = await logMatch({ hero: 'Ashe', role: 'DPS' });
+    assert.deepEqual(credits(id), [{ hero: 'Ashe', blind_set_id: ashe, stage_index: 1 }]);
+
+    assert.equal((await h.put(`/api/matches/${id}`, { hero: 'Soldier: 76', role: 'DPS' })).status, 200);
+
+    assert.deepEqual(credits(id), []);
+    const m = matchRow(id);
+    assert.equal(m.blind_trial, 0);
+    assert.equal(m.sens, 2.645);
+  });
+
+  test('a switched-to DF hero (slot 2/3) still shows its fixed sens, and was never credited anyway', async () => {
+    const ashe = await makeSet({ hero: 'Ashe', senses: [2.0, 3.0] });
+    const id = await logMatch({ hero: 'Ashe', role: 'DPS', heroes: [{ hero: 'Soldier: 76', role: 'DPS' }] });
+
+    assert.deepEqual(credits(id), [{ hero: 'Ashe', blind_set_id: ashe, stage_index: 1 }]);
+    assert.deepEqual(heroSlots(id), [
+      { slot: 1, hero: 'Ashe', sens: 2.0 },
+      { slot: 2, hero: 'Soldier: 76', sens: 2.645 },
+    ]);
+  });
+
+  test('a test set cannot be created on the DF hero', async () => {
+    const r = await h.post('/api/blind/sets', { hero: 'Soldier: 76', batch_size: 5, senses: [2.0, 3.0] });
+    assert.equal(r.status, 409);
+    assert.match(r.body.error, /Designated Fallback/);
+    assert.equal((h.db.prepare('SELECT COUNT(*) n FROM blind_stage_sets WHERE hero = ?').get('Soldier: 76') as any).n, 0);
+  });
+});
+
+// ── Switched-out rate (derived, not stored) ─────────────────────────────────
+describe('GET /api/blind/sets/:id — switched-out rate per stage', () => {
+  test('a stage’s switch-out rate counts only the starting hero’s own credited games', async () => {
+    const setId = await makeSet({ hero: 'Ashe', senses: [2.0, 3.0] });
+    await makeSet({ hero: 'Cassidy', senses: [5.0, 6.0] }); // the switched-to hero's own set
+    // One clean game, one switched-out game — both still count toward the
+    // stage's normal games/n, per the brief ("still counts normally").
+    await logMatch({ hero: 'Ashe', role: 'DPS' });
+    await logMatch({ hero: 'Ashe', role: 'DPS', heroes: [{ hero: 'Cassidy', role: 'DPS' }] });
+
+    const r = await h.get(`/api/blind/sets/${setId}`);
+    assert.equal(r.status, 200);
+    const stage1 = r.body.stages.find((s: any) => s.stage_index === 1);
+    assert.equal(stage1.n, 2, 'both games still count as trials on this stage');
+    assert.equal(stage1.switchedOut, 1);
+    assert.equal(stage1.switchedOutRate, 50);
+  });
+
+  test('no switches at all reads as 0%, not null', async () => {
+    const setId = await makeSet({ hero: 'Ashe', senses: [2.0, 3.0] });
+    await logMatch({ hero: 'Ashe', role: 'DPS' });
+
+    const r = await h.get(`/api/blind/sets/${setId}`);
+    const stage1 = r.body.stages.find((s: any) => s.stage_index === 1);
+    assert.equal(stage1.switchedOut, 0);
+    assert.equal(stage1.switchedOutRate, 0);
   });
 });

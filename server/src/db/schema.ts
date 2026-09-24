@@ -905,6 +905,29 @@ function initSchema(db: DatabaseSync) {
     )
   `);
 
+  // Designated Fallback (DF) heroes — added 2026-09-24, mid-match-switch
+  // build. A DF is a role's "safe pick when nothing else fits": it never
+  // earns test credit, can never have a test set opened on it, and always
+  // shows up in hero pickers even in Competitive (where lists are otherwise
+  // restricted to heroes under test — see matches.ts/LogMatch.tsx). One row
+  // per role; a role with no row has no DF (Supports get none today). Server
+  // state, like player_ranks above, not localStorage — a fallback hero has
+  // to agree across every surface that lists heroes. sens is the DF hero's
+  // own fixed recorded sens, NOT the 2.5 study fallback.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS df_heroes (
+      role TEXT PRIMARY KEY,
+      hero TEXT NOT NULL,
+      sens REAL NOT NULL
+    )
+  `);
+  // Seeded once — Soldier: 76 at 2.645, his last tested sens (set 135,
+  // 2026-09-15). INSERT OR IGNORE so re-running this migration never
+  // clobbers a value Sean changes later via the settings endpoint.
+  db.exec(`
+    INSERT OR IGNORE INTO df_heroes (role, hero, sens) VALUES ('DPS', 'Soldier: 76', 2.645)
+  `);
+
     db.exec('COMMIT');
   } catch (err) {
     db.exec('ROLLBACK');

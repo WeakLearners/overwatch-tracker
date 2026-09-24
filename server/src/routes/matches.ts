@@ -2,7 +2,8 @@ import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
 import { getCurveParams } from '../lib/curveParams';
 import { syncSetActive, liveStageIndex, stagesOf } from './blind';
-import { isStudyQueueMode } from '../lib/blind';
+import { isStudyQueueMode, LOCKED_DPI } from '../lib/blind';
+import { isDfHero, dfSensForHero } from '../lib/df';
 
 const router = Router();
 
@@ -72,6 +73,21 @@ function findActiveStage(db: ReturnType<typeof getDb>, hero: string) {
   };
 }
 
+// "What sens is this hero at" for any hero, DF-aware — the same
+// mode-agnostic question findActiveStage answers, except a Designated
+// Fallback (lib/df.ts) short-circuits it entirely: a DF is never under a
+// stage test (set creation on it is refused server-side — see blind.ts's
+// POST /sets), so without this an ad-hoc, hero-less active set would still
+// sweep it in via findActiveStage's hero-IS-NULL fallback branch, and the
+// DF would show that set's sens instead of its own fixed one. DPI is
+// LOCKED_DPI for a DF for the same reason every current stage-test row is —
+// there's no meaningful "DF DPI" to report otherwise.
+function sensStageFor(db: ReturnType<typeof getDb>, hero: string) {
+  const dfSens = dfSensForHero(db, hero);
+  if (dfSens != null) return { dpi: LOCKED_DPI, sens: dfSens, curveEnabled: false };
+  return findActiveStage(db, hero);
+}
+
 // Re-derives a stage credit for a hero that's still on a match's roster after
 // an edit, preferring whatever set is currently active but falling back to a
 // set this exact hero was already credited on for this exact match — even if
@@ -92,8 +108,13 @@ function findStageForRecredit(
 ) {
   // A queue_mode edit off comp (isCompetitive false) must drop the credit
   // outright — reusing priorCredit here would resurrect it every time,
-  // silently undoing the very correction the edit was making.
-  if (!isCompetitive) return undefined;
+  // silently undoing the very correction the edit was making. A Designated
+  // Fallback hero is refused the same way, unconditionally — it can never be
+  // credited in any mode, and a stale priorCredit shouldn't resurrect one
+  // either (defensive: a hero can't normally become DF while mid-history,
+  // but this keeps the "DF never earns credit" rule enforced at every path
+  // rather than relying on findActiveStage never matching it).
+  if (!isCompetitive || isDfHero(db, hero)) return undefined;
   const active = findActiveStage(db, hero);
   if (active) return active;
   if (!priorCredit) return undefined;
@@ -160,8 +181,18 @@ router.post('/', (req: Request, res: Response) => {
   // stageIdx (the crediting fields) are gated on isCompetitive separately
   // just below, so a QP match on a tested hero shows/records that hero's
   // real sens but still never earns a stage credit.
-  const primaryStage = findActiveStage(db, hero);
-  if (primaryStage) {
+  // Designated Fallback (lib/df.ts): skip findActiveStage entirely rather
+  // than gate its result afterward — an ad-hoc, hero-less active set would
+  // otherwise still match a DF hero through findActiveStage's fallback
+  // branch and hand it that set's sens/dpi, which is exactly the "sweep in
+  // by accident" case sensStageFor's comment above describes. A DF always
+  // shows/records its own fixed sens, never a study value.
+  const heroIsDf = isDfHero(db, hero);
+  const primaryStage = heroIsDf ? undefined : findActiveStage(db, hero);
+  if (heroIsDf) {
+    finalDpi = LOCKED_DPI;
+    finalSens = dfSensForHero(db, hero) ?? finalSens;
+  } else if (primaryStage) {
     finalDpi = primaryStage.dpi;
     finalSens = primaryStage.sens;
   }
@@ -253,8 +284,14 @@ router.post('/', (req: Request, res: Response) => {
     // the primary's) is authoritative when one exists; otherwise fall back
     // to whatever LogMatch sent for that hero (its own manual/display value —
     // see LogMatch.tsx's displaySensForHero), never the primary's sens.
+    // Only slot 1 (the starting hero) can ever earn test credit — fixed
+    // 2026-09-24 (mid-match-switch build). A switched-to hero still records
+    // its own real sens (via sensStageFor — DF-aware, same lookup the
+    // primary hero above uses), but `stage` here is display-only now: no
+    // credit is ever applied off it, so it no longer needs to carry
+    // setId/stageIdx the way it used to when extras could be credited too.
     const extraHeroStages = (Array.isArray(heroes) ? heroes.filter((h: any) => h?.hero && h?.role).slice(0, 2) : [])
-      .map((h: any) => ({ hero: h.hero, role: h.role, feel: h.feel, sens: h.sens, stage: findActiveStage(db, h.hero) }));
+      .map((h: any) => ({ hero: h.hero, role: h.role, feel: h.feel, sens: h.sens, stage: sensStageFor(db, h.hero) }));
     const heroSlots: { hero: string; role: string; feel: number | null; sens: number | null }[] = [
       { hero, role, feel: typeof feel === 'number' ? feel : null, sens: finalSens },
       ...extraHeroStages.map(h => ({
@@ -270,17 +307,19 @@ router.post('/', (req: Request, res: Response) => {
     const insertCredit = db.prepare(
       'INSERT OR IGNORE INTO blind_credits (match_id, hero, blind_set_id, stage_index) VALUES (:match_id, :hero, :blind_set_id, :stage_index)'
     );
-    // Credit every hero actually played, not just the primary — a hero played
-    // only as a mid-match switch (slot 2/3) still logged games at its own
-    // active test's current stage, and needs its own set's counters moved.
-    // Primary and extras both reuse the lookups already done above rather
-    // than re-querying. Gated on isCompetitive here (not inside the lookups
-    // above) — a QP match's heroSlots/sens above are stamped with the real
-    // stage sens same as Competitive, but QP earns no credit at all.
-    const creditsToApply = isCompetitive ? [
-      ...(primaryStage ? [{ hero, ...primaryStage }] : []),
-      ...extraHeroStages.flatMap(h => (h.stage ? [{ hero: h.hero, ...h.stage }] : [])),
-    ] : [];
+    // Only the starting hero (slot 1) earns test credit — fixed 2026-09-24.
+    // Before this, a mid-match switch (slot 2/3) credited its own active
+    // test too, which meant 25% of all credits (188 of 762 since Aug 1) went
+    // to heroes entered from behind, partial games. Background/rationale
+    // recorded in modular-tracking-roadmap.md under Sean's 2026-09-24
+    // additions; the 188 pre-existing credits are left as-is (see that doc —
+    // excluding them from analysis is a separate open decision for Sean).
+    // Gated on isCompetitive here (not inside the lookup) — a QP match's
+    // heroSlots/sens above are stamped with the real stage sens same as
+    // Competitive, but QP earns no credit at all. primaryStage is already
+    // undefined for a Designated Fallback hero (see above), so this also
+    // enforces "DF never earns credit" with no separate check needed here.
+    const creditsToApply = (isCompetitive && primaryStage) ? [{ hero, ...primaryStage }] : [];
 
     for (const credit of creditsToApply) {
       // Guards against double-crediting if the same hero somehow appears twice
@@ -341,32 +380,43 @@ function syncStageCredits(db: ReturnType<typeof getDb>, matchId: string, sensPro
   );
 
   // Two lookups per slot now (fixed 2026-09-24, same split as the POST
-  // path): sensStage answers "what sens was this hero at" (any mode);
-  // creditStage answers "does this match count for the study" (Competitive
-  // only, via findStageForRecredit). primaryStage below drives the credit
-  // bookkeeping (blind_trial/blind_set_id/stage_index); primarySensStage
-  // drives the dpi/sens/curve facts stamped onto the match row.
+  // path): sensStage answers "what sens was this hero at" (any mode, DF-
+  // aware via sensStageFor); creditStage answers "does this match count for
+  // the study" (Competitive only, via findStageForRecredit — itself DF-gated
+  // now too). primaryStage below drives the credit bookkeeping
+  // (blind_trial/blind_set_id/stage_index); primarySensStage drives the
+  // dpi/sens/curve facts stamped onto the match row.
+  //
+  // Only slot 0 (the starting hero) is ever looked up for credit at all —
+  // fixed 2026-09-24, same rule as the POST insert path above. Before this,
+  // every slot got its own creditStage lookup and could insert a credit;
+  // now a switched-to hero (i > 0) only ever gets its match_heroes.sens kept
+  // current, never a blind_credits row.
   let primaryStage: ReturnType<typeof findActiveStage> | undefined;
-  let primarySensStage: ReturnType<typeof findActiveStage> | undefined;
+  let primarySensStage: ReturnType<typeof sensStageFor> | undefined;
   const touchedSets = new Set<number>(oldCredits.map(c => c.blind_set_id));
   heroSlots.forEach((slot, i) => {
-    const sensStage = findActiveStage(db, slot.hero);
-    const creditStage = findStageForRecredit(db, slot.hero, isCompetitive, oldCreditByHero.get(slot.hero));
-    if (i === 0) { primaryStage = creditStage; primarySensStage = sensStage; }
+    const sensStage = sensStageFor(db, slot.hero);
+    if (i === 0) {
+      primarySensStage = sensStage;
+      const creditStage = findStageForRecredit(db, slot.hero, isCompetitive, oldCreditByHero.get(slot.hero));
+      primaryStage = creditStage;
+      if (!creditStage) return;
+      const { changes } = insertCredit.run({ match_id: matchId, hero: slot.hero, blind_set_id: creditStage.setId, stage_index: creditStage.stageIdx });
+      if (changes === 0) return;
+      touchedSets.add(creditStage.setId);
+      return;
+    }
     // Slot 1's match_heroes.sens mirrors matches.sens below instead (honoring
     // `sensProvided` — an explicit sens in this same request beats a
     // recomputed stage for the primary hero). Slots 2/3 have no such manual-
     // override concept on a roster edit, so the hero's real active-stage sens
     // is authoritative here whenever one exists, same priority as the POST
     // insert path — and, same as that path, not gated on isCompetitive.
-    if (sensStage && i > 0) {
+    if (sensStage) {
       db.prepare('UPDATE match_heroes SET sens = :sens WHERE match_id = :id AND slot = :slot')
         .run({ id: matchId, slot: i + 1, sens: sensStage.sens });
     }
-    if (!creditStage) return;
-    const { changes } = insertCredit.run({ match_id: matchId, hero: slot.hero, blind_set_id: creditStage.setId, stage_index: creditStage.stageIdx });
-    if (changes === 0) return;
-    touchedSets.add(creditStage.setId);
   });
 
   // Re-derive active for every set this edit touched, including the ones it

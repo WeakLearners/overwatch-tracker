@@ -82,6 +82,12 @@ interface AnswerStage {
   stage_index: number; dpi: number; sens: number | null; pct_delta: number;
   eDPI: number; cm360: number; n: number; feelMean: number | null; feelVar: number | null;
   games: number; winRate: number | null; accMean: number | null; elimsPer10: number | null; dmgPer10: number | null;
+  // How many of this stage's own games got bailed on mid-match (Sean switched
+  // to a different hero) — derived server-side from match_heroes, not stored.
+  // Still counts normally in every other column above; this is a signal of
+  // its own (bailing more at one sens than another), added 2026-09-24
+  // alongside "only the starting hero earns credit."
+  switchedOut: number; switchedOutRate: number | null;
 }
 // One overall/crit accuracy + duration reading per hero actually played — a
 // match with a mid-match switch gets one row per hero here instead of a
@@ -1667,7 +1673,7 @@ function AnswerTable({ stages }: { stages: AnswerStage[] }) {
       <table className="w-full text-xs">
         <thead>
           <tr className="text-[var(--faint-2)] text-left">
-            {['Stage', 'DPI', 'Δ%', 'eDPI', 'Sens @1600', 'Trials', 'Feel avg', 'Feel var'].map(h => <th key={h} className="py-1.5 pr-3">{h}</th>)}
+            {['Stage', 'DPI', 'Δ%', 'eDPI', 'Sens @1600', 'Trials', 'Feel avg', 'Feel var', 'Switched out'].map(h => <th key={h} className="py-1.5 pr-3">{h}</th>)}
           </tr>
         </thead>
         <tbody className="num-display">
@@ -1681,6 +1687,9 @@ function AnswerTable({ stages }: { stages: AnswerStage[] }) {
               <td className="py-1.5 pr-3">{s.n}</td>
               <td className="py-1.5 pr-3">{s.feelMean != null ? s.feelMean.toFixed(1) : '—'}</td>
               <td className="py-1.5 pr-3">{s.feelVar != null ? s.feelVar.toFixed(2) : '—'}</td>
+              <td className="py-1.5 pr-3" title="Games where this stage's starting hero got switched off of mid-match — still counted in every other column, this is its own signal.">
+                {s.switchedOutRate != null ? `${s.switchedOutRate}% (${s.switchedOut}/${s.games})` : '—'}
+              </td>
             </tr>
           ))}
         </tbody>

@@ -7,6 +7,7 @@ import RegistryField from '../components/RegistryField';
 import { useApi, revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
+import { useDfHeroes, dfSensForHeroName, withDfBadge } from '../hooks/useDfHeroes';
 import { format } from 'date-fns';
 import RankBadge from '../components/RankBadge';
 import { useFieldConfig } from '../contexts/FieldConfigContext';
@@ -67,6 +68,7 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueM
   const [switchHeroes, setSwitchHeroes] = useState<[string, string]>(['', '']);
   const [status, setStatus] = useState<'idle' | 'saving' | 'error'>('idle');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const dfMap = useDfHeroes();
 
   useEffect(() => {
     let cancelled = false;
@@ -157,7 +159,7 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueM
               {(['DPS', 'Tank', 'Support'] as const).map(role => (
                 <optgroup key={role} label={role}>
                   {HERO_LIST.filter(([, r]) => r === role).map(([h]) => (
-                    <option key={h} value={h}>{withHeroCount(h, heroCounts)}</option>
+                    <option key={h} value={h}>{withDfBadge(withHeroCount(h, heroCounts), dfMap, h)}</option>
                   ))}
                 </optgroup>
               ))}
@@ -179,7 +181,7 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueM
                   {(['DPS', 'Tank', 'Support'] as const).map(role => (
                     <optgroup key={role} label={role}>
                       {switchOptionsFor(i).filter(([, rl]) => rl === role).map(([hh]) => (
-                        <option key={hh} value={hh}>{withHeroCount(hh, heroCounts)}</option>
+                        <option key={hh} value={hh}>{withDfBadge(withHeroCount(hh, heroCounts), dfMap, hh)}</option>
                       ))}
                     </optgroup>
                   ))}
@@ -320,6 +322,7 @@ export default function LogMatch() {
   const { isFieldEnabled, fields } = useFieldConfig();
   const registryField = (id: string) => fields.find(f => f.id === id);
   const { data: blindSets } = useApi<{ sets: BlindSetSummary[] }>('/api/blind/sets');
+  const dfMap = useDfHeroes();
   const mapCounts = useTodayMapCounts();
   const heroCounts = useTodayHeroCounts();
   // One feel reading per hero actually played (mirrors switchHeroes/duration_min
@@ -385,6 +388,11 @@ export default function LogMatch() {
   // at, since a mid-match switch can land on a different hero's own test.
   const sensForHero = (h: string): number | null => {
     if (!h) return null;
+    // Designated Fallback always shows/records its own fixed sens (never the
+    // 2.5 study fallback, never an ad-hoc set it was never actually part of)
+    // — same priority the server enforces in matches.ts's dfSensForHero.
+    const dfSens = dfSensForHeroName(h, dfMap);
+    if (dfSens != null) return dfSens;
     const actives = dpiState?.actives ?? [];
     const active = actives.find(a => a.hero === h) ?? actives.find(a => a.hero === null);
     return active ? active.sens ?? active.in_game_sens : null;
@@ -437,7 +445,13 @@ export default function LogMatch() {
       .map(s => s.hero).filter((h): h is string => !!h),
   );
   const testableHeroes = new Set([...inTestingHeroes, ...phaseHeroes]);
-  const HERO_TEST_LIST = isQP ? HERO_LIST : HERO_LIST.filter(([h, r]) => testableHeroes.has(h) && r === testRole);
+  // Designated Fallback (server/src/db/schema.ts's df_heroes) is never under
+  // test — it can't appear in testableHeroes above, since a test set can
+  // never be created on it — but LogMatch still has to offer it in
+  // Competitive, where the dropdown is otherwise restricted to heroes under
+  // test: a fallback pick you can't log defeats the point of having one.
+  const dfHeroForRole = dfMap[testRole]?.hero;
+  const HERO_TEST_LIST = isQP ? HERO_LIST : HERO_LIST.filter(([h, r]) => (testableHeroes.has(h) || h === dfHeroForRole) && r === testRole);
   // In QP mode the switch dropdowns offer every hero, so without this a
   // mid-match "switch" could silently re-pick a hero already in another slot
   // — each switch slot excludes whichever hero the *other* slots hold.
@@ -968,7 +982,7 @@ export default function LogMatch() {
                           const heroSens = displaySensForHero(h);
                           return (
                             <option key={h} value={h} className="uppercase">
-                              {withHeroCount(h, heroCounts)}{heroSens != null && ` @ ${heroSens.toFixed(2)}`}
+                              {withDfBadge(withHeroCount(h, heroCounts), dfMap, h)}{heroSens != null && ` @ ${heroSens.toFixed(2)}`}
                             </option>
                           );
                         })}
@@ -995,7 +1009,7 @@ export default function LogMatch() {
                               const heroSens = displaySensForHero(hh);
                               return (
                                 <option key={hh} value={hh} className="uppercase">
-                                  {withHeroCount(hh, heroCounts)}{heroSens != null && ` @ ${heroSens.toFixed(2)}`}
+                                  {withDfBadge(withHeroCount(hh, heroCounts), dfMap, hh)}{heroSens != null && ` @ ${heroSens.toFixed(2)}`}
                                 </option>
                               );
                             })}
