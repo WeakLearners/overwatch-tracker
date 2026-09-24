@@ -533,6 +533,13 @@ export default function Prematch() {
   //   - the indicator carries the border and .is-selected; the buttons carry
   //     only text. Two elements painting a border would double it mid-slide.
   const NOTCH = 'polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px)';
+  // One button width across BOTH groups (2026-09-24). auto-cols-fr only
+  // equalises within a group, so the account pills came out narrower than
+  // "Support". Every button stacks all six labels invisibly in one grid
+  // cell, with its own label on top — each is exactly as wide as the widest
+  // label anywhere on the strip, with nothing to measure.
+  const ROLE_PICKS = ['DPS', 'Support'] as const;
+  const IDENTITY_LABELS: readonly string[] = [...ACCOUNTS, ...ROLE_PICKS];
 
   const identityGroup = <T extends string>(
     options: readonly T[],
@@ -577,7 +584,14 @@ export default function Prematch() {
               value === o ? 'text-[var(--ink)]' : 'text-[var(--faint)] hover:text-[var(--ink)]'
             }`}
           >
-            {value === o && sel ? <span className="lit-text">{o}</span> : o}
+            <span className="grid justify-items-center">
+              {IDENTITY_LABELS.map(l => (
+                <span key={l} aria-hidden="true" className="invisible col-start-1 row-start-1">{l}</span>
+              ))}
+              <span className="col-start-1 row-start-1">
+                {value === o && sel ? <span className="lit-text">{o}</span> : o}
+              </span>
+            </span>
           </button>
         ))}
       </div>
@@ -647,7 +661,7 @@ export default function Prematch() {
           <span className="w-px self-stretch my-1.5 bg-ow-border/70 shrink-0" aria-hidden="true" />
           <span className="text-[10px] uppercase tracking-wider text-[var(--faint-2)] self-center shrink-0" data-inspect-id="prematch-role-label">Role</span>
           {identityGroup(
-            ['DPS', 'Support'] as const,
+            ROLE_PICKS,
             testRole,
             setTestRole,
             ROLE_SEL_RGB[testRole],
