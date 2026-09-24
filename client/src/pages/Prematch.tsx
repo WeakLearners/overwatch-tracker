@@ -611,92 +611,54 @@ export default function Prematch() {
           on the same vertical line. Trimming both sides knocked them 8px out
           of alignment. */}
       <div
-        className="card !py-0 mb-3 flex items-stretch gap-2.5 min-h-[34px]"
+        className="card !py-0 mb-3 flex items-stretch gap-2.5 flex-wrap min-h-[34px]"
         data-inspect-id="prematch-identity-strip"
       >
-        {/* Left 2/3: everything the strip has always shown — account/role pick
-            plus the rank-slot fine print. Split from the dots strip 2026-09-24
-            so the old win/loss-blocks reading (retired when this became a
-            drum-based strip) could come back without displacing the pills. */}
-        <div className="flex-[2] min-w-0 flex items-stretch gap-2.5 flex-wrap">
-          {/* .card-title, the same as every card heading on the page — this
-              strip is a section of the page and its label should read as one.
-              The class already carries uppercase and the widest tracking, so
-              only the size is set here. */}
-          <span className="text-xs card-title shrink-0 flex-1 basis-0 min-w-0 self-center">Playing as</span>
+        {/* .card-title, the same as every card heading on the page — this
+            strip is a section of the page and its label should read as one.
+            The class already carries uppercase and the widest tracking, so
+            only the size is set here. */}
+        <span className="text-xs card-title shrink-0 flex-1 basis-0 min-w-0 self-center">Playing as</span>
 
-          {/* The two pill groups sit dead centre of the left block. Centring is
-              done by giving the label and the readout `flex-1 basis-0` rather
-              than by margins: equal basis makes the two side items claim equal
-              width whatever they contain, so the middle block lands on the
-              block's true centre. Sizing them to their own content would drift
-              the centre every time the readout's rank text changed length. */}
-          <div className="flex items-stretch gap-2.5 shrink-0">
-            {identityGroup(
-              ACCOUNTS,
-              account,
-              setAccount,
-              // The lit block wears the selected account's own rank tier hue, so
-              // this strip and the rank badge further down agree without being
-              // told twice. It transitions with the slide: moving from a Gold
-              // account to a Platinum one shifts colour as it travels.
-              playerRank != null ? RANK_TIER_RGB[rankTier(playerRank)] : undefined,
-              'prematch-account-toggle',
-              a => `prematch-account-${a.toLowerCase()}-button`,
-              a => `Play as ${a}`,
-            )}
-            <span className="w-px self-stretch my-1.5 bg-ow-border/70 shrink-0" aria-hidden="true" />
-            {identityGroup(
-              ['DPS', 'Support'] as const,
-              testRole,
-              setTestRole,
-              ROLE_SEL_RGB[testRole],
-              'prematch-role-pick-toggle',
-              r => `prematch-role-pick-${r.toLowerCase()}-button`,
-              r => `Queue as ${r}`,
-            )}
-          </div>
-
-          {/* Says out loud which of the eight rank slots the pair selects. The
-              drum is far enough down the page that the strip is off screen by
-              the time it is read. */}
-          <span className="text-[11px] text-[var(--faint-2)] flex-1 basis-0 min-w-0 text-right self-center" data-inspect-id="prematch-identity-rank-readout">
-            rank slot <b className="font-semibold text-[var(--muted)]">{account} · {testRole}</b>
-            {playerRank != null && <> — <b className="font-semibold text-[var(--ink-2)]">{rankLabel(playerRank)}</b></>}
-          </span>
-        </div>
-
-        {/* Right 1/3: today's matches as win/loss dots, oldest left, most
-            recent right — the old per-match win/loss blocks this strip lost
-            when tier crossings took over the trends chart (Sean missed them,
-            2026-09-24). Reads straight off todayRows, same `today` query
-            (from/to = today's date) as the Today's Matches card on Log Match
-            and the session snapshot just below this component, so "today"
-            never means two different things on one page. No scrolling: past
-            a modest count the dots shrink and wrap onto a second line inside
-            the fixed strip height rather than scrolling internally — this
-            page-level rule (see wiki: no scroll in cards) applies to every
-            card, not just ones with obviously long lists. */}
-        <div
-          className="flex-1 min-w-0 border-l border-ow-border/70 pl-2.5 flex flex-wrap content-center items-center justify-end gap-1 overflow-hidden"
-          data-inspect-id="prematch-today-dots-strip"
-        >
-          {todayRows.length === 0 ? (
-            <span className="text-[10px] text-[var(--faint-2)]">no games yet today</span>
-          ) : (
-            [...todayRows].reverse().map((r, i) => (
-              <span
-                key={i}
-                data-inspect-id="prematch-today-dot"
-                title={`${r.win ? 'Win' : 'Loss'} — ${r.hero} on ${r.map}`}
-                aria-label={`${r.win ? 'Win' : 'Loss'}, ${r.hero} on ${r.map}`}
-                className={`inline-block rounded-full shrink-0 ${
-                  todayRows.length > 40 ? 'w-1 h-1' : todayRows.length > 20 ? 'w-1.5 h-1.5' : 'w-2 h-2'
-                } ${r.win ? 'bg-emerald-500' : 'bg-rose-500'}`}
-              />
-            ))
+        {/* The two pill groups sit dead centre of the strip. Centring is done
+            by giving the label and the readout `flex-1 basis-0` rather than by
+            margins: equal basis makes the two side items claim equal width
+            whatever they contain, so the middle block lands on the strip's
+            true centre. Sizing them to their own content would drift the
+            centre every time the readout's rank text changed length. */}
+        <div className="flex items-stretch gap-2.5 shrink-0">
+          {identityGroup(
+            ACCOUNTS,
+            account,
+            setAccount,
+            // The lit block wears the selected account's own rank tier hue, so
+            // this strip and the rank badge further down agree without being
+            // told twice. It transitions with the slide: moving from a Gold
+            // account to a Platinum one shifts colour as it travels.
+            playerRank != null ? RANK_TIER_RGB[rankTier(playerRank)] : undefined,
+            'prematch-account-toggle',
+            a => `prematch-account-${a.toLowerCase()}-button`,
+            a => `Play as ${a}`,
+          )}
+          <span className="w-px self-stretch my-1.5 bg-ow-border/70 shrink-0" aria-hidden="true" />
+          {identityGroup(
+            ['DPS', 'Support'] as const,
+            testRole,
+            setTestRole,
+            ROLE_SEL_RGB[testRole],
+            'prematch-role-pick-toggle',
+            r => `prematch-role-pick-${r.toLowerCase()}-button`,
+            r => `Queue as ${r}`,
           )}
         </div>
+
+        {/* Says out loud which of the eight rank slots the pair selects. The
+            drum is far enough down the page that the strip is off screen by
+            the time it is read. */}
+        <span className="text-[11px] text-[var(--faint-2)] flex-1 basis-0 min-w-0 text-right self-center" data-inspect-id="prematch-identity-rank-readout">
+          rank slot <b className="font-semibold text-[var(--muted)]">{account} · {testRole}</b>
+          {playerRank != null && <> — <b className="font-semibold text-[var(--ink-2)]">{rankLabel(playerRank)}</b></>}
+        </span>
       </div>
 
       {/* DPI test HUD (square) + Map Voting + Hero Advisor row — stacks on
@@ -1347,6 +1309,34 @@ export default function Prematch() {
             <div className="flex items-baseline gap-2 mb-3">
               <h3 className="text-sm card-title" data-inspect-id="prematch-lobby-rank-header">Lobby Rank</h3>
               <span className="text-xs text-[var(--faint-2)]">read it off the scoreboard now</span>
+              {/* Today's matches as win/loss dots, oldest left, most recent
+                  right — moved here from the "Playing as" strip 2026-09-24.
+                  Same `today` query as the session snapshot, so "today" means
+                  one thing on this page. No scrolling: past a modest count the
+                  dots shrink and wrap (no-scroll-in-cards rule). */}
+              <div
+                className="ml-auto min-w-0 flex items-center gap-2"
+                data-inspect-id="prematch-today-dots-strip"
+              >
+                <span className="text-[10px] uppercase tracking-wider text-[var(--faint-2)] shrink-0">Today</span>
+                {todayRows.length === 0 ? (
+                  <span className="text-[10px] text-[var(--faint-2)]">no games yet</span>
+                ) : (
+                  <div className="flex flex-wrap items-center justify-end gap-1 min-w-0">
+                    {[...todayRows].reverse().map((r, i) => (
+                      <span
+                        key={i}
+                        data-inspect-id="prematch-today-dot"
+                        title={`${r.win ? 'Win' : 'Loss'} — ${r.hero} on ${r.map}`}
+                        aria-label={`${r.win ? 'Win' : 'Loss'}, ${r.hero} on ${r.map}`}
+                        className={`inline-block rounded-full shrink-0 ${
+                          todayRows.length > 40 ? 'w-1 h-1' : todayRows.length > 20 ? 'w-1.5 h-1.5' : 'w-2 h-2'
+                        } ${r.win ? 'bg-emerald-500' : 'bg-rose-500'}`}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* The drum sits in this row, beside the track it defines. Your
