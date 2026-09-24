@@ -574,10 +574,10 @@ export default function Prematch() {
             data-inspect-id={idFor(o)}
             style={value === o && sel ? ({ '--sel': sel } as React.CSSProperties) : undefined}
             className={`relative z-10 px-3 flex items-center justify-center text-xs leading-none font-semibold tracking-wide transition-colors ${
-              value === o ? (sel ? 'lit-text' : 'text-[var(--ink)]') : 'text-[var(--faint)] hover:text-[var(--ink)]'
+              value === o ? 'text-[var(--ink)]' : 'text-[var(--faint)] hover:text-[var(--ink)]'
             }`}
           >
-            {o}
+            {value === o && sel ? <span className="lit-text">{o}</span> : o}
           </button>
         ))}
       </div>

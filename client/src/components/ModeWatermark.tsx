@@ -27,7 +27,7 @@ export default function ModeWatermark({ mode, variant, className = '', color, st
           only. On the outer span it stretched across the whole tile and the
           letters caught just its flat middle. pr-[0.1em] keeps the italic
           overhang inside the clipped box. */}
-      {lit ? <span className="lit-text lit-strong pr-[0.1em]">{MODE_TAG[mode]}</span> : MODE_TAG[mode]}
+      {lit ? <span className="lit-text pr-[0.1em]">{MODE_TAG[mode]}</span> : MODE_TAG[mode]}
     </span>
   );
 }

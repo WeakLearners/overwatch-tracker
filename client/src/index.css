@@ -511,28 +511,21 @@
      leaver captions. Must go on the element holding the words, never on the
      control itself: background-clip:text would clip the control's own fill
      to the glyphs. */
+  /* One steep ramp for all lit text (was a gentle one plus a .lit-strong
+     variant for the watermark; the gentle one did not read). The glow side is
+     the hue with its chroma boosted ~35% via oklch relative colour; the far
+     side is near-black. Dark theme's glow side is white with a strong hue
+     tint, falling to a very dark grey. */
   .lit-text {
-    --lit-near: color-mix(in srgb, rgb(var(--sel)) 80%, #000);
-    --lit-far: var(--ink);
-    background-image: linear-gradient(var(--lit-dir, to top), var(--lit-near) 0%, var(--lit-far) 90%);
+    --lit-near: oklch(from rgb(var(--sel)) calc(l * 0.97) calc(c * 1.35) h);
+    --lit-far: #000;
+    background-image: linear-gradient(var(--lit-dir, to top), var(--lit-near) 10%, var(--lit-far) 85%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
   html.dark .lit-text {
-    --lit-near: color-mix(in srgb, rgb(var(--sel)) 35%, #fff);
-    --lit-far: color-mix(in srgb, var(--ink) 62%, #000);
-  }
-  /* A steeper ramp for big, faint lettering (the mode watermark), where the
-     standard one is lost at 22.5% opacity. Wider endpoints: the full hue or
-     white at the glow side, near-black at the far side. */
-  .lit-text.lit-strong {
-    --lit-near: rgb(var(--sel));
-    --lit-far: #000;
-    background-image: linear-gradient(var(--lit-dir, to top), var(--lit-near) 10%, var(--lit-far) 85%);
-  }
-  html.dark .lit-text.lit-strong {
-    --lit-near: #fff;
+    --lit-near: color-mix(in srgb, oklch(from rgb(var(--sel)) l calc(c * 1.35) h) 45%, #fff);
     --lit-far: color-mix(in srgb, var(--ink) 30%, #000);
   }
   /* Lobby rank panes are lit by the lamp under them, not by --sel. */
