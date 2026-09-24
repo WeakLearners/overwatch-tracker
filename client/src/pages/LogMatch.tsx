@@ -1222,7 +1222,7 @@ export default function LogMatch() {
                           : 'border-ow-border text-[var(--faint)] hover-sel hover:text-[var(--ink)]'
                       }`}
                     >
-                      {label}
+                      {selected ? <span className="lit-text pr-1">{label}</span> : label}
                     </button>
                   );
                 })}
@@ -1310,7 +1310,7 @@ export default function LogMatch() {
                           : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
                       }`}
                     >
-                      {v}
+                      {matchQuality === v ? <span className="lit-text">{v}</span> : v}
                     </button>
                   ))}
                 </div>
@@ -1331,7 +1331,7 @@ export default function LogMatch() {
                           : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
                       }`}
                     >
-                      {v}
+                      {resultDriver === v ? <span className="lit-text">{v}</span> : v}
                     </button>
                   ))}
                 </div>
@@ -1378,7 +1378,7 @@ export default function LogMatch() {
                             ? 'is-selected text-[var(--ink)]'
                             : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
                         }`}
-                      >{form.win === '1' ? 'Promoted' : 'Demoted'}</button>
+                      >{rankOutcome === 'moved' ? <span className="lit-text">{form.win === '1' ? 'Promoted' : 'Demoted'}</span> : (form.win === '1' ? 'Promoted' : 'Demoted')}</button>
                       <button
                         type="button"
                         onClick={() => {
@@ -1392,7 +1392,7 @@ export default function LogMatch() {
                             ? 'is-selected text-[var(--ink)]'
                             : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
                         }`}
-                      >No change</button>
+                      >{rankOutcome === 'none' ? <span className="lit-text">No change</span> : 'No change'}</button>
                     </div>
                   )}
                 </div>

@@ -67,7 +67,10 @@ export default function LeaverSliver({ value, onToggle, unknown, dataInspectPref
           {(['theirs', 'mine'] as const).map(side => (
             <div
               key={side}
-              className={`text-center text-[9px] uppercase tracking-wide ${value === side ? 'text-[var(--ink)]' : 'text-[var(--faint-2)]'}`}
+              // The picked caption sits UNDER its lit bar, so its light comes
+              // from above: --lit-dir flips .lit-text to brighten the top.
+              style={value === side ? ({ ...SIDE_HUES[side], '--lit-dir': 'to bottom' } as unknown as React.CSSProperties) : undefined}
+              className={`text-center text-[9px] uppercase tracking-wide ${value === side ? 'lit-text' : 'text-[var(--faint-2)]'}`}
             >
               {side === 'theirs' ? 'Enemy Leaver - Free win?' : 'Friendly Leaver - GG go next'}
             </div>

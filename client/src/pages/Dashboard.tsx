@@ -640,7 +640,7 @@ export default function Dashboard() {
                 : 'border-ow-border text-[var(--muted)] hover:text-ow-accent hover:border-ow-accent/60'
             }`}
           >
-            {s.label}
+            {activeSection === s.id ? <span className="lit-text">{s.label}</span> : s.label}
           </a>
         ))}
       </nav>

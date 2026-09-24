@@ -282,7 +282,7 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
                 isMine ? 'ring-1 ring-[var(--ink)] ring-inset' : ''
               } ${inRange ? 'is-lit' : 'text-[var(--faint-2)]'}`}
             >
-              {rankDivision(r)}
+              {inRange ? <span className="lit-text">{rankDivision(r)}</span> : rankDivision(r)}
             </button>
           );
         })}

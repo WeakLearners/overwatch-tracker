@@ -116,7 +116,7 @@ export default function DeathLogger() {
                   : 'bg-transparent border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
               }`}
             >
-              {r}
+              {role === r ? <span className="lit-text">{r}</span> : r}
             </button>
           ))}
         </div>

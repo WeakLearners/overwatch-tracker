@@ -500,28 +500,37 @@
       inset 0 -9px 12px -6px rgb(var(--sel) / 0.95);
   }
 
-  /* Text lit from below. Pairs with .mode-fill: the label shades from the
-     control's hue at its bottom to plain ink at its top, as if the bottom band
-     were a lamp. Light theme darkens the hue so it stays readable on the pale
-     fill; dark theme lightens it. Needs --sel in scope and must sit on the
-     element that holds the text itself — background-clip:text paints only an
-     element's own glyphs, and would leave child elements invisible. */
+  /* Text lit by its control's glow. Every glow in the app rises from a
+     bottom edge, so the text is brightest there and falls off upward.
+       Light — the glow side is the vivid hue (a touch darkened so the lower
+               strokes stay readable on a pale fill); it falls to ink.
+       Dark  — the glow side is near-white, tinted with the hue; it falls to
+               a dimmer grey, so the top of the text is the darkest part.
+     --sel supplies the hue (.is-selected already sets it for its children).
+     --lit-dir flips the source for text that sits BELOW its glow, like the
+     leaver captions. Must go on the element holding the words, never on the
+     control itself: background-clip:text would clip the control's own fill
+     to the glyphs. */
   .lit-text {
-    background-image: linear-gradient(
-      to top,
-      color-mix(in srgb, rgb(var(--sel)) 65%, #000) 0%,
-      var(--ink) 90%
-    );
+    --lit-near: color-mix(in srgb, rgb(var(--sel)) 80%, #000);
+    --lit-far: var(--ink);
+    background-image: linear-gradient(var(--lit-dir, to top), var(--lit-near) 0%, var(--lit-far) 90%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
   html.dark .lit-text {
-    background-image: linear-gradient(
-      to top,
-      color-mix(in srgb, rgb(var(--sel)) 60%, #fff) 0%,
-      var(--ink) 90%
-    );
+    --lit-near: color-mix(in srgb, rgb(var(--sel)) 35%, #fff);
+    --lit-far: color-mix(in srgb, var(--ink) 62%, #000);
+  }
+  /* Lobby rank panes are lit by the lamp under them, not by --sel. */
+  .rank-pane .lit-text {
+    --lit-near: color-mix(in srgb, rgb(var(--lamp-deep)) 55%, #000);
+    --lit-far: #14161c;
+  }
+  html.dark .rank-pane .lit-text {
+    --lit-near: #ffffff;
+    --lit-far: color-mix(in srgb, #fff 62%, rgb(var(--tier)));
   }
 
   /* The halo above the lit run, and the lamp's upward spill. Both exist in both

@@ -16,7 +16,7 @@ export default function SensNav({ dataInspectId }: { dataInspectId?: string }) {
             : 'text-[var(--faint)] border-ow-border hover:text-[var(--ink)] hover:border-gray-500'
         }`}
       >
-        {label}
+        {active ? <span className="lit-text">{label}</span> : label}
       </Link>
     );
   };

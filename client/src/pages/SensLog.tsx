@@ -1324,7 +1324,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                           : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)] bg-ow-darker'
                       }`}
                     >
-                      {v ? 'On' : 'Off'}
+                      {phaseCurveEnabled === v ? <span className="lit-text">{v ? 'On' : 'Off'}</span> : (v ? 'On' : 'Off')}
                     </button>
                   ))}
                 </div>
@@ -1644,7 +1644,7 @@ function CreateTestCard() {
                     : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)] bg-ow-darker'
                 }`}
               >
-                {v ? 'On' : 'Off'}
+                {curveEnabled === v ? <span className="lit-text">{v ? 'On' : 'Off'}</span> : (v ? 'On' : 'Off')}
               </button>
             ))}
           </div>

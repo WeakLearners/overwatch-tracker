@@ -1457,7 +1457,7 @@ export default function Prematch() {
                           </span>
                         )}
                         <span className={`text-sm ${h.win_rate >= 50 ? 'text-emerald-700' : 'text-red-500'}`}>{h.win_rate >= 50 ? '↑' : '↓'}</span>
-                        <span className={`flex-1 text-xs hero-name transition-colors ${isClicked ? 'text-ow-accent' : 'text-[var(--ink)] group-hover:text-ow-accent'}`}>
+                        <span className={`flex-1 text-xs hero-name transition-colors ${isClicked ? 'lit-text' : 'text-[var(--ink)] group-hover:text-ow-accent'}`}>
                           {isDfHero ? withDfBadge(withHeroCount(h.hero, heroCounts), dfMap, h.hero) : withHeroCount(h.hero, heroCounts)}
                           {sensTag && (
                             <span
