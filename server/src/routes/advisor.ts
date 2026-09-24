@@ -182,7 +182,7 @@ function buildSchema(roleHasStretchPool: Partial<Record<AdvisorRole, boolean>>) 
     const key = role.toLowerCase();
     props[`stretch_${key}`] = {
       type: 'string',
-      description: `The stretch ${role} hero to suggest. PREFER candidate_stretch_pool_${key} (heroes the player has actually played, with stats): pick the entry with the strongest performance for this map+mode — rank by map_win_rate (weighted by map_games), falling back to career_win_rate when the this-map sample is thin. Only when candidate_stretch_pool_${key} is empty OR every grounded option is weak (career_win_rate below ~45% on a thin sample) may you instead pick from untested_meta_pool_${key}. Must exactly match a name from whichever pool you chose.`,
+      description: `The stretch ${role} hero to suggest. PREFER candidate_stretch_pool_${key} (heroes the player has actually played, with stats): pick the entry with the strongest performance overall — rank primarily by career_win_rate weighted by career_games (prefer an established 55% over a 2-game 100%); use map_win_rate only as a tiebreaker when map_games is at least 20. Only when candidate_stretch_pool_${key} is empty OR every grounded option is weak (career_win_rate below ~45% on a thin sample) may you instead pick from untested_meta_pool_${key}. Must exactly match a name from whichever pool you chose.`,
     };
     props[`stretch_${key}_untested`] = {
       type: 'boolean',
@@ -196,7 +196,7 @@ function buildSchema(roleHasStretchPool: Partial<Record<AdvisorRole, boolean>>) 
 const SYSTEM_PROMPT = `You are an Overwatch 2 coach picking a stretch hero for an intermediate-rank player before a match. You are given REAL statistics from this player's own logged matches — use them.
 
 Stretch pick — you're coaching DPS and Support independently, each with its own pair of pools (candidate_stretch_pool_dps/untested_meta_pool_dps, and the _support equivalents), present only for whichever role(s) you were asked for:
-- candidate_stretch_pool_<role> (PREFERRED): heroes the player has actually played but doesn't main, in that role. Each entry has their own stats: career_games, career_win_rate, map_games (games on THIS map), map_win_rate (win rate on THIS map, null if none). Rank by performance ON THIS MAP first — highest map_win_rate backed by a meaningful map_games sample; fall back to career_win_rate when map sample is thin. This is grounded in real data; always prefer it.
+- candidate_stretch_pool_<role> (PREFERRED): heroes the player has actually played but doesn't main, in that role. Each entry has their own stats: career_games, career_win_rate, map_games (games on THIS map), map_win_rate (win rate on THIS map, null if none). Rank primarily by career_win_rate, weighted by career_games — prefer an established 55% win rate over a 2-game 100%. Use map_win_rate only as a tiebreaker between otherwise close candidates, and only when map_games is at least 20; per-map win rates on smaller samples are noise. This is grounded in real data; always prefer it.
 - untested_meta_pool_<role> (FALLBACK ONLY): heroes the player has NEVER played in that role, so there is no personal data. Only pick from here when candidate_stretch_pool_<role> is empty, or when every grounded option is weak (career_win_rate below ~45% on a thin sample). When you do, choose a hero you have genuine competitive knowledge of for this map and queue mode, and set stretch_<role>_untested=true. If you pick from the grounded pool, set stretch_<role>_untested=false.
 - Never invent a hero outside the pools you were given, and never cross roles (a stretch_support pick must come from a support pool, never a dps one).
 
@@ -334,11 +334,21 @@ router.get('/recommend', async (req: Request, res: Response) => {
 
   try {
     const client = new Anthropic();
+    // Sonnet 5 (not Haiku 4.5) so the untested-fallback pick can draw on
+    // current game knowledge for newer heroes Haiku predates. Sonnet 5 thinks
+    // by default (adaptive thinking, no opt-in needed) and thinking tokens
+    // count against max_tokens, so this pins effort low — picking one name
+    // off a short list needs no deep reasoning — and gives max_tokens some
+    // headroom above the old 700 so a stray thinking burst can't truncate
+    // the JSON reply.
     const response = await client.messages.create({
-      model: 'claude-haiku-4-5',
-      max_tokens: 700,
+      model: 'claude-sonnet-5',
+      max_tokens: 1024,
       system: SYSTEM_PROMPT,
-      output_config: { format: { type: 'json_schema', schema: buildSchema(roleHasStretchPool) } } as any,
+      output_config: {
+        format: { type: 'json_schema', schema: buildSchema(roleHasStretchPool) },
+        effort: 'low',
+      } as any,
       messages: [{
         role: 'user',
         content: `Pre-match context:\n${JSON.stringify(userPayload, null, 2)}\n\nReturn the stretch pick(s).`,
