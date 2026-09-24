@@ -477,14 +477,16 @@
 
   /* The leaver sliver's lit bar borrows the rank lamp's underglow. The hue
      comes from the bar itself (--sel, --leaver-deep, --leaver-tint, set in
-     LeaverSliver.tsx), so the Win-side and Loss-side bars differ. The glow
-     around it is white in both themes. */
+     LeaverSliver.tsx), so the Win-side and Loss-side bars differ.
+     Light theme: a white glow vanishes on a white card, so the glow takes the
+     bar's own hue, wide and fairly strong, like a lit rank pane on white.
+     Dark theme: the glow is white. */
   .leaver-lamp {
     background-image: linear-gradient(to bottom, rgb(var(--sel)), rgb(var(--leaver-deep)));
     box-shadow:
-      0 0 8px 0 rgb(255 255 255 / 0.7),
-      0 0 18px 3px rgb(255 255 255 / 0.35),
-      0 2px 10px 0 rgb(255 255 255 / 0.4);
+      0 0 6px 1px rgb(var(--sel) / 0.8),
+      0 0 16px 4px rgb(var(--sel) / 0.5),
+      0 3px 14px 0 rgb(var(--leaver-deep) / 0.45);
   }
   html.dark .leaver-lamp {
     background-image: linear-gradient(to bottom, #ffffff 0%, rgb(var(--leaver-tint)) 28%, rgb(var(--sel)) 70%, rgb(var(--leaver-deep)) 100%);
