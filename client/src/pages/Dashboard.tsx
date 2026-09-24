@@ -82,7 +82,7 @@ function ModeTile({ meta, m, selected, onSelect, openHero, lastLog }: {
       <div className="relative z-10">
       <div className="flex items-center justify-between gap-2 mb-2">
         <span className={`pill min-w-0 truncate ${c.selected}`}>{meta.short}</span>
-        {selected && <span className="shrink-0 whitespace-nowrap text-[11px] uppercase tracking-widest font-bold text-white/90">Selected</span>}
+        {selected && <span className="shrink-0 whitespace-nowrap text-[11px] uppercase tracking-widest font-bold lit-text">Selected</span>}
       </div>
       {m && m.games > 0 ? (
         <>

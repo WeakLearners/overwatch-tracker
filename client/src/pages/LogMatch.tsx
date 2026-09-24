@@ -1073,8 +1073,8 @@ export default function LogMatch() {
                         variant="selector"
                         style={m.value === 'qp_role' ? undefined : { letterSpacing: '-0.13em' }}
                       />
-                      <div className="relative z-10 font-display italic">{MODE_COMPACT[m.value].top}</div>
-                      <div className="relative z-10 text-[10px] font-normal opacity-80">{MODE_COMPACT[m.value].bot}</div>
+                      <div className={`relative z-10 font-display italic pr-0.5 ${active ? 'lit-text' : ''}`}>{MODE_COMPACT[m.value].top}</div>
+                      <div className={`relative z-10 text-[10px] font-normal opacity-80 ${active ? 'lit-text' : ''}`}>{MODE_COMPACT[m.value].bot}</div>
                     </button>
                   );
                 })}

@@ -11,7 +11,9 @@ import { RANK_TIER_RGB, rankTier, rankDivision, rankLabel } from '../types';
 // The tier name is deliberately ink, not the tier colour. Measured on the
 // badge fill, tier-coloured text runs 1.86:1 (Master) to 3.98:1 (Bronze) in
 // light theme and fails on three tiers in dark. The fill, border and bottom
-// rule already say which tier this is.
+// rule already say which tier this is. Since 2026-09-24 the text is .lit-text:
+// ink at the top, shading to a DARKENED tier hue (65% hue, 35% black) at the
+// bottom, which keeps the contrast the rule above was protecting.
 export default function RankBadge({
   rank, size = 'lg', dataInspectId,
 }: {
@@ -35,10 +37,10 @@ export default function RankBadge({
         </span>
       ) : (
         <>
-          <span className={`${lg ? 'text-[9px]' : 'text-[7px]'} uppercase tracking-widest font-bold leading-none text-[var(--ink-2)]`}>
+          <span className={`${lg ? 'text-[9px]' : 'text-[7px]'} uppercase tracking-widest font-bold leading-none lit-text`}>
             {rankTier(rank)}
           </span>
-          <span className={`${lg ? 'text-3xl' : 'text-xl'} num-display font-black leading-none ${lg ? 'mt-1' : 'mt-0.5'} text-[var(--ink)]`}>
+          <span className={`${lg ? 'text-3xl' : 'text-xl'} num-display font-black leading-none ${lg ? 'mt-1' : 'mt-0.5'} lit-text`}>
             {rankDivision(rank)}
           </span>
         </>

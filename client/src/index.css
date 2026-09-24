@@ -487,9 +487,41 @@
       rgb(var(--sel) / 0.17) 55%,
       rgb(var(--sel) / 0.07)
     );
+    /* The bottom edge is the light source: a 3px band at full strength, with
+       a brighter, taller inner glow above it. Translucent colour over white
+       comes out pastel, so the band is the one part drawn fully opaque. */
     box-shadow:
-      inset 0 -2px 0 0 rgb(var(--sel) / 0.9),
-      inset 0 -7px 11px -6px rgb(var(--sel) / 0.95);
+      inset 0 -3px 0 0 rgb(var(--sel)),
+      inset 0 -10px 12px -6px rgb(var(--sel));
+  }
+  html.dark .is-selected.mode-fill {
+    box-shadow:
+      inset 0 -3px 0 0 rgb(var(--sel)),
+      inset 0 -9px 12px -6px rgb(var(--sel) / 0.95);
+  }
+
+  /* Text lit from below. Pairs with .mode-fill: the label shades from the
+     control's hue at its bottom to plain ink at its top, as if the bottom band
+     were a lamp. Light theme darkens the hue so it stays readable on the pale
+     fill; dark theme lightens it. Needs --sel in scope and must sit on the
+     element that holds the text itself — background-clip:text paints only an
+     element's own glyphs, and would leave child elements invisible. */
+  .lit-text {
+    background-image: linear-gradient(
+      to top,
+      color-mix(in srgb, rgb(var(--sel)) 65%, #000) 0%,
+      var(--ink) 90%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  html.dark .lit-text {
+    background-image: linear-gradient(
+      to top,
+      color-mix(in srgb, rgb(var(--sel)) 60%, #fff) 0%,
+      var(--ink) 90%
+    );
   }
 
   /* The halo above the lit run, and the lamp's upward spill. Both exist in both
