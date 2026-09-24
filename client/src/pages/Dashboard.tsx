@@ -95,7 +95,7 @@ function ModeTile({ meta, m, selected, onSelect, openHero, lastLog }: {
             // win/loss hue (emerald-500 / rose-500), not the mode colour.
             return (
               <div
-                className={`text-4xl font-black tracking-tight num-display ${selected ? 'lit-text' : big >= 50 ? 'grad-win' : 'grad-loss'}`}
+                className={`text-4xl font-black tracking-tight num-display ${selected ? 'lit-text lit-hue' : big >= 50 ? 'grad-win' : 'grad-loss'}`}
                 style={selected ? ({ '--sel': big >= 50 ? '16 185 129' : '244 63 94' } as unknown as React.CSSProperties) : undefined}
               >
                 <AnimatedNumber value={big} decimals={1} suffix="%" />
