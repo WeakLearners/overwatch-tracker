@@ -553,11 +553,13 @@
      turns brown, so a wide ramp stops reading as one lit colour. */
   .lit-text.lit-hue.lit-loss {
     --lit-near: oklch(from rgb(var(--sel)) calc(l * 1.08) calc(c * 1.2) h);
-    --lit-far: oklch(from rgb(var(--sel)) calc(l * 0.58) calc(c * 0.85) h);
+    --lit-far: oklch(from rgb(var(--sel)) calc(l * 0.7) calc(c * 0.9) h);
+    /* Hold the lit colour through the bottom quarter, then fall off. */
+    background-image: linear-gradient(to top, var(--lit-near) 0%, var(--lit-near) 25%, var(--lit-far) 100%);
   }
   html.dark .lit-text.lit-hue.lit-loss {
     --lit-near: color-mix(in srgb, oklch(from rgb(var(--sel)) calc(l * 1.15) calc(c * 1.2) h) 88%, #fff);
-    --lit-far: oklch(from rgb(var(--sel)) calc(l * 0.6) calc(c * 0.85) h);
+    --lit-far: oklch(from rgb(var(--sel)) calc(l * 0.72) calc(c * 0.9) h);
   }
   .rank-pane .lit-text {
     --lit-near: color-mix(in srgb, rgb(var(--lamp-deep)) 55%, #000);
