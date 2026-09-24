@@ -46,9 +46,24 @@ export default function LeaverSliver({ value, onToggle, unknown, dataInspectPref
           );
         })}
       </div>
-      <div className="text-center text-[9px] text-[var(--faint-2)] mt-1 uppercase tracking-wide" data-inspect-id={`${dataInspectPrefix}-label`}>
-        {unknown ? 'Leaver — side not recorded' : value ? `Leaver — ${value === 'mine' ? 'my team' : 'their team'}` : 'Leaver'}
-      </div>
+      {/* One label under each bar. A historical row with no side recorded
+          keeps a single centred note instead, since neither label applies. */}
+      {unknown ? (
+        <div className="text-center text-[9px] text-[var(--faint-2)] mt-1 uppercase tracking-wide" data-inspect-id={`${dataInspectPrefix}-label`}>
+          Leaver — side not recorded
+        </div>
+      ) : (
+        <div className={`grid grid-cols-2 ${gapClass} mt-1`} data-inspect-id={`${dataInspectPrefix}-label`}>
+          {(['theirs', 'mine'] as const).map(side => (
+            <div
+              key={side}
+              className={`text-center text-[9px] uppercase tracking-wide ${value === side ? 'text-[var(--ink)]' : 'text-[var(--faint-2)]'}`}
+            >
+              {side === 'theirs' ? 'Enemy Leaver - Free win?' : 'Friendly Leaver - GG go next'}
+            </div>
+          ))}
+        </div>
+      )}
     </>
   );
 }
