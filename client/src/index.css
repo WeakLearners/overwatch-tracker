@@ -523,6 +523,18 @@
     --lit-near: color-mix(in srgb, rgb(var(--sel)) 35%, #fff);
     --lit-far: color-mix(in srgb, var(--ink) 62%, #000);
   }
+  /* A steeper ramp for big, faint lettering (the mode watermark), where the
+     standard one is lost at 22.5% opacity. Wider endpoints: the full hue or
+     white at the glow side, near-black at the far side. */
+  .lit-text.lit-strong {
+    --lit-near: rgb(var(--sel));
+    --lit-far: #000;
+    background-image: linear-gradient(var(--lit-dir, to top), var(--lit-near) 10%, var(--lit-far) 85%);
+  }
+  html.dark .lit-text.lit-strong {
+    --lit-near: #fff;
+    --lit-far: color-mix(in srgb, var(--ink) 30%, #000);
+  }
   /* Lobby rank panes are lit by the lamp under them, not by --sel. */
   .rank-pane .lit-text {
     --lit-near: color-mix(in srgb, rgb(var(--lamp-deep)) 55%, #000);

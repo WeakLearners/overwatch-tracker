@@ -21,9 +21,13 @@ export default function ModeWatermark({ mode, variant, className = '', color, st
       aria-hidden="true"
       style={style}
       data-inspect-id="modeWatermark-tag"
-      className={`pointer-events-none select-none absolute inset-0 flex items-center justify-center num-display italic leading-none tracking-[-0.07em] ${lit ? 'opacity-[0.225]' : 'opacity-15'} ${MODE_TAG_CLS[variant][mode]} ${lit ? 'lit-text' : (color ?? QUEUE_MODE_COLORS[mode].accent)} ${className}`}
+      className={`pointer-events-none select-none absolute inset-0 flex items-center justify-center num-display italic leading-none tracking-[-0.07em] ${lit ? 'opacity-[0.225]' : 'opacity-15'} ${MODE_TAG_CLS[variant][mode]} ${lit ? '' : (color ?? QUEUE_MODE_COLORS[mode].accent)} ${className}`}
     >
-      {MODE_TAG[mode]}
+      {/* Lit: the gradient goes on an inner span so it spans the letters
+          only. On the outer span it stretched across the whole tile and the
+          letters caught just its flat middle. pr-[0.1em] keeps the italic
+          overhang inside the clipped box. */}
+      {lit ? <span className="lit-text lit-strong pr-[0.1em]">{MODE_TAG[mode]}</span> : MODE_TAG[mode]}
     </span>
   );
 }
