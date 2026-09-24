@@ -1029,14 +1029,18 @@ export default function Prematch() {
                 as" strip, then Lobby Rank, which is Competitive-only. This
                 card shows in every mode. Same `today` query as the session
                 snapshot, so "today" means one thing on this page. No
-                scrolling: past a modest count the dots shrink and wrap
-                (no-scroll-in-cards rule). */}
+                scrolling: rows hold 10 dots each, so game 11 starts a
+                second row, and past 20 the dots shrink (no-scroll-in-cards
+                rule). */}
             <div className="min-w-0 flex items-center gap-2" data-inspect-id="prematch-today-dots-strip">
               <span className="text-[10px] uppercase tracking-wider text-[var(--faint-2)] shrink-0">Today</span>
               {todayRows.length === 0 ? (
                 <span className="text-[10px] text-[var(--faint-2)] whitespace-nowrap">no games yet</span>
               ) : (
-                <div className="flex flex-wrap items-center justify-end gap-1 min-w-0">
+                <div
+                  className="grid items-center gap-1 min-w-0"
+                  style={{ gridTemplateColumns: `repeat(${Math.min(todayRows.length, 10)}, auto)` }}
+                >
                   {[...todayRows].reverse().map((r, i) => (
                     <span
                       key={i}
