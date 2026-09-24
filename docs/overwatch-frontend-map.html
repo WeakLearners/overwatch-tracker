@@ -915,7 +915,7 @@ const DATA = {
           "kind": "link",
           "description": "Link that navigates to the Sens page so the user can work through the backlog of matches awaiting stats. Opens that page at the top, like any other arrival \u2014 it used to deep-link down to the backlog panel. (duplicated for the active-test and idle-test layouts \u2014 locate command matches both.)",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:788",
+            "path": "client/src/pages/Prematch.tsx:795",
             "grep": "grep -n -F -- 'prematch-backlog-go-link' client/src/pages/Prematch.tsx"
           },
           "expectedMatches": 2
@@ -1039,7 +1039,7 @@ const DATA = {
           "kind": "button",
           "description": "Shows the recommended map to vote for. Prefers the hero-informed testPick; falls back to the map-only blended win-rate score. Clicking it sets or opens that map.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:992",
+            "path": "client/src/pages/Prematch.tsx:999",
             "grep": "grep -n -F -- 'prematch-vote-for-button' client/src/pages/Prematch.tsx"
           },
           "expectedMatches": 2
@@ -1293,7 +1293,7 @@ const DATA = {
           "kind": "badge",
           "description": "Encircled indicator immediately left of the remaining-matches gauge. For an UNCHUNKED/legacy set: the bare stage number (hover shows \"Stage X of Y\"), reading cur_stage/n_stages off GET /api/blind/state \u2014 unchanged since before 2026-09-23. For a CHUNKED (ABBA) set: the \"A1\".\"B4\" chunk label instead (lib/blind.ts's chunkLabelFor, GET /api/blind/state's chunk.label) \u2014 a bare stage number no longer says which of up to four A-chunks or four B-chunks Sean is actually on. Two mutually-exclusive JSX branches share this one id (same convention as every other per-row badge in this map \u2014 see prematch-hero-picker-order-badge). Outlined rather than filled so it does not read as a second prematch-hero-picker-order-badge, which is solid and marks click position at the row's top-left corner. Rendered inside the gauge's own absolutely-positioned container so the badge and the bars travel together at any row width. Only shown for a hero with an active test.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1520",
+            "path": "client/src/pages/Prematch.tsx:1527",
             "grep": "grep -n -F -- 'prematch-hero-picker-stage-badge' client/src/pages/Prematch.tsx"
           },
           "expectedMatches": 2
@@ -5164,6 +5164,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 
