@@ -441,6 +441,7 @@ function DrawerForm({ match }: { match: TrendPoint }) {
           onToggle={toggleLeaver}
           unknown={leaverUnknown}
           dataInspectPrefix="matchEditDrawer-leaver-side"
+          gapClass="gap-3"
         />
       </div>
 

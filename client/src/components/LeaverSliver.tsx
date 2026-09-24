@@ -15,13 +15,19 @@ export interface LeaverSliverProps {
    *  matchEditDrawer-leaver-side-*) so the frontend map keeps one anchor per
    *  screen instead of two callers colliding on the same id. */
   dataInspectPrefix: string;
+  /** Gap class matching the Win/Loss row above, so each bar spans exactly
+   *  one result button. LogMatch uses gap-2, the inline edit form gap-3. */
+  gapClass?: string;
 }
 
-export default function LeaverSliver({ value, onToggle, unknown, dataInspectPrefix }: LeaverSliverProps) {
+export default function LeaverSliver({ value, onToggle, unknown, dataInspectPrefix, gapClass = 'gap-2' }: LeaverSliverProps) {
   return (
     <>
-      <div className="grid grid-cols-2 gap-1 mt-1.5" data-inspect-id={`${dataInspectPrefix}-toggle`}>
-        {(['mine', 'theirs'] as const).map(side => {
+      {/* 'theirs' sits LEFT, under Win; 'mine' sits RIGHT, under Loss. A leaver
+          on the other team is close to a free win, and one on yours close to a
+          free loss, so each bar lines up with the result it nearly decides. */}
+      <div className={`grid grid-cols-2 ${gapClass} mt-1.5`} data-inspect-id={`${dataInspectPrefix}-toggle`}>
+        {(['theirs', 'mine'] as const).map(side => {
           const selected = value === side;
           return (
             <button
@@ -34,7 +40,7 @@ export default function LeaverSliver({ value, onToggle, unknown, dataInspectPref
               data-inspect-id={`${dataInspectPrefix}-option`}
               style={{ '--sel': '245 158 11' } as React.CSSProperties}
               className={`h-1.5 rounded-full transition-all ${
-                selected ? 'bg-[rgb(var(--sel))]' : 'bg-ow-border hover:bg-[rgb(var(--sel)/0.4)]'
+                selected ? 'leaver-lamp' : 'bg-ow-border hover:bg-[rgb(var(--sel)/0.4)]'
               }`}
             />
           );

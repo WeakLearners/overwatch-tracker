@@ -475,6 +475,25 @@
       0 0 24px 4px rgb(var(--lamp-deep) / 0.25);
   }
 
+  /* The leaver sliver's lit bar borrows the rank lamp's underglow in its own
+     amber. Same two-theme split: a saturated bar with a soft spill on white,
+     a white-hot core with a bloom on dark. */
+  .leaver-lamp {
+    background-image: linear-gradient(to bottom, rgb(245 158 11), rgb(180 83 9));
+    box-shadow:
+      0 0 8px 0 rgb(245 158 11 / 0.7),
+      0 0 18px 3px rgb(245 158 11 / 0.35),
+      0 2px 10px 0 rgb(180 83 9 / 0.4);
+  }
+  html.dark .leaver-lamp {
+    background-image: linear-gradient(to bottom, #ffffff 0%, rgb(253 230 138) 28%, rgb(245 158 11) 70%, rgb(217 119 6) 100%);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.95),
+      0 0 5px 0 rgb(253 230 138 / 0.8),
+      0 0 13px 1px rgb(245 158 11 / 0.5),
+      0 0 24px 4px rgb(245 158 11 / 0.25);
+  }
+
   /* The halo above the lit run, and the lamp's upward spill. Both exist in both
      themes; only the strength changes. Dark was turned DOWN (2026-09-18) to
      close the gap: several of its layers sat at full alpha, so dark read as a

@@ -366,6 +366,7 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueM
           onToggle={toggleLeaver}
           unknown={leaverUnknown}
           dataInspectPrefix="logmatch-inline-edit-leaver-side"
+          gapClass="gap-3"
         />
       </div>
 
