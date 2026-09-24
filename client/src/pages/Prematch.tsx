@@ -1029,7 +1029,7 @@ export default function Prematch() {
               <h2 className="text-sm card-title whitespace-nowrap">Hero Advisor</h2>
               <span className="text-xs text-[var(--faint)] bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">pick a map</span>
             </div>
-            {/* Today's matches as win/loss dots, oldest left, most recent
+            {/* Today's matches as win/loss dots, most recent left, oldest
                 right. Moved here 2026-09-24 — first tried on the "Playing
                 as" strip, then Lobby Rank, which is Competitive-only. This
                 card shows in every mode. Same `today` query as the session
@@ -1046,7 +1046,7 @@ export default function Prematch() {
                   className="grid items-center gap-1 min-w-0"
                   style={{ gridTemplateColumns: `repeat(${Math.min(todayRows.length, 10)}, auto)` }}
                 >
-                  {[...todayRows].reverse().map((r, i) => (
+                  {todayRows.map((r, i) => (
                     <span
                       key={i}
                       data-inspect-id="prematch-today-dot"

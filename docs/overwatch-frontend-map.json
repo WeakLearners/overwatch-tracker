@@ -1148,7 +1148,7 @@
           "id": "prematch-today-dots-strip",
           "label": "Today's result dots",
           "kind": "card",
-          "description": "Top-right of the Hero Advisor card's header, with a small 'Today' label to its left. Shows today's matches as win/loss dots, oldest left, most recent right, reading the same today-scoped /api/matches query as the session snapshot. Moved here 2026-09-24: first tried as the right 1/3 of the 'Playing as' strip (reverted), then the Lobby Rank header (Competitive-only, so hidden in QP). Hero Advisor shows in every mode. Rows hold 10 dots each, so game 11 starts a second row; past 20 games the dots shrink. Never scrolls.",
+          "description": "Top-right of the Hero Advisor card's header, with a small 'Today' label to its left. Shows today's matches as win/loss dots, most recent left, oldest right, reading the same today-scoped /api/matches query as the session snapshot. Moved here 2026-09-24: first tried as the right 1/3 of the 'Playing as' strip (reverted), then the Lobby Rank header (Competitive-only, so hidden in QP). Hero Advisor shows in every mode. Rows hold 10 dots each, so game 11 starts a second row; past 20 games the dots shrink. Never scrolls.",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:1040",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-today-dots-strip\"' client/src/pages/Prematch.tsx"
