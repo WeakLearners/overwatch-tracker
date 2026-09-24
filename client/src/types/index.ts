@@ -258,11 +258,11 @@ export const HEROES: Record<string, string> = {
   Brigitte: 'Support', Cassidy: 'DPS', Doomfist: 'Tank', 'D.Va': 'Tank',
   Echo: 'DPS', Genji: 'DPS', Hanzo: 'DPS', Illari: 'Support',
   'Junker Queen': 'Tank', Junkrat: 'DPS', Juno: 'Support', Kiriko: 'Support', Lifeweaver: 'Support',
-  Lucio: 'Support', Mauga: 'Tank', Mei: 'DPS', Mercy: 'Support',
+  'Lúcio': 'Support', Mauga: 'Tank', Mei: 'DPS', Mercy: 'Support',
   Moira: 'Support', Orisa: 'Tank', Pharah: 'DPS', Ramattra: 'Tank',
   Reaper: 'DPS', Reinhardt: 'Tank', Roadhog: 'Tank', Sigma: 'Tank',
   Sojourn: 'DPS', 'Soldier: 76': 'DPS', Sombra: 'DPS', Symmetra: 'DPS',
-  Torbjorn: 'DPS', Tracer: 'DPS', Venture: 'DPS', Widowmaker: 'DPS',
+  'Torbjörn': 'DPS', Tracer: 'DPS', Venture: 'DPS', Widowmaker: 'DPS',
   Winston: 'Tank', 'Wrecking Ball': 'Tank', Zarya: 'Tank', Zenyatta: 'Support',
   Hazard: 'Tank', Freja: 'DPS',
   // 2025-2026 additions
@@ -273,10 +273,10 @@ export const HEROES: Record<string, string> = {
 
 // Hanaoka and Anubis removed from active rotation indefinitely
 export const MAPS: Record<string, string> = {
-  Aatlis: 'Flashpoint', Antarctica: 'Control',
-  'Blizzard World': 'Hybrid', Busan: 'Control', 'Circuit Royale': 'Escort',
+  Aatlis: 'Flashpoint', 'Antarctic Peninsula': 'Control',
+  'Blizzard World': 'Hybrid', Busan: 'Control', 'Circuit Royal': 'Escort',
   Colosseo: 'Push', Dorado: 'Escort', Eichenwalde: 'Hybrid',
-  Esperanca: 'Push', Gibraltar: 'Escort', Havana: 'Escort',
+  Esperanca: 'Push', 'Watchpoint: Gibraltar': 'Escort', Havana: 'Escort',
   Hollywood: 'Hybrid', 'Ilios': 'Control', 'Junkertown': 'Escort',
   "King's Row": 'Hybrid', 'Lijiang Tower': 'Control', 'Midtown': 'Hybrid',
   'Nepal': 'Control', 'Neon Junction': 'Hybrid',

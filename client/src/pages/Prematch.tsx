@@ -15,6 +15,7 @@ import Odometer from '../components/Odometer';
 import { MOUSE_DPI } from '../lib/aim';
 import RankBadge from '../components/RankBadge';
 import { useFieldConfig } from '../contexts/FieldConfigContext';
+import { useDfHeroes, dfHeroSet, withDfBadge } from '../hooks/useDfHeroes';
 
 // GET /api/blind/next's shape — see server/src/lib/nextTest.ts for what each
 // field means (role pick, stint lock, cold flag). Fetched fresh whenever
@@ -196,6 +197,15 @@ export default function Prematch() {
     : null;
   const mapCounts = useTodayMapCounts();
   const heroCounts = useTodayHeroCounts();
+  // GET /api/df — the Designated Fallback (a role's safe pick when nothing
+  // else fits; never earns test credit, never opens a test set) for each
+  // role. "Select Your Hero" always shows the current role's DF alongside
+  // the phase roster, marked with the same "◆ DF" mark LogMatch and
+  // MatchEditDrawer use (useDfHeroes.ts's withDfBadge) — but it must never
+  // pick up any of the test-only trimmings (glow, stage/chunk badge, gauge)
+  // those rows render, since a DF hero has no test set to show progress on.
+  const dfMap = useDfHeroes();
+  const dfHeroes = dfHeroSet(dfMap);
 
   // Full roster for the CURRENT testing phase, so "Select Your Hero" can show
   // every hero that belongs to this phase — not just the ones still actively
@@ -432,22 +442,41 @@ export default function Prematch() {
   // no collapsed overflow bucket. topOnMap only has rows for heroes with at
   // least one logged game on this exact map, so an active-test hero with zero
   // games here needs a synthetic zero-row or it'd silently vanish.
+  // The role's DF (if any — Support has none), as a HeroRow: its real
+  // stats-on-this-map if it has any, otherwise a synthetic zero row exactly
+  // like the phase roster's own zero-game heroes above.
+  function dfRow(role: string): HeroRow | null {
+    const hero = dfMap[role]?.hero;
+    if (!hero) return null;
+    return topOnMap.find(h => h.role === role && h.hero === hero)
+      ?? { hero, role, games: 0, wins: 0, win_rate: 0 };
+  }
   function buildRole(role: string) {
+    const df = dfRow(role);
     if (isQP) {
-      return topOnMap.filter(h => h.role === role).slice(0, 3); // already win_rate desc
+      const base = topOnMap.filter(h => h.role === role).slice(0, 3); // already win_rate desc
+      if (df && !base.some(h => h.hero === df.hero)) base.push(df);
+      return base;
     }
     const onMap = topOnMap.filter(h => h.role === role && selectableHeroes.has(h.hero)); // already win_rate desc
     const onMapSet = new Set(onMap.map(h => h.hero));
     const zeroGame = [...selectableHeroes]
       .filter(h => HEROES[h] === role && !onMapSet.has(h))
       .map(hero => ({ hero, role, games: 0, wins: 0, win_rate: 0 }));
-    return [...onMap, ...zeroGame];
+    const result = [...onMap, ...zeroGame];
+    if (df && !result.some(h => h.hero === df.hero)) result.push(df);
+    return result;
   }
   const byRole = {
     DPS:     buildRole('DPS'),
     Support: buildRole('Support'),
   };
-  const showHeroPicker = isQP ? (byRole.DPS.length > 0 || byRole.Support.length > 0) : selectableHeroes.size > 0;
+  // "Always included" (see dfRow above) has to hold even when nothing else
+  // would otherwise put a row on screen — e.g. no phase currently active, so
+  // selectableHeroes is empty — or the panel below stays empty-state-hidden
+  // and the DF hero never actually renders despite being "in" byRole.
+  const hasDf = Object.keys(dfMap).length > 0;
+  const showHeroPicker = isQP ? (byRole.DPS.length > 0 || byRole.Support.length > 0) : (selectableHeroes.size > 0 || hasDf);
   // Recommended pick panel (no-map state): the hottest-trending DPS + Support
   // pick instead of the single overall-best-win-rate hero — "trending" means
   // biggest recent(30d)-vs-prior(90d) win-rate climb, per /api/stats/momentum,
@@ -1350,7 +1379,8 @@ export default function Prematch() {
                       const clickIndex = clickedHeroes.indexOf(h.hero);
                       const isClicked = clickIndex !== -1;
                       const sensTag = pickerSensFor(h.hero);
-                      const isTestHero = h.hero === testHero;
+                      const isDfHero = dfHeroes.has(h.hero);
+                      const isTestHero = h.hero === testHero && !isDfHero;
                       return (
                       // role="button" rather than a real <button> because the
                       // row now nests its own "start next phase" button, and a
@@ -1397,7 +1427,7 @@ export default function Prematch() {
                         )}
                         <span className={`text-sm ${h.win_rate >= 50 ? 'text-emerald-700' : 'text-red-500'}`}>{h.win_rate >= 50 ? '↑' : '↓'}</span>
                         <span className={`flex-1 text-xs hero-name transition-colors ${isClicked ? 'text-ow-accent' : 'text-[var(--ink)] group-hover:text-ow-accent'}`}>
-                          {withHeroCount(h.hero, heroCounts)}
+                          {isDfHero ? withDfBadge(withHeroCount(h.hero, heroCounts), dfMap, h.hero) : withHeroCount(h.hero, heroCounts)}
                           {sensTag && (
                             <span
                               className={sensTag.settled ? 'text-emerald-700 dark:text-emerald-400' : undefined}
@@ -1410,7 +1440,7 @@ export default function Prematch() {
                             </span>
                           )}
                         </span>
-                        {testGaugeFor(h.hero) != null ? (
+                        {!isDfHero && testGaugeFor(h.hero) != null ? (
                           <span
                             // Chunked gauge bars are 1px wider than w-1 and 1px
                             // further apart than gap-0.5, so the gauge is about
@@ -1483,7 +1513,7 @@ export default function Prematch() {
                               ))
                             )}
                           </span>
-                        ) : doneThisPhase.has(h.hero) && (
+                        ) : !isDfHero && doneThisPhase.has(h.hero) && (
                           // No active test right now, but this hero belongs to the
                           // current phase's roster and has already finished it —
                           // shown so Sean can see the whole phase at a glance,

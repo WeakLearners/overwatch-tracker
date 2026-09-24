@@ -24,10 +24,13 @@ export function dfSensForHeroName(hero: string, df: DfMap): number | undefined {
   return Object.values(df).find(d => d.hero === hero)?.sens;
 }
 
-// Appends a small "· DF" badge to an already-formatted hero label (e.g. one
+// Appends a small "◆ DF" badge to an already-formatted hero label (e.g. one
 // that already carries the "(N) today" count suffix) — `hero` is the plain
 // hero name used to check df_heroes, kept separate from `label` so callers
-// don't have to un-format their own display string first.
+// don't have to un-format their own display string first. The diamond glyph
+// (rather than a mid-dot) is what distinguishes a DF pick from a regular
+// hero at a glance app-wide — LogMatch, MatchEditDrawer, and Prematch's
+// hero picker all render the same mark through this one function.
 export function withDfBadge(label: string, df: DfMap, hero: string): string {
-  return dfHeroSet(df).has(hero) ? `${label} · DF` : label;
+  return dfHeroSet(df).has(hero) ? `${label} ◆ DF` : label;
 }

@@ -50,7 +50,7 @@ describe('getDb() path isolation', () => {
 
   test('closeDb() clears the singleton so the next getDb() call can open a different path', () => {
     const dbA = getDb(tmpPath);
-    dbA.exec(`INSERT INTO matches (date, hero, role, map, game_type, win) VALUES ('2026-01-01', 'Ashe', 'DPS', 'Circuit Royale', 'comp', 1)`);
+    dbA.exec(`INSERT INTO matches (date, hero, role, map, game_type, win) VALUES ('2026-01-01', 'Ashe', 'DPS', 'Circuit Royal', 'comp', 1)`);
     closeDb();
 
     const tmpPath2 = `${tmpPath}.second`;
