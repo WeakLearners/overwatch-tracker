@@ -519,6 +519,20 @@
       0 0 18px 4px rgb(var(--sel) / 0.32),
       0 8px 22px -6px rgb(var(--sel) / 0.5);
   }
+  /* Log Match's mode box: the same light-theme fill and inner glow as
+     .mode-glow, with no outer glow. Dark theme gets html.dark .is-selected
+     as-is, which is inner glow only. */
+  .is-selected.mode-fill {
+    background-image: linear-gradient(
+      to top,
+      rgb(var(--sel) / 0.36),
+      rgb(var(--sel) / 0.17) 55%,
+      rgb(var(--sel) / 0.07)
+    );
+    box-shadow:
+      inset 0 -2px 0 0 rgb(var(--sel) / 0.9),
+      inset 0 -7px 11px -6px rgb(var(--sel) / 0.95);
+  }
   html.dark .is-selected.mode-glow {
     box-shadow: 0 10px 30px -12px rgb(var(--sel) / 0.45);
   }

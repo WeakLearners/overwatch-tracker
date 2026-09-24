@@ -1062,7 +1062,7 @@ export default function LogMatch() {
                       // shared class now owns both.
                       style={active ? ({ '--sel': QUEUE_MODE_SEL_RGB[m.value] } as React.CSSProperties) : undefined}
                       className={`relative overflow-hidden py-2 rounded-lg border-2 text-xs font-semibold leading-tight transition-all ${
-                        active ? `is-selected mode-glow ${c.accent}` : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)]'
+                        active ? `is-selected mode-fill ${c.accent}` : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)]'
                       }`}
                     >
                       {/* V5/V6 digits carry more side-bearing than QP's letters,
