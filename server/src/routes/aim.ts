@@ -6,6 +6,7 @@ import {
 } from '../lib/aim';
 import { getCurveParams, setCurveParams } from '../lib/curveParams';
 import { isStudyQueueMode } from '../lib/blind';
+import { applyPlayTimeCredit } from './matches';
 
 const router = Router();
 
@@ -987,6 +988,10 @@ router.post('/', (req: Request, res: Response) => {
   } else {
     db.prepare('DELETE FROM aim_stats_heroes WHERE match_id = :match_id').run({ match_id });
   }
+  // Per-hero minutes decide who earns the match's test credit (two-thirds
+  // rule, matches.ts's creditHeroFor). This form is where those minutes
+  // first arrive, so the credit is settled here, in the same transaction.
+  applyPlayTimeCredit(db, match_id);
     db.exec('COMMIT');
   } catch (err) {
     db.exec('ROLLBACK');

@@ -595,7 +595,8 @@ function initSchema(db: DatabaseSync) {
 
   // matches_by_hero: one row per (match, hero played) — the hero-attribution
   // view every by-hero stats query reads from instead of `matches` directly,
-  // so a match with a mid-match switch counts toward every hero it touched.
+  // so a match with a mid-match switch counts toward every hero it touched —
+  // except a hero on for 20% of the match or less (cameo rule, below).
   // Recreated on every start (cheap) rather than migrated, so it always
   // reflects whatever columns `matches` currently has. sens comes from
   // match_heroes (per hero), not matches (primary hero only) — see the sens
@@ -607,6 +608,17 @@ function initSchema(db: DatabaseSync) {
            m.created_at, m.deaths, m.queue_mode, mh.sens, m.dpi, m.blind_trial, m.blind_set_id,
            m.rel_pos, m.stage_index, m.revealed, m.feel, m.team_rating, m.notes, mh.slot
     FROM matches m JOIN match_heroes mh ON mh.match_id = m.id
+    LEFT JOIN aim_stats_heroes ash ON ash.match_id = m.id AND ash.hero = mh.hero
+    -- Cameo rule (2026-09-24): a hero played 20% of the match or less takes
+    -- no share of its win/loss. Swapping off a hero a minute in says nothing
+    -- about that hero. Only applies when this hero's minutes are on file.
+    -- A match with no minutes, or a hero with no minutes entered, keeps its
+    -- row: unknown play time is not evidence of a cameo. Integer compare
+    -- (minutes * 5 > total), same reason as creditHeroFor in matches.ts.
+    WHERE ash.duration_min IS NULL
+       OR ash.duration_min * 5 > (
+         SELECT SUM(a2.duration_min) FROM aim_stats_heroes a2 WHERE a2.match_id = m.id
+       )
   `);
 
   // DPI stage-trial sets. Each set is N DPI values (blind_stages: stage_index →

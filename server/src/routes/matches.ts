@@ -356,6 +356,58 @@ router.post('/', (req: Request, res: Response) => {
 // resending the whole record.
 const EDITABLE = ['date', 'time', 'day_of_week', 'hour', 'hero', 'role', 'map', 'game_type', 'win', 'queue_mode', 'sens', 'feel', 'team_rating', 'notes', 'curve_enabled', 'curve_growth_rate', 'curve_midpoint', 'curve_motivity', 'match_quality', 'result_driver', 'leaver', 'leaver_side', 'player_rank', 'player_rank_start', 'lobby_low', 'lobby_high', 'account'] as const;
 
+// Which hero earns this match's test credit — the play-time rule, added
+// 2026-09-24. Credit goes to the hero Sean spent at least two-thirds of the
+// match on, from the per-hero minutes in the Aim Stats form. A 5-minute
+// cameo on the tested hero no longer counts as a game on that sens.
+// Returns the slot-1 hero when no minutes are on file yet (the match is
+// logged before its details, so this is the normal state at insert time),
+// and null when minutes exist but nobody reached two-thirds — a split game
+// credits no one. A Designated Fallback winner also ends up with no credit,
+// since findStageForRecredit refuses every DF hero.
+function creditHeroFor(db: ReturnType<typeof getDb>, matchId: number | string, slot1Hero: string): string | null {
+  const rows = db.prepare('SELECT hero, duration_min FROM aim_stats_heroes WHERE match_id = :id AND duration_min > 0')
+    .all({ id: matchId }) as { hero: string; duration_min: number }[];
+  const total = rows.reduce((a, r) => a + r.duration_min, 0);
+  if (total === 0) return slot1Hero;
+  // Integer compare, not a 0.667 float: 10 of 15 minutes is exactly 2/3 and
+  // must pass, but 10/15 = 0.6666… would fail a >= 0.667 check.
+  const winner = rows.find(r => r.duration_min * 3 >= total * 2);
+  return winner ? winner.hero : null;
+}
+
+// Re-applies the play-time rule after the Aim Stats form saves (aim.ts).
+// Narrower than syncStageCredits on purpose: it moves only the credit, and
+// never re-stamps sens/dpi/curve. An old match's details can be corrected
+// long after its stage has moved on, and those facts describe what was
+// played then. The credited hero keeps its prior credit when it already
+// had one, so a correction can't shift an old match onto today's stage.
+export function applyPlayTimeCredit(db: ReturnType<typeof getDb>, matchId: number | string) {
+  const match = db.prepare('SELECT hero, queue_mode FROM matches WHERE id = :id')
+    .get({ id: matchId }) as { hero: string; queue_mode: string } | undefined;
+  if (!match) return;
+  const oldCredits = db.prepare('SELECT hero, blind_set_id, stage_index FROM blind_credits WHERE match_id = :id')
+    .all({ id: matchId }) as { hero: string; blind_set_id: number; stage_index: number }[];
+  const creditHero = creditHeroFor(db, matchId, match.hero);
+  if (oldCredits.length === 1 && oldCredits[0].hero === creditHero) return;
+  if (oldCredits.length === 0 && creditHero === null) return;
+
+  const prior = creditHero ? oldCredits.find(c => c.hero === creditHero) : undefined;
+  const stage = creditHero
+    ? findStageForRecredit(db, creditHero, isStudyQueueMode(match.queue_mode), prior)
+    : undefined;
+  db.prepare('DELETE FROM blind_credits WHERE match_id = :id').run({ id: matchId });
+  if (stage && creditHero) {
+    db.prepare('INSERT INTO blind_credits (match_id, hero, blind_set_id, stage_index) VALUES (:match_id, :hero, :sid, :si)')
+      .run({ match_id: matchId, hero: creditHero, sid: stage.setId, si: stage.stageIdx });
+  }
+  db.prepare('UPDATE matches SET blind_trial = :bt, blind_set_id = :sid, stage_index = :si WHERE id = :id')
+    .run({ id: matchId, bt: stage ? 1 : 0, sid: stage?.setId ?? null, si: stage?.stageIdx ?? null });
+  const touched = new Set(oldCredits.map(c => c.blind_set_id));
+  if (stage) touched.add(stage.setId);
+  for (const setId of touched) syncSetActive(db, setId);
+}
+
 // Re-derives which stage-test set(s) (if any) a match's current hero roster
 // credits, after an edit changes hero/role/queue_mode/heroes. A match logged
 // mid-test can move onto a different active set, off a test entirely, or
@@ -401,18 +453,23 @@ function syncStageCredits(db: ReturnType<typeof getDb>, matchId: string, sensPro
   let primaryStage: ReturnType<typeof findActiveStage> | undefined;
   let primarySensStage: ReturnType<typeof sensStageFor> | undefined;
   const touchedSets = new Set<number>(oldCredits.map(c => c.blind_set_id));
+  // Which slot is looked up for credit follows the play-time rule
+  // (creditHeroFor above) — without this, any roster edit would hand the
+  // credit straight back to the starting hero.
+  const creditHero = creditHeroFor(db, matchId, match.hero);
+  const creditIdx = creditHero === null ? -1 : heroSlots.findIndex(s => s.hero === creditHero);
   heroSlots.forEach((slot, i) => {
     const sensStage = sensStageFor(db, slot.hero);
-    if (i === 0) {
-      primarySensStage = sensStage;
+    if (i === 0) primarySensStage = sensStage;
+    if (i === creditIdx) {
       const creditStage = findStageForRecredit(db, slot.hero, isCompetitive, oldCreditByHero.get(slot.hero));
       primaryStage = creditStage;
-      if (!creditStage) return;
-      const { changes } = insertCredit.run({ match_id: matchId, hero: slot.hero, blind_set_id: creditStage.setId, stage_index: creditStage.stageIdx });
-      if (changes === 0) return;
-      touchedSets.add(creditStage.setId);
-      return;
+      if (creditStage) {
+        const { changes } = insertCredit.run({ match_id: matchId, hero: slot.hero, blind_set_id: creditStage.setId, stage_index: creditStage.stageIdx });
+        if (changes > 0) touchedSets.add(creditStage.setId);
+      }
     }
+    if (i === 0) return;
     // Slot 1's match_heroes.sens mirrors matches.sens below instead (honoring
     // `sensProvided` — an explicit sens in this same request beats a
     // recomputed stage for the primary hero). Slots 2/3 have no such manual-
