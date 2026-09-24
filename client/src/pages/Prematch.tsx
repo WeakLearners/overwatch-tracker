@@ -1024,38 +1024,31 @@ export default function Prematch() {
               <h2 className="text-sm card-title whitespace-nowrap">Hero Advisor</h2>
               <span className="text-xs text-[var(--faint)] bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">pick a map</span>
             </div>
-            <div className="flex items-center gap-3 min-w-0">
-              {/* Today's matches as win/loss dots, oldest left, most recent
-                  right. Moved here 2026-09-24 — first tried on the "Playing
-                  as" strip, then Lobby Rank, which is Competitive-only. This
-                  card shows in every mode. Same `today` query as the session
-                  snapshot, so "today" means one thing on this page. No
-                  scrolling: past a modest count the dots shrink and wrap
-                  (no-scroll-in-cards rule). */}
-              <div className="min-w-0 flex items-center gap-2" data-inspect-id="prematch-today-dots-strip">
-                <span className="text-[10px] uppercase tracking-wider text-[var(--faint-2)] shrink-0">Today</span>
-                {todayRows.length === 0 ? (
-                  <span className="text-[10px] text-[var(--faint-2)] whitespace-nowrap">no games yet</span>
-                ) : (
-                  <div className="flex flex-wrap items-center justify-end gap-1 min-w-0">
-                    {[...todayRows].reverse().map((r, i) => (
-                      <span
-                        key={i}
-                        data-inspect-id="prematch-today-dot"
-                        title={`${r.win ? 'Win' : 'Loss'} — ${r.hero} on ${r.map}`}
-                        aria-label={`${r.win ? 'Win' : 'Loss'}, ${r.hero} on ${r.map}`}
-                        className={`inline-block rounded-full shrink-0 ${
-                          todayRows.length > 40 ? 'w-1 h-1' : todayRows.length > 20 ? 'w-1.5 h-1.5' : 'w-2 h-2'
-                        } ${r.win ? 'bg-emerald-500' : 'bg-rose-500'}`}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-              {map && (
-                <button onClick={() => setMap('')} className="text-xs text-[var(--faint)] hover:text-[var(--ink)] transition-colors" data-inspect-id="prematch-hero-advisor-clear-button">
-                  clear
-                </button>
+            {/* Today's matches as win/loss dots, oldest left, most recent
+                right. Moved here 2026-09-24 — first tried on the "Playing
+                as" strip, then Lobby Rank, which is Competitive-only. This
+                card shows in every mode. Same `today` query as the session
+                snapshot, so "today" means one thing on this page. No
+                scrolling: past a modest count the dots shrink and wrap
+                (no-scroll-in-cards rule). */}
+            <div className="min-w-0 flex items-center gap-2" data-inspect-id="prematch-today-dots-strip">
+              <span className="text-[10px] uppercase tracking-wider text-[var(--faint-2)] shrink-0">Today</span>
+              {todayRows.length === 0 ? (
+                <span className="text-[10px] text-[var(--faint-2)] whitespace-nowrap">no games yet</span>
+              ) : (
+                <div className="flex flex-wrap items-center justify-end gap-1 min-w-0">
+                  {[...todayRows].reverse().map((r, i) => (
+                    <span
+                      key={i}
+                      data-inspect-id="prematch-today-dot"
+                      title={`${r.win ? 'Win' : 'Loss'} — ${r.hero} on ${r.map}`}
+                      aria-label={`${r.win ? 'Win' : 'Loss'}, ${r.hero} on ${r.map}`}
+                      className={`inline-block rounded-full shrink-0 ${
+                        todayRows.length > 40 ? 'w-1 h-1' : todayRows.length > 20 ? 'w-1.5 h-1.5' : 'w-2 h-2'
+                      } ${r.win ? 'bg-emerald-500' : 'bg-rose-500'}`}
+                    />
+                  ))}
+                </div>
               )}
             </div>
           </div>
