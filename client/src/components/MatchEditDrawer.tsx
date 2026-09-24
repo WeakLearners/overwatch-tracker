@@ -4,11 +4,27 @@ import { revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { useDfHeroes, withDfBadge } from '../hooks/useDfHeroes';
+import LeaverSliver from './LeaverSliver';
 import {
   HEROES, MAPS, ROLE_COLORS, TYPE_COLORS,
   QUEUE_MODES, QUEUE_MODE_COLORS, QueueMode, TrendPoint,
 } from '../types';
 import { format, parseISO } from 'date-fns';
+
+// Same "blank means unanswered, don't parse it as 0" convention SensLog.tsx's
+// backfill form uses for sens fields.
+const num = (s: string) => (s.trim() === '' ? null : parseFloat(s));
+
+// Full match row, fetched separately from TrendPoint (the chart-derived shape
+// this drawer is opened with) — TrendPoint never carried leaver/leaver_side/
+// sens/blind_trial, so there was nothing to prefill the new controls from
+// until GET /api/matches/:id existed to supply them.
+interface FullMatchRow {
+  leaver: 0 | 1 | null;
+  leaver_side: 'mine' | 'theirs' | null;
+  sens: number | null;
+  blind_trial: 0 | 1 | null;
+}
 
 const HERO_LIST = Object.entries(HEROES).sort((a, b) => a[0].localeCompare(b[0]));
 const MAP_LIST = Object.keys(MAPS).sort();
@@ -32,6 +48,12 @@ interface MatchHero {
   hero: string;
   role: string;
   feel: number | null;
+  sens: number | null;
+  /** True when this exact (match, hero) pair has a blind_credits row — only
+   *  ever slot 1 in practice (2026-09-24: only the starting hero can earn
+   *  test credit), but read off the server's actual join rather than assumed
+   *  here, so the sens-edit warning below stays correct if that rule moves. */
+  credited: boolean;
 }
 
 function DrawerForm({ match }: { match: TrendPoint }) {
@@ -47,6 +69,34 @@ function DrawerForm({ match }: { match: TrendPoint }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   // Slots 2/3 — heroes switched to mid-match. Slot 1 stays on `form.hero` above.
   const [extraHeroes, setExtraHeroes] = useState<string[]>([]);
+  // Editable sens, one field per slot. Strings (not numbers) so a field can
+  // sit blank while being typed, same convention as SensLog's backfill form.
+  // slot1Sens starts '' until the full-row fetch below lands — the Save
+  // button stays disabled on rowLoaded until then so an unfetched '' can
+  // never overwrite a real recorded sens.
+  const [slot1Sens, setSlot1Sens] = useState('');
+  const [slot1OriginalSens, setSlot1OriginalSens] = useState<number | null>(null);
+  const [slot1Credited, setSlot1Credited] = useState(false);
+  const [extraSens, setExtraSens] = useState<string[]>([]);
+  const [extraOriginalSens, setExtraOriginalSens] = useState<(number | null)[]>([]);
+  const [extraCredited, setExtraCredited] = useState<boolean[]>([]);
+  // The hero names slots 2/3 were loaded with — save() compares against this
+  // to decide whether the roster itself changed. Only a real roster change
+  // sends `heroes` (a full replace slots>1 endpoint, which recomputes each
+  // extra slot's sens off its active stage same as it always has); a pure
+  // sens correction sends `heroSens` instead, which never touches the roster
+  // or re-runs that recompute — see save() below for why this split exists.
+  const [originalExtraHeroNames, setOriginalExtraHeroNames] = useState<string[]>([]);
+  // Leaver — same sliver control as LogMatch, prefilled from the match's
+  // current leaver/leaver_side. `leaverUnknown` covers a historical row
+  // logged before leaver_side existed (leaver=1, side never recorded): both
+  // slivers render unselected and the label says so, but this must NOT be
+  // read as "no leaver was chosen" — Save only clears it if the user
+  // actually taps a sliver (see the label logic in LeaverSliver and the
+  // save() payload below).
+  const [leaverSide, setLeaverSide] = useState<'mine' | 'theirs' | null>(null);
+  const [leaverUnknown, setLeaverUnknown] = useState(false);
+  const [rowLoaded, setRowLoaded] = useState(false);
   const mapCounts = useTodayMapCounts();
   const heroCounts = useTodayHeroCounts();
   const dfMap = useDfHeroes();
@@ -58,42 +108,129 @@ function DrawerForm({ match }: { match: TrendPoint }) {
       .then(data => {
         if (cancelled) return;
         const rows = (data.rows ?? []) as MatchHero[];
-        setExtraHeroes(rows.slice(1).map(h => h.hero));
+        const extras = rows.slice(1);
+        setExtraHeroes(extras.map(h => h.hero));
+        setOriginalExtraHeroNames(extras.map(h => h.hero));
+        setExtraSens(extras.map(h => (h.sens != null ? String(h.sens) : '')));
+        setExtraOriginalSens(extras.map(h => h.sens));
+        setExtraCredited(extras.map(h => h.credited));
+        const slot1 = rows[0];
+        if (slot1) setSlot1Credited(slot1.credited);
       })
-      .catch(() => { if (!cancelled) setExtraHeroes([]); });
+      .catch(() => { if (!cancelled) { setExtraHeroes([]); setExtraSens([]); setExtraOriginalSens([]); setExtraCredited([]); } });
+    return () => { cancelled = true; };
+  }, [match.id]);
+
+  // Full match row — carries leaver/leaver_side/sens/blind_trial, none of
+  // which TrendPoint (what this drawer is opened with) includes.
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/matches/${match.id}`)
+      .then(res => res.json())
+      .then(data => {
+        if (cancelled) return;
+        const row = data.row as FullMatchRow | undefined;
+        if (!row) return;
+        setSlot1Sens(row.sens != null ? String(row.sens) : '');
+        setSlot1OriginalSens(row.sens);
+        setLeaverSide(row.leaver_side ?? null);
+        setLeaverUnknown(!!row.leaver && row.leaver_side == null);
+        setRowLoaded(true);
+      })
+      .catch(() => { if (!cancelled) setRowLoaded(true); });
     return () => { cancelled = true; };
   }, [match.id]);
 
   function addHero() {
     setExtraHeroes(prev => (prev.length >= 2 ? prev : [...prev, HERO_LIST[0][0]]));
+    setExtraSens(prev => (prev.length >= 2 ? prev : [...prev, '']));
+    setExtraOriginalSens(prev => (prev.length >= 2 ? prev : [...prev, null]));
+    setExtraCredited(prev => (prev.length >= 2 ? prev : [...prev, false]));
   }
   function updateHero(i: number, hero: string) {
     setExtraHeroes(prev => prev.map((h, idx) => (idx === i ? hero : h)));
   }
+  function updateExtraSens(i: number, v: string) {
+    setExtraSens(prev => prev.map((s, idx) => (idx === i ? v : s)));
+  }
   function removeHero(i: number) {
     setExtraHeroes(prev => prev.filter((_, idx) => idx !== i));
+    setExtraSens(prev => prev.filter((_, idx) => idx !== i));
+    setExtraOriginalSens(prev => prev.filter((_, idx) => idx !== i));
+    setExtraCredited(prev => prev.filter((_, idx) => idx !== i));
+  }
+  // Positive-number check only — same bound SensLog/blind.ts use (`> 0`),
+  // no invented upper cap.
+  const sensValid = (s: string) => { const n = num(s); return n == null || n > 0; };
+  function toggleLeaver(side: 'mine' | 'theirs') {
+    // Any tap resolves the "unknown historical side" case into a normal
+    // mine/theirs pick — see the leaverUnknown comment above.
+    setLeaverUnknown(false);
+    setLeaverSide(prev => (prev === side ? null : side));
   }
 
   const heroRole = form.hero ? HEROES[form.hero] : '';
   const mapType = form.map ? MAPS[form.map] : '';
 
+  // A real roster change (hero added/removed/swapped in slots 2/3) — as
+  // opposed to just correcting a sens value on the same heroes already
+  // there. Only this case sends `heroes` below.
+  const extraRosterChanged =
+    extraHeroes.length !== originalExtraHeroNames.length ||
+    extraHeroes.some((h, i) => h !== originalExtraHeroNames[i]);
+
   async function save() {
     setStatus('saving');
     try {
+      const body: Record<string, unknown> = {
+        date: form.date,
+        day_of_week: getDayOfWeek(form.date),
+        hero: form.hero,
+        role: heroRole,
+        map: form.map,
+        game_type: mapType,
+        win: form.win,
+        queue_mode: form.queue_mode,
+        // Slot 1's sens is always sent, current-value or not (RULES: "the
+        // drawer always sends the current per-slot sens") — that's what lets
+        // the server's existing `sensProvided` check keep a hand-edited value
+        // even when this same save also changes hero/queue_mode and would
+        // otherwise re-stamp it from the active stage.
+        sens: num(slot1Sens),
+        // 0/1, not a boolean — PUT's generic field writer (matches.ts's
+        // EDITABLE loop) only coerces `win`, so a raw boolean here reaches
+        // better-sqlite3 and throws. POST's own insert path converts
+        // booleans itself, which is why LogMatch's `leaver: leaverSide !==
+        // null` works there but the same value would 500 through PUT.
+        leaver: leaverUnknown ? 1 : (leaverSide !== null ? 1 : 0),
+        leaver_side: leaverUnknown ? null : leaverSide,
+      };
+      if (extraRosterChanged) {
+        // Roster actually changed — full replace, same as before this
+        // feature existed. Each entry's own sens rides along, but a stage
+        // recompute can still override it for a hero under an active test
+        // (existing behavior, unchanged here — see syncStageCredits).
+        body.heroes = extraHeroes.map((h, i) => {
+          const sensNum = num(extraSens[i]);
+          return sensNum != null ? { hero: h, role: HEROES[h], sens: sensNum } : { hero: h, role: HEROES[h] };
+        });
+      } else if (extraHeroes.length > 0) {
+        // Roster unchanged — correct sens only, through the same
+        // hero-keyed `heroSens` the /sens backfill form uses. This path
+        // never touches match_heroes' hero/role, never sends `heroes`, so
+        // heroesProvided/rosterChanged stay false and syncStageCredits never
+        // runs — nothing recomputes the value straight back out.
+        const heroSens: Record<string, number> = {};
+        extraHeroes.forEach((h, i) => {
+          const n = num(extraSens[i]);
+          if (n != null) heroSens[h] = n;
+        });
+        if (Object.keys(heroSens).length > 0) body.heroSens = heroSens;
+      }
       const res = await fetch(`/api/matches/${match.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: form.date,
-          day_of_week: getDayOfWeek(form.date),
-          hero: form.hero,
-          role: heroRole,
-          map: form.map,
-          game_type: mapType,
-          win: form.win,
-          queue_mode: form.queue_mode,
-          heroes: extraHeroes.map(h => ({ hero: h, role: HEROES[h] })),
-        }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error('Failed');
       revalidateAll();
@@ -159,37 +296,81 @@ function DrawerForm({ match }: { match: TrendPoint }) {
         </select>
         {heroRole && <span data-inspect-id="matchEditDrawer-hero-role-badge" className={`pill mt-1.5 ${ROLE_COLORS[heroRole]}`}>{heroRole}</span>}
 
+        {/* Sens — the in-game sensitivity this hero was actually recorded at.
+            Editing it never touches test credit (blind_credits/blind_trial/
+            games_on_stage): the server stores whatever's sent here as-is
+            rather than recomputing it from the active stage, same as an
+            explicit sens has always beaten a recomputed one on this endpoint
+            (matches.ts's `sensProvided`). The warning below is informational
+            only — it never blocks Save. */}
+        <div className="mt-2">
+          <label className="block text-[10px] text-[var(--faint)] mb-1">Sens — {form.hero || 'slot 1'}</label>
+          <input
+            type="number"
+            step="0.01"
+            min={0.01}
+            value={slot1Sens}
+            onChange={e => setSlot1Sens(e.target.value)}
+            data-inspect-id="matchEditDrawer-slot1-sens-input"
+            className={`w-full field px-3 py-2 text-sm ${!sensValid(slot1Sens) ? 'border-red-500' : ''}`}
+          />
+          {!sensValid(slot1Sens) && <p className="text-[10px] text-red-600 mt-0.5">Sens must be a positive number.</p>}
+          {slot1Credited && slot1OriginalSens != null && num(slot1Sens) !== slot1OriginalSens && (
+            <p data-inspect-id="matchEditDrawer-slot1-sens-credit-warning" className="text-[10px] text-ow-accent mt-0.5">
+              Test game — credit stays on its stage.
+            </p>
+          )}
+        </div>
+
         {extraHeroes.length > 0 && (
           <div data-inspect-id="matchEditDrawer-extra-heroes" className="mt-3 space-y-2">
             <div className="text-[10px] text-[var(--faint)]">Also played (switched mid-match)</div>
             {extraHeroes.map((h, i) => {
               const r = HEROES[h];
+              const sensStr = extraSens[i] ?? '';
               return (
-                <div key={i} className="flex items-center gap-2">
-                  <select
-                    value={h}
-                    onChange={e => updateHero(i, e.target.value)}
-                    data-inspect-id={`matchEditDrawer-extra-hero-select-${i}`}
-                    className="flex-1 field px-3 py-2 text-sm"
-                  >
-                    {(['DPS', 'Tank', 'Support'] as const).map(role => (
-                      <optgroup key={role} label={role}>
-                        {HERO_LIST.filter(([, rr]) => rr === role).map(([hh]) => (
-                          <option key={hh} value={hh} className="uppercase">{withDfBadge(hh, dfMap, hh)}</option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
-                  {r && <span className={`pill ${ROLE_COLORS[r]}`}>{r}</span>}
-                  <button
-                    type="button"
-                    onClick={() => removeHero(i)}
-                    data-inspect-id={`matchEditDrawer-extra-hero-remove-${i}`}
-                    className="text-[var(--faint)] hover:text-red-600 transition-colors text-lg leading-none px-1"
-                    aria-label="Remove hero"
-                  >
-                    ×
-                  </button>
+                <div key={i} className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={h}
+                      onChange={e => updateHero(i, e.target.value)}
+                      data-inspect-id={`matchEditDrawer-extra-hero-select-${i}`}
+                      className="flex-1 field px-3 py-2 text-sm"
+                    >
+                      {(['DPS', 'Tank', 'Support'] as const).map(role => (
+                        <optgroup key={role} label={role}>
+                          {HERO_LIST.filter(([, rr]) => rr === role).map(([hh]) => (
+                            <option key={hh} value={hh} className="uppercase">{withDfBadge(hh, dfMap, hh)}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                    {r && <span className={`pill ${ROLE_COLORS[r]}`}>{r}</span>}
+                    <input
+                      type="number"
+                      step="0.01"
+                      min={0.01}
+                      value={sensStr}
+                      onChange={e => updateExtraSens(i, e.target.value)}
+                      placeholder="Sens"
+                      data-inspect-id={`matchEditDrawer-extra-hero-sens-input-${i}`}
+                      className={`w-24 field px-2 py-2 text-sm ${!sensValid(sensStr) ? 'border-red-500' : ''}`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeHero(i)}
+                      data-inspect-id={`matchEditDrawer-extra-hero-remove-${i}`}
+                      className="text-[var(--faint)] hover:text-red-600 transition-colors text-lg leading-none px-1"
+                      aria-label="Remove hero"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  {extraCredited[i] && extraOriginalSens[i] != null && num(sensStr) !== extraOriginalSens[i] && (
+                    <p data-inspect-id={`matchEditDrawer-extra-hero-sens-credit-warning-${i}`} className="text-[10px] text-ow-accent">
+                      Test game — credit stays on its stage.
+                    </p>
+                  )}
                 </div>
               );
             })}
@@ -241,6 +422,17 @@ function DrawerForm({ match }: { match: TrendPoint }) {
             </button>
           ))}
         </div>
+        {/* Leaver — same sliver control LogMatch uses, extracted into
+            LeaverSliver.tsx so both stay in sync. `leaverUnknown` covers a
+            row logged before leaver_side existed (see the state comment
+            above) — neither sliver lights up, and the label says the side
+            was never recorded rather than implying "no leaver." */}
+        <LeaverSliver
+          value={leaverSide}
+          onToggle={toggleLeaver}
+          unknown={leaverUnknown}
+          dataInspectPrefix="matchEditDrawer-leaver-side"
+        />
       </div>
 
       {/* Date */}
@@ -259,7 +451,11 @@ function DrawerForm({ match }: { match: TrendPoint }) {
         <button
           type="button"
           onClick={save}
-          disabled={status === 'saving' || !form.hero || !form.map}
+          disabled={
+            status === 'saving' || !form.hero || !form.map || !rowLoaded ||
+            slot1Sens.trim() === '' || !sensValid(slot1Sens) ||
+            extraSens.some(s => !sensValid(s))
+          }
           data-inspect-id="matchEditDrawer-save-button"
           className="btn-primary w-full py-2.5 text-sm"
         >

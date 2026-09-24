@@ -553,3 +553,94 @@ describe('GET /api/blind/sets/:id — switched-out rate per stage', () => {
     assert.equal(stage1.switchedOutRate, 0);
   });
 });
+
+// ── MatchEditDrawer: leaver + per-slot sens edits ───────────────────────────
+// Added alongside the drawer's new Leaver control and per-hero-slot sens
+// inputs (2026-09-24). The drawer's own logic (which fields to send, and
+// when) lives client-side — these tests pin the server contract it depends
+// on: PUT only ever touches the columns actually present in its body, an
+// explicit sens is stored as sent rather than recomputed, and a sens edit
+// never reaches into blind_credits.
+describe('MatchEditDrawer: leaver set/clear via PUT', () => {
+  test('a PUT can set leaver from unanswered to true with a side', async () => {
+    const id = await logMatch({ hero: 'Ashe', role: 'Damage' });
+    assert.equal((await h.put(`/api/matches/${id}`, { leaver: 1, leaver_side: 'mine' })).status, 200);
+    const row = h.db.prepare('SELECT leaver, leaver_side FROM matches WHERE id = ?').get(id) as { leaver: number; leaver_side: string | null };
+    assert.equal(row.leaver, 1);
+    assert.equal(row.leaver_side, 'mine');
+  });
+
+  test('a PUT can clear leaver back to false, wiping the side', async () => {
+    const id = await logMatch({ hero: 'Ashe', role: 'Damage', leaver: true, leaver_side: 'theirs' });
+    assert.equal((await h.put(`/api/matches/${id}`, { leaver: 0, leaver_side: null })).status, 200);
+    const row = h.db.prepare('SELECT leaver, leaver_side FROM matches WHERE id = ?').get(id) as { leaver: number; leaver_side: string | null };
+    assert.equal(row.leaver, 0);
+    assert.equal(row.leaver_side, null);
+  });
+});
+
+describe('MatchEditDrawer: a historical unknown-side leaver row survives an unrelated PUT', () => {
+  test('leaver_side stays NULL when a PUT touches only an unrelated field', async () => {
+    const id = await logMatch({ hero: 'Ashe', role: 'Damage', leaver: true, leaver_side: 'mine' });
+    // Simulate a pre-migration row: leaver=1, side never recorded.
+    h.db.prepare('UPDATE matches SET leaver_side = NULL WHERE id = ?').run(id);
+
+    // The drawer's "unknown historical" case never taps a sliver, so it must
+    // not send leaver/leaver_side at all when the user only corrects the map —
+    // this is the server-side half of that contract: fields not present in
+    // the body are never touched.
+    assert.equal((await h.put(`/api/matches/${id}`, { map: 'Ilios', game_type: 'control' })).status, 200);
+
+    const row = h.db.prepare('SELECT leaver, leaver_side FROM matches WHERE id = ?').get(id) as { leaver: number; leaver_side: string | null };
+    assert.equal(row.leaver, 1, 'leaver=1 must survive untouched');
+    assert.equal(row.leaver_side, null, 'the unknown side must not be silently filled in');
+  });
+});
+
+describe('MatchEditDrawer: per-slot sens edits are stored as sent, not re-stamped', () => {
+  test('slot 1: an explicit sens PUT is stored even with no roster change', async () => {
+    await makeSet({ hero: 'Ashe', senses: [2.0, 3.0] });
+    const id = await logMatch({ hero: 'Ashe', role: 'DPS' });
+    assert.equal(matchRow(id).sens, 2.0);
+
+    assert.equal((await h.put(`/api/matches/${id}`, { sens: 2.75 })).status, 200);
+
+    assert.equal(matchRow(id).sens, 2.75);
+    assert.deepEqual(heroSlots(id), [{ slot: 1, hero: 'Ashe', sens: 2.75 }]);
+  });
+
+  test('slot 2: heroSens stores an explicit correction without touching hero/role', async () => {
+    const id = await logMatch({ hero: 'Ashe', role: 'DPS', heroes: [{ hero: 'Cassidy', role: 'DPS', sens: 5.0 }] });
+    assert.equal((await h.put(`/api/matches/${id}`, { heroSens: { Cassidy: 6.5 } })).status, 200);
+
+    assert.deepEqual(heroSlots(id), [
+      { slot: 1, hero: 'Ashe', sens: null },
+      { slot: 2, hero: 'Cassidy', sens: 6.5 },
+    ]);
+  });
+
+  test('a sens-only edit never touches blind_credits', async () => {
+    const setId = await makeSet({ hero: 'Ashe', senses: [2.0, 3.0] });
+    const id = await logMatch({ hero: 'Ashe', role: 'DPS' });
+    const before = credits(id);
+    assert.deepEqual(before, [{ hero: 'Ashe', blind_set_id: setId, stage_index: 1 }]);
+
+    assert.equal((await h.put(`/api/matches/${id}`, { sens: 2.75 })).status, 200);
+
+    assert.deepEqual(credits(id), before, 'the credit row is untouched by a sens-only edit');
+  });
+
+  test('an unrelated field edit after a sens correction does not re-stamp it back', async () => {
+    await makeSet({ hero: 'Ashe', senses: [2.0, 3.0] });
+    const id = await logMatch({ hero: 'Ashe', role: 'DPS' });
+    assert.equal((await h.put(`/api/matches/${id}`, { sens: 2.75 })).status, 200);
+    assert.equal(matchRow(id).sens, 2.75);
+
+    // Map/game_type are not roster fields — this must not re-run
+    // syncStageCredits and must not restamp sens back to the active stage's
+    // 2.0.
+    assert.equal((await h.put(`/api/matches/${id}`, { map: 'Ilios', game_type: 'control' })).status, 200);
+
+    assert.equal(matchRow(id).sens, 2.75, 'an unrelated edit must not silently revert the hand-edited sens');
+  });
+});

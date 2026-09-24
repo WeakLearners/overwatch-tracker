@@ -473,10 +473,32 @@ function syncStageCredits(db: ReturnType<typeof getDb>, matchId: string, sensPro
   }
 }
 
+// A single match's full row — added for MatchEditDrawer.tsx's sens/leaver
+// controls, which need fields (leaver, leaver_side, sens, blind_trial) that
+// the list route's TrendPoint-shaped chart data never carried. Plain
+// SELECT *, same as the list route above.
+router.get('/:id', (req: Request, res: Response) => {
+  const db = getDb();
+  const row = db.prepare('SELECT * FROM matches WHERE id = :id').get({ id: req.params.id }) as Record<string, unknown> | undefined;
+  if (!row) { res.status(404).json({ error: 'Match not found' }); return; }
+  res.json({ row });
+});
+
 router.get('/:id/heroes', (req: Request, res: Response) => {
   const db = getDb();
-  const rows = db.prepare('SELECT hero, role, feel, sens FROM match_heroes WHERE match_id = :id ORDER BY slot')
-    .all({ id: req.params.id }) as Record<string, unknown>[];
+  // `credited` flags whether this slot's hero has a blind_credits row for
+  // THIS match — only ever true for slot 1 (only the starting hero can earn
+  // test credit, see the 2026-09-24 rule threaded through this file), but
+  // computed by an actual join rather than assumed, so it stays honest if
+  // that rule ever changes. MatchEditDrawer's sens-edit warning ("Test game —
+  // credit stays on its stage") reads this instead of duplicating the rule.
+  const creditedHeroes = new Set(
+    (db.prepare('SELECT hero FROM blind_credits WHERE match_id = :id').all({ id: req.params.id }) as { hero: string }[])
+      .map(r => r.hero)
+  );
+  const rows = (db.prepare('SELECT hero, role, feel, sens FROM match_heroes WHERE match_id = :id ORDER BY slot')
+    .all({ id: req.params.id }) as { hero: string; role: string; feel: number | null; sens: number | null }[])
+    .map(r => ({ ...r, credited: creditedHeroes.has(r.hero) }));
   res.json({ rows });
 });
 

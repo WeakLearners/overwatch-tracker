@@ -4,6 +4,7 @@ import { useMatch } from '../contexts/MatchContext';
 import EmptyState from '../components/EmptyState';
 import ModeWatermark from '../components/ModeWatermark';
 import RegistryField from '../components/RegistryField';
+import LeaverSliver from '../components/LeaverSliver';
 import { useApi, revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
@@ -1081,30 +1082,13 @@ export default function LogMatch() {
                   second choice without growing back into a full-size control.
                   Tap the selected side again to clear, same grammar as Match
                   quality / Result driver above. Same amber hue ('245 158 11')
-                  the old checkbox used. */}
-              <div className="grid grid-cols-2 gap-1 mt-1.5" data-inspect-id="logmatch-leaver-side-toggle">
-                {(['mine', 'theirs'] as const).map(side => {
-                  const selected = leaverSide === side;
-                  return (
-                    <button
-                      key={side}
-                      type="button"
-                      onClick={() => setLeaverSide(prev => (prev === side ? null : side))}
-                      aria-pressed={selected}
-                      aria-label={`Leaver on ${side === 'mine' ? 'my' : 'their'} team`}
-                      title={`Leaver — ${side === 'mine' ? 'my team' : 'their team'}`}
-                      data-inspect-id="logmatch-leaver-side-option"
-                      style={{ '--sel': '245 158 11' } as React.CSSProperties}
-                      className={`h-1.5 rounded-full transition-all ${
-                        selected ? 'bg-[rgb(var(--sel))]' : 'bg-ow-border hover:bg-[rgb(var(--sel)/0.4)]'
-                      }`}
-                    />
-                  );
-                })}
-              </div>
-              <div className="text-center text-[9px] text-[var(--faint-2)] mt-1 uppercase tracking-wide" data-inspect-id="logmatch-leaver-side-label">
-                {leaverSide ? `Leaver — ${leaverSide === 'mine' ? 'my team' : 'their team'}` : 'Leaver'}
-              </div>
+                  the old checkbox used. Extracted into LeaverSliver the same
+                  day MatchEditDrawer needed the identical control. */}
+              <LeaverSliver
+                value={leaverSide}
+                onToggle={side => setLeaverSide(prev => (prev === side ? null : side))}
+                dataInspectPrefix="logmatch-leaver-side"
+              />
             </div>
 
             {isFieldEnabled('notes') && (
