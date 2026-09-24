@@ -57,7 +57,7 @@ function ModeTile({ meta, m, selected, onSelect, openHero, lastLog }: {
       // added here because the tile had none and .is-selected sets a colour,
       // which paints nothing without one.
       style={selected ? ({ '--sel': QUEUE_MODE_SEL_RGB[meta.value] } as React.CSSProperties) : undefined}
-      className={`relative overflow-hidden text-left rounded-lg p-4 border-2 transition-all duration-200 mode-tile hover:-translate-x-1 hover:-translate-y-1 ${selected ? `is-selected mode-glow` : `border-transparent ${c.tileDim}`}`}
+      className={`relative overflow-hidden text-left rounded-lg p-4 border-2 transition-all duration-200 mode-tile hover:-translate-x-1 hover:-translate-y-1 ${selected ? `is-selected mode-fill` : `border-transparent ${c.tileDim}`}`}
     >
       {/* 10% larger than the other (selector) watermarks — these tiles are bigger.
           Opacity is left at the component default (15%) even when selected —
