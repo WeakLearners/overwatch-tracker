@@ -34,15 +34,53 @@ fi
 
 # Files that only ever WRITE or round-trip a value back into the entry form.
 # A hit in one of these is not evidence the data is analysed.
+#
+# routes/matches.ts and components/MatchEditDrawer.tsx added 2026-09-24: both
+# are FORM sites, not analysis. routes/matches.ts's readback exists solely so
+# the edit drawer can repopulate a match's current values for editing; before
+# this fix that readback made match_quality/result_driver/lobby_low/
+# lobby_high/team_rating all falsely score "read" even though nothing analyses
+# them. Same audit-false-pass shape as extra_acc/hero_stat_value before the
+# routes/aim.ts split below.
+#
+# lib/fieldRegistry.ts added 2026-09-24: it NAMES columns (one entry per
+# field, `writesTo.columns`) but does not analyze them — a column mentioned
+# only there is exactly as unread as one mentioned only in a comment. See
+# analysis_region() below for how a field's `study` tag is still credited as
+# analysis without crediting the file wholesale.
 is_write_or_form() {
   case "$1" in
     */db/schema.ts|*/db/fixtures.ts) return 0 ;;
     */pages/SensLog.tsx|*/pages/LogMatch.tsx) return 0 ;;
+    */routes/matches.ts|*/components/MatchEditDrawer.tsx) return 0 ;;
+    */lib/fieldRegistry.ts) return 0 ;;
     # Entry-form CONFIG (which slot a hero shows, what it's called). Names
     # columns in real code, not comments, but analyses none of them.
     */lib/heroStatLabels.ts) return 0 ;;
     *) return 1 ;;
   esac
+}
+
+# GET /api/stats/split?by=<field> (routes/stats.ts + lib/statsInsights.ts's
+# computeFieldSplit, added 2026-09-24) reads its column generically off
+# whatever `by` resolves to in the registry — there is no per-column literal
+# for grep to find there, by design (routes/stats.ts never interpolates the
+# query param directly). That makes the split invisible to this script's
+# grep-based check by construction, not by a gap in the check. Treat a
+# registry `study` tag itself as the analysis site: a tagged field IS
+# analyzed, via /api/stats/split, even though no file names that field's
+# column outside the registry entry that tags it.
+has_study_tag() {
+  awk -v col="$1" '
+    BEGIN { target = "\047" col "\047" }
+    /^  \{$/ { rec="" }
+    { rec = rec "\n" $0 }
+    /^  \},$/ {
+      if (index(rec, "columns:") && index(rec, target) && index(rec, "study:")) found=1
+      rec=""
+    }
+    END { exit !found }
+  ' server/src/lib/fieldRegistry.ts
 }
 
 # Prints the region of a file that counts as ANALYSIS, with comment lines
@@ -104,6 +142,10 @@ for table in "${TABLES[@]}"; do
         analysis_sites="$analysis_sites $f"
       fi
     done
+
+    if [ "$table" = "matches" ] && has_study_tag "$col"; then
+      analysis_sites="$analysis_sites lib/fieldRegistry.ts(study-tag→/api/stats/split)"
+    fi
 
     if [ -z "$analysis_sites" ]; then
       printf "  %-22s ${red}WRITE-ONLY${off}     (no reader outside schema/fixtures/entry form)\n" "$col"

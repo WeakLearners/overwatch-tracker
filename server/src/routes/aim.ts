@@ -217,6 +217,12 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
            m.curve_enabled, m.curve_growth_rate, m.curve_midpoint, m.curve_motivity, m.curve_lut,
            ah.overall_acc, ah.crit_acc, ah.extra_acc, ah.duration_min AS hero_duration_min,
            a.hero_stat_label, a.hero_stat_value, m.hero AS primary_hero, a.created_at,
+           -- Labelling only (2026-09-24) — carried onto each point object
+           -- below so a consumer can see/filter on it later. No fit, filter,
+           -- bucket, or exclusion in this function reads these; whether
+           -- leaver games get excluded from the study is a separate decision
+           -- Sean hasn't made.
+           m.leaver, m.leaver_side,
            -- Output stats. All live on aim_stats, which is one row per MATCH,
            -- so like hero_stat_value they describe the primary hero and are
            -- attributed below rather than shared across a switched match.
@@ -237,6 +243,7 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
     deaths: number | null; assists: number | null; final_blows: number | null;
     hero_duration_min: number | null; match_duration_min: number | null;
     feel: number | null; created_at: string; date: string;
+    leaver: 0 | 1 | null; leaver_side: 'mine' | 'theirs' | null;
   }[];
 
   // Sean's decision 2026-09-23: 469 blind_credits rows written under the old
@@ -717,6 +724,9 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
         date: p.date, hero: p.hero, win: p.win,
         eDPI: eDPI(p.sens, p.dpi ?? MOUSE_DPI),
         cm360: p.scaleBucket, delta: p.delta,
+        // Labelling only (2026-09-24) — see the rowsUnfiltered query's
+        // comment above. Not read by any fit/filter/bucket in this file.
+        leaver: p.leaver, leaverSide: p.leaver_side,
       })),
     // byScale itself stays UNFILTERED — every scale is shown, including thin
     // ones (the client greys them out and labels them). Only the curve fits

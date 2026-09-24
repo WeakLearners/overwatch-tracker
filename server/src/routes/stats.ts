@@ -7,9 +7,11 @@ import {
   computeCritAccuracy,
   computeKillSecure,
   computeDayHourWindow,
+  computeFieldSplit,
   formatHour,
   PerfFeatureKey,
 } from '../lib/statsInsights';
+import { fieldById } from '../lib/fieldRegistry';
 
 const router = Router();
 
@@ -22,6 +24,29 @@ function whereClause(q: Record<string, string>): [string, Record<string, string>
   if (q.queue_mode) { clauses.push('queue_mode = :queue_mode'); params.queue_mode = q.queue_mode; }
   return [clauses.length ? 'WHERE ' + clauses.join(' AND ') : '', params];
 }
+
+// GET /api/stats/split?by=<registry field id>[&from=&to=&role=&queue_mode=]
+// The generic answer to "does this captured field move with anything" for
+// any field tagged `study` in lib/fieldRegistry.ts (2026-09-24, the
+// field-registry prerequisite to Phase 2 — see modular-tracking-roadmap.md).
+// `by` is looked up against the registry FIRST; only a field with a `study`
+// tag on the `matches` table is accepted, and the actual SQL column comes
+// from that field's own `writesTo.columns[0]` — never the raw query string.
+// Same optional filters as the rest of this file (whereClause above).
+router.get('/split', (req: Request, res: Response) => {
+  const by = (req.query.by as string) ?? '';
+  const field = fieldById(by);
+  if (!field || !field.study || field.writesTo.table !== 'matches') {
+    res.status(400).json({
+      error: `'${by}' is not a whitelisted study field. Only a lib/fieldRegistry.ts field with a 'study' tag on the matches table can be split.`,
+    });
+    return;
+  }
+  const db = getDb();
+  const [where, params] = whereClause(req.query as Record<string, string>);
+  const column = field.writesTo.columns[0];
+  res.json(computeFieldSplit(db, column, field.study.metrics, where, params));
+});
 
 router.get('/overview', (req: Request, res: Response) => {
   const db = getDb();

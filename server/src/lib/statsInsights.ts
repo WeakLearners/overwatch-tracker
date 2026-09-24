@@ -256,3 +256,71 @@ export function computeDayHourWindow(db: ReturnType<typeof getDb>) {
   return { reliable: true, best: sorted[0], worst: sorted[sorted.length - 1] };
 }
 
+// ── Generic field split ─────────────────────────────────────────────────────
+// The registry-driven answer to "does this captured field actually move with
+// anything" for any field tagged `study` in lib/fieldRegistry.ts (added
+// 2026-09-24, the field-registry prerequisite to Phase 2 — see
+// modular-tracking-roadmap.md). Before this, each study (aim.ts, this file,
+// nightlyAnalysis.ts) had to hand-write its own query per field; a captured
+// column with no bespoke query for it just sat there. This is that query,
+// written once, parameterized on which column and which metrics.
+//
+// SECURITY NOTE: `column` is interpolated directly into the SQL text below,
+// which is normally exactly what NOT to do with a request-derived value.
+// It's safe ONLY because the caller (routes/stats.ts's GET /split) never
+// passes through the raw query string — it looks the requested field up in
+// FIELD_REGISTRY first and only calls this function with that field's own
+// `writesTo.columns[0]`, which is a whitelist fixed in code, not user input.
+// Do not call this function with an unvalidated string.
+export interface SplitGroup {
+  value: string | number | null;
+  n: number;
+  win_rate: number | null;
+  n_acc: number;
+  mean_acc: number | null;
+}
+export interface SplitResult {
+  by: string;
+  metrics: ('win_rate' | 'accuracy')[];
+  unasked: number;
+  groups: SplitGroup[];
+}
+export function computeFieldSplit(
+  db: ReturnType<typeof getDb>,
+  column: string,
+  metrics: ('win_rate' | 'accuracy')[],
+  where: string,
+  params: Record<string, string>
+): SplitResult {
+  const needsWin = metrics.includes('win_rate');
+  const needsAcc = metrics.includes('accuracy');
+
+  // NULL-means-not-asked, same convention as the `leaver` column comment in
+  // db/schema.ts: rows where the field was never captured are excluded from
+  // the groups and reported separately as `unasked`, not folded into either
+  // side of a split.
+  const whereNull = where ? `${where} AND matches.${column} IS NULL` : `WHERE matches.${column} IS NULL`;
+  const whereValue = where ? `${where} AND matches.${column} IS NOT NULL` : `WHERE matches.${column} IS NOT NULL`;
+
+  const { unasked } = db.prepare(`SELECT COUNT(*) as unasked FROM matches ${whereNull}`)
+    .get(params) as { unasked: number };
+
+  // Accuracy = aim_stats_heroes.overall_acc for the match's PRIMARY hero only
+  // (ash.hero = matches.hero) — a mid-match switch's other heroes are a
+  // different question this split isn't asking.
+  const groups = db.prepare(`
+    SELECT matches.${column} as value,
+      COUNT(*) as n,
+      ${needsWin ? 'ROUND(AVG(matches.win)*100,1)' : 'NULL'} as win_rate,
+      ${needsAcc ? 'COUNT(ash.overall_acc)' : '0'} as n_acc,
+      ${needsAcc ? 'ROUND(AVG(ash.overall_acc),1)' : 'NULL'} as mean_acc
+    FROM matches
+    ${needsAcc ? 'LEFT JOIN aim_stats_heroes ash ON ash.match_id = matches.id AND ash.hero = matches.hero' : ''}
+    ${whereValue}
+    GROUP BY matches.${column}
+    ORDER BY matches.${column}
+  `).all(params) as unknown as SplitGroup[];
+
+  return { by: column, metrics, unasked, groups };
+}
+

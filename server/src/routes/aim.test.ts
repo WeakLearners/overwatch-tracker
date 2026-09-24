@@ -766,4 +766,35 @@ describe('computeAnalysis: curve breakdown (2026-09-17 confound)', () => {
     const r = computeAnalysis(db);
     assert.deepEqual({ ...r.liveCurve }, { smooth: 0.25, input: 14, output: 1.15, lutSteps: 8, lutMaxSpeed: 40, lutPoints: null });
   });
+
+  // 2026-09-24: leaver/leaver_side labelling (see rowsUnfiltered's comment
+  // in aim.ts) — added to computeAnalysis's SELECT and carried onto each
+  // timeline point. No fit/filter/bucket/exclusion reads them; this only
+  // checks the label travels through to the point the study builds.
+  test('timeline points carry leaver/leaverSide, unset rows read null', () => {
+    // delta (and so a timeline entry — see the .filter(delta != null) above
+    // it) needs at least 2 distinct scale buckets for the hero, per
+    // losoDeltas's own leave-one-scale-out requirement. One scale at 2.5,
+    // one at 3.0, MIN_SCALE_N games each.
+    for (let g = 0; g < MIN_SCALE_N; g++) {
+      insertPoint({ date: `2026-09-0${g + 1}`, hero: 'Ashe', sens: 2.5, overallAcc: 40 });
+    }
+    for (let g = 0; g < MIN_SCALE_N; g++) {
+      insertPoint({ date: `2026-09-1${g + 1}`, hero: 'Ashe', sens: 3.0, overallAcc: 50 });
+    }
+    // Mark one match's leaver fields directly — insertMatch's fixture input
+    // doesn't carry leaver/leaver_side (no other suite needs it).
+    const { id } = db.prepare(`SELECT id FROM matches WHERE date = '2026-09-01'`).get() as { id: number };
+    db.prepare(`UPDATE matches SET leaver = 1, leaver_side = 'mine' WHERE id = :id`).run({ id });
+
+    const r = computeAnalysis(db);
+    const marked = r.timeline.find(p => p.date === '2026-09-01') as any;
+    const unmarked = r.timeline.find(p => p.date === '2026-09-02') as any;
+    assert.ok(marked, 'the marked point must survive into the timeline');
+    assert.ok(unmarked, 'the unmarked point must survive into the timeline');
+    assert.equal(marked.leaver, 1);
+    assert.equal(marked.leaverSide, 'mine');
+    assert.equal(unmarked.leaver, null);
+    assert.equal(unmarked.leaverSide, null);
+  });
 });

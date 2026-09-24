@@ -101,6 +101,14 @@ export interface FieldEntry {
   };
   feedsCards: string[];
   defaultOn: boolean;
+  // Optional study tag (added 2026-09-24, prerequisite to Phase 2 — see
+  // modular-tracking-roadmap.md). A field with no `study` tag cannot be
+  // split by GET /api/stats/split — that route's whitelist is exactly "has
+  // a study tag", nothing more. Tagging a field here doesn't change what it
+  // does today; it only makes it eligible for the generic split. A field
+  // left untagged needs a stated reason (e.g. lobby_low/lobby_high below,
+  // deferred as a numeric range rather than a category — see the roadmap).
+  study?: { metrics: ('win_rate' | 'accuracy')[] };
 }
 
 export const FIELD_REGISTRY: FieldEntry[] = [
@@ -132,11 +140,12 @@ export const FIELD_REGISTRY: FieldEntry[] = [
     category: 'subjective',
     control: { kind: 'star-rating', max: 5 },
     writesTo: { table: 'matches', columns: ['team_rating'] },
-    // Confirmed by the roadmap's own inventory: write-only today, read
-    // back only for the match-history list, not analyzed anywhere. That's
-    // the declared "capture-only" case data-dependency-check allows.
+    // Was write-only (read back only for the match-history list) until the
+    // 2026-09-24 study-tag pass. Now analyzable via GET /api/stats/split
+    // (?by=team_rating) — split on rounded star value, not a dedicated card.
     feedsCards: [],
     defaultOn: true,
+    study: { metrics: ['win_rate', 'accuracy'] },
   },
   {
     id: 'notes',
@@ -147,7 +156,61 @@ export const FIELD_REGISTRY: FieldEntry[] = [
     feedsCards: [],
     defaultOn: true,
   },
-  // ... 30 more entries, one per remaining column/column-group, added in
+  // Minimal entries added 2026-09-24 as the field-registry prerequisite to
+  // Phase 2 (see modular-tracking-roadmap.md's Phase 2 section). Control
+  // kinds here are placeholders for the study tag only — Phase 2 owns the
+  // real client conversion and may pick a different control shape (e.g. a
+  // dedicated boolean kind for `leaver`, which today's `select` union has
+  // no direct equivalent for).
+  {
+    id: 'leaver',
+    label: 'Someone left the match',
+    category: 'core',
+    control: { kind: 'select', options: ['yes', 'no'] },
+    writesTo: { table: 'matches', columns: ['leaver'] },
+    feedsCards: ['dash-stat-leavers'],
+    defaultOn: true,
+    study: { metrics: ['win_rate', 'accuracy'] },
+  },
+  {
+    id: 'leaver_side',
+    label: 'Which team the leaver was on',
+    category: 'core',
+    control: { kind: 'select', options: ['mine', 'theirs'] },
+    writesTo: { table: 'matches', columns: ['leaver_side'] },
+    feedsCards: ['dash-stat-leavers'],
+    defaultOn: true,
+    study: { metrics: ['win_rate', 'accuracy'] },
+  },
+  {
+    id: 'match_quality',
+    label: 'Match quality',
+    category: 'subjective',
+    control: { kind: 'select', options: ['stomp', 'close'] },
+    writesTo: { table: 'matches', columns: ['match_quality'] },
+    // Was write-only (routes/matches.ts's edit-drawer readback only) until
+    // this pass. Analyzable via GET /api/stats/split?by=match_quality.
+    feedsCards: [],
+    defaultOn: true,
+    study: { metrics: ['win_rate', 'accuracy'] },
+  },
+  {
+    id: 'result_driver',
+    label: 'Who drove the result',
+    category: 'subjective',
+    control: { kind: 'select', options: ['me', 'team'] },
+    writesTo: { table: 'matches', columns: ['result_driver'] },
+    // accuracy ONLY — result_driver records Sean's own read on why the game
+    // was won/lost, so splitting WIN RATE by it is circular (the field is
+    // partly defined by the outcome it would be "predicting"). Accuracy is
+    // an independent measurement, so that split is fine.
+    feedsCards: [],
+    defaultOn: true,
+    study: { metrics: ['accuracy'] },
+  },
+  // lobby_low / lobby_high deliberately NOT tagged: a numeric SR range, not
+  // a category to split rows by. Left for a later decision (roadmap).
+  // ... more entries, one per remaining column/column-group, added in
   // Phase 2. sens/dpi's real registry entry (once Phase 2 decides how to
   // represent a read-only/computed control kind) still belongs to the
   // `mouse-settings` category per the roadmap's inventory table — it's
