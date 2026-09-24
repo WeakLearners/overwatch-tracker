@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { HEROES, MAPS, ROLE_COLORS, ROLE_PILL_CLASS, ROLE_PILL_CLASS_DARK, TYPE_COLORS, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB, MODE_WASH_CLASS, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, rankLabel, clampRank } from '../types';
+import { HEROES, MAPS, ROLE_COLORS, ROLE_PILL_CLASS, ROLE_PILL_CLASS_DARK, TYPE_COLORS, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB, MODE_WASH_CLASS, MODE_COMPACT, OLDEST_DASH_FADE_STYLE } from '../types';
 import { useMatch } from '../contexts/MatchContext';
 import EmptyState from '../components/EmptyState';
 import ModeWatermark from '../components/ModeWatermark';
@@ -11,8 +11,8 @@ import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { useDfHeroes, dfSensForHeroName, withDfBadge } from '../hooks/useDfHeroes';
 import { format } from 'date-fns';
-import RankBadge from '../components/RankBadge';
 import { useFieldConfig } from '../contexts/FieldConfigContext';
+import type { RankOutcomeValue, RankOutcomeChange } from '../components/RankOutcomeControl';
 
 // Shared by the two rank-outcome buttons so they cannot drift apart.
 const btnSmall = 'border border-ow-border rounded-md px-2.5 py-1 text-[11px] font-semibold text-[var(--ink-2)] transition-colors';
@@ -571,20 +571,14 @@ export default function LogMatch() {
   // too), so restricting the list there just gets in the way — every hero
   // is offered instead.
   const isQP = queueMode === 'qp_role';
-  // Has the ladder already been moved for THIS match? rankAtLastLog is where
-  // it stood when the previous match was logged, so a difference means one of
-  // the buttons below has been pressed (or the Pre-Match drum was nudged).
-  // It drives which of the two buttons is live: you cannot promote twice, and
-  // "No change" only has something to undo once something has changed.
-  const rankMoved = playerRank != null && rankAtLastLog != null && playerRank !== rankAtLastLog;
   // Which outcome Sean picked for THIS match. Required before logging, the
   // same as hero and result: a match that moved the ladder and one that did
   // not are different facts, and leaving it unanswered writes "no change"
-  // silently. Null means unanswered, so the button stays disabled.
+  // silently. Null means unanswered, so the button stays disabled. The
+  // promote/demote/no-change render logic itself (rankMoved, rankBase,
+  // rankStep) moved into RankOutcomeControl.tsx during the field-registry
+  // Phase 2 conversion (2026-09-24) — this component still owns the state.
   const [rankOutcome, setRankOutcome] = useState<'moved' | 'none' | null>(null);
-  // Only a loss can demote and only a win can promote, so exactly one
-  // direction is ever on offer. Sean's observation — it halves the control.
-  const rankStep = form.win === '1' ? 1 : -1;
   // Switching the result after answering would leave a promotion standing on
   // a loss. Clear the answer and hand the rank back to where it started.
   const winValue = form.win;
@@ -593,7 +587,6 @@ export default function LogMatch() {
     if (rankAtLastLog != null && playerRank !== rankAtLastLog) setPlayerRank(rankAtLastLog);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [winValue]);
-  const rankBase = rankAtLastLog ?? playerRank;
   const inTestingHeroes = new Set((dpiState?.actives ?? []).map(a => a.hero).filter((h): h is string => !!h));
   const allBlindSets = blindSets?.sets ?? [];
   const currentPhase = [...allBlindSets].reverse().find(s => s.phase)?.phase ?? null;
@@ -815,10 +808,15 @@ export default function LogMatch() {
   // The rank answer is required on a ranked match that has a rank to move.
   // With no rank set there is nothing to choose between, so it does not gate
   // — the row says to go set one instead of trapping the form.
-  const rankAnswered = isQP || playerRank == null || rankOutcome != null;
+  const rankAnswered = isQP || !isFieldEnabled('player_rank') || playerRank == null || rankOutcome != null;
   // Every hero actually played needs an explicit feel answer — an untouched
   // slider must not reach the database at all (see FEEL_MID note above).
-  const feelsAnswered = playedHeroes.length > 0 && playedHeroes.every(feelAnswered);
+  // Bypassed the same way rankAnswered bypasses on QP above: RegistryField
+  // gates the slider itself on `isFieldEnabled('feel')` (the field-registry
+  // Phase 2 conversion, 2026-09-24), so a user with sens-study turned off
+  // sees no slider at all — this form must not then also refuse to let
+  // them submit a match over an answer it never showed them.
+  const feelsAnswered = !isFieldEnabled('feel') || (playedHeroes.length > 0 && playedHeroes.every(feelAnswered));
   const valid = form.hero && map && form.win !== '' && form.date && displaySens != null && rankAnswered && feelsAnswered;
 
   async function submit(e: React.FormEvent) {
@@ -1256,6 +1254,7 @@ export default function LogMatch() {
               </div>
             )}
 
+            {isFieldEnabled('feel') && (
             <div className="space-y-3" data-inspect-id="logmatch-feel-sliders">
               {playedHeroes.map(h => {
                 const heroSens = displaySensForHero(h);
@@ -1269,16 +1268,12 @@ export default function LogMatch() {
                       </span>
                       {!answered && <span className="text-[10px] font-bold text-ow-accent shrink-0">required</span>}
                     </label>
-                    <input
-                      type="range"
-                      min={FEEL_MIN}
-                      max={FEEL_MAX}
-                      step={1}
+                    <RegistryField
+                      field={registryField('feel')!}
                       value={feelFor(h)}
-                      onChange={e => setFeelFor(h, Number(e.target.value))}
-                      className={`w-full accent-ow-accent ${!answered ? 'opacity-50' : ''}`}
-                      aria-label={`Feel — floaty to jittery — ${h}`}
-                      data-inspect-id="logmatch-feel-slider"
+                      onChange={(v) => setFeelFor(h, v as number)}
+                      className={!answered ? 'opacity-50' : ''}
+                      ariaLabel={`Feel — floaty to jittery — ${h}`}
                     />
                     {!answered && <p className="text-[10px] text-[var(--faint-2)] mt-0.5">Not touched yet — drag it to answer. Left alone, this match records no feel for {h} rather than a silent 50.</p>}
                     <div className="flex justify-between text-xs text-[var(--muted)] mt-0.5 px-0.5"><span>Floaty</span><span>Snappy</span><span>Jittery</span></div>
@@ -1286,6 +1281,7 @@ export default function LogMatch() {
                 );
               })}
             </div>
+            )}
 
             {isFieldEnabled('team_rating') && (
               <div>
@@ -1295,48 +1291,28 @@ export default function LogMatch() {
             )}
 
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-[var(--muted)] mb-1.5">Match quality</label>
-                <div className="grid grid-cols-2 gap-2" data-inspect-id="logmatch-match-quality-toggle">
-                  {(['stomp', 'close'] as const).map(v => (
-                    <button
-                      key={v}
-                      type="button"
-                      data-inspect-id="logmatch-match-quality-option"
-                      onClick={() => setMatchQuality(prev => (prev === v ? null : v))}
-                      aria-pressed={matchQuality === v}
-                      className={`text-xs font-semibold py-2 rounded-lg border capitalize transition-colors ${
-                        matchQuality === v
-                          ? 'is-selected text-[var(--ink)]'
-                          : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
-                      }`}
-                    >
-                      {matchQuality === v ? <span className="lit-text">{v}</span> : v}
-                    </button>
-                  ))}
+              {isFieldEnabled('match_quality') && (
+                <div>
+                  <label className="block text-xs text-[var(--muted)] mb-1.5">Match quality</label>
+                  <RegistryField
+                    field={registryField('match_quality')!}
+                    value={matchQuality}
+                    onChange={(v) => setMatchQuality(v as typeof matchQuality)}
+                    dataInspectId="logmatch-match-quality"
+                  />
                 </div>
-              </div>
-              <div>
-                <label className="block text-xs text-[var(--muted)] mb-1.5">Result driver</label>
-                <div className="grid grid-cols-2 gap-2" data-inspect-id="logmatch-result-driver-toggle">
-                  {(['me', 'team'] as const).map(v => (
-                    <button
-                      key={v}
-                      type="button"
-                      data-inspect-id="logmatch-result-driver-option"
-                      onClick={() => setResultDriver(prev => (prev === v ? null : v))}
-                      aria-pressed={resultDriver === v}
-                      className={`text-xs font-semibold py-2 rounded-lg border capitalize transition-colors ${
-                        resultDriver === v
-                          ? 'is-selected text-[var(--ink)]'
-                          : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
-                      }`}
-                    >
-                      {resultDriver === v ? <span className="lit-text">{v}</span> : v}
-                    </button>
-                  ))}
+              )}
+              {isFieldEnabled('result_driver') && (
+                <div>
+                  <label className="block text-xs text-[var(--muted)] mb-1.5">Result driver</label>
+                  <RegistryField
+                    field={registryField('result_driver')!}
+                    value={resultDriver}
+                    onChange={(v) => setResultDriver(v as typeof resultDriver)}
+                    dataInspectId="logmatch-result-driver"
+                  />
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Rank outcome — required, like hero and result.
@@ -1346,58 +1322,16 @@ export default function LogMatch() {
                 The badge is the live server rank, so pressing a button here
                 moves the Pre-Match badge too: rank is one row in
                 player_ranks, not a copy per page. Hidden on quickplay. */}
-            {!isQP && (
-              <div
-                data-inspect-id="logmatch-rank-outcome"
-                className={`rounded-lg border px-3 py-2.5 flex items-center gap-3 transition-colors ${
-                  rankAnswered ? 'border-ow-border bg-ow-darker' : 'border-ow-accent/50 bg-ow-accent/5'
-                }`}
-              >
-                <RankBadge rank={playerRank} size="sm" dataInspectId="logmatch-rank-outcome-badge" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline justify-between gap-2 mb-1.5">
-                    <span className="text-[10px] uppercase tracking-wide text-[var(--faint-2)]">
-                      {account} {testRole}
-                      {rankMoved && <span className="text-ow-accent"> · {rankLabel(rankBase!)} → {rankLabel(playerRank!)}</span>}
-                    </span>
-                    {!rankAnswered && <span className="text-[10px] font-bold text-ow-accent shrink-0">required</span>}
-                  </div>
-                  {playerRank == null ? (
-                    <p className="text-xs text-[var(--faint)]">Set a rank on Pre-Match, or this match records none.</p>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-2" data-inspect-id="logmatch-rank-outcome-toggle">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setRankOutcome('moved');
-                          if (rankBase != null) setPlayerRank(clampRank(rankBase + rankStep));
-                        }}
-                        aria-pressed={rankOutcome === 'moved'}
-                        data-inspect-id="logmatch-rank-outcome-move-btn"
-                        className={`text-xs font-semibold py-1.5 rounded-lg border transition-colors ${
-                          rankOutcome === 'moved'
-                            ? 'is-selected text-[var(--ink)]'
-                            : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
-                        }`}
-                      >{rankOutcome === 'moved' ? <span className="lit-text">{form.win === '1' ? 'Promoted' : 'Demoted'}</span> : (form.win === '1' ? 'Promoted' : 'Demoted')}</button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setRankOutcome('none');
-                          if (rankBase != null) setPlayerRank(rankBase);
-                        }}
-                        aria-pressed={rankOutcome === 'none'}
-                        data-inspect-id="logmatch-rank-outcome-nochange-btn"
-                        className={`text-xs font-semibold py-1.5 rounded-lg border transition-colors ${
-                          rankOutcome === 'none'
-                            ? 'is-selected text-[var(--ink)]'
-                            : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
-                        }`}
-                      >{rankOutcome === 'none' ? <span className="lit-text">No change</span> : 'No change'}</button>
-                    </div>
-                  )}
-                </div>
-              </div>
+            {!isQP && isFieldEnabled('player_rank') && (
+              <RegistryField
+                field={registryField('player_rank')!}
+                value={{ playerRank, rankAtLastLog, rankOutcome, win: form.win, account, testRole } as RankOutcomeValue}
+                onChange={(v) => {
+                  const { rankOutcome: ro, playerRank: pr } = v as RankOutcomeChange;
+                  setRankOutcome(ro);
+                  if (pr != null) setPlayerRank(pr);
+                }}
+              />
             )}
 
             <button

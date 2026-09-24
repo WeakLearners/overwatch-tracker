@@ -1,5 +1,6 @@
 import DeathLogger from './DeathLogger';
 import StarRating from './StarRating';
+import RankOutcomeControl, { RankOutcomeValue, RankOutcomeChange } from './RankOutcomeControl';
 import { useFieldConfig, FieldMeta } from '../contexts/FieldConfigContext';
 
 // The generic field renderer the field registry was built for (see
@@ -21,9 +22,19 @@ interface Props {
   value?: unknown;
   onChange?: (v: unknown) => void;
   placeholder?: string;
+  // Additive, Phase 2 (2026-09-24) — neither breaks an existing call site
+  // that omits them. `className` lets `feel`'s per-hero slider keep its
+  // opacity-50-when-unanswered treatment; `ariaLabel` lets it keep its
+  // per-hero aria-label. `dataInspectId` overrides the field.id-templated
+  // default for a control whose pre-existing id doesn't match that
+  // template (match_quality/result_driver's toggle-pair ids predate the
+  // registry and use hyphens, not the field's own underscore id).
+  className?: string;
+  ariaLabel?: string;
+  dataInspectId?: string;
 }
 
-export default function RegistryField({ field, value, onChange, placeholder }: Props) {
+export default function RegistryField({ field, value, onChange, placeholder, className, ariaLabel, dataInspectId }: Props) {
   const { isFieldEnabled } = useFieldConfig();
   if (!isFieldEnabled(field.id)) return null;
 
@@ -73,8 +84,9 @@ export default function RegistryField({ field, value, onChange, placeholder }: P
           max={field.control.max}
           value={(value as number) ?? field.control.min}
           onChange={(e) => onChange?.(Number(e.target.value))}
-          data-inspect-id={`logmatch-${field.id}-slider`}
-          className="w-full accent-ow-accent"
+          data-inspect-id={dataInspectId ?? `logmatch-${field.id}-slider`}
+          className={`w-full accent-ow-accent ${className ?? ''}`}
+          aria-label={ariaLabel}
         />
       );
 
@@ -91,6 +103,45 @@ export default function RegistryField({ field, value, onChange, placeholder }: P
             <option key={o} value={o}>{o}</option>
           ))}
         </select>
+      );
+
+    // Tap-to-clear two-button grammar shared with Win/Loss and Leaver
+    // (see LogMatch.tsx's comment above the Leaver sliver). Not a real
+    // <select> — `select` above was a Phase 1 placeholder for match_quality
+    // and result_driver until Phase 2 picked their actual control shape.
+    case 'toggle-pair': {
+      const prefix = dataInspectId ?? `logmatch-${field.id}`;
+      return (
+        <div className="grid grid-cols-2 gap-2" data-inspect-id={`${prefix}-toggle`}>
+          {field.control.options.map((v) => {
+            const selected = value === v;
+            return (
+              <button
+                key={v}
+                type="button"
+                data-inspect-id={`${prefix}-option`}
+                onClick={() => onChange?.(selected ? null : v)}
+                aria-pressed={selected}
+                className={`text-xs font-semibold py-2 rounded-lg border capitalize transition-colors ${
+                  selected
+                    ? 'is-selected text-[var(--ink)]'
+                    : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
+                }`}
+              >
+                {selected ? <span className="lit-text">{v}</span> : v}
+              </button>
+            );
+          })}
+        </div>
+      );
+    }
+
+    case 'rank-outcome':
+      return (
+        <RankOutcomeControl
+          value={value as RankOutcomeValue}
+          onChange={(v: RankOutcomeChange) => onChange?.(v)}
+        />
       );
 
     default:

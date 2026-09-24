@@ -22,7 +22,19 @@ export type FieldControl =
   | { kind: 'number'; min?: number; max?: number }
   | { kind: 'slider'; min: number; max: number }
   | { kind: 'select'; options: string[] }
+  | { kind: 'toggle-pair'; options: string[] }
+  | { kind: 'rank-outcome' }
   | { kind: 'text' };
+
+// Mirrors server/src/lib/fieldRegistry.ts's `appliesTo` — mode/role tags
+// added at Phase 2 kickoff (2026-09-24). Denormalized straight through by
+// GET /api/config (buildConfigPayload spreads the whole FieldEntry), so
+// this client type just needs to carry the shape; nothing reads it yet —
+// the filter-settings screen that will is a later phase.
+export interface FieldAppliesTo {
+  modes?: ('qp_role' | 'comp_role' | 'comp_open')[];
+  roles?: ('Tank' | 'DPS' | 'Support')[];
+}
 
 export interface FieldMeta {
   id: string;
@@ -30,6 +42,7 @@ export interface FieldMeta {
   category: string;
   control: FieldControl;
   enabled: boolean;
+  appliesTo?: FieldAppliesTo;
 }
 
 export interface LockedCategory {

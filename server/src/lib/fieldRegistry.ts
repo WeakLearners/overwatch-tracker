@@ -84,6 +84,20 @@ export function categoryById(id: string): CategoryEntry | undefined {
   return CATEGORY_REGISTRY.find(c => c.id === id);
 }
 
+// Mode/role tags — added at Phase 2 kickoff (2026-09-24, Sean's addition to
+// the roadmap). Cheap to add now, one shape frozen across all Phase 2
+// entries, so the eventual filter-settings screen doesn't have to reopen
+// every field to backfill it. `appliesTo` omitted (or an empty sub-array)
+// means "applies to everything" — no field needs to declare the common
+// case. Nothing reads this yet; the filter UI is a later phase. Values are
+// copied from client/src/types/index.ts's `QueueMode` and the informal
+// hero-role union already used throughout the client (`HEROES` maps a hero
+// to one of these three strings) — this file can't import that client type
+// (Phase 1's server-only decision, see the top of this file), so the same
+// three literals are declared here instead of shared.
+export type QueueMode = 'qp_role' | 'comp_role' | 'comp_open';
+export type Role = 'Tank' | 'DPS' | 'Support';
+
 export interface FieldEntry {
   id: string;
   label: string;
@@ -94,11 +108,14 @@ export interface FieldEntry {
     | { kind: 'number'; min?: number; max?: number }
     | { kind: 'slider'; min: number; max: number }
     | { kind: 'select'; options: string[] }
+    | { kind: 'toggle-pair'; options: string[] }
+    | { kind: 'rank-outcome' }
     | { kind: 'text' };
   writesTo: {
-    table: 'matches' | 'match_deaths';
+    table: 'matches' | 'match_deaths' | 'match_heroes';
     columns: string[];
   };
+  appliesTo?: { modes?: QueueMode[]; roles?: Role[] };
   feedsCards: string[];
   defaultOn: boolean;
   // Optional study tag (added 2026-09-24, prerequisite to Phase 2 — see
@@ -190,10 +207,15 @@ export const FIELD_REGISTRY: FieldEntry[] = [
     id: 'match_quality',
     label: 'Match quality',
     category: 'subjective',
-    control: { kind: 'select', options: ['stomp', 'close'] },
+    // toggle-pair, not select: the actual LogMatch.tsx control (converted
+    // Phase 2, 2026-09-24) is the same tap-to-clear two-button grammar as
+    // Win/Loss and Leaver, not a dropdown. `select` here until now was a
+    // placeholder for the study tag only (see the comment that used to sit
+    // above this block) — Phase 2 is what picks the real shape.
+    control: { kind: 'toggle-pair', options: ['stomp', 'close'] },
     writesTo: { table: 'matches', columns: ['match_quality'] },
     // Was write-only (routes/matches.ts's edit-drawer readback only) until
-    // this pass. Analyzable via GET /api/stats/split?by=match_quality.
+    // the 2026-09-24 study-tag pass. Analyzable via GET /api/stats/split?by=match_quality.
     feedsCards: [],
     defaultOn: true,
     study: { metrics: ['win_rate', 'accuracy'] },
@@ -202,7 +224,7 @@ export const FIELD_REGISTRY: FieldEntry[] = [
     id: 'result_driver',
     label: 'Who drove the result',
     category: 'subjective',
-    control: { kind: 'select', options: ['me', 'team'] },
+    control: { kind: 'toggle-pair', options: ['me', 'team'] },
     writesTo: { table: 'matches', columns: ['result_driver'] },
     // accuracy ONLY — result_driver records Sean's own read on why the game
     // was won/lost, so splitting WIN RATE by it is circular (the field is
@@ -212,13 +234,100 @@ export const FIELD_REGISTRY: FieldEntry[] = [
     defaultOn: true,
     study: { metrics: ['accuracy'] },
   },
+  // Phase 2 group 3 (2026-09-24): player_rank + player_rank_start, one
+  // registry entry for the pair — LogMatch.tsx has always written and read
+  // them as one decision ("did this match move the ladder"), never as two
+  // independent fields. `rank-outcome` is bespoke, not select/number: the
+  // control isn't a value Sean types, it's a derived promote/demote/no-
+  // change choice built from the live rank drum plus this match's own
+  // result. See client/src/components/RankOutcomeControl.tsx. No `study`
+  // tag: the underlying value is a raw ladder number, not a category —
+  // same reasoning as lobby_low/lobby_high below. A rank-tier-bucketed
+  // split would be a real, separate piece of analysis work, not a
+  // mechanical tag here.
+  {
+    id: 'player_rank',
+    label: 'Rank outcome',
+    category: 'rank',
+    control: { kind: 'rank-outcome' },
+    writesTo: { table: 'matches', columns: ['player_rank', 'player_rank_start'] },
+    // Dashboard's trend candles read both columns for the tier-mark
+    // annotations (a match's own before/after rank) — verified against
+    // Dashboard.tsx's tierMarks computation, not assumed from the name.
+    feedsCards: ['dash-recent-form-tier-mark'],
+    defaultOn: true,
+    // Competitive only — LogMatch.tsx hides this control outright on
+    // Quick Play (`!isQP`), since QP never moves the ladder.
+    appliesTo: { modes: ['comp_role', 'comp_open'] },
+  },
+  // Phase 2 group 4: lobby_low + lobby_high. The actual editable control
+  // (LobbyRangeSlider) lives on Prematch.tsx, not LogMatch.tsx — LogMatch
+  // only reads the two values off MatchContext at submit time. Gated
+  // directly with `isFieldEnabled('lobby_range')` in Prematch.tsx rather
+  // than through RegistryField's kind-dispatch switch: the slider takes
+  // four own-state callbacks (onChange/onRememberWidth/onResize/onClear)
+  // tied to Prematch's local tray-width state, which doesn't fit
+  // RegistryField's single value/onChange contract without either
+  // widening that contract for one field or lifting tray-width into
+  // MatchContext — both bigger than this pass's mechanical scope. No
+  // `control` kind is exercised for this entry as a result; it exists so
+  // the field has one place to be documented, tagged, and gated by.
+  // Deliberately no `study` tag, same reasoning as before: a numeric SR
+  // range, not a category to split rows by.
+  {
+    id: 'lobby_range',
+    label: 'Enemy lobby SR range',
+    category: 'rank',
+    control: { kind: 'number' },
+    writesTo: { table: 'matches', columns: ['lobby_low', 'lobby_high'] },
+    // No dashboard card reads lobby_low/lobby_high today — verified by
+    // grep across client/src; it's write-only pending a future study.
+    feedsCards: [],
+    defaultOn: true,
+    appliesTo: { modes: ['comp_role', 'comp_open'] },
+  },
+  // Phase 2 group 5: feel, per hero (match_heroes.feel — see schema.ts's
+  // own comment: "perceived sens speed... the fulcrum the sens study
+  // scores against", not a general mood rating). One slider per hero
+  // actually played, same generic `slider` kind Phase 1 shipped but never
+  // exercised until now — LogMatch.tsx's per-hero loop still owns the
+  // required/unanswered styling and the "Floaty/Snappy/Jittery" labels;
+  // only the bare <input type=range> moved into RegistryField. No `study`
+  // tag: GET /api/stats/split only accepts a field whose `writesTo.table`
+  // is `matches` (enforced in routes/stats.ts, not just this comment) —
+  // `feel` lives on `match_heroes`, so tagging it would be silently
+  // rejected by that route. The real feel-vs-accuracy analysis already
+  // exists as its own bespoke query: SensAnalysis.tsx's "Feel vs. Data"
+  // chart (`sensAnalysis-feel-vs-data-chart`).
+  {
+    id: 'feel',
+    label: 'Feel (per hero)',
+    category: 'sens-study',
+    control: { kind: 'slider', min: 0, max: 100 },
+    writesTo: { table: 'match_heroes', columns: ['feel'] },
+    feedsCards: ['sensAnalysis-feel-vs-data-chart'],
+    defaultOn: true,
+  },
   // lobby_low / lobby_high deliberately NOT tagged: a numeric SR range, not
   // a category to split rows by. Left for a later decision (roadmap).
-  // ... more entries, one per remaining column/column-group, added in
-  // Phase 2. sens/dpi's real registry entry (once Phase 2 decides how to
-  // represent a read-only/computed control kind) still belongs to the
-  // `mouse-settings` category per the roadmap's inventory table — it's
-  // deferred, not dropped.
+  //
+  // curve_* (curve_growth_rate, curve_midpoint, curve_motivity, curve_lut,
+  // curve_enabled) and the blind-trial fields (blind_trial, blind_set_id,
+  // rel_pos, stage_index, revealed) are NOT converted in this Phase 2 pass.
+  // Checked against the running code, same as the sens/dpi check Phase 1
+  // did: none of these is ever typed by hand. `findActiveStage` in
+  // server/src/routes/matches.ts stamps all of them unconditionally from
+  // whichever blind_stage_sets row is active for the hero being logged
+  // (made unconditional today, commit b193ef3) — LogMatch.tsx has no
+  // control for any of them to convert. Forcing a `{kind:'number'}` or
+  // `{kind:'select'}` control onto a computed value would let a user
+  // overwrite ground truth the sens study depends on staying computed —
+  // exactly the reasoning Sean gave for keeping sens/dpi out of the
+  // registry entirely (DECIDED 2026-09-24, see the roadmap's Phase 2
+  // section). These two groups need that same explicit decision, not a
+  // silent mechanical conversion: this file does not add entries for them.
+  // sens/dpi's own real registry entry, if one is ever added, still
+  // belongs to `mouse-settings` per the roadmap's inventory table.
 ];
 
 export function fieldById(id: string): FieldEntry | undefined {

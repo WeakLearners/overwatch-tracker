@@ -182,8 +182,15 @@ export default function Prematch() {
   const btTestLeft = bt ? Math.max(0, bt.n_stages * bt.batch_size - bt.totalGames) : 0;
   const { data: pendingData } = useApi<{ total: number }>('/api/aim/pending?limit=1');
   const backlogCount = pendingData?.total ?? 0;
-  const { isCategoryEnabled } = useFieldConfig();
+  const { isCategoryEnabled, isFieldEnabled } = useFieldConfig();
   const sensStudyOn = isCategoryEnabled('sens-study');
+  // Field-registry Phase 2 (2026-09-24) — lobby_low/lobby_high's registry
+  // entry (server/src/lib/fieldRegistry.ts's `lobby_range`). Gated directly
+  // here rather than through RegistryField's kind-dispatch switch:
+  // LobbyRangeSlider takes four of its own state callbacks tied to this
+  // page's local tray-width state, which doesn't fit RegistryField's single
+  // value/onChange contract without widening that contract for one field.
+  const lobbyRangeOn = isFieldEnabled('lobby_range');
   // Fetched unconditionally — the category toggle is a display gate on the
   // card below, not a reason to skip a cheap, side-effect-free GET. Keeping
   // the fetch itself unconditional also means flipping the toggle on shows
@@ -1385,7 +1392,7 @@ export default function Prematch() {
                 </button>
               </div>
               <div className="flex-1 min-w-0">
-                {playerRank == null ? (
+                {!lobbyRangeOn ? null : playerRank == null ? (
                   <p className="text-xs text-[var(--faint-2)]" data-inspect-id="prematch-lobby-rank-needs-rank">
                     Set your rank on the drum first — the track is built around it.
                   </p>
