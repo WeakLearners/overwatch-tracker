@@ -1233,8 +1233,8 @@ export default function LogMatch() {
                   matters more than the old yes/no did and needed room for a
                   second choice without growing back into a full-size control.
                   Tap the selected side again to clear, same grammar as Match
-                  quality / Result driver above. Same amber hue ('245 158 11')
-                  the old checkbox used. Extracted into LeaverSliver the same
+                  quality / Result driver above. Each bar takes a muted Win/Loss
+                  hue (see LeaverSliver's SIDE_HUES). Extracted into LeaverSliver the same
                   day MatchEditDrawer needed the identical control. */}
               <LeaverSliver
                 value={leaverSide}

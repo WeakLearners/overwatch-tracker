@@ -20,6 +20,16 @@ export interface LeaverSliverProps {
   gapClass?: string;
 }
 
+// Each bar takes the hue of the result it sits under: teal under Win, pink
+// under Loss. Both are the Win/Loss toggle colours (45 212 191, 244 114 182)
+// pulled ~35% toward grey, so the bars read as related but quieter than the
+// buttons above them. --leaver-deep is the bar's darker lower end;
+// --leaver-tint is the pale band the dark theme fades through.
+const SIDE_HUES = {
+  theirs: { '--sel': '85 194 180',  '--leaver-deep': '61 140 130',  '--leaver-tint': '204 234 230' },
+  mine:   { '--sel': '215 130 175', '--leaver-deep': '155 94 126',  '--leaver-tint': '239 205 223' },
+} as const;
+
 export default function LeaverSliver({ value, onToggle, unknown, dataInspectPrefix, gapClass = 'gap-2' }: LeaverSliverProps) {
   return (
     <>
@@ -38,7 +48,7 @@ export default function LeaverSliver({ value, onToggle, unknown, dataInspectPref
               aria-label={`Leaver on ${side === 'mine' ? 'my' : 'their'} team`}
               title={`Leaver — ${side === 'mine' ? 'my team' : 'their team'}`}
               data-inspect-id={`${dataInspectPrefix}-option`}
-              style={{ '--sel': '245 158 11' } as React.CSSProperties}
+              style={SIDE_HUES[side] as React.CSSProperties}
               className={`h-1.5 rounded-full transition-all ${
                 selected ? 'leaver-lamp' : 'bg-ow-border hover:bg-[rgb(var(--sel)/0.4)]'
               }`}
