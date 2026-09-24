@@ -500,10 +500,21 @@
   /* Mode cards (Dashboard tiles, Log Match mode toggle) when selected. Same
      move as .leaver-lamp: in light theme the glow takes the card's own hue
      (--sel) and is boosted, because the old faint drop shadow barely showed
-     on white. Dark theme keeps the original soft drop shadow. */
+     on white. The fill is also roughly twice .is-selected's light tint, and
+     the dark theme's inner glow (the soft inset band rising from the bottom
+     edge) is borrowed so the card reads lit from inside, not just outlined.
+     Dark theme keeps the original soft drop shadow; its fill comes from
+     html.dark .is-selected, which outranks this rule. */
   .is-selected.mode-glow {
+    background-image: linear-gradient(
+      to top,
+      rgb(var(--sel) / 0.36),
+      rgb(var(--sel) / 0.17) 55%,
+      rgb(var(--sel) / 0.07)
+    );
     box-shadow:
       inset 0 -2px 0 0 rgb(var(--sel) / 0.9),
+      inset 0 -7px 11px -6px rgb(var(--sel) / 0.95),
       0 0 6px 1px rgb(var(--sel) / 0.55),
       0 0 18px 4px rgb(var(--sel) / 0.32),
       0 8px 22px -6px rgb(var(--sel) / 0.5);
