@@ -725,24 +725,25 @@ export default function LogMatch() {
       // Clear the carried-over match intent: the Hero Advisor map selector and
       // its dependent advisor reset so nothing lingers from the logged match.
       setMap('');
-      // Bring the win-rate cards into view first.
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      // Once the scroll settles, flash a win/loss arrow overlay across the
-      // logged mode's tile (the signal also resets Map Voting).
+      // Land exactly where SensNav's "← Match Tracker" (backlog return) lands:
+      // the Match section header at the top (2026-09-24, Sean). Standalone
+      // /log has no #sec-match, so there it centres the map search instead.
+      const matchHeader = document.getElementById('sec-match');
+      if (matchHeader) matchHeader.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      else document.getElementById('map-search')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Flash the win/loss overlay on the logged mode's tile (the signal also
+      // resets Map Voting), then refresh so its win rate rolls to the new value.
       setTimeout(() => notifyMatchLogged({ mode: loggedMode, win: loggedWin }), 550);
-      // After the overlay has swept through and cleared (~1s), refresh so the
-      // revealed tile's win rate rolls from its old value to the new one.
       setTimeout(() => {
         revalidateAll();
         revalidateRec();
       }, 1650);
-      // Once the result animation has played, return to the (now reset) Map
-      // Voting search so the next match's prep is one keystroke away.
+      // Focus the (now reset) Map Voting search once the reset has landed, so
+      // the next match's prep is one keystroke away. preventScroll keeps the
+      // page on the Match header.
       setTimeout(() => {
-        const mapInput = document.getElementById('map-search') as HTMLInputElement | null;
-        mapInput?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        mapInput?.focus({ preventScroll: true });
-      }, 2400);
+        (document.getElementById('map-search') as HTMLInputElement | null)?.focus({ preventScroll: true });
+      }, 700);
       setTimeout(() => setStatus('idle'), 2600);
     } catch {
       setStatus('error');
