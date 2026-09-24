@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { HEROES, MAPS, ROLE_COLORS, ROLE_PILL_CLASS, ROLE_PILL_CLASS_DARK, TYPE_COLORS, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB, MODE_WASH_CLASS, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, rankLabel, clampRank } from '../types';
 import { useMatch } from '../contexts/MatchContext';
-import DeathLogger from '../components/DeathLogger';
 import EmptyState from '../components/EmptyState';
 import ModeWatermark from '../components/ModeWatermark';
-import StarRating from '../components/StarRating';
+import RegistryField from '../components/RegistryField';
 import { useApi, revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
@@ -319,7 +318,8 @@ export default function LogMatch() {
   // section only owns date/time/hero/win plus the death tags.
   const { queueMode, setQueueMode, map, setMap, mapType, sens, testRole, pendingHeroes, setPendingHeroes, revalidateRec, notifyMatchLogged, deathBuffer, removeDeathFromBuffer, toggleDeathUlt, clearDeathBuffer, playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, lobbyLow, lobbyHigh, account } = useMatch();
   const { data: dpiState } = useApi<DpiTestState>('/api/blind/state');
-  const { isFieldEnabled } = useFieldConfig();
+  const { isFieldEnabled, fields } = useFieldConfig();
+  const registryField = (id: string) => fields.find(f => f.id === id);
   const { data: blindSets } = useApi<{ sets: BlindSetSummary[] }>('/api/blind/sets');
   const mapCounts = useTodayMapCounts();
   const heroCounts = useTodayHeroCounts();
@@ -813,7 +813,7 @@ export default function LogMatch() {
           </div>
 
           <div data-inspect-id="logmatch-death-capture-column" className="lg:sticky lg:top-24">
-            <DeathLogger />
+            {registryField('deaths') && <RegistryField field={registryField('deaths')!} />}
           </div>
         </div>
       </div>
@@ -1072,17 +1072,17 @@ export default function LogMatch() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs text-[var(--muted)] mb-1.5">Main Perceived Factors</label>
-              <textarea
-                value={form.notes}
-                onChange={set('notes')}
-                rows={2}
-                data-inspect-id="logmatch-notes-textarea"
-                className="w-full field px-3 py-2 text-sm resize-none"
-                placeholder="fatigue, warmup, just switched stage…"
-              />
-            </div>
+            {isFieldEnabled('notes') && (
+              <div>
+                <label className="block text-xs text-[var(--muted)] mb-1.5">Main Perceived Factors</label>
+                <RegistryField
+                  field={registryField('notes')!}
+                  value={form.notes}
+                  onChange={(v) => setForm(f => ({ ...f, notes: v as string }))}
+                  placeholder="fatigue, warmup, just switched stage…"
+                />
+              </div>
+            )}
 
             <div className="space-y-3" data-inspect-id="logmatch-feel-sliders">
               {playedHeroes.map(h => {
@@ -1115,10 +1115,12 @@ export default function LogMatch() {
               })}
             </div>
 
-            <div>
-              <label className="block text-xs text-[var(--muted)] mb-1.5">Team <span className="text-[var(--faint-2)]">— how was the team this match?</span></label>
-              <StarRating value={teamRating} onChange={setTeamRating} dataInspectId="logmatch-team-rating-stars" />
-            </div>
+            {isFieldEnabled('team_rating') && (
+              <div>
+                <label className="block text-xs text-[var(--muted)] mb-1.5">Team <span className="text-[var(--faint-2)]">— how was the team this match?</span></label>
+                <RegistryField field={registryField('team_rating')!} value={teamRating} onChange={(v) => setTeamRating(v as number)} />
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>

@@ -90,6 +90,7 @@ export interface FieldEntry {
   category: CategoryId;
   control:
     | { kind: 'death-logger' }
+    | { kind: 'star-rating'; max: number }
     | { kind: 'number'; min?: number; max?: number }
     | { kind: 'slider'; min: number; max: number }
     | { kind: 'select'; options: string[] }
@@ -112,7 +113,45 @@ export const FIELD_REGISTRY: FieldEntry[] = [
     feedsCards: ['killer-frequency'],
     defaultOn: false,
   },
-  // ... 32 more entries, one per column/column-group, added in Phase 2+.
+  // Freezing the RegistryField contract (2026-09-23): two more entries,
+  // converted by hand in LogMatch.tsx alongside `deaths`, to prove the
+  // generic (non-bespoke) control kinds before Phase 2 delegates the
+  // remaining ~20 field groups to Haiku workers. `sens`/`dpi` were
+  // considered and rejected as the third field here — they're not an
+  // editable form control at all. LogMatch shows sens as a read-only
+  // computed display (the active blind-stage-test value or a frozen
+  // fallback; see LogMatch.tsx's own comment above the display div and
+  // matches.ts:58-62), and dpi is either the blind-stage value or a fixed
+  // 1600 constant (schema.ts:105-111) — neither is ever typed by hand.
+  // Forcing a `{kind:'number'}` control onto either would let a user edit
+  // a value the sens study depends on staying computed. `notes` was used
+  // instead, to also exercise the plain `text` control kind.
+  {
+    id: 'team_rating',
+    label: 'Team quality (stars)',
+    category: 'subjective',
+    control: { kind: 'star-rating', max: 5 },
+    writesTo: { table: 'matches', columns: ['team_rating'] },
+    // Confirmed by the roadmap's own inventory: write-only today, read
+    // back only for the match-history list, not analyzed anywhere. That's
+    // the declared "capture-only" case data-dependency-check allows.
+    feedsCards: [],
+    defaultOn: true,
+  },
+  {
+    id: 'notes',
+    label: 'Main perceived factors',
+    category: 'subjective',
+    control: { kind: 'text' },
+    writesTo: { table: 'matches', columns: ['notes'] },
+    feedsCards: [],
+    defaultOn: true,
+  },
+  // ... 30 more entries, one per remaining column/column-group, added in
+  // Phase 2. sens/dpi's real registry entry (once Phase 2 decides how to
+  // represent a read-only/computed control kind) still belongs to the
+  // `mouse-settings` category per the roadmap's inventory table — it's
+  // deferred, not dropped.
 ];
 
 export function fieldById(id: string): FieldEntry | undefined {

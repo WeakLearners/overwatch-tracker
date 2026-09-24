@@ -16,10 +16,19 @@ export interface CategoryMeta {
   hardDependsOn: string[];
 }
 
+export type FieldControl =
+  | { kind: 'death-logger' }
+  | { kind: 'star-rating'; max: number }
+  | { kind: 'number'; min?: number; max?: number }
+  | { kind: 'slider'; min: number; max: number }
+  | { kind: 'select'; options: string[] }
+  | { kind: 'text' };
+
 export interface FieldMeta {
   id: string;
   label: string;
   category: string;
+  control: FieldControl;
   enabled: boolean;
 }
 
