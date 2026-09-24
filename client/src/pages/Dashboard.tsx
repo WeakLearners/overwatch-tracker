@@ -68,6 +68,7 @@ function ModeTile({ meta, m, selected, onSelect, openHero, lastLog }: {
         variant="tile"
         className="scale-[3] translate-x-[19.0%] translate-y-[-7%]"
         color={selected ? undefined : 'text-ow-card'}
+        lit={selected}
       />
       {flash && (
         <div
