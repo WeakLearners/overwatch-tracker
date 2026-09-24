@@ -142,10 +142,14 @@ export const FIELD_REGISTRY: FieldEntry[] = [
     writesTo: { table: 'matches', columns: ['team_rating'] },
     // Was write-only (read back only for the match-history list) until the
     // 2026-09-24 study-tag pass. Now analyzable via GET /api/stats/split
-    // (?by=team_rating) — split on rounded star value, not a dedicated card.
+    // (?by=team_rating) — split on the star value, not a dedicated card.
+    // Accuracy only, same reason as result_driver: the stars are given after
+    // the result is known, so they encode it. Live data 2026-09-24: 1 star
+    // won 0 of 25, 4.5 stars won 52 of 54. A win-rate split would just
+    // report the outcome back.
     feedsCards: [],
     defaultOn: true,
-    study: { metrics: ['win_rate', 'accuracy'] },
+    study: { metrics: ['accuracy'] },
   },
   {
     id: 'notes',
