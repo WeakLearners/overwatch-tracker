@@ -511,20 +511,29 @@
      leaver captions. Must go on the element holding the words, never on the
      control itself: background-clip:text would clip the control's own fill
      to the glyphs. */
-  /* One steep ramp for all lit text (was a gentle one plus a .lit-strong
-     variant for the watermark; the gentle one did not read). The glow side is
-     the hue with its chroma boosted ~35% via oklch relative colour; the far
-     side is near-black. Dark theme's glow side is white with a strong hue
-     tint, falling to a very dark grey. */
+  /* Lit text. The default ramp is a notch gentler than the mode cards':
+     the glow side is the hue with chroma boosted ~25% (oklch relative colour),
+     fading over the full height to a softer dark end. The mode cards (mode
+     box, Dashboard tile, its watermark) add .lit-strong: ~35% boost, a
+     steeper 10%->85% ramp and a near-black far end. */
   .lit-text {
-    --lit-near: oklch(from rgb(var(--sel)) calc(l * 0.97) calc(c * 1.35) h);
-    --lit-far: #000;
-    background-image: linear-gradient(var(--lit-dir, to top), var(--lit-near) 10%, var(--lit-far) 85%);
+    --lit-near: oklch(from rgb(var(--sel)) calc(l * 0.97) calc(c * 1.25) h);
+    --lit-far: var(--ink);
+    background-image: linear-gradient(var(--lit-dir, to top), var(--lit-near) 0%, var(--lit-far) 95%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
   html.dark .lit-text {
+    --lit-near: color-mix(in srgb, oklch(from rgb(var(--sel)) l calc(c * 1.25) h) 40%, #fff);
+    --lit-far: color-mix(in srgb, var(--ink) 45%, #000);
+  }
+  .lit-text.lit-strong {
+    --lit-near: oklch(from rgb(var(--sel)) calc(l * 0.97) calc(c * 1.35) h);
+    --lit-far: #000;
+    background-image: linear-gradient(var(--lit-dir, to top), var(--lit-near) 10%, var(--lit-far) 85%);
+  }
+  html.dark .lit-text.lit-strong {
     --lit-near: color-mix(in srgb, oklch(from rgb(var(--sel)) l calc(c * 1.35) h) 45%, #fff);
     --lit-far: color-mix(in srgb, var(--ink) 30%, #000);
   }

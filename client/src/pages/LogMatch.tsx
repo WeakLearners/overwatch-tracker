@@ -1074,8 +1074,8 @@ export default function LogMatch() {
                         style={m.value === 'qp_role' ? undefined : { letterSpacing: '-0.13em' }}
                         lit={active}
                       />
-                      <div className={`relative z-10 font-display italic pr-0.5 ${active ? 'lit-text' : ''}`}>{MODE_COMPACT[m.value].top}</div>
-                      <div className={`relative z-10 text-[10px] font-normal opacity-80 ${active ? 'lit-text' : ''}`}>{MODE_COMPACT[m.value].bot}</div>
+                      <div className={`relative z-10 font-display italic pr-0.5 ${active ? 'lit-text lit-strong' : ''}`}>{MODE_COMPACT[m.value].top}</div>
+                      <div className={`relative z-10 text-[10px] font-normal opacity-80 ${active ? 'lit-text lit-strong' : ''}`}>{MODE_COMPACT[m.value].bot}</div>
                     </button>
                   );
                 })}
