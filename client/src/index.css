@@ -542,10 +542,19 @@
      and saturated on the glow side, a deep shade of the same hue on the
      far side — no fade to grey ink, which read as muddy on a big number. */
   .lit-text.lit-hue {
+    --lit-near: oklch(from rgb(var(--sel)) calc(l * 1.05) calc(c * 1.3) h);
+    --lit-far: oklch(from rgb(var(--sel)) calc(l * 0.5) calc(c * 0.9) h);
+  }
+  html.dark .lit-text.lit-hue {
+    --lit-near: color-mix(in srgb, oklch(from rgb(var(--sel)) calc(l * 1.15) calc(c * 1.3) h) 80%, #fff);
+    --lit-far: oklch(from rgb(var(--sel)) calc(l * 0.55) c h);
+  }
+  /* Loss red needs a wider ramp and a muted dark end to read as lit. */
+  .lit-text.lit-hue.lit-loss {
     --lit-near: oklch(from rgb(var(--sel)) calc(l * 1.15) calc(c * 1.3) h);
     --lit-far: oklch(from rgb(var(--sel)) calc(l * 0.4) calc(c * 0.7) h);
   }
-  html.dark .lit-text.lit-hue {
+  html.dark .lit-text.lit-hue.lit-loss {
     --lit-near: color-mix(in srgb, oklch(from rgb(var(--sel)) calc(l * 1.25) calc(c * 1.3) h) 70%, #fff);
     --lit-far: oklch(from rgb(var(--sel)) calc(l * 0.42) calc(c * 0.75) h);
   }
