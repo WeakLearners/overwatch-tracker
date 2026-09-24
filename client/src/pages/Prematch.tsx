@@ -627,6 +627,9 @@ export default function Prematch() {
             true centre. Sizing them to their own content would drift the
             centre every time the readout's rank text changed length. */}
         <div className="flex items-stretch gap-2.5 shrink-0">
+          {/* Small group labels, same style as the "Today" label on the
+              Hero Advisor dots. */}
+          <span className="text-[10px] uppercase tracking-wider text-[var(--faint-2)] self-center shrink-0" data-inspect-id="prematch-account-label">Account</span>
           {identityGroup(
             ACCOUNTS,
             account,
@@ -641,6 +644,7 @@ export default function Prematch() {
             a => `Play as ${a}`,
           )}
           <span className="w-px self-stretch my-1.5 bg-ow-border/70 shrink-0" aria-hidden="true" />
+          <span className="text-[10px] uppercase tracking-wider text-[var(--faint-2)] self-center shrink-0" data-inspect-id="prematch-role-label">Role</span>
           {identityGroup(
             ['DPS', 'Support'] as const,
             testRole,
