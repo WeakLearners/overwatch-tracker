@@ -23,7 +23,7 @@ export default function RankBadge({
   return (
     <div
       className={`${lg ? 'w-20' : 'w-12'} aspect-square rounded-lg border-2 grid place-content-center text-center select-none ${
-        rank == null ? 'border-ow-border' : 'is-selected'
+        rank == null ? 'border-ow-border' : 'is-selected mode-fill'
       }`}
       data-inspect-id={dataInspectId}
       style={rank == null ? undefined : ({ '--sel': RANK_TIER_RGB[rankTier(rank)] } as React.CSSProperties)}

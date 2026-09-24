@@ -475,8 +475,8 @@
       inset 0 -5px 6px -3px rgb(var(--sel) / 0.95);
   }
 
-  /* Selected mode cards (Dashboard tiles, Log Match mode box) and the
-     Playing As account/role lit block. Light theme:
+  /* Selected mode cards (Dashboard tiles, Log Match mode box), the Playing
+     As account/role lit block, and the rank badge. Light theme:
      roughly twice .is-selected's tint, plus the dark theme's inner glow (the
      soft band rising from the bottom edge), and no outer glow. Dark theme
      gets html.dark .is-selected as-is, which is inner glow only. */
