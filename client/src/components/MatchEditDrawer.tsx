@@ -1,3 +1,12 @@
+// UNREACHABLE as of 2026-09-24 (confirmed by grep: `openEdit` is called
+// nowhere in the client tree). Left in place rather than deleted — not in
+// scope to remove dead code as part of a feature task — but do not treat
+// this file as the live match-edit surface. That's `TodayMatchEditForm` in
+// client/src/pages/LogMatch.tsx (the inline panel under a Today's Matches
+// row), which got the Leaver control and per-hero-slot sens inputs built
+// here ported over to it the same day. If this drawer is ever wired open
+// again, re-check it against TodayMatchEditForm rather than assuming the two
+// stayed in sync — they don't share code beyond LeaverSliver.tsx.
 import { useEffect, useState } from 'react';
 import { useMatchEditDrawer } from '../contexts/MatchEditDrawerContext';
 import { revalidateAll } from '../hooks/useApi';

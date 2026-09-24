@@ -5,6 +5,7 @@ import EmptyState from '../components/EmptyState';
 import ModeWatermark from '../components/ModeWatermark';
 import RegistryField from '../components/RegistryField';
 import LeaverSliver from '../components/LeaverSliver';
+import { buildRosterEditPayload } from '../lib/matchEditRoster';
 import { useApi, revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
@@ -32,6 +33,13 @@ type SwitchHeroes = [string, string];
 const HERO_LIST = Object.entries(HEROES).sort((a, b) => a[0].localeCompare(b[0]));
 const MAP_LIST = Object.keys(MAPS).sort();
 
+// Same "blank means unanswered, don't parse it as 0" convention SensLog.tsx's
+// backfill form (and MatchEditDrawer.tsx) use for sens fields.
+const num = (s: string) => (s.trim() === '' ? null : parseFloat(s));
+// Positive-number check only — same bound SensLog/blind.ts use (`> 0`), no
+// invented upper cap.
+const sensValid = (s: string) => { const n = num(s); return n == null || n > 0; };
+
 interface TodayMatchRow {
   id: number;
   hero: string;
@@ -41,12 +49,22 @@ interface TodayMatchRow {
   time: string | null;
   stage_index: number | null;
   sens: number | null;
+  // leaver/leaver_side: /api/matches already SELECT *s these onto every row —
+  // just weren't declared here until the edit form needed them 2026-09-24.
+  leaver: 0 | 1 | null;
+  leaver_side: 'mine' | 'theirs' | null;
 }
 
 interface MatchHeroRow {
   hero: string;
   role: string;
   feel: number | null;
+  sens: number | null;
+  /** True when this exact (match, hero) pair has a blind_credits row — only
+   *  ever slot 1 in practice (2026-09-24: only the starting hero can earn
+   *  test credit), read off the server's actual join (GET /:id/heroes)
+   *  rather than assumed. */
+  credited: boolean;
 }
 
 // Inline editable-fields panel for a Today's Matches row — expands in place
@@ -71,6 +89,34 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueM
   const [confirmDelete, setConfirmDelete] = useState(false);
   const dfMap = useDfHeroes();
 
+  // Slot 1 sens — prefilled straight from `match.sens` (the list row already
+  // carries it, no separate fetch needed the way MatchEditDrawer needed one
+  // for TrendPoint-shaped data). Original value kept alongside for the
+  // credited-game diff check below.
+  const [slot1Sens, setSlot1Sens] = useState(match.sens != null ? String(match.sens) : '');
+  const slot1OriginalSens = match.sens;
+  const [slot1Credited, setSlot1Credited] = useState(false);
+  // Slots 2/3 sens, parallel to switchHeroes — populated once the heroes
+  // fetch below lands.
+  const [extraSens, setExtraSens] = useState<[string, string]>(['', '']);
+  const [extraOriginalSens, setExtraOriginalSens] = useState<(number | null)[]>([null, null]);
+  const [extraCredited, setExtraCredited] = useState<boolean[]>([false, false]);
+  // The hero names slots 2/3 were loaded with — save() compares against this
+  // to decide whether the roster itself changed. Only a real roster change
+  // sends `heroes` (the full-replace endpoint, which can recompute an extra
+  // slot's sens off its active stage); a pure sens correction sends
+  // `heroSens` instead, which never touches the roster and never re-runs
+  // that recompute. Same split as MatchEditDrawer.tsx's save().
+  const [originalExtraHeroNames, setOriginalExtraHeroNames] = useState<string[]>([]);
+  // Leaver — same sliver control LogMatch's own (top) form uses, prefilled
+  // from this row's leaver/leaver_side. `leaverUnknown` covers a historical
+  // row logged before leaver_side existed (leaver=1, side never recorded):
+  // both slivers render unselected and the label says so, but this must NOT
+  // be read as "no leaver was chosen" — Save only clears it if the user
+  // actually taps a sliver.
+  const [leaverSide, setLeaverSide] = useState<'mine' | 'theirs' | null>(match.leaver_side ?? null);
+  const [leaverUnknown, setLeaverUnknown] = useState(!!match.leaver && match.leaver_side == null);
+
   useEffect(() => {
     let cancelled = false;
     fetch(`/api/matches/${match.id}/heroes`)
@@ -78,8 +124,17 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueM
       .then(data => {
         if (cancelled) return;
         const rows = (data.rows ?? []) as MatchHeroRow[];
-        const extra = rows.slice(1).map(h => h.hero);
+        const extraRows = rows.slice(1);
+        const extra = extraRows.map(h => h.hero);
         setSwitchHeroes([extra[0] ?? '', extra[1] ?? '']);
+        setOriginalExtraHeroNames(extra);
+        setExtraSens([
+          extraRows[0]?.sens != null ? String(extraRows[0].sens) : '',
+          extraRows[1]?.sens != null ? String(extraRows[1].sens) : '',
+        ]);
+        setExtraOriginalSens([extraRows[0]?.sens ?? null, extraRows[1]?.sens ?? null]);
+        setExtraCredited([!!extraRows[0]?.credited, !!extraRows[1]?.credited]);
+        if (rows[0]) setSlot1Credited(rows[0].credited);
       })
       .catch(() => { if (!cancelled) setSwitchHeroes(['', '']); });
     return () => { cancelled = true; };
@@ -94,6 +149,15 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueM
   function setSwitchHero(i: 0 | 1, h: string) {
     setSwitchHeroes(prev => { const next: [string, string] = [...prev]; next[i] = h; return next; });
   }
+  function setExtraSensAt(i: 0 | 1, v: string) {
+    setExtraSens(prev => { const next: [string, string] = [...prev]; next[i] = v; return next; });
+  }
+  function toggleLeaver(side: 'mine' | 'theirs') {
+    // Any tap resolves the "unknown historical side" case into a normal
+    // mine/theirs pick — see the leaverUnknown state comment above.
+    setLeaverUnknown(false);
+    setLeaverSide(prev => (prev === side ? null : side));
+  }
 
   const heroRole = hero ? HEROES[hero] : '';
   const mapType = map ? TYPE_COLORS[MAPS[map]] : '';
@@ -101,13 +165,38 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueM
   async function save() {
     setStatus('saving');
     try {
+      const body: Record<string, unknown> = {
+        hero, role: heroRole, map, game_type: MAPS[map], win,
+        // Slot 1's sens is always sent, current-value or not — that's what
+        // lets the server's existing `sensProvided` check (matches.ts) keep
+        // a hand-edited value even when this same save also changes hero/
+        // queue_mode and would otherwise re-stamp it from the active stage.
+        sens: num(slot1Sens),
+        // 0/1, not a boolean — PUT's generic field writer only coerces
+        // `win`, so a raw boolean 500s against better-sqlite3 (found while
+        // building MatchEditDrawer's identical control).
+        leaver: leaverUnknown ? 1 : (leaverSide !== null ? 1 : 0),
+        leaver_side: leaverUnknown ? null : leaverSide,
+        // heroes vs. heroSens: a real roster change (hero added/removed/
+        // swapped in slots 2/3) sends `heroes`, the full-replace field; a
+        // pure sens correction on the same roster sends `heroSens` instead,
+        // which never touches match_heroes' hero/role and never re-runs
+        // syncStageCredits' roster recompute (matches.ts) — that recompute
+        // is exactly what would clobber a hand-edited slot-2/3 sens for a
+        // hero under an active stage test. See matchEditRoster.ts (and its
+        // test) for the decision itself, pulled out pure/framework-free so
+        // it has a test that doesn't need to render this form.
+        ...buildRosterEditPayload({
+          slotHeroes: switchHeroes,
+          slotSens: extraSens,
+          originalHeroNames: originalExtraHeroNames,
+          roleOf: h => HEROES[h],
+        }),
+      };
       const res = await fetch(`/api/matches/${match.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          hero, role: heroRole, map, game_type: MAPS[map], win,
-          heroes: switchHeroes.filter(h => h).map(h => ({ hero: h, role: HEROES[h] })),
-        }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error('Failed');
       revalidateAll();
@@ -192,6 +281,53 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueM
             );
           })}
         </div>
+
+        {/* Sens, one input per hero slot actually filled above. Editing it
+            never touches test credit (blind_credits/blind_trial/
+            games_on_stage) — see save()'s comment on `sens`/`heroSens`. The
+            warning is informational only and never blocks Save. */}
+        <div className="grid grid-cols-3 gap-2 mt-2">
+          <div>
+            <label className="block text-[10px] text-[var(--faint)] mb-1">Sens{hero ? ` — ${hero}` : ''}</label>
+            <input
+              type="number"
+              step="0.01"
+              min={0.01}
+              value={slot1Sens}
+              onChange={e => setSlot1Sens(e.target.value)}
+              data-inspect-id="logmatch-inline-edit-slot1-sens-input"
+              className={`w-full field px-2 py-2 text-sm ${!sensValid(slot1Sens) ? 'border-red-500' : ''}`}
+            />
+            {slot1Credited && slot1OriginalSens != null && num(slot1Sens) !== slot1OriginalSens && (
+              <p data-inspect-id="logmatch-inline-edit-slot1-sens-credit-warning" className="text-[9px] text-ow-accent mt-0.5 leading-tight">
+                Test game — credit stays on its stage.
+              </p>
+            )}
+          </div>
+          {([0, 1] as const).map(i => {
+            const h = switchHeroes[i];
+            return (
+              <div key={i}>
+                <label className="block text-[10px] text-[var(--faint)] mb-1">Sens{h ? ` — ${h}` : ''}</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min={0.01}
+                  value={extraSens[i]}
+                  onChange={e => setExtraSensAt(i, e.target.value)}
+                  disabled={!h}
+                  data-inspect-id={`logmatch-inline-edit-extra-sens-input-${i + 2}`}
+                  className={`w-full field px-2 py-2 text-sm disabled:opacity-40 ${!sensValid(extraSens[i]) ? 'border-red-500' : ''}`}
+                />
+                {extraCredited[i] && extraOriginalSens[i] != null && num(extraSens[i]) !== extraOriginalSens[i] && (
+                  <p data-inspect-id={`logmatch-inline-edit-extra-sens-credit-warning-${i + 2}`} className="text-[9px] text-ow-accent mt-0.5 leading-tight">
+                    Test game — credit stays on its stage.
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       <div>
@@ -220,13 +356,28 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueM
             </button>
           ))}
         </div>
+        {/* Leaver — same sliver control as the main Log Match form, rendered
+            by the shared LeaverSliver.tsx component. `leaverUnknown` covers a
+            row logged before leaver_side existed (see the state comment
+            above) — neither sliver lights up, and the label says the side
+            was never recorded rather than implying "no leaver". */}
+        <LeaverSliver
+          value={leaverSide}
+          onToggle={toggleLeaver}
+          unknown={leaverUnknown}
+          dataInspectPrefix="logmatch-inline-edit-leaver-side"
+        />
       </div>
 
       <div className="pt-1 space-y-2">
         <button
           type="button"
           onClick={save}
-          disabled={status === 'saving' || !hero || !map}
+          disabled={
+            status === 'saving' || !hero || !map ||
+            slot1Sens.trim() === '' || !sensValid(slot1Sens) ||
+            extraSens.some(s => !sensValid(s))
+          }
           data-inspect-id="logmatch-inline-edit-save-button"
           className="btn-primary w-full py-2.5 text-sm"
         >
