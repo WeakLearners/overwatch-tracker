@@ -343,16 +343,6 @@
   }
   /* DARK THEME. Here the surface is near-black, the glow has headroom to add
      light, and the bottom-lit reading works as intended. */
-  /* The raised lit block. .is-selected paints the hue; .is-raised is the lift.
-     It stands 6px taller than the options beside it and reaches the strip's
-     edge, so a drop shadow under it reads as a key sitting above its keyboard.
-     Light and dark need different shadows for the same reason .is-selected
-     does: a glow adds light on a dark card and only smudges a white one. */
-  .is-raised {
-    box-shadow:
-      0 1px 0 0 rgb(var(--sel) / 0.55),
-      0 3px 6px -2px rgb(0 0 0 / 0.28);
-  }
   html.dark .is-selected {
     background-image: linear-gradient(
       to top,
@@ -365,13 +355,6 @@
       inset 0 -7px 11px -6px rgb(var(--sel) / 0.95);
   }
 
-  html.dark .is-raised {
-    box-shadow:
-      inset 0 -2px 0 0 rgb(var(--sel) / 0.85),
-      inset 0 -7px 11px -6px rgb(var(--sel) / 0.95),
-      0 3px 7px -2px rgb(0 0 0 / 0.55),
-      0 0 10px -3px rgb(var(--sel) / 0.45);
-  }
 
   /* ------------------------------------------------------------------
      Lobby rank slider: panes of tinted glass over a lamp.
@@ -475,29 +458,25 @@
       0 0 24px 4px rgb(var(--lamp-deep) / 0.25);
   }
 
-  /* The leaver sliver's lit bar borrows the rank lamp's underglow. The hue
-     comes from the bar itself (--sel, --leaver-deep, --leaver-tint, set in
-     LeaverSliver.tsx), so the Win-side and Loss-side bars differ.
-     Light theme: a white glow vanishes on a white card, so the glow takes the
-     bar's own hue, wide and fairly strong, like a lit rank pane on white.
-     Dark theme: the glow is white. */
+  /* The leaver sliver's lit bar. Same treatment as .mode-fill: a coloured
+     fill with the inner glow rising from the bottom edge, and no outer glow.
+     The fill runs stronger than a mode card's because the bar is only 6px
+     tall. The hue comes from the bar itself (--sel, --leaver-deep, set in
+     LeaverSliver.tsx), so the Win-side and Loss-side bars differ. */
   .leaver-lamp {
-    background-image: linear-gradient(to bottom, rgb(var(--sel)), rgb(var(--leaver-deep)));
+    background-image: linear-gradient(
+      to top,
+      rgb(var(--sel) / 0.75),
+      rgb(var(--sel) / 0.45) 55%,
+      rgb(var(--sel) / 0.25)
+    );
     box-shadow:
-      0 0 6px 1px rgb(var(--sel) / 0.8),
-      0 0 16px 4px rgb(var(--sel) / 0.5),
-      0 3px 14px 0 rgb(var(--leaver-deep) / 0.45);
-  }
-  html.dark .leaver-lamp {
-    background-image: linear-gradient(to bottom, #ffffff 0%, rgb(var(--leaver-tint)) 28%, rgb(var(--sel)) 70%, rgb(var(--leaver-deep)) 100%);
-    box-shadow:
-      inset 0 1px 0 0 rgb(255 255 255 / 0.95),
-      0 0 5px 0 rgb(255 255 255 / 0.8),
-      0 0 13px 1px rgb(255 255 255 / 0.5),
-      0 0 24px 4px rgb(255 255 255 / 0.25);
+      inset 0 -2px 0 0 rgb(var(--leaver-deep)),
+      inset 0 -5px 6px -3px rgb(var(--sel) / 0.95);
   }
 
-  /* Selected mode cards (Dashboard tiles, Log Match mode box). Light theme:
+  /* Selected mode cards (Dashboard tiles, Log Match mode box) and the
+     Playing As account/role lit block. Light theme:
      roughly twice .is-selected's tint, plus the dark theme's inner glow (the
      soft band rising from the bottom edge), and no outer glow. Dark theme
      gets html.dark .is-selected as-is, which is inner glow only. */

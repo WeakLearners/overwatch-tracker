@@ -23,11 +23,11 @@ export interface LeaverSliverProps {
 // Each bar takes the hue of the result it sits under: teal under Win, pink
 // under Loss. Both are the Win/Loss toggle colours (45 212 191, 244 114 182)
 // pulled ~35% toward grey, so the bars read as related but quieter than the
-// buttons above them. --leaver-deep is the bar's darker lower end;
-// --leaver-tint is the pale band the dark theme fades through.
+// buttons above them. --leaver-deep is the solid line along the bar's
+// bottom edge.
 const SIDE_HUES = {
-  theirs: { '--sel': '85 194 180',  '--leaver-deep': '61 140 130',  '--leaver-tint': '204 234 230' },
-  mine:   { '--sel': '215 130 175', '--leaver-deep': '155 94 126',  '--leaver-tint': '239 205 223' },
+  theirs: { '--sel': '85 194 180',  '--leaver-deep': '61 140 130' },
+  mine:   { '--sel': '215 130 175', '--leaver-deep': '155 94 126' },
 } as const;
 
 export default function LeaverSliver({ value, onToggle, unknown, dataInspectPrefix, gapClass = 'gap-2' }: LeaverSliverProps) {

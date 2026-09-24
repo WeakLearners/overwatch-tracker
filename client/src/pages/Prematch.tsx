@@ -556,7 +556,7 @@ export default function Prematch() {
       <div className="relative grid grid-flow-col auto-cols-fr my-[3px]" data-inspect-id={inspectId}>
         <span
           aria-hidden="true"
-          className="is-selected is-raised absolute -inset-y-[3px] left-0 border-2 pointer-events-none transition-[transform,background-color,border-color,box-shadow] duration-200 ease-out motion-reduce:transition-none"
+          className="is-selected mode-fill absolute -inset-y-[3px] left-0 border-2 pointer-events-none transition-[transform,background-color,border-color,box-shadow] duration-200 ease-out motion-reduce:transition-none"
           style={{
             width: `${100 / options.length}%`,
             transform: `translateX(${i * 100}%)`,
