@@ -547,18 +547,22 @@ export default function Dashboard() {
   const rankHasData = rankValuesSeen.length > 0;
   const rankMinRaw = rankHasData ? Math.min(...rankValuesSeen) : RANK_MIN;
   const rankMaxRaw = rankHasData ? Math.max(...rankValuesSeen) : RANK_MAX;
-  const rankPad = Math.max(1, Math.round((rankMaxRaw - rankMinRaw) * 0.15));
-  const rankLo = Math.max(RANK_MIN, rankMinRaw - rankPad);
-  const rankHi = Math.min(RANK_MAX, rankMaxRaw + rankPad);
-  const rankSpan = Math.max(1, rankHi - rankLo);
+  // The range is exactly the tiers the data sits in, whole: no padding into
+  // an empty tier (a 2-rank pad above Emerald 24 used to show a Diamond sliver
+  // with nothing in it). Tiers are 5 ranks wide; edges sit half a rank past.
+  const rankTierLoIdx = Math.floor((rankMinRaw - 1) / 5);
+  const rankTierHiIdx = Math.floor((rankMaxRaw - 1) / 5);
+  const rankLo = rankTierLoIdx * 5 + 0.5;
+  const rankHi = rankTierHiIdx * 5 + 5.5;
+  const rankSpan = rankHi - rankLo;
   const RANK_H = 90;
   const rankY = (v: number) => RANK_H - ((v - rankLo) / rankSpan) * RANK_H;
-  const rankTierBands = Array.from(new Set(
-    Array.from({ length: rankHi - rankLo + 1 }, (_, i) => rankTier(rankLo + i)),
-  )).map(tier => {
-    const k = RANK_TIERS.indexOf(tier);
-    return { tier, lo: Math.max(rankLo, k * 5 + 0.5), hi: Math.min(rankHi, k * 5 + 5.5) };
-  });
+  const rankTierBands = RANK_TIERS
+    .slice(rankTierLoIdx, rankTierHiIdx + 1)
+    .map((tier, i) => {
+      const k = rankTierLoIdx + i;
+      return { tier, lo: k * 5 + 0.5, hi: k * 5 + 5.5 };
+    });
 
   const zeroY = chartY(0);
   const lastCandle = candles.length ? candles[candles.length - 1] : null;
