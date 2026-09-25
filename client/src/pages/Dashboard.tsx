@@ -554,7 +554,7 @@ export default function Dashboard() {
   const rankLo = rankTierLoIdx * 5 + 0.5;
   const rankHi = rankTierHiIdx * 5 + 5.5;
   const rankSpan = rankHi - rankLo;
-  const RANK_H = 99;
+  const RANK_H = 109;
   const rankY = (v: number) => RANK_H - ((v - rankLo) / rankSpan) * RANK_H;
   const rankTierBands = RANK_TIERS
     .slice(rankTierLoIdx, rankTierHiIdx + 1)
@@ -1095,7 +1095,7 @@ export default function Dashboard() {
                   const c = candles[m.j];
                   const y = m.up ? chartY(c.high) : chartY(c.low);
                   const stack = tierStackIdx.get(m)!;
-                  const outward = stack * 7; // px: signs overlap their own line-box padding, so 7 reads as touching
+                  const outward = stack * 5; // px: the signs' strokes sit mid-glyph, so 5 stacks them tight without the strokes colliding
                   const label = drumLabel(m.account, m.role);
                   const glyph = (
                     <span
@@ -1114,8 +1114,8 @@ export default function Dashboard() {
                         left: `calc(1.75rem + ${(slotX(m.j) / CH_W) * 100}% - ${(slotX(m.j) / CH_W) * 1.75}rem)`,
                         top: `${(y / CH_H) * 100}%`,
                         transform: m.up
-                          ? `translate(-50%, -100%) translateY(${-2 - outward}px)`
-                          : `translate(-50%, ${2 + outward}px)`,
+                          ? `translate(-50%, -100%) translateY(${-1 - outward}px)`
+                          : `translate(-50%, ${1 + outward}px)`,
                         color: m.account && isAccount(m.account)
                           ? `oklch(from rgb(${RANK_SERIES_RGB[m.account]}) l calc(c * 1.5) h)`
                           : 'var(--faint)',
@@ -1153,7 +1153,7 @@ export default function Dashboard() {
                 <svg
                   viewBox={`0 0 ${CH_W} ${RANK_H}`}
                   preserveAspectRatio="none"
-                  className="relative z-10 w-full h-[99px] overflow-visible"
+                  className="relative z-10 w-full h-[109px] overflow-visible"
                   role="img"
                   aria-label={
                     rankHasData
