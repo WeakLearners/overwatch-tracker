@@ -482,8 +482,7 @@ export default function Dashboard() {
   const RANK_SERIES_OPACITY: Record<RankRole, number> = { DPS: 1, Support: 0.5 };
 
   type RankStep = { x: number; y: number };
-  type RankMarker = { x: number; y: number; date: string };
-  type RankSeries = { account: Account; role: RankRole; color: string; opacity: number; steps: RankStep[]; markers: RankMarker[] };
+  type RankSeries = { account: Account; role: RankRole; color: string; opacity: number; steps: RankStep[] };
 
   // Rows with a rank reading but no account on file (7 matches, logged
   // 2026-09-19/20 before the account column existed) are excluded from every
@@ -502,7 +501,6 @@ export default function Dashboard() {
         if (arr) arr.push(m); else byDate.set(d, [m]);
       }
       const steps: RankStep[] = [];
-      const markers: RankMarker[] = [];
       let current: number | null = null;
       for (const m of matches) {
         const d = m.date.slice(0, 10);
@@ -529,7 +527,6 @@ export default function Dashboard() {
         // jump rather than being averaged away.
         if (end !== start) steps.push({ x, y: end });
         current = end;
-        markers.push({ x, y: end, date: d });
       }
       // Carry the last reading flat to the right edge of the visible chart —
       // the line for an account that hasn't played since should still reach
@@ -539,7 +536,7 @@ export default function Dashboard() {
         account, role,
         color: `rgb(${RANK_SERIES_RGB[account]})`,
         opacity: RANK_SERIES_OPACITY[role],
-        steps, markers,
+        steps,
       };
     }),
   );
@@ -1204,26 +1201,10 @@ export default function Dashboard() {
                       strokeOpacity={s.opacity}
                       strokeWidth="2"
                       vectorEffect="non-scaling-stroke"
-                    />
+                    >
+                      <title>{`${s.account} · ${s.role}`}</title>
+                    </polyline>
                   ))}
-                  {/* Match points. The svg stretches horizontally
-                      (preserveAspectRatio="none"), which squashed <circle>s into
-                      smears; a zero-length line with a round cap and
-                      non-scaling stroke draws a true circle at a fixed pixel
-                      size instead. A card-coloured ring underneath separates
-                      each point from its line and the lit band behind it. Points
-                      stay strong on Support even though its line is faded. */}
-                  {rankSeries.flatMap(s => s.markers.map((m, i) => {
-                    const y = rankY(m.y);
-                    return (
-                      <g key={`rank-pt-${s.account}-${s.role}-${i}`}>
-                        <line x1={m.x} y1={y} x2={m.x} y2={y} stroke="currentColor" className="text-ow-card" strokeWidth="10" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-                        <line x1={m.x} y1={y} x2={m.x} y2={y} stroke={s.color} strokeOpacity={s.role === 'Support' ? 0.8 : 1} strokeWidth="7" strokeLinecap="round" vectorEffect="non-scaling-stroke">
-                          <title>{`${s.account} · ${s.role} · ${rankLabel(m.y)} · ${format(parseISO(m.date), 'MMM d')}`}</title>
-                        </line>
-                      </g>
-                    );
-                  }))}
                 </svg>
                 {/* Each band is lit like a selected mode tile (.is-selected
                     .mode-fill in the tier's hue): the threshold at its bottom
