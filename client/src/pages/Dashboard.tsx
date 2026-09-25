@@ -1206,18 +1206,24 @@ export default function Dashboard() {
                       vectorEffect="non-scaling-stroke"
                     />
                   ))}
-                  {rankSeries.flatMap(s => s.markers.map((m, i) => (
-                    <circle
-                      key={`rank-pt-${s.account}-${s.role}-${i}`}
-                      cx={m.x}
-                      cy={rankY(m.y)}
-                      r="2.5"
-                      fill={s.color}
-                      fillOpacity={s.opacity}
-                    >
-                      <title>{`${s.account} · ${s.role} · ${rankLabel(m.y)} · ${format(parseISO(m.date), 'MMM d')}`}</title>
-                    </circle>
-                  )))}
+                  {/* Match points. The svg stretches horizontally
+                      (preserveAspectRatio="none"), which squashed <circle>s into
+                      smears; a zero-length line with a round cap and
+                      non-scaling stroke draws a true circle at a fixed pixel
+                      size instead. A card-coloured ring underneath separates
+                      each point from its line and the lit band behind it. Points
+                      stay strong on Support even though its line is faded. */}
+                  {rankSeries.flatMap(s => s.markers.map((m, i) => {
+                    const y = rankY(m.y);
+                    return (
+                      <g key={`rank-pt-${s.account}-${s.role}-${i}`}>
+                        <line x1={m.x} y1={y} x2={m.x} y2={y} stroke="currentColor" className="text-ow-card" strokeWidth="10" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                        <line x1={m.x} y1={y} x2={m.x} y2={y} stroke={s.color} strokeOpacity={s.role === 'Support' ? 0.8 : 1} strokeWidth="7" strokeLinecap="round" vectorEffect="non-scaling-stroke">
+                          <title>{`${s.account} · ${s.role} · ${rankLabel(m.y)} · ${format(parseISO(m.date), 'MMM d')}`}</title>
+                        </line>
+                      </g>
+                    );
+                  }))}
                 </svg>
                 {/* Each band is lit like a selected mode tile (.is-selected
                     .mode-fill in the tier's hue): the threshold at its bottom
