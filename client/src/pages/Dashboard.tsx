@@ -442,8 +442,8 @@ export default function Dashboard() {
   // A day can now carry several crossings. Marks pointing the same way on
   // the same day would land on top of each other, so each successive one
   // (in the same stable sorted-key order used to build tierMarks) is pushed
-  // a further 21px outward from the candle — up-marks stack down from the
-  // day's low, down-marks stack up from the day's high.
+  // a further step outward from the candle — "+" marks stack up from the
+  // day's high, "−" marks stack down from its low.
   const tierStackIdx = new Map<TierMark, number>();
   {
     const counters = new Map<string, number>();
@@ -1079,9 +1079,10 @@ export default function Dashboard() {
                   </span>
                 ))}
 
-                {/* Tier crossings, as a small "+" (promotion, just under the
-                    day's low) or "−" (demotion, just over its high), so neither
-                    lands on the candle it belongs to. HTML, not SVG: the chart
+                {/* Tier crossings, as a small "+" (promotion, stacked above the
+                    day's high) or "−" (demotion, stacked below its low), so
+                    neither lands on the candle it belongs to. No account/role
+                    letters on the chart; the hover title carries them. HTML, not SVG: the chart
                     is stretched with preserveAspectRatio="none" and a glyph
                     inside it would stretch too.
 
@@ -1092,21 +1093,15 @@ export default function Dashboard() {
                     tier-coloured triangles 2026-09-25. */}
                 {tierMarks.map(m => {
                   const c = candles[m.j];
-                  const y = m.up ? chartY(c.low) : chartY(c.high);
+                  const y = m.up ? chartY(c.high) : chartY(c.low);
                   const stack = tierStackIdx.get(m)!;
-                  const outward = stack * 19; // px: the ~9px sign plus its 8px tag, plus a hair
+                  const outward = stack * 10; // px: one ~9px sign plus a hair
                   const label = drumLabel(m.account, m.role);
                   const glyph = (
                     <span
                       key="g" className="text-[13px] font-black leading-[0.7]"
                       style={{ textShadow: '0 0 2px var(--surface), 0 0 2px var(--surface)' }}
                     >{m.up ? '+' : '−'}</span>
-                  );
-                  const tag = (
-                    <span
-                      key="l" className="text-[8px] leading-none font-bold tracking-tight tabular-nums"
-                      style={{ textShadow: '0 0 2px var(--surface), 0 0 2px var(--surface)' }}
-                    >{label}</span>
                   );
                   return (
                     <span
@@ -1119,17 +1114,17 @@ export default function Dashboard() {
                         left: `calc(1.75rem + ${(slotX(m.j) / CH_W) * 100}% - ${(slotX(m.j) / CH_W) * 1.75}rem)`,
                         top: `${(y / CH_H) * 100}%`,
                         transform: m.up
-                          ? `translate(-50%, ${2 + outward}px)`
-                          : `translate(-50%, -100%) translateY(${-2 - outward}px)`,
+                          ? `translate(-50%, -100%) translateY(${-3 - outward}px)`
+                          : `translate(-50%, ${3 + outward}px)`,
                         color: m.account && isAccount(m.account)
                           ? `oklch(from rgb(${RANK_SERIES_RGB[m.account]}) l calc(c * 1.5) h)`
                           : 'var(--faint)',
                         opacity: m.role === 'Support' ? RANK_SERIES_OPACITY.Support : 1,
-                        // The sign and tag each carry a surface-coloured halo, so
-                        // they stay legible over a candle in either theme.
+                        // The sign carries a surface-coloured halo, so it stays
+                        // legible over a candle in either theme.
                       }}
                     >
-                      {m.up ? [glyph, tag] : [tag, glyph]}
+                      {glyph}
                     </span>
                   );
                 })}
@@ -1362,7 +1357,7 @@ export default function Dashboard() {
                     </span>
                     <span>
                       <b className={LEGEND_TITLE}>tier change</b>
-                      <br />+ under the candle, − over · colored by account, like its rank line
+                      <br />+ above the candle, − below · colored by account, like its rank line
                     </span>
                   </div>
                 </div>
