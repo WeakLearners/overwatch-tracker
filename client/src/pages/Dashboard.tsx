@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
-import { Overview, Streaks, TrendPoint, ModeComparison, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB, RANK_TIER_RGB, rankTier, rankLabel, rankDivision } from '../types';
+import { Overview, Streaks, TrendPoint, ModeComparison, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB, RANK_TIER_RGB, rankTier, rankLabel, rankDivision, ACCOUNTS, Account, RANK_MIN, RANK_MAX } from '../types';
 import StatCard from '../components/StatCard';
 import AnimatedNumber from '../components/AnimatedNumber';
 import EmptyState from '../components/EmptyState';
@@ -455,6 +455,111 @@ export default function Dashboard() {
     }
   }
 
+  // Ladder strip: one stepped line per (account × role), drawn in its own
+  // <svg> directly under the volume bars rather than folded into the candle
+  // chart's own coordinate space. The candle chart's gradients are keyed to
+  // its own fixed height (CH_H) — stretching that space to fit a second
+  // series in would mean re-deriving every gradient stop above it. A
+  // separate svg sharing slotX/slotW/CH_W (none of which depend on CH_H)
+  // keeps the day columns lined up between the two without touching either.
+  //
+  // Only DPS and Support are ranked ladders Sean tracks here; Tank is out of
+  // scope for this strip by the same brief that scoped the account pills.
+  const RANK_ROLES = ['DPS', 'Support'] as const;
+  type RankRole = typeof RANK_ROLES[number];
+
+  // One hue per account, borrowed from the existing rank-tier palette
+  // (RANK_TIER_RGB) rather than a new one — the standing rule is no
+  // off-palette hues. Support is the same hue at lower opacity, so the two
+  // lines for one account read as two weights of the same color instead of
+  // an unrelated pair.
+  const RANK_SERIES_RGB: Record<Account, string> = {
+    Pinx: RANK_TIER_RGB.Diamond,
+    Jinx: RANK_TIER_RGB.Grandmaster,
+    Winx: RANK_TIER_RGB.Master,
+    Linx: RANK_TIER_RGB.Bronze,
+  };
+  const RANK_SERIES_OPACITY: Record<RankRole, number> = { DPS: 1, Support: 0.5 };
+
+  type RankStep = { x: number; y: number };
+  type RankMarker = { x: number; y: number; date: string };
+  type RankSeries = { account: Account; role: RankRole; color: string; opacity: number; steps: RankStep[]; markers: RankMarker[] };
+
+  // Rows with a rank reading but no account on file (7 matches, logged
+  // 2026-09-19/20 before the account column existed) are excluded from every
+  // line below by construction: `g.account === account` never matches null.
+  const rankSeries: RankSeries[] = ACCOUNTS.flatMap(account =>
+    RANK_ROLES.map((role): RankSeries => {
+      const matches = (trends ?? []).filter(
+        g => g.account === account && g.role === role && (g.player_rank_start != null || g.player_rank != null),
+      );
+      // Grouped by day so several matches on the same day can be spaced
+      // evenly across that day's column instead of stacking on one x.
+      const byDate = new Map<string, TrendPoint[]>();
+      for (const m of matches) {
+        const d = m.date.slice(0, 10);
+        const arr = byDate.get(d);
+        if (arr) arr.push(m); else byDate.set(d, [m]);
+      }
+      const steps: RankStep[] = [];
+      const markers: RankMarker[] = [];
+      let current: number | null = null;
+      for (const m of matches) {
+        const d = m.date.slice(0, 10);
+        const j = candleIdxByDate.get(d);
+        if (j == null) continue; // outside the currently visible window
+        const dayMatches = byDate.get(d)!;
+        const idx = dayMatches.indexOf(m);
+        const x = slotX(j) - slotW / 2 + (slotW * (idx + 0.5)) / dayMatches.length;
+        const start = m.player_rank_start ?? m.player_rank!;
+        const end = m.player_rank ?? m.player_rank_start!;
+        if (current == null) {
+          // First ranked match of the series: the line starts here, at the
+          // rank it began at, not before.
+          steps.push({ x, y: start });
+        } else {
+          // Hold flat from the previous reading up to this match's x — this
+          // is what carries a series across days with no games — then jump
+          // to this match's own start if it differs (a gap or edit).
+          steps.push({ x, y: current });
+          if (start !== current) steps.push({ x, y: start });
+        }
+        // The crossing itself: a vertical step at this match's x from its
+        // start rank to its end rank, so a mid-match promotion is a visible
+        // jump rather than being averaged away.
+        if (end !== start) steps.push({ x, y: end });
+        current = end;
+        markers.push({ x, y: end, date: d });
+      }
+      // Carry the last reading flat to the right edge of the visible chart —
+      // the line for an account that hasn't played since should still reach
+      // "now" instead of stopping mid-chart.
+      if (current != null) steps.push({ x: CH_W, y: current });
+      return {
+        account, role,
+        color: `rgb(${RANK_SERIES_RGB[account]})`,
+        opacity: RANK_SERIES_OPACITY[role],
+        steps, markers,
+      };
+    }),
+  );
+  const rankValuesSeen = rankSeries.flatMap(s => s.steps.map(p => p.y));
+  const rankHasData = rankValuesSeen.length > 0;
+  const rankMinRaw = rankHasData ? Math.min(...rankValuesSeen) : RANK_MIN;
+  const rankMaxRaw = rankHasData ? Math.max(...rankValuesSeen) : RANK_MAX;
+  const rankPad = Math.max(1, Math.round((rankMaxRaw - rankMinRaw) * 0.15));
+  const rankLo = Math.max(RANK_MIN, rankMinRaw - rankPad);
+  const rankHi = Math.min(RANK_MAX, rankMaxRaw + rankPad);
+  const rankSpan = Math.max(1, rankHi - rankLo);
+  const RANK_H = 90;
+  const rankY = (v: number) => RANK_H - ((v - rankLo) / rankSpan) * RANK_H;
+  // Three ticks only — min, mid, max of what's actually on screen. This is a
+  // context strip under a much bigger chart, not an instrument with its own
+  // dense scale.
+  const rankTicks = rankHasData
+    ? Array.from(new Set([rankLo, Math.round((rankLo + rankHi) / 2), rankHi]))
+    : [];
+
   const zeroY = chartY(0);
   const lastCandle = candles.length ? candles[candles.length - 1] : null;
   const lastClose = lastCandle ? lastCandle.close : 0;
@@ -694,7 +799,7 @@ export default function Dashboard() {
                   preserveAspectRatio="none"
                   className="w-full h-[320px] overflow-visible"
                   role="img"
-                  aria-label={`Daily win-loss candles across the last ${candles.length} days played. Each candle body is that day's net competitive record, stacked on the previous day's close; wicks are quickplay wins above and losses below. A dashed pace line shows where a run at the career win rate would drift to, shaded one standard deviation either side. Currently ${lastClose > 0 ? '+' : ''}${lastClose}, which is ${Math.abs(lastZ).toFixed(1)} standard deviations ${lastZ < 0 ? 'below' : 'above'} that pace. Volume bars along the bottom show matches played per day.`}
+                  aria-label={`Daily win-loss candles across the last ${candles.length} days played. Each candle body is that day's net competitive record, stacked on the previous day's close; wicks are quickplay wins above and losses below. A dashed pace line shows where a run at the career win rate would drift to, shaded one standard deviation either side. Currently ${lastClose > 0 ? '+' : ''}${lastClose}, which is ${Math.abs(lastZ).toFixed(1)} standard deviations ${lastZ < 0 ? 'below' : 'above'} that pace. Volume bars along the bottom show matches played per day. Below that, a separate strip shows competitive rank over time as a stepped line per account and role.`}
                 >
                   <defs>
                     {/* One shared gradient per direction, spanning the whole
@@ -1063,6 +1168,80 @@ export default function Dashboard() {
                 className="w-full"
               />
             )}
+
+            {/* Ladder strip: rank over time, one stepped line per account and
+                role, directly under the volume bars. A separate relative/pl-7
+                block rather than a taller version of the chart above — see
+                the rankSeries comment for why sharing that svg's own height
+                would have meant re-deriving its gradient math. It shares
+                slotX/slotW/CH_W with the chart above it, so the day columns
+                line up between the two even though the two <svg>s are
+                independent. */}
+            {candles.length >= 1 && (
+              <div className="relative pl-7 mt-2 pt-2 border-t border-ow-border/60" data-inspect-id="dash-rank-strip">
+                <svg
+                  viewBox={`0 0 ${CH_W} ${RANK_H}`}
+                  preserveAspectRatio="none"
+                  className="w-full h-[90px] overflow-visible"
+                  role="img"
+                  aria-label={
+                    rankHasData
+                      ? `Competitive rank over time, one stepped line per account and role: ${rankSeries.filter(s => s.steps.length > 0).map(s => `${s.account} ${s.role}`).join(', ')}.`
+                      : 'Competitive rank over time. No ranked matches with a known account fall inside the currently visible window.'
+                  }
+                >
+                  {rankSeries.map(s => s.steps.length > 0 && (
+                    <polyline
+                      key={`rank-line-${s.account}-${s.role}`}
+                      points={s.steps.map(p => `${p.x},${rankY(p.y)}`).join(' ')}
+                      fill="none"
+                      stroke={s.color}
+                      strokeOpacity={s.opacity}
+                      strokeWidth="2"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  ))}
+                  {rankSeries.flatMap(s => s.markers.map((m, i) => (
+                    <circle
+                      key={`rank-pt-${s.account}-${s.role}-${i}`}
+                      cx={m.x}
+                      cy={rankY(m.y)}
+                      r="2.5"
+                      fill={s.color}
+                      fillOpacity={s.opacity}
+                    >
+                      <title>{`${s.account} · ${s.role} · ${rankLabel(m.y)} · ${format(parseISO(m.date), 'MMM d')}`}</title>
+                    </circle>
+                  )))}
+                </svg>
+                {rankTicks.map(v => (
+                  <span
+                    key={`rank-yl-${v}`}
+                    className="absolute left-0 -translate-y-1/2 text-[9px] leading-none tabular-nums text-[var(--faint)] w-6 text-right pr-1"
+                    style={{ top: `${(rankY(v) / RANK_H) * 100}%` }}
+                  >
+                    {rankLabel(v)}
+                  </span>
+                ))}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] leading-none text-[var(--faint)] mt-2" data-inspect-id="dash-rank-strip-legend">
+                  {rankSeries.map(s => {
+                    const has = s.steps.length > 0;
+                    return (
+                      <span key={`rank-legend-${s.account}-${s.role}`} className="inline-flex items-center gap-1">
+                        <span
+                          className="inline-block w-2 h-2 rounded-full shrink-0"
+                          style={{ background: s.color, opacity: has ? s.opacity : 0.25 }}
+                        />
+                        <span className={has ? '' : 'italic opacity-60'}>
+                          {s.account} · {s.role}{has ? '' : ' (no data)'}
+                        </span>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {candles.length >= 1 && (
               <>
                 <div className="flex items-center justify-between text-[10px] text-[var(--faint)] mt-5">
