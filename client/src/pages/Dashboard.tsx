@@ -1187,7 +1187,7 @@ export default function Dashboard() {
                 <svg
                   viewBox={`0 0 ${CH_W} ${RANK_H}`}
                   preserveAspectRatio="none"
-                  className="w-full h-[90px] overflow-visible"
+                  className="relative z-10 w-full h-[90px] overflow-visible"
                   role="img"
                   aria-label={
                     rankHasData
@@ -1237,26 +1237,30 @@ export default function Dashboard() {
                     </circle>
                   )))}
                 </svg>
-                {/* Tier names as a watermark inside their own bands, flush to
-                    the chart's left edge. HTML rather than svg <text>: the svg
-                    stretches (preserveAspectRatio="none") and would squash
-                    the letters. */}
-                {rankTierBands.map(b => (
-                  <span
-                    key={`rank-band-label-${b.tier}`}
-                    className="absolute left-0 -translate-y-1/2 pl-1 pr-[0.1em] num-display italic text-[22px] font-black uppercase tracking-[-0.07em] leading-none pointer-events-none select-none"
-                    style={{
-                      top: `${((rankY(b.hi) + rankY(b.lo)) / 2 / RANK_H) * 100}%`,
-                      color: `rgb(${RANK_TIER_RGB[b.tier]})`,
-                      // 900 is the font's heaviest weight; a same-colour stroke
-                      // thickens the letters past it.
-                      WebkitTextStroke: `1px rgb(${RANK_TIER_RGB[b.tier]})`,
-                      opacity: 0.45,
-                    }}
-                  >
-                    {b.tier}
-                  </span>
-                ))}
+                {/* Tier names as watermarks, styled like the mode watermarks:
+                    the band is a clipping box and the name is drawn larger than
+                    it, so the letters bleed off its edges; the glyphs carry the
+                    same bottom-lit glow (.lit-text.lit-strong) in the tier's own
+                    hue via --sel. HTML rather than svg <text>: the svg stretches
+                    (preserveAspectRatio="none") and would squash the letters. */}
+                {rankTierBands.map(b => {
+                  const bandPx = (RANK_H * (b.hi - b.lo)) / rankSpan;
+                  return (
+                    <div
+                      key={`rank-band-label-${b.tier}`}
+                      aria-hidden="true"
+                      className="absolute left-0 right-0 overflow-hidden pointer-events-none select-none"
+                      style={{ top: `${(rankY(b.hi) / RANK_H) * 100}%`, height: `${(bandPx / RANK_H) * 100}%` }}
+                    >
+                      <span
+                        className="absolute left-0 top-1/2 -translate-y-1/2 num-display italic font-black uppercase leading-none tracking-[-0.07em] whitespace-nowrap opacity-[0.225]"
+                        style={{ fontSize: `${bandPx * 1.6}px`, '--sel': RANK_TIER_RGB[b.tier] } as React.CSSProperties}
+                      >
+                        <span className="lit-text lit-strong pr-[0.1em]">{b.tier}</span>
+                      </span>
+                    </div>
+                  );
+                })}
                 </div>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] leading-none text-[var(--faint)] mt-2" data-inspect-id="dash-rank-strip-legend">
                   {rankSeries.map(s => {
