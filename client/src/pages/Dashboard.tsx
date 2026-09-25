@@ -534,7 +534,9 @@ export default function Dashboard() {
       if (current != null) steps.push({ x: CH_W, y: current });
       return {
         account, role,
-        color: `rgb(${RANK_SERIES_RGB[account]})`,
+        // Same hue, chroma boosted 1.5x (the oklch relative-colour move the
+        // lit-text glows use), so the lines read over the lit tier bands.
+        color: `oklch(from rgb(${RANK_SERIES_RGB[account]}) l calc(c * 1.5) h)`,
         opacity: RANK_SERIES_OPACITY[role],
         steps,
       };
