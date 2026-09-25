@@ -133,7 +133,7 @@
           "kind": "text",
           "description": "Single fine-print line under the candle chart and rank strip. Left: days covered and ranked matches. Right: best day, worst day, current total (now) vs pace, and today's standing against pace in standard deviations (labelled ordinary / notable / real at the 1 and 2 SD boundaries, amber past 2). Merged 2026-09-25 from two rows that printed the current total twice. Exists because the band is useless without the number -- the candles alone cannot tell a slump from an ordinary stretch.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1270",
+            "path": "client/src/pages/Dashboard.tsx:1242",
             "grep": "grep -n -F -- 'dash-recent-form-pace-note' client/src/pages/Dashboard.tsx"
           }
         },
@@ -141,9 +141,9 @@
           "id": "dash-recent-form-tier-mark",
           "label": "Recent form \u2014 tier change marker",
           "kind": "display",
-          "description": "A triangle on the candle chart marking a rank move, with the new DIVISION number inside it \u2014 a down-triangle showing 2 means he dropped to x 2. Read off ONE ROW: a match records player_rank_start going in and player_rank coming out, and a mark is drawn when those differ. Nothing is compared against any other match. That replaced a cross-row walk on 2026-09-20 and retired three faults with it \u2014 the answer used to depend on which earlier row the walk landed on, so a gap in play, an edited row, or a match logged before the account column existed all changed it silently, and it could not tell a real move from the rank drum being dialled in. Two columns decided at log time are set by the person who knows, and editing that row corrects its own mark instead of shifting every mark after it. The digit is knocked out in the surface colour, rides in the triangle's wide half so it does not clip against the point, and carries no text-shadow: the wrapper's glow used to reach it, haloing a surface-coloured number in the surface colour.",
+          "description": "A small '+' (promotion, under the day's low) or '\u2212' (demotion, over its high) on the candle chart marking a rank move, with a two-letter account+role tag. Coloured by account, matching that account's line in the rank strip (Support at 70%). Replaced the tier-coloured triangles with a division digit on 2026-09-25. Read off ONE ROW: a match records player_rank_start going in and player_rank coming out, and a mark is drawn when those differ. Nothing is compared against any other match. That replaced a cross-row walk on 2026-09-20 and retired three faults with it \u2014 the answer used to depend on which earlier row the walk landed on, so a gap in play, an edited row, or a match logged before the account column existed all changed it silently, and it could not tell a real move from the rank drum being dialled in. Two columns decided at log time are set by the person who knows, and editing that row corrects its own mark instead of shifting every mark after it. The digit is knocked out in the surface colour, rides in the triangle's wide half so it does not clip against the point, and carries no text-shadow: the wrapper's glow used to reach it, haloing a surface-coloured number in the surface colour.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1135",
+            "path": "client/src/pages/Dashboard.tsx:1114",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-recent-form-tier-mark\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -153,7 +153,7 @@
           "kind": "legend",
           "description": "Four-item visual legend under the candlestick chart, on a hairline top border. Item 1 is a MINIATURE CANDLE drawn as its own small fixed-size SVG (not the stretched chart SVG) labelling body = ranked wins minus losses from yesterday's close, and wick = quickplay with wins above / losses below -- the two things nothing else on the page can convey, since the body is a NET rather than a count and the wick is repurposed from intraday range to a second series. Item 2 is a green/red swatch pair for day direction plus the saturation rule. Item 3 is a shaded block with a dashed midline for the pace line and its +/-1 SD band, naming the career win rate it uses. Item 4 is a stub bar trio for the volume lane, naming what the bar IS (total games that day, ranked AND quickplay) plus the lane's scale via maxVol -- NOT why the lane exists; that rationale lives in the code comment, since a legend that argues instead of labelling is the thing Sean flagged on 2026-09-18. Legend swatches use UP_SWATCH / DOWN_SWATCH -- FLAT hsl() colours at SAT_CEIL, NOT the chart's url(#candleUp)/url(#candleDown) gradients, which are defined in the chart SVG's own <defs> and are meaningless in a separate SVG or a CSS background. Wraps to one column at phone width. Item 3's swatch tracks the pace line's accent colour, so legend and chart cannot drift apart.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1292",
+            "path": "client/src/pages/Dashboard.tsx:1264",
             "grep": "grep -n -F -- 'dash-recent-form-legend' client/src/pages/Dashboard.tsx"
           }
         },
@@ -163,7 +163,7 @@
           "kind": "chart",
           "description": "Stepped-line chart directly under the volume bars: one line per (account x role) showing competitive rank (player_rank_start/player_rank) over time, sharing the candle chart's day columns. A series with no ranked matches in the window draws no line and is marked no data in its legend.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1184",
+            "path": "client/src/pages/Dashboard.tsx:1156",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-rank-strip\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -173,7 +173,7 @@
           "kind": "legend",
           "description": "Legend row for the rank ladder strip: one swatch + \"Account \u00b7 Role\" label per of the 8 (account x role) series, with series holding no ranked matches marked (no data) at reduced opacity.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1243",
+            "path": "client/src/pages/Dashboard.tsx:1215",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-rank-strip-legend\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -183,7 +183,7 @@
           "kind": "banner",
           "description": "Placeholder banner shown in the recent-match strip when no matches have been logged yet, prompting the user to log their first result.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1169",
+            "path": "client/src/pages/Dashboard.tsx:1141",
             "grep": "grep -n -F -- 'title=\"No matches logged yet\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -193,7 +193,7 @@
           "kind": "banner",
           "description": "Amber warning banner that appears when the session is on-tilt (two losses in a row today), optionally showing the user's historical win rate in that situation.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1402",
+            "path": "client/src/pages/Dashboard.tsx:1374",
             "grep": "grep -n -F -- 'dash-tilt-warning-banner' client/src/pages/Dashboard.tsx"
           }
         },
@@ -203,7 +203,7 @@
           "kind": "header",
           "description": "Section header titled 'Match' with subtitle 'Prep with the advisor, then log the result.', introducing the Prematch advisor and LogMatch form below.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1418",
+            "path": "client/src/pages/Dashboard.tsx:1390",
             "grep": "grep -n -F -- 'sub=\"Prep with the advisor, then log the result.\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -213,7 +213,7 @@
           "kind": "link",
           "description": "Link in the Match section header that opens the sensitivity-study page (/sens) in a new tab, keeping the dashboard in place.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1428",
+            "path": "client/src/pages/Dashboard.tsx:1400",
             "grep": "grep -n -F -- 'Log sens stats' client/src/pages/Dashboard.tsx"
           }
         },
@@ -223,7 +223,7 @@
           "kind": "section",
           "description": "Embeds the Prematch advisor component, which lets the user prep (map/mode selection, LLM pre-match advice) before logging a result.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1431",
+            "path": "client/src/pages/Dashboard.tsx:1403",
             "grep": "grep -n -F -- '<Prematch />' client/src/pages/Dashboard.tsx"
           }
         },
@@ -233,7 +233,7 @@
           "kind": "section",
           "description": "Embeds the LogMatch component, the form used to record the result (hero, map, win/loss, etc.) of the just-played match.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1432",
+            "path": "client/src/pages/Dashboard.tsx:1404",
             "grep": "grep -n -F -- '<LogMatch />' client/src/pages/Dashboard.tsx"
           }
         },
@@ -243,7 +243,7 @@
           "kind": "header",
           "description": "Section header titled 'Trends' with subtitle 'Recent form and momentum.', introducing the trends summary below.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1436",
+            "path": "client/src/pages/Dashboard.tsx:1408",
             "grep": "grep -n -F -- 'title=\"Trends\" sub=\"Recent form and momentum.\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -253,7 +253,7 @@
           "kind": "section",
           "description": "Embeds the TrendsSummary component showing recent-form charts/metrics and momentum indicators.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1437",
+            "path": "client/src/pages/Dashboard.tsx:1409",
             "grep": "grep -n -F -- '<TrendsSummary />' client/src/pages/Dashboard.tsx"
           }
         },
@@ -263,7 +263,7 @@
           "kind": "section",
           "description": "Embeds KillerFrequencyCard (Who Kills Me) \u2014 field registry Phase 1's read surface for match_deaths. Gated on the 'deaths' field via FieldConfigContext; renders nothing at all if that field is off. Added 2026-09-23.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1441",
+            "path": "client/src/pages/Dashboard.tsx:1413",
             "grep": "grep -n -F -- 'dash-killer-frequency-section' client/src/pages/Dashboard.tsx"
           }
         },
@@ -273,7 +273,7 @@
           "kind": "header",
           "description": "Section header titled 'Career' with subtitle 'All-time totals across every mode.', introducing the career stat-tile grid below.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1447",
+            "path": "client/src/pages/Dashboard.tsx:1419",
             "grep": "grep -n -F -- 'title=\"Career\" sub=\"All-time totals across every mode.\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -283,7 +283,7 @@
           "kind": "stat-tile",
           "description": "Displays the all-time total number of logged games.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1451",
+            "path": "client/src/pages/Dashboard.tsx:1423",
             "grep": "grep -n -F -- 'label=\"Total Games\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -293,7 +293,7 @@
           "kind": "stat-tile",
           "description": "Displays the all-time win-rate percentage, colored green if 50% or higher and red otherwise.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1455",
+            "path": "client/src/pages/Dashboard.tsx:1427",
             "grep": "grep -n -F -- 'label=\"Win Rate\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -303,7 +303,7 @@
           "kind": "stat-tile",
           "description": "Displays the all-time count of wins, styled in the 'win' color.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1461",
+            "path": "client/src/pages/Dashboard.tsx:1433",
             "grep": "grep -n -F -- 'label=\"Wins\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -313,7 +313,7 @@
           "kind": "stat-tile",
           "description": "Displays the all-time count of losses (total minus wins), styled in the 'loss' color.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1462",
+            "path": "client/src/pages/Dashboard.tsx:1434",
             "grep": "grep -n -F -- 'label=\"Losses\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -323,7 +323,7 @@
           "kind": "stat-tile",
           "description": "Displays the count of distinct heroes played across all logged matches.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1463",
+            "path": "client/src/pages/Dashboard.tsx:1435",
             "grep": "grep -n -F -- 'label=\"Heroes Played\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -333,7 +333,7 @@
           "kind": "stat-tile",
           "description": "Displays the current win or loss streak length and type (e.g. '3 W'), colored to match win or loss.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1467",
+            "path": "client/src/pages/Dashboard.tsx:1439",
             "grep": "grep -n -F -- 'label=\"Current Streak\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -343,7 +343,7 @@
           "kind": "stat-tile",
           "description": "Displays the longest win streak recorded all-time, styled in the 'win' color.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1471",
+            "path": "client/src/pages/Dashboard.tsx:1443",
             "grep": "grep -n -F -- 'label=\"Longest Win Streak\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -353,7 +353,7 @@
           "kind": "stat-tile",
           "description": "Count of matches where somebody left, plus a sub-line giving the denominator and the win rate with leaver matches dropped. The denominator is printed on purpose: matches logged before 2026-09-23 hold leaver NULL because the question was never asked, and they are excluded from the ratio rather than counted as 'no leaver'. Eighth tile in the Career strip, which widened from 7 to 8 columns to hold it.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1477",
+            "path": "client/src/pages/Dashboard.tsx:1449",
             "grep": "grep -n -F -- 'dataInspectId=\"dash-stat-leavers\"' client/src/pages/Dashboard.tsx"
           }
         }

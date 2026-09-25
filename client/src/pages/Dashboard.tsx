@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
-import { Overview, Streaks, TrendPoint, ModeComparison, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB, RANK_TIER_RGB, rankTier, rankLabel, rankDivision, RANK_TIERS, ACCOUNTS, Account, RANK_MIN, RANK_MAX } from '../types';
+import { Overview, Streaks, TrendPoint, ModeComparison, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB, RANK_TIER_RGB, rankTier, rankLabel, RANK_TIERS, ACCOUNTS, Account, isAccount, RANK_MIN, RANK_MAX } from '../types';
 import StatCard from '../components/StatCard';
 import AnimatedNumber from '../components/AnimatedNumber';
 import EmptyState from '../components/EmptyState';
@@ -1079,49 +1079,28 @@ export default function Dashboard() {
                   </span>
                 ))}
 
-                {/* Tier crossings. These are HTML, not SVG, for the same
-                    reason the axis labels are: the chart is stretched to the
-                    card width with preserveAspectRatio="none", and a triangle
-                    drawn inside it would be stretched with it — a promotion
-                    marker would come out a different shape on a wide card than
-                    on a narrow one.
+                {/* Tier crossings, as a small "+" (promotion, just under the
+                    day's low) or "−" (demotion, just over its high), so neither
+                    lands on the candle it belongs to. HTML, not SVG: the chart
+                    is stretched with preserveAspectRatio="none" and a glyph
+                    inside it would stretch too.
 
-                    A promotion sits just under the day's low pointing up, and
-                    a demotion just over its high pointing down, so neither
-                    lands on top of the candle it belongs to. The colour is the
-                    tier being ENTERED, which is the thing worth reading off a
-                    glance — the mark answers "where am I now", not "where was
-                    I". */}
+                    Coloured by ACCOUNT, the same colour as that account's line
+                    in the rank strip below (Support at its line's 70%), so a
+                    mark points at the line it moved. The sign already says the
+                    direction; green/red would only repeat it. Replaced the
+                    tier-coloured triangles 2026-09-25. */}
                 {tierMarks.map(m => {
                   const c = candles[m.j];
                   const y = m.up ? chartY(c.low) : chartY(c.high);
                   const stack = tierStackIdx.get(m)!;
-                  const outward = stack * 29; // px: the 19px triangle plus its 8px tag, plus a hair
+                  const outward = stack * 19; // px: the ~9px sign plus its 8px tag, plus a hair
                   const label = drumLabel(m.account, m.role);
-                  // The triangle says which way, and the number inside says
-                  // which division he landed in. Both halves of "demoted to
-                  // Gold 2" in one 15px mark, which is what a bare arrow
-                  // could never carry.
-                  //
-                  // The digit sits off-centre on purpose. A triangle's width
-                  // is all at one end, so a vertically centred number crowds
-                  // the point and clips. It rides in the wide half: high in a
-                  // down-triangle, low in an up-triangle.
-                  const div = rankDivision(m.rank);
                   const glyph = (
-                    <svg key="g" width="20" height="19" viewBox="0 0 20 19" className="overflow-visible">
-                      <polygon
-                        points={m.up ? '10,0.75 19.25,18.25 0.75,18.25' : '0.75,0.75 19.25,0.75 10,18.25'}
-                        fill="currentColor" stroke="var(--surface)" strokeWidth="1.5" strokeLinejoin="round"
-                        paintOrder="stroke"
-                      />
-                      <text
-                        x="10" y={m.up ? 15.4 : 11.6} textAnchor="middle"
-                        fontSize="11" fontWeight="800" fill="var(--surface)"
-                        className="tabular-nums select-none"
-                        style={{ textShadow: 'none' }}
-                      >{div}</text>
-                    </svg>
+                    <span
+                      key="g" className="text-[13px] font-black leading-[0.7]"
+                      style={{ textShadow: '0 0 2px var(--surface), 0 0 2px var(--surface)' }}
+                    >{m.up ? '+' : '−'}</span>
                   );
                   const tag = (
                     <span
@@ -1142,19 +1121,12 @@ export default function Dashboard() {
                         transform: m.up
                           ? `translate(-50%, ${2 + outward}px)`
                           : `translate(-50%, -100%) translateY(${-2 - outward}px)`,
-                        color: `rgb(${RANK_TIER_RGB[m.tier as keyof typeof RANK_TIER_RGB]})`,
-                        // A tier colour chosen to read on a rank badge is not
-                        // guaranteed to read on the chart's own background,
-                        // and Bronze against a dark card is the worst case. A
-                        // thin outline in the page's surface colour keeps the
-                        // shape legible in both themes without touching the
-                        // hue, which is the part carrying the meaning.
-                        // No text-shadow here. It used to sit on this wrapper and
-                        // reached the SVG's digit, which is filled in the surface
-                        // colour — a surface-coloured halo around a surface-coloured
-                        // number, softening the one edge that had to stay sharp. The
-                        // triangle has its own outline via paintOrder, and the tag
-                        // carries the glow itself.
+                        color: m.account && isAccount(m.account)
+                          ? `oklch(from rgb(${RANK_SERIES_RGB[m.account]}) l calc(c * 1.5) h)`
+                          : 'var(--faint)',
+                        opacity: m.role === 'Support' ? RANK_SERIES_OPACITY.Support : 1,
+                        // The sign and tag each carry a surface-coloured halo, so
+                        // they stay legible over a candle in either theme.
                       }}
                     >
                       {m.up ? [glyph, tag] : [tag, glyph]}
@@ -1384,13 +1356,13 @@ export default function Dashboard() {
                   <div className="flex items-start gap-2 min-w-0">
                     <span className={LEGEND_SWATCH} aria-hidden="true">
                       <span className="inline-flex flex-col leading-[0.75] text-[11px]">
-                        <span style={{ color: `rgb(${RANK_TIER_RGB.Platinum})` }}>▲</span>
-                        <span style={{ color: `rgb(${RANK_TIER_RGB.Gold})` }}>▼</span>
+                        <span className="font-black" style={{ color: `oklch(from rgb(${RANK_SERIES_RGB.Pinx}) l calc(c * 1.5) h)` }}>+</span>
+                        <span className="font-black" style={{ color: `oklch(from rgb(${RANK_SERIES_RGB.Jinx}) l calc(c * 1.5) h)` }}>−</span>
                       </span>
                     </span>
                     <span>
                       <b className={LEGEND_TITLE}>tier change</b>
-                      <br />▲ under the candle, ▼ over · colored for the tier entered
+                      <br />+ under the candle, − over · colored by account, like its rank line
                     </span>
                   </div>
                 </div>
