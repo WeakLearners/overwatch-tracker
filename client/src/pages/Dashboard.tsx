@@ -1242,10 +1242,10 @@ export default function Dashboard() {
                       } as React.CSSProperties}
                     >
                       <span
-                        className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-[0.12em] num-display italic font-black uppercase leading-none tracking-[-0.07em] whitespace-nowrap opacity-[0.225]"
+                        className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-[0.3em] num-display italic font-black uppercase leading-none tracking-[-0.07em] whitespace-nowrap opacity-[0.225]"
                         style={{ fontSize: `${bandPx * 1.6}px` }}
                       >
-                        <span className="lit-text lit-strong pr-[0.1em]">{b.tier}</span>
+                        <span className="lit-text lit-strong pr-[0.3em]">{b.tier}</span>
                       </span>
                     </div>
                   );
