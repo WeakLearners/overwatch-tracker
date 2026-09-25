@@ -1261,36 +1261,27 @@ export default function Dashboard() {
 
             {candles.length >= 1 && (
               <>
-                <div className="flex items-center justify-between text-[10px] text-[var(--faint)] mt-5">
-                    <span>{candles.length} days</span>
-                    <span>
-                      best day <b className="font-bold text-emerald-600">{bestDay > 0 ? '+' : ''}{bestDay}</b>
-                      {' · '}worst <b className="font-bold text-rose-600">{worstDay}</b>
-                      {' · '}now{' '}
-                      <b className={`font-bold ${lastClose >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {lastClose > 0 ? '+' : ''}{lastClose}
-                      </b>
-                    </span>
-                  <span>latest</span>
-                </div>
-                {/* What the underlay is saying, in words. The band is only useful
-                    if the number that goes with it is on screen — "inside one
-                    standard deviation" is the difference between a slump and an
-                    ordinary stretch, and the candles alone cannot tell you which
-                    this is. */}
-                <div className="flex items-center justify-between flex-wrap gap-y-1 text-[10px] text-[var(--faint)] mt-1.5" data-inspect-id="dash-recent-form-pace-note">
-                  <span />
+                {/* One line of fine print: what the chart covers on the left,
+                    where you stand on the right. This used to be two rows that
+                    printed the current total twice ("now" and "you"). The pace
+                    figures stay: the band is only useful if the number that goes
+                    with it is on screen, since "inside one SD" is the difference
+                    between a slump and an ordinary stretch. */}
+                <div className="flex items-center justify-between flex-wrap gap-x-4 gap-y-1 text-[10px] text-[var(--faint)] mt-3" data-inspect-id="dash-recent-form-pace-note">
+                  <span>{candles.length} days · {lastN} ranked</span>
                   <span>
-                    {lastN} ranked · pace <b className="font-bold">{paceAt(lastN) >= 0 ? '+' : ''}{paceAt(lastN).toFixed(0)}</b>
-                    {' · '}you{' '}
+                    best <b className="font-bold text-emerald-600">{bestDay > 0 ? '+' : ''}{bestDay}</b>
+                    {' · '}worst <b className="font-bold text-rose-600">{worstDay}</b>
+                    {' · '}now{' '}
                     <b className={`font-bold ${lastClose >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                       {lastClose > 0 ? '+' : ''}{lastClose}
                     </b>
+                    {' vs pace '}<b className="font-bold">{paceAt(lastN) >= 0 ? '+' : ''}{paceAt(lastN).toFixed(0)}</b>
                     {' · '}
                     <b className={`font-bold ${Math.abs(lastZ) >= 2 ? 'text-amber-600' : ''}`}>
                       {lastZ >= 0 ? '+' : '−'}{Math.abs(lastZ).toFixed(2)} SD
                     </b>
-                    {Math.abs(lastZ) < 1 ? ' — ordinary' : Math.abs(lastZ) < 2 ? ' — notable' : ' — real'}
+                    {Math.abs(lastZ) < 1 ? ', ordinary' : Math.abs(lastZ) < 2 ? ', notable' : ', real'}
                   </span>
                 </div>
                 {/* Legend. The candle is the part no one can guess: the body is
