@@ -1235,10 +1235,14 @@ export default function Dashboard() {
                       key={`rank-band-label-${b.tier}`}
                       aria-hidden="true"
                       className="absolute left-0 right-0 overflow-hidden pointer-events-none select-none is-selected mode-fill"
-                      style={{ top: `${(rankY(b.hi) / RANK_H) * 100}%`, height: `${(bandPx / RANK_H) * 100}%`, '--sel': RANK_TIER_RGB[b.tier] } as React.CSSProperties}
+                      style={{ top: `${(rankY(b.hi) / RANK_H) * 100}%`, height: `${(bandPx / RANK_H) * 100}%`, '--sel': RANK_TIER_RGB[b.tier],
+                        // A notch thinner than .mode-fill's 3px edge + 10px glow: these
+                        // bands are ~30px tall, a third of a mode tile.
+                        boxShadow: 'inset 0 -2px 0 0 rgb(var(--sel)), inset 0 -6px 8px -5px rgb(var(--sel) / 0.95)',
+                      } as React.CSSProperties}
                     >
                       <span
-                        className="absolute left-0 top-1/2 -translate-y-1/2 num-display italic font-black uppercase leading-none tracking-[-0.07em] whitespace-nowrap opacity-[0.225]"
+                        className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-[0.12em] num-display italic font-black uppercase leading-none tracking-[-0.07em] whitespace-nowrap opacity-[0.225]"
                         style={{ fontSize: `${bandPx * 1.6}px` }}
                       >
                         <span className="lit-text lit-strong pr-[0.1em]">{b.tier}</span>
