@@ -1195,24 +1195,6 @@ export default function Dashboard() {
                       : 'Competitive rank over time. No ranked matches with a known account fall inside the currently visible window.'
                   }
                 >
-                  {/* One band per rank tier inside the visible range, in that
-                      tier's own colour, so a line's height reads as a tier at a
-                      glance. Tiers are 5 ranks wide (1–5 Bronze, 6–10 Silver…);
-                      each band runs half a rank past its ends so boundaries fall
-                      between ranks, never on one. */}
-                  {rankTierBands.map(b => (
-                    <rect
-                      key={`rank-band-${b.tier}`}
-                      x="0"
-                      y={rankY(b.hi)}
-                      width={CH_W}
-                      height={rankY(b.lo) - rankY(b.hi)}
-                      fill={`rgb(${RANK_TIER_RGB[b.tier]})`}
-                      fillOpacity="0.1"
-                    >
-                      <title>{b.tier}</title>
-                    </rect>
-                  ))}
                   {rankSeries.map(s => s.steps.length > 0 && (
                     <polyline
                       key={`rank-line-${s.account}-${s.role}`}
@@ -1237,7 +1219,10 @@ export default function Dashboard() {
                     </circle>
                   )))}
                 </svg>
-                {/* Tier names as watermarks, styled like the mode watermarks:
+                {/* Each band is lit like a selected mode tile (.is-selected
+                    .mode-fill in the tier's hue): the threshold at its bottom
+                    edge is the light source, fading upward.
+                    Tier names as watermarks, styled like the mode watermarks:
                     the band is a clipping box and the name is drawn larger than
                     it, so the letters bleed off its edges; the glyphs carry the
                     same bottom-lit glow (.lit-text.lit-strong) in the tier's own
@@ -1249,12 +1234,12 @@ export default function Dashboard() {
                     <div
                       key={`rank-band-label-${b.tier}`}
                       aria-hidden="true"
-                      className="absolute left-0 right-0 overflow-hidden pointer-events-none select-none"
-                      style={{ top: `${(rankY(b.hi) / RANK_H) * 100}%`, height: `${(bandPx / RANK_H) * 100}%` }}
+                      className="absolute left-0 right-0 overflow-hidden pointer-events-none select-none is-selected mode-fill"
+                      style={{ top: `${(rankY(b.hi) / RANK_H) * 100}%`, height: `${(bandPx / RANK_H) * 100}%`, '--sel': RANK_TIER_RGB[b.tier] } as React.CSSProperties}
                     >
                       <span
                         className="absolute left-0 top-1/2 -translate-y-1/2 num-display italic font-black uppercase leading-none tracking-[-0.07em] whitespace-nowrap opacity-[0.225]"
-                        style={{ fontSize: `${bandPx * 1.6}px`, '--sel': RANK_TIER_RGB[b.tier] } as React.CSSProperties}
+                        style={{ fontSize: `${bandPx * 1.6}px` }}
                       >
                         <span className="lit-text lit-strong pr-[0.1em]">{b.tier}</span>
                       </span>
