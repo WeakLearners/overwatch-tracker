@@ -559,12 +559,6 @@ export default function Dashboard() {
     const k = RANK_TIERS.indexOf(tier);
     return { tier, lo: Math.max(rankLo, k * 5 + 0.5), hi: Math.min(rankHi, k * 5 + 5.5) };
   });
-  // Three ticks only — min, mid, max of what's actually on screen. This is a
-  // context strip under a much bigger chart, not an instrument with its own
-  // dense scale.
-  const rankTicks = rankHasData
-    ? Array.from(new Set([rankLo, Math.round((rankLo + rankHi) / 2), rankHi]))
-    : [];
 
   const zeroY = chartY(0);
   const lastCandle = candles.length ? candles[candles.length - 1] : null;
@@ -1239,13 +1233,21 @@ export default function Dashboard() {
                     </circle>
                   )))}
                 </svg>
-                {rankTicks.map(v => (
+                {/* Tier names as a watermark inside their own bands, flush to
+                    the chart's left edge. HTML rather than svg <text>: the svg
+                    stretches (preserveAspectRatio="none") and would squash
+                    the letters. */}
+                {rankTierBands.map(b => (
                   <span
-                    key={`rank-yl-${v}`}
-                    className="absolute -left-7 -translate-y-1/2 text-[9px] leading-none tabular-nums text-[var(--faint)] w-6 text-right pr-1"
-                    style={{ top: `${(rankY(v) / RANK_H) * 100}%` }}
+                    key={`rank-band-label-${b.tier}`}
+                    className="absolute left-0 -translate-y-1/2 pl-1 text-[11px] font-bold uppercase tracking-[0.18em] leading-none pointer-events-none select-none"
+                    style={{
+                      top: `${((rankY(b.hi) + rankY(b.lo)) / 2 / RANK_H) * 100}%`,
+                      color: `rgb(${RANK_TIER_RGB[b.tier]})`,
+                      opacity: 0.45,
+                    }}
                   >
-                    {rankLabel(v)}
+                    {b.tier}
                   </span>
                 ))}
                 </div>
