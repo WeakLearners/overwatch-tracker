@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
-import { Overview, Streaks, TrendPoint, ModeComparison, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB, RANK_TIER_RGB, rankTier, rankLabel, rankDivision, ACCOUNTS, Account, RANK_MIN, RANK_MAX } from '../types';
+import { Overview, Streaks, TrendPoint, ModeComparison, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB, RANK_TIER_RGB, rankTier, rankLabel, rankDivision, RANK_TIERS, ACCOUNTS, Account, RANK_MIN, RANK_MAX } from '../types';
 import StatCard from '../components/StatCard';
 import AnimatedNumber from '../components/AnimatedNumber';
 import EmptyState from '../components/EmptyState';
@@ -553,6 +553,12 @@ export default function Dashboard() {
   const rankSpan = Math.max(1, rankHi - rankLo);
   const RANK_H = 90;
   const rankY = (v: number) => RANK_H - ((v - rankLo) / rankSpan) * RANK_H;
+  const rankTierBands = Array.from(new Set(
+    Array.from({ length: rankHi - rankLo + 1 }, (_, i) => rankTier(rankLo + i)),
+  )).map(tier => {
+    const k = RANK_TIERS.indexOf(tier);
+    return { tier, lo: Math.max(rankLo, k * 5 + 0.5), hi: Math.min(rankHi, k * 5 + 5.5) };
+  });
   // Three ticks only — min, mid, max of what's actually on screen. This is a
   // context strip under a much bigger chart, not an instrument with its own
   // dense scale.
@@ -1178,7 +1184,8 @@ export default function Dashboard() {
                 line up between the two even though the two <svg>s are
                 independent. */}
             {candles.length >= 1 && (
-              <div className="relative pl-7 mt-2 pt-2 border-t border-ow-border/60" data-inspect-id="dash-rank-strip">
+              <div className="relative pl-7 mt-6 pt-3 border-t border-ow-border/60" data-inspect-id="dash-rank-strip">
+                <div className="relative">
                 <svg
                   viewBox={`0 0 ${CH_W} ${RANK_H}`}
                   preserveAspectRatio="none"
@@ -1190,6 +1197,24 @@ export default function Dashboard() {
                       : 'Competitive rank over time. No ranked matches with a known account fall inside the currently visible window.'
                   }
                 >
+                  {/* One band per rank tier inside the visible range, in that
+                      tier's own colour, so a line's height reads as a tier at a
+                      glance. Tiers are 5 ranks wide (1–5 Bronze, 6–10 Silver…);
+                      each band runs half a rank past its ends so boundaries fall
+                      between ranks, never on one. */}
+                  {rankTierBands.map(b => (
+                    <rect
+                      key={`rank-band-${b.tier}`}
+                      x="0"
+                      y={rankY(b.hi)}
+                      width={CH_W}
+                      height={rankY(b.lo) - rankY(b.hi)}
+                      fill={`rgb(${RANK_TIER_RGB[b.tier]})`}
+                      fillOpacity="0.1"
+                    >
+                      <title>{b.tier}</title>
+                    </rect>
+                  ))}
                   {rankSeries.map(s => s.steps.length > 0 && (
                     <polyline
                       key={`rank-line-${s.account}-${s.role}`}
@@ -1217,12 +1242,13 @@ export default function Dashboard() {
                 {rankTicks.map(v => (
                   <span
                     key={`rank-yl-${v}`}
-                    className="absolute left-0 -translate-y-1/2 text-[9px] leading-none tabular-nums text-[var(--faint)] w-6 text-right pr-1"
+                    className="absolute -left-7 -translate-y-1/2 text-[9px] leading-none tabular-nums text-[var(--faint)] w-6 text-right pr-1"
                     style={{ top: `${(rankY(v) / RANK_H) * 100}%` }}
                   >
                     {rankLabel(v)}
                   </span>
                 ))}
+                </div>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] leading-none text-[var(--faint)] mt-2" data-inspect-id="dash-rank-strip-legend">
                   {rankSeries.map(s => {
                     const has = s.steps.length > 0;
