@@ -1240,7 +1240,7 @@ export default function Dashboard() {
                 {rankTierBands.map(b => (
                   <span
                     key={`rank-band-label-${b.tier}`}
-                    className="absolute left-0 -translate-y-1/2 pl-1 text-[11px] font-bold uppercase tracking-[0.18em] leading-none pointer-events-none select-none"
+                    className="absolute left-0 -translate-y-1/2 pl-1 text-[22px] font-black uppercase tracking-[0.12em] leading-none pointer-events-none select-none"
                     style={{
                       top: `${((rankY(b.hi) + rankY(b.lo)) / 2 / RANK_H) * 100}%`,
                       color: `rgb(${RANK_TIER_RGB[b.tier]})`,
