@@ -479,7 +479,7 @@ export default function Dashboard() {
     Winx: RANK_TIER_RGB.Master,
     Linx: RANK_TIER_RGB.Bronze,
   };
-  const RANK_SERIES_OPACITY: Record<RankRole, number> = { DPS: 1, Support: 0.5 };
+  const RANK_SERIES_OPACITY: Record<RankRole, number> = { DPS: 1, Support: 0.7 };
 
   type RankStep = { x: number; y: number };
   type RankSeries = { account: Account; role: RankRole; color: string; opacity: number; steps: RankStep[] };
