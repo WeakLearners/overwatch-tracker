@@ -1,6 +1,6 @@
 # OW2 Match Tracker
 
-A full-stack match-tracking and analysis app for Overwatch 2 — built to log my own games and figure out what, if anything, in my play actually correlates with winning. It's been in daily use since November 2024 and currently holds **3,489 logged matches spanning 2024-11-28 to 2026-09-09** (overall win rate 48.55%).
+A full-stack match-tracking and analysis app for Overwatch 2 — built to log my own games and figure out what, if anything, in my play actually correlates with winning. It's been in daily use since November 2024 and currently holds **3,489 (...and counting) logged matches spanning 2024-11-28 to 2026-09-09** (overall win rate 48.55%).
 
 ## Why this exists
 
