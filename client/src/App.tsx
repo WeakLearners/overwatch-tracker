@@ -16,6 +16,7 @@ import { DeathBufferProvider } from './contexts/DeathBufferContext';
 import { MatchEditDrawerProvider } from './contexts/MatchEditDrawerContext';
 import MatchEditDrawer from './components/MatchEditDrawer';
 import InspectorOverlay from './debug/InspectorOverlay';
+import DevWatermark from './components/DevWatermark';
 
 /**
  * Root application component. Sets up context providers (hero/map drawers),
@@ -27,6 +28,12 @@ export default function App() {
     document.documentElement.classList.toggle('dark', dark);
     localStorage.setItem('ow-theme', dark ? 'dark' : 'light');
   }, [dark]);
+  // Dev-only tab-title tell (2026-09-26): the same import.meta.env.DEV switch
+  // DevWatermark uses, so the two always agree — one flag, two signals (the
+  // page and the tab) that this is the editing server, not the one to use.
+  useEffect(() => {
+    if (import.meta.env.DEV) document.title = `DEV · ${document.title}`;
+  }, []);
   return (
     <HeroDrawerProvider>
     <MapDrawerProvider>
@@ -36,6 +43,7 @@ export default function App() {
     <MatchEditDrawerProvider>
     <FieldConfigProvider>
     <BrowserRouter>
+      <DevWatermark />
       <div className="min-h-screen">
         {/* HUD top bar: sticky, chamfered wordmark tile with the orange/cyan
             split-tone underglow — the header's own signature slash instead of

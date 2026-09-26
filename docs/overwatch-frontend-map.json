@@ -40,6 +40,16 @@
             "path": "client/src/App.tsx:70",
             "grep": "grep -n -F -- 'app-settings-link' client/src/App.tsx"
           }
+        },
+        {
+          "id": "dev-watermark",
+          "label": "DEV server watermark",
+          "kind": "badge",
+          "description": "Viewport-fixed, faint DEV lettering behind all content, dev-server-only (import.meta.env.DEV) so the Vite editing server (5173) is visually distinct from the always-on production build served on 3001. Vite strips it entirely from the production bundle. Added 2026-09-26.",
+          "locate": {
+            "path": "client/src/components/DevWatermark.tsx:23",
+            "grep": "grep -n -F -- 'dev-watermark' client/src/components/DevWatermark.tsx"
+          }
         }
       ]
     },
