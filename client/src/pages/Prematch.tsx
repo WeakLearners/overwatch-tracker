@@ -10,6 +10,7 @@ import EmptyState from '../components/EmptyState';
 import { useMapDrawer } from '../contexts/MapDrawerContext';
 import { useHeroDrawer } from '../contexts/HeroDrawerContext';
 import { useMatch } from '../contexts/MatchContext';
+import { useAdvisor, refreshRec } from '../contexts/AdvisorContext';
 import { Link } from 'react-router-dom';
 import Odometer from '../components/Odometer';
 import { MOUSE_DPI } from '../lib/aim';
@@ -118,7 +119,8 @@ const TRAY_WIDTH_KEY = 'ow-lobby-tray-width';
 export default function Prematch() {
   // Shared, single-instance match state (queue mode, map, advisor) lives here
   // and is consumed by the Log Match section too.
-  const { queueMode, map, setMap, mapType, rec, recLoading, recError, refreshRec, revalidateRec, testRole, setTestRole, setPendingHeroes, matchLoggedSignal, account, setAccount, playerRank, setPlayerRank, lobbyLow, lobbyHigh, setLobbyRange, clearLobbyRange } = useMatch();
+  const { queueMode, map, setMap, mapType, testRole, setTestRole, setPendingHeroes, matchLoggedSignal, account, setAccount, playerRank, setPlayerRank, lobbyLow, lobbyHigh, setLobbyRange, clearLobbyRange } = useMatch();
+  const { rec, recLoading, recError } = useAdvisor();
 
   // The lobby band's width in divisions, remembered across matches. Eleven is
   // +/-5 around Sean's rank, the spread ~99% of lobbies fall inside — so the

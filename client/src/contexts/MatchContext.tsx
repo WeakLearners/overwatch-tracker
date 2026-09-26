@@ -1,10 +1,8 @@
-import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
-import { MAPS, QUEUE_MODES, QueueMode, Recommendation, RANK_MIN, RANK_MAX, clampRank, Account, ACCOUNTS, DEFAULT_ACCOUNT, isAccount } from '../types';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
+import { MAPS, QUEUE_MODES, QueueMode, RANK_MIN, RANK_MAX, clampRank, Account, ACCOUNTS, DEFAULT_ACCOUNT, isAccount } from '../types';
 
-// Coaching always shows a DPS and a Support column side by side — the advisor
-// endpoint returns one recommendation per role (either can be null if that
-// role has no in-testing hero with enough games).
-export type AdvisorByRole = Record<'DPS' | 'Support', Recommendation | null>;
+// rec/recLoading/recError (the advisor fetch) moved to AdvisorContext.tsx,
+// 2026-09-26 — see that file's header comment for why.
 
 const QUEUE_MODE_KEY = 'ow-last-queue-mode';
 // Role Pick's chosen role — lifted here (from a Prematch-local state) so both
@@ -159,13 +157,9 @@ interface MatchContextValue {
   /** Move one end by d divisions, never past the other end. */
   nudgeLobby: (end: 'low' | 'high', d: number) => void;
   clearLobbyRange: () => void;
-  rec: AdvisorByRole | null;
-  recLoading: boolean;
-  recError: string | null;
-  refreshRec: () => void;
-  // Re-fetch the advisor without forcing an LLM regen (cheap) — used after a
-  // match is logged so the death-axis breakdown reflects the new data.
-  revalidateRec: () => void;
+  // rec/recLoading/recError + refreshRec/revalidateRec moved to
+  // AdvisorContext (useAdvisor() for the state, plain imports for the two
+  // functions) — see that file's header comment for why.
   pendingHeroes: string[] | null;
   setPendingHeroes: (h: string[] | null) => void;
   // Bumped each time a match is logged, so sections can reset (e.g. Map Voting).
@@ -354,54 +348,48 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   const [matchLoggedSignal, setMatchLoggedSignal] = useState(0);
   const [lastLog, setLastLog] = useState<{ mode: QueueMode; win: boolean; seq: number } | null>(null);
 
-  const [rec, setRec] = useState<AdvisorByRole | null>(null);
-  const [recLoading, setRecLoading] = useState(false);
-  const [recError, setRecError] = useState<string | null>(null);
+  const notifyMatchLogged = useCallback((info?: { mode: QueueMode; win: boolean }) => {
+    setMatchLoggedSignal(s => s + 1);
+    if (info) setLastLog(prev => ({ mode: info.mode, win: info.win, seq: (prev?.seq ?? 0) + 1 }));
+  }, []);
 
-  const fetchRec = useCallback(async (refresh: boolean) => {
-    if (!map) { setRec(null); setRecError(null); return; }
-    setRecLoading(true);
-    setRecError(null);
-    try {
-      const url = `/api/advisor/recommend?map=${encodeURIComponent(map)}&queue_mode=${queueMode}${refresh ? '&refresh=1' : ''}`;
-      const res = await fetch(url);
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
-      setRec(body);
-    } catch (e: any) {
-      setRecError(e.message ?? 'Failed to fetch');
-      setRec(null);
-    } finally {
-      setRecLoading(false);
-    }
-  }, [map, queueMode]);
+  const mapType = map ? MAPS[map] : '';
+  const lobbyLow = lobbyRange?.low ?? null;
+  const lobbyHigh = lobbyRange?.high ?? null;
 
-  // Refetch whenever the map or queue mode changes.
-  useEffect(() => { fetchRec(false); }, [fetchRec]);
+  // The Provider's own re-renders are driven entirely by the state above —
+  // this component takes no props of its own besides `children` — so this
+  // object's identity changing here always reflects a real change in one of
+  // its listed fields. What useMemo buys is everything ELSE: a parent
+  // re-render that hands MatchProvider a new `children` reference (e.g. the
+  // dark-mode toggle in App.tsx re-rendering the whole tree) used to
+  // recreate this object with byte-identical data but a new identity, which
+  // is enough on its own to force every context consumer (Prematch, LogMatch,
+  // ModeComparisonCard) to re-render. Now that only happens when a listed
+  // field's value actually changed.
+  const value = useMemo<MatchContextValue>(() => ({
+    queueMode, setQueueMode,
+    map, setMap,
+    sens, setSens,
+    testRole, setTestRole,
+    mapType,
+    account, setAccount,
+    playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog,
+    lobbyLow, lobbyHigh,
+    setLobbyRange: setLobbyRangeValues, applyLobbySpread, nudgeLobby, clearLobbyRange,
+    pendingHeroes, setPendingHeroes,
+    matchLoggedSignal,
+    lastLog,
+    notifyMatchLogged,
+  }), [
+    queueMode, setQueueMode, map, setMap, sens, setSens, testRole, setTestRole, mapType,
+    account, setAccount, playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog,
+    lobbyLow, lobbyHigh, setLobbyRangeValues, applyLobbySpread, nudgeLobby, clearLobbyRange,
+    pendingHeroes, matchLoggedSignal, lastLog, notifyMatchLogged,
+  ]);
 
   return (
-    <MatchContext.Provider value={{
-      queueMode, setQueueMode,
-      map, setMap,
-      sens, setSens,
-      testRole, setTestRole,
-      mapType: map ? MAPS[map] : '',
-      rec, recLoading, recError,
-      refreshRec: () => fetchRec(true),
-      revalidateRec: () => fetchRec(false),
-      account, setAccount,
-      playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog,
-      lobbyLow: lobbyRange?.low ?? null,
-      lobbyHigh: lobbyRange?.high ?? null,
-      setLobbyRange: setLobbyRangeValues, applyLobbySpread, nudgeLobby, clearLobbyRange,
-      pendingHeroes, setPendingHeroes,
-      matchLoggedSignal,
-      lastLog,
-      notifyMatchLogged: (info) => {
-        setMatchLoggedSignal(s => s + 1);
-        if (info) setLastLog(prev => ({ mode: info.mode, win: info.win, seq: (prev?.seq ?? 0) + 1 }));
-      },
-    }}>
+    <MatchContext.Provider value={value}>
       {children}
     </MatchContext.Provider>
   );

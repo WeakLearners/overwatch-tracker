@@ -11,6 +11,7 @@ import MapDrawer from './components/MapDrawer';
 import { HeroDrawerProvider } from './contexts/HeroDrawerContext';
 import HeroDrawer from './components/HeroDrawer';
 import { MatchProvider } from './contexts/MatchContext';
+import { AdvisorProvider } from './contexts/AdvisorContext';
 import { DeathBufferProvider } from './contexts/DeathBufferContext';
 import { MatchEditDrawerProvider } from './contexts/MatchEditDrawerContext';
 import MatchEditDrawer from './components/MatchEditDrawer';
@@ -30,6 +31,7 @@ export default function App() {
     <HeroDrawerProvider>
     <MapDrawerProvider>
     <MatchProvider>
+    <AdvisorProvider>
     <DeathBufferProvider>
     <MatchEditDrawerProvider>
     <FieldConfigProvider>
@@ -113,6 +115,7 @@ export default function App() {
     </FieldConfigProvider>
     </MatchEditDrawerProvider>
     </DeathBufferProvider>
+    </AdvisorProvider>
     </MatchProvider>
     </MapDrawerProvider>
     </HeroDrawerProvider>

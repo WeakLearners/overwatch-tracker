@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { HEROES, MAPS, ROLE_COLORS, ROLE_PILL_CLASS, ROLE_PILL_CLASS_DARK, TYPE_COLORS, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB, MODE_WASH_CLASS, MODE_COMPACT, OLDEST_DASH_FADE_STYLE } from '../types';
 import { useMatch } from '../contexts/MatchContext';
 import { useDeathBuffer } from '../contexts/DeathBufferContext';
+import { revalidateRec } from '../contexts/AdvisorContext';
 import EmptyState from '../components/EmptyState';
 import ModeWatermark from '../components/ModeWatermark';
 import RegistryField from '../components/RegistryField';
@@ -471,7 +472,7 @@ interface BlindSetSummary {
 export default function LogMatch() {
   // Map + queue mode are shared with the Pre-Match section via context; this
   // section only owns date/time/hero/win plus the death tags.
-  const { queueMode, setQueueMode, map, setMap, mapType, sens, testRole, pendingHeroes, setPendingHeroes, revalidateRec, notifyMatchLogged, playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, lobbyLow, lobbyHigh, account } = useMatch();
+  const { queueMode, setQueueMode, map, setMap, mapType, sens, testRole, pendingHeroes, setPendingHeroes, notifyMatchLogged, playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, lobbyLow, lobbyHigh, account } = useMatch();
   const { deathBuffer, removeDeathFromBuffer, toggleDeathUlt, clearDeathBuffer } = useDeathBuffer();
   const { data: dpiState } = useApi<DpiTestState>('/api/blind/state');
   const { isFieldEnabled, fields } = useFieldConfig();
