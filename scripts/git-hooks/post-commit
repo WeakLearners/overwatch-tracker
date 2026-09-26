@@ -1,0 +1,14 @@
+#!/bin/sh
+# Rebuilds the production client after every commit (2026-09-26).
+#
+# Tracked in the repo (not .git/hooks/, which git never version-controls) so
+# it survives a fresh clone. Installed once per clone with:
+#   git config core.hooksPath scripts/git-hooks
+#
+# Backgrounded and disowned so a slow build (tsc + vite build) never makes a
+# commit wait, and a build failure never fails the commit -- scripts/
+# build-client.sh already logs its own outcome and never touches the live
+# client/current symlink on failure.
+nohup "$HOME/Code/overwatch/scripts/build-client.sh" >> "$HOME/Code/overwatch/scripts/build-client.log" 2>&1 &
+disown
+exit 0

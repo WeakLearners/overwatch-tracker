@@ -24,11 +24,16 @@ Thumbs.db
 
 # build artifacts
 dist/
+client/dist-a/
+client/dist-b/
+client/current
+client/current.new
 *.tsbuildinfo
 
 # logs
 dev.log
 *.log
+scripts/.build-client.lock
 
 # large binary source files
 *.numbers
