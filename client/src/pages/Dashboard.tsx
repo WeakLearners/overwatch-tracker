@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, memo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
@@ -682,104 +682,24 @@ function computeTrendsDerived(trends: TrendPoint[] | null) {
 
   return { last100, last500, winRate, wr100, wr500, wrDelta, CANDLE_DAYS, candles, careerComp, careerEdge, perMatchSd, paceAt, sdAt, CH_W, CH_H, CH_PAD, VOL_H, PLOT_BOTTOM, bandLo, bandHi, lowV, highV, vSpan, slotW, bodyW, volW, slotX, chartY, maxVol, ROOFLINE, volY, FALLOFF, VOL_STOPS, volStopColor, pacePts, bandUpper, bandLower, bandPoly, candleIdxByDate, tierMarks, tierMarkByDay, drumLabel, tierStackIdx, RANK_ROLES, RANK_SERIES_RGB, RANK_SERIES_OPACITY, rankSeries, rankValuesSeen, rankHasData, rankMinRaw, rankMaxRaw, rankTierLoIdx, rankTierHiIdx, rankLo, rankHi, rankSpan, RANK_H, rankY, rankTierBands, zeroY, lastCandle, lastClose, lastN, lastZ, BLEND_THRESHOLD, SAT_FLOOR, SAT_CEIL, SAT_FULL_AT, GRAD_STOPS, gradStops, UP_COLOR, DOWN_COLOR, UP_SWATCH, DOWN_SWATCH, LEGEND_SWATCH, LEGEND_TITLE, yTicks, labelEvery, dayTicks, dayNets, bestDay, worstDay };
 }
-export default function Dashboard() {
-  const { isFieldEnabled } = useFieldConfig();
-  const { data: overview } = useApi<Overview>('/api/stats/overview');
-  const { data: streaks } = useApi<Streaks>('/api/stats/streaks');
-  const { data: trends } = useApi<TrendPoint[]>('/api/stats/trends?window=20');
-  const { data: modeComparison } = useApi<ModeComparison[]>('/api/stats/mode-comparison');
-  const mapCounts = useTodayMapCounts();
-  const heroCounts = useTodayHeroCounts();
-  // Session tilt is map-independent, so a no-arg prematch fetch gives it to us.
-  const { data: prematch } = useApi<{ session: { on_tilt: boolean; tilt_win_rate: number | null; tilt_games: number } | null }>('/api/stats/prematch');
-  const tilt = prematch?.session;
-
-  // /api/stats/trends returns every logged match (its `window` param only sizes
-  // the rolling-average column), so both slices below are backed by real rows.
+// Extracted 2026-09-26 (perf pass, round 2): this card (the candle/volume/
+// rank-strip chart) is the single heaviest subtree Dashboard renders --
+// hundreds of SVG nodes built from computeTrendsDerived's output. Dashboard
+// itself is a direct MatchContext consumer (reads queueMode/setQueueMode/
+// lastLog), so it re-renders on every context change: a map pick, a lobby-
+// slider drag, a queue-mode toggle, a rank change, an advisor fetch settling
+// -- none of which this card's own inputs (trends, tilt) care about. Pulling
+// it out to its own component with only those two things as props, wrapped in
+// React.memo, means Dashboard re-rendering no longer implies THIS re-rendering:
+// React bails out on the unchanged-props check before this component's own
+// function body (and computeTrendsDerived, and the SVG JSX) ever runs again.
+interface RecentMatchesCardProps {
+  trends: TrendPoint[] | null;
+  tilt: { on_tilt: boolean; tilt_win_rate: number | null; tilt_games: number } | null | undefined;
+}
+const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: RecentMatchesCardProps) {
   const { last100, last500, winRate, wr100, wr500, wrDelta, CANDLE_DAYS, candles, careerComp, careerEdge, perMatchSd, paceAt, sdAt, CH_W, CH_H, CH_PAD, VOL_H, PLOT_BOTTOM, bandLo, bandHi, lowV, highV, vSpan, slotW, bodyW, volW, slotX, chartY, maxVol, ROOFLINE, volY, FALLOFF, VOL_STOPS, volStopColor, pacePts, bandUpper, bandLower, bandPoly, candleIdxByDate, tierMarks, tierMarkByDay, drumLabel, tierStackIdx, RANK_ROLES, RANK_SERIES_RGB, RANK_SERIES_OPACITY, rankSeries, rankValuesSeen, rankHasData, rankMinRaw, rankMaxRaw, rankTierLoIdx, rankTierHiIdx, rankLo, rankHi, rankSpan, RANK_H, rankY, rankTierBands, zeroY, lastCandle, lastClose, lastN, lastZ, BLEND_THRESHOLD, SAT_FLOOR, SAT_CEIL, SAT_FULL_AT, GRAD_STOPS, gradStops, UP_COLOR, DOWN_COLOR, UP_SWATCH, DOWN_SWATCH, LEGEND_SWATCH, LEGEND_TITLE, yTicks, labelEvery, dayTicks, dayNets, bestDay, worstDay } = useMemo(() => computeTrendsDerived(trends), [trends]);
-
-  const sections = [
-    { id: 'sec-mode', label: 'Mode' },
-    { id: 'sec-match', label: 'Match' },
-    { id: 'sec-trends', label: 'Trends' },
-    { id: 'sec-career', label: 'Career' },
-  ];
-
-  // Tracks which section is currently in view so the quick-nav pill can get
-  // the same solid-fill active treatment SensNav already uses, instead of
-  // every pill sitting at the same neutral gray forever. The negative
-  // top margin clears both sticky bars (header + this nav) before a section
-  // counts as "current".
-  const [activeSection, setActiveSection] = useState(sections[0].id);
-
-  // A link may name a section in the URL (SensNav's "← Match Tracker" asks for
-  // #sec-match). The browser cannot honour that on its own here: this is a
-  // single-page app, so arriving is a re-render, not a page load, and the
-  // section is still empty at that moment. Wait for the panels above it to
-  // have their data — otherwise the scroll aims at a target that the arriving
-  // chart immediately pushes further down the page. Fires once; a later
-  // refetch must not yank the page back.
-  const { hash } = useLocation();
-  const landed = useRef(false);
-  const aboveLoaded = Boolean(overview && trends && modeComparison);
-  useEffect(() => {
-    if (!hash || landed.current || !aboveLoaded) return;
-    const el = document.getElementById(hash.slice(1));
-    if (!el) return;
-    landed.current = true;
-    // One frame, so the just-rendered panels are laid out before measuring.
-    requestAnimationFrame(() => el.scrollIntoView({ block: 'start' }));
-  }, [hash, aboveLoaded]);
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      entries => {
-        const visible = entries.find(e => e.isIntersecting);
-        if (visible) setActiveSection(visible.target.id);
-      },
-      { rootMargin: '-140px 0px -70% 0px', threshold: 0 },
-    );
-    sections.forEach(s => {
-      const el = document.getElementById(s.id);
-      if (el) observer.observe(el);
-    });
-    return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   return (
-    <div>
-      {/* Wayfinding rail: the page is one long scroll of readout panels, so a
-          sticky jump-strip stands in for the section tabs a multi-page app
-          would use. Sits flush under the sticky header. */}
-      <nav
-        data-inspect-id="dash-section-nav"
-        aria-label="Jump to section"
-        className="sticky top-16 z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 py-2 mb-6 flex items-center gap-1.5 overflow-x-auto backdrop-blur border-b border-ow-border"
-        style={{ backgroundColor: 'color-mix(in srgb, var(--surface) 88%, transparent)' }}
-      >
-        {sections.map(s => (
-          <a
-            key={s.id}
-            href={`#${s.id}`}
-            aria-current={activeSection === s.id ? 'true' : undefined}
-            className={`pill shrink-0 border transition-colors heading-display tracking-[0.08em] ${
-              activeSection === s.id
-                ? 'is-selected text-orange-700 dark:text-ow-accent'
-                : 'border-ow-border text-[var(--muted)] hover:text-ow-accent hover:border-ow-accent/60'
-            }`}
-          >
-            {activeSection === s.id ? <span className="lit-text">{s.label}</span> : s.label}
-          </a>
-        ))}
-      </nav>
-
-      <div id="sec-mode" className="scroll-mt-32">
-        {modeComparison && (
-          <div className="reveal mb-6" style={{ '--reveal-delay': '0ms' } as React.CSSProperties}>
-            <ModeComparisonCard data={modeComparison} />
-          </div>
-        )}
-
         <div className="card reveal" style={{ '--reveal-delay': '60ms' } as React.CSSProperties} data-inspect-id="dash-recent-matches-card">
           <div className="flex items-center justify-between flex-wrap gap-y-1 mb-4">
             <div className="flex items-center gap-2">
@@ -1393,6 +1313,109 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+
+  );
+});
+export default function Dashboard() {
+  const { isFieldEnabled } = useFieldConfig();
+  const { data: overview } = useApi<Overview>('/api/stats/overview');
+  const { data: streaks } = useApi<Streaks>('/api/stats/streaks');
+  const { data: trends } = useApi<TrendPoint[]>('/api/stats/trends?window=20');
+  const { data: modeComparison } = useApi<ModeComparison[]>('/api/stats/mode-comparison');
+  const mapCounts = useTodayMapCounts();
+  const heroCounts = useTodayHeroCounts();
+  // Session tilt is map-independent, so a no-arg prematch fetch gives it to us.
+  const { data: prematch } = useApi<{ session: { on_tilt: boolean; tilt_win_rate: number | null; tilt_games: number } | null }>('/api/stats/prematch');
+  const tilt = prematch?.session;
+
+  // The candle/volume/rank-strip derivation and its JSX now live entirely
+  // inside RecentMatchesCard (a memoized component below, fed only `trends`
+  // and `tilt`) — Dashboard itself no longer needs any of computeTrendsDerived's
+  // output, so it isn't called here at all.
+
+  const sections = [
+    { id: 'sec-mode', label: 'Mode' },
+    { id: 'sec-match', label: 'Match' },
+    { id: 'sec-trends', label: 'Trends' },
+    { id: 'sec-career', label: 'Career' },
+  ];
+
+  // Tracks which section is currently in view so the quick-nav pill can get
+  // the same solid-fill active treatment SensNav already uses, instead of
+  // every pill sitting at the same neutral gray forever. The negative
+  // top margin clears both sticky bars (header + this nav) before a section
+  // counts as "current".
+  const [activeSection, setActiveSection] = useState(sections[0].id);
+
+  // A link may name a section in the URL (SensNav's "← Match Tracker" asks for
+  // #sec-match). The browser cannot honour that on its own here: this is a
+  // single-page app, so arriving is a re-render, not a page load, and the
+  // section is still empty at that moment. Wait for the panels above it to
+  // have their data — otherwise the scroll aims at a target that the arriving
+  // chart immediately pushes further down the page. Fires once; a later
+  // refetch must not yank the page back.
+  const { hash } = useLocation();
+  const landed = useRef(false);
+  const aboveLoaded = Boolean(overview && trends && modeComparison);
+  useEffect(() => {
+    if (!hash || landed.current || !aboveLoaded) return;
+    const el = document.getElementById(hash.slice(1));
+    if (!el) return;
+    landed.current = true;
+    // One frame, so the just-rendered panels are laid out before measuring.
+    requestAnimationFrame(() => el.scrollIntoView({ block: 'start' }));
+  }, [hash, aboveLoaded]);
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        const visible = entries.find(e => e.isIntersecting);
+        if (visible) setActiveSection(visible.target.id);
+      },
+      { rootMargin: '-140px 0px -70% 0px', threshold: 0 },
+    );
+    sections.forEach(s => {
+      const el = document.getElementById(s.id);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div>
+      {/* Wayfinding rail: the page is one long scroll of readout panels, so a
+          sticky jump-strip stands in for the section tabs a multi-page app
+          would use. Sits flush under the sticky header. */}
+      <nav
+        data-inspect-id="dash-section-nav"
+        aria-label="Jump to section"
+        className="sticky top-16 z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 py-2 mb-6 flex items-center gap-1.5 overflow-x-auto backdrop-blur border-b border-ow-border"
+        style={{ backgroundColor: 'color-mix(in srgb, var(--surface) 88%, transparent)' }}
+      >
+        {sections.map(s => (
+          <a
+            key={s.id}
+            href={`#${s.id}`}
+            aria-current={activeSection === s.id ? 'true' : undefined}
+            className={`pill shrink-0 border transition-colors heading-display tracking-[0.08em] ${
+              activeSection === s.id
+                ? 'is-selected text-orange-700 dark:text-ow-accent'
+                : 'border-ow-border text-[var(--muted)] hover:text-ow-accent hover:border-ow-accent/60'
+            }`}
+          >
+            {activeSection === s.id ? <span className="lit-text">{s.label}</span> : s.label}
+          </a>
+        ))}
+      </nav>
+
+      <div id="sec-mode" className="scroll-mt-32">
+        {modeComparison && (
+          <div className="reveal mb-6" style={{ '--reveal-delay': '0ms' } as React.CSSProperties}>
+            <ModeComparisonCard data={modeComparison} />
+          </div>
+        )}
+
+        <RecentMatchesCard trends={trends} tilt={tilt} />
       </div>
 
       <div id="sec-match" className="mt-8 border-t border-ow-border pt-6 reveal scroll-mt-32" style={{ '--reveal-delay': '120ms' } as React.CSSProperties}>
