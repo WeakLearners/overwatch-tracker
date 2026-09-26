@@ -464,16 +464,17 @@ function computeTrendsDerived(trends: TrendPoint[] | null) {
   const RANK_ROLES = ['DPS', 'Support'] as const;
   type RankRole = typeof RANK_ROLES[number];
 
-  // One distinct hue per account x role, all from existing palettes (no
-  // off-palette hues). Sean, 2026-09-26: one hue per account at two weights
-  // read as near-identical. The six series with ranked data (as of 2026-09-26)
-  // get the six hues furthest apart — red, gold, green, teal, blue, magenta;
-  // the two without data take orange and bronze.
-  const RANK_SERIES_RGB: Record<Account, Record<RankRole, string>> = {
-    Pinx: { DPS: RANK_TIER_RGB.Diamond,     Support: RANK_TIER_RGB.Platinum },
-    Jinx: { DPS: RANK_TIER_RGB.Grandmaster, Support: RANK_TIER_RGB.Champion },
-    Winx: { DPS: RANK_TIER_RGB.Gold,        Support: QUEUE_MODE_SEL_RGB.comp_open },
-    Linx: { DPS: RANK_TIER_RGB.Bronze,      Support: RANK_TIER_RGB.Emerald },
+  // Eight hues spread evenly around the wheel, one per account x role, at
+  // matched lightness and chroma. Deliberately NOT from the tier palette:
+  // Sean, 2026-09-26, rejected that palette twice here because it is mostly
+  // golds, browns and teals, so lines read alike. Each account's two roles
+  // sit roughly opposite each other on the wheel so they never look related.
+  const hue = (h: number, l = 0.72) => `oklch(${l} 0.19 ${h})`;
+  const RANK_SERIES_COLOR: Record<Account, Record<RankRole, string>> = {
+    Pinx: { DPS: hue(255),  Support: hue(100, 0.86) }, // blue / yellow
+    Jinx: { DPS: hue(340),  Support: hue(145, 0.78) }, // magenta / green
+    Winx: { DPS: hue(60),   Support: hue(295) },       // orange / violet
+    Linx: { DPS: hue(200, 0.78), Support: hue(25, 0.66) }, // cyan / red
   };
 
   type RankStep = { x: number; y: number };
@@ -535,7 +536,7 @@ function computeTrendsDerived(trends: TrendPoint[] | null) {
         account, role,
         // Same hue, chroma boosted 1.5x (the oklch relative-colour move the
         // lit-text glows use), so the lines read over the lit tier bands.
-        color: `oklch(from rgb(${RANK_SERIES_RGB[account][role]}) l calc(c * 1.5) h)`,
+        color: RANK_SERIES_COLOR[account][role],
         steps,
         current: lastWithAccount?.account === account && lastWithAccount?.role === role,
       };
@@ -683,7 +684,7 @@ function computeTrendsDerived(trends: TrendPoint[] | null) {
   const bestDay = dayNets.length ? Math.max(...dayNets) : 0;
   const worstDay = dayNets.length ? Math.min(...dayNets) : 0;
 
-  return { last100, last500, winRate, wr100, wr500, wrDelta, CANDLE_DAYS, candles, careerComp, careerEdge, perMatchSd, paceAt, sdAt, CH_W, CH_H, CH_PAD, VOL_H, PLOT_BOTTOM, bandLo, bandHi, lowV, highV, vSpan, slotW, bodyW, volW, slotX, chartY, maxVol, ROOFLINE, volY, FALLOFF, VOL_STOPS, volStopColor, pacePts, bandUpper, bandLower, bandPoly, candleIdxByDate, tierMarks, tierMarkByDay, drumLabel, tierStackIdx, RANK_ROLES, RANK_SERIES_RGB, rankSeries, rankValuesSeen, rankHasData, rankMinRaw, rankMaxRaw, rankTierLoIdx, rankTierHiIdx, rankLo, rankHi, rankSpan, RANK_H, rankY, rankTierBands, zeroY, lastCandle, lastClose, lastN, lastZ, BLEND_THRESHOLD, SAT_FLOOR, SAT_CEIL, SAT_FULL_AT, GRAD_STOPS, gradStops, UP_COLOR, DOWN_COLOR, UP_SWATCH, DOWN_SWATCH, LEGEND_SWATCH, LEGEND_TITLE, yTicks, labelEvery, dayTicks, dayNets, bestDay, worstDay };
+  return { last100, last500, winRate, wr100, wr500, wrDelta, CANDLE_DAYS, candles, careerComp, careerEdge, perMatchSd, paceAt, sdAt, CH_W, CH_H, CH_PAD, VOL_H, PLOT_BOTTOM, bandLo, bandHi, lowV, highV, vSpan, slotW, bodyW, volW, slotX, chartY, maxVol, ROOFLINE, volY, FALLOFF, VOL_STOPS, volStopColor, pacePts, bandUpper, bandLower, bandPoly, candleIdxByDate, tierMarks, tierMarkByDay, drumLabel, tierStackIdx, RANK_ROLES, RANK_SERIES_COLOR, rankSeries, rankValuesSeen, rankHasData, rankMinRaw, rankMaxRaw, rankTierLoIdx, rankTierHiIdx, rankLo, rankHi, rankSpan, RANK_H, rankY, rankTierBands, zeroY, lastCandle, lastClose, lastN, lastZ, BLEND_THRESHOLD, SAT_FLOOR, SAT_CEIL, SAT_FULL_AT, GRAD_STOPS, gradStops, UP_COLOR, DOWN_COLOR, UP_SWATCH, DOWN_SWATCH, LEGEND_SWATCH, LEGEND_TITLE, yTicks, labelEvery, dayTicks, dayNets, bestDay, worstDay };
 }
 // Extracted 2026-09-26 (perf pass, round 2): this card (the candle/volume/
 // rank-strip chart) is the single heaviest subtree Dashboard renders --
@@ -701,7 +702,7 @@ interface RecentMatchesCardProps {
   tilt: { on_tilt: boolean; tilt_win_rate: number | null; tilt_games: number } | null | undefined;
 }
 const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: RecentMatchesCardProps) {
-  const { last100, last500, winRate, wr100, wr500, wrDelta, CANDLE_DAYS, candles, careerComp, careerEdge, perMatchSd, paceAt, sdAt, CH_W, CH_H, CH_PAD, VOL_H, PLOT_BOTTOM, bandLo, bandHi, lowV, highV, vSpan, slotW, bodyW, volW, slotX, chartY, maxVol, ROOFLINE, volY, FALLOFF, VOL_STOPS, volStopColor, pacePts, bandUpper, bandLower, bandPoly, candleIdxByDate, tierMarks, tierMarkByDay, drumLabel, tierStackIdx, RANK_ROLES, RANK_SERIES_RGB, rankSeries, rankValuesSeen, rankHasData, rankMinRaw, rankMaxRaw, rankTierLoIdx, rankTierHiIdx, rankLo, rankHi, rankSpan, RANK_H, rankY, rankTierBands, zeroY, lastCandle, lastClose, lastN, lastZ, BLEND_THRESHOLD, SAT_FLOOR, SAT_CEIL, SAT_FULL_AT, GRAD_STOPS, gradStops, UP_COLOR, DOWN_COLOR, UP_SWATCH, DOWN_SWATCH, LEGEND_SWATCH, LEGEND_TITLE, yTicks, labelEvery, dayTicks, dayNets, bestDay, worstDay } = useMemo(() => computeTrendsDerived(trends), [trends]);
+  const { last100, last500, winRate, wr100, wr500, wrDelta, CANDLE_DAYS, candles, careerComp, careerEdge, perMatchSd, paceAt, sdAt, CH_W, CH_H, CH_PAD, VOL_H, PLOT_BOTTOM, bandLo, bandHi, lowV, highV, vSpan, slotW, bodyW, volW, slotX, chartY, maxVol, ROOFLINE, volY, FALLOFF, VOL_STOPS, volStopColor, pacePts, bandUpper, bandLower, bandPoly, candleIdxByDate, tierMarks, tierMarkByDay, drumLabel, tierStackIdx, RANK_ROLES, RANK_SERIES_COLOR, rankSeries, rankValuesSeen, rankHasData, rankMinRaw, rankMaxRaw, rankTierLoIdx, rankTierHiIdx, rankLo, rankHi, rankSpan, RANK_H, rankY, rankTierBands, zeroY, lastCandle, lastClose, lastN, lastZ, BLEND_THRESHOLD, SAT_FLOOR, SAT_CEIL, SAT_FULL_AT, GRAD_STOPS, gradStops, UP_COLOR, DOWN_COLOR, UP_SWATCH, DOWN_SWATCH, LEGEND_SWATCH, LEGEND_TITLE, yTicks, labelEvery, dayTicks, dayNets, bestDay, worstDay } = useMemo(() => computeTrendsDerived(trends), [trends]);
   return (
         <div className="card reveal" style={{ '--reveal-delay': '60ms' } as React.CSSProperties} data-inspect-id="dash-recent-matches-card">
           <div className="flex items-center justify-between flex-wrap gap-y-1 mb-4">
@@ -1054,7 +1055,7 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
                           ? `translate(-50%, -100%) translateY(${-1 - outward}px)`
                           : `translate(-50%, ${1 + outward}px)`,
                         color: m.account && isAccount(m.account) && (m.role === 'DPS' || m.role === 'Support')
-                          ? `oklch(from rgb(${RANK_SERIES_RGB[m.account][m.role]}) l calc(c * 1.5) h)`
+                          ? RANK_SERIES_COLOR[m.account][m.role]
                           : 'var(--faint)',
                         // The sign carries a surface-coloured halo, so it stays
                         // legible over a candle in either theme.
@@ -1307,8 +1308,8 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
                   <div className="flex items-start gap-2 min-w-0">
                     <span className={LEGEND_SWATCH} aria-hidden="true">
                       <span className="inline-flex flex-col leading-[0.75] text-[11px]">
-                        <span className="font-black" style={{ color: `oklch(from rgb(${RANK_SERIES_RGB.Pinx.DPS}) l calc(c * 1.5) h)` }}>+</span>
-                        <span className="font-black" style={{ color: `oklch(from rgb(${RANK_SERIES_RGB.Jinx.DPS}) l calc(c * 1.5) h)` }}>−</span>
+                        <span className="font-black" style={{ color: RANK_SERIES_COLOR.Pinx.DPS }}>+</span>
+                        <span className="font-black" style={{ color: RANK_SERIES_COLOR.Jinx.DPS }}>−</span>
                       </span>
                     </span>
                     <span>
