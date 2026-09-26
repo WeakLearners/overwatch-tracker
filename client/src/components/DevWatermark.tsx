@@ -31,7 +31,7 @@ export default function DevWatermark() {
     <div
       aria-hidden="true"
       data-inspect-id="dev-watermark"
-      className="fixed inset-0 z-0 grid justify-center overflow-hidden pointer-events-none select-none opacity-[0.12]"
+      className="fixed inset-0 z-0 grid justify-center overflow-hidden pointer-events-none select-none opacity-[0.06]"
       style={{ gridTemplateColumns: `repeat(${COLS}, ${CELL})`, gridTemplateRows: `repeat(${WORD.length}, 1fr)` }}
     >
       {Array.from({ length: WORD.length * COLS }, (_, i) => {
