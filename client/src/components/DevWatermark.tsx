@@ -29,8 +29,8 @@ export default function DevWatermark() {
     <div
       aria-hidden="true"
       data-inspect-id="dev-watermark"
-      className="fixed inset-0 z-0 grid overflow-hidden pointer-events-none select-none opacity-[0.12]"
-      style={{ gridTemplateColumns: `repeat(${WORD.length}, 1fr)`, gridTemplateRows: `repeat(${WORD.length}, 1fr)` }}
+      className="fixed inset-y-0 z-0 grid overflow-hidden pointer-events-none select-none opacity-[0.12]"
+      style={{ left: '-5vw', right: '-5vw', gridTemplateColumns: `repeat(${WORD.length}, 1fr)`, gridTemplateRows: `repeat(${WORD.length}, 1fr)` }}
     >
       {ROWS.flatMap((row, r) => [...row].map((ch, c) => (
         <span
