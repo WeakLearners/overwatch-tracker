@@ -36,7 +36,7 @@ export default function DevWatermark() {
         <span
           key={`${r}-${c}`}
           className="num-display italic font-black leading-none flex items-center justify-center"
-          style={{ color: 'var(--gauge-empty)', fontSize: 'min(11vh, 12vw)' }}
+          style={{ color: 'var(--gauge-empty)', fontSize: 'min(13vh, 14vw)' }}
         >
           {ch}
         </span>
