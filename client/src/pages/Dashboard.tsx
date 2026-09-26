@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
@@ -169,20 +169,16 @@ function ModeComparisonCard({ data }: { data: ModeComparison[] }) {
   );
 }
 
-export default function Dashboard() {
-  const { isFieldEnabled } = useFieldConfig();
-  const { data: overview } = useApi<Overview>('/api/stats/overview');
-  const { data: streaks } = useApi<Streaks>('/api/stats/streaks');
-  const { data: trends } = useApi<TrendPoint[]>('/api/stats/trends?window=20');
-  const { data: modeComparison } = useApi<ModeComparison[]>('/api/stats/mode-comparison');
-  const mapCounts = useTodayMapCounts();
-  const heroCounts = useTodayHeroCounts();
-  // Session tilt is map-independent, so a no-arg prematch fetch gives it to us.
-  const { data: prematch } = useApi<{ session: { on_tilt: boolean; tilt_win_rate: number | null; tilt_games: number } | null }>('/api/stats/prematch');
-  const tilt = prematch?.session;
-
-  // /api/stats/trends returns every logged match (its `window` param only sizes
-  // the rolling-average column), so both slices below are backed by real rows.
+// Extracted 2026-09-26 (perf pass): this entire derivation used to run inline
+// in Dashboard's render body, recomputing candles/tierMarks/rankSeries from the
+// full trends array (one row per logged match, 3600+ and growing) on EVERY
+// render of Dashboard -- including renders caused by state that has nothing to
+// do with trends (a death tap, a lobby-range drag, a queue-mode toggle), because
+// all of those live in MatchContext and Dashboard is one of several consumers
+// that re-render whenever that context's value object changes identity. Moved
+// to a plain function called through useMemo(..., [trends]) below so it only
+// re-runs when trends itself actually changes (a refetch), not on every render.
+function computeTrendsDerived(trends: TrendPoint[] | null) {
   const last100 = trends?.slice(-100) ?? [];
   const last500 = trends?.slice(-500) ?? [];
   const winRate = (games: TrendPoint[]) =>
@@ -683,6 +679,24 @@ export default function Dashboard() {
   const dayNets = candles.map(c => c.compW - c.compL);
   const bestDay = dayNets.length ? Math.max(...dayNets) : 0;
   const worstDay = dayNets.length ? Math.min(...dayNets) : 0;
+
+  return { last100, last500, winRate, wr100, wr500, wrDelta, CANDLE_DAYS, candles, careerComp, careerEdge, perMatchSd, paceAt, sdAt, CH_W, CH_H, CH_PAD, VOL_H, PLOT_BOTTOM, bandLo, bandHi, lowV, highV, vSpan, slotW, bodyW, volW, slotX, chartY, maxVol, ROOFLINE, volY, FALLOFF, VOL_STOPS, volStopColor, pacePts, bandUpper, bandLower, bandPoly, candleIdxByDate, tierMarks, tierMarkByDay, drumLabel, tierStackIdx, RANK_ROLES, RANK_SERIES_RGB, RANK_SERIES_OPACITY, rankSeries, rankValuesSeen, rankHasData, rankMinRaw, rankMaxRaw, rankTierLoIdx, rankTierHiIdx, rankLo, rankHi, rankSpan, RANK_H, rankY, rankTierBands, zeroY, lastCandle, lastClose, lastN, lastZ, BLEND_THRESHOLD, SAT_FLOOR, SAT_CEIL, SAT_FULL_AT, GRAD_STOPS, gradStops, UP_COLOR, DOWN_COLOR, UP_SWATCH, DOWN_SWATCH, LEGEND_SWATCH, LEGEND_TITLE, yTicks, labelEvery, dayTicks, dayNets, bestDay, worstDay };
+}
+export default function Dashboard() {
+  const { isFieldEnabled } = useFieldConfig();
+  const { data: overview } = useApi<Overview>('/api/stats/overview');
+  const { data: streaks } = useApi<Streaks>('/api/stats/streaks');
+  const { data: trends } = useApi<TrendPoint[]>('/api/stats/trends?window=20');
+  const { data: modeComparison } = useApi<ModeComparison[]>('/api/stats/mode-comparison');
+  const mapCounts = useTodayMapCounts();
+  const heroCounts = useTodayHeroCounts();
+  // Session tilt is map-independent, so a no-arg prematch fetch gives it to us.
+  const { data: prematch } = useApi<{ session: { on_tilt: boolean; tilt_win_rate: number | null; tilt_games: number } | null }>('/api/stats/prematch');
+  const tilt = prematch?.session;
+
+  // /api/stats/trends returns every logged match (its `window` param only sizes
+  // the rolling-average column), so both slices below are backed by real rows.
+  const { last100, last500, winRate, wr100, wr500, wrDelta, CANDLE_DAYS, candles, careerComp, careerEdge, perMatchSd, paceAt, sdAt, CH_W, CH_H, CH_PAD, VOL_H, PLOT_BOTTOM, bandLo, bandHi, lowV, highV, vSpan, slotW, bodyW, volW, slotX, chartY, maxVol, ROOFLINE, volY, FALLOFF, VOL_STOPS, volStopColor, pacePts, bandUpper, bandLower, bandPoly, candleIdxByDate, tierMarks, tierMarkByDay, drumLabel, tierStackIdx, RANK_ROLES, RANK_SERIES_RGB, RANK_SERIES_OPACITY, rankSeries, rankValuesSeen, rankHasData, rankMinRaw, rankMaxRaw, rankTierLoIdx, rankTierHiIdx, rankLo, rankHi, rankSpan, RANK_H, rankY, rankTierBands, zeroY, lastCandle, lastClose, lastN, lastZ, BLEND_THRESHOLD, SAT_FLOOR, SAT_CEIL, SAT_FULL_AT, GRAD_STOPS, gradStops, UP_COLOR, DOWN_COLOR, UP_SWATCH, DOWN_SWATCH, LEGEND_SWATCH, LEGEND_TITLE, yTicks, labelEvery, dayTicks, dayNets, bestDay, worstDay } = useMemo(() => computeTrendsDerived(trends), [trends]);
 
   const sections = [
     { id: 'sec-mode', label: 'Mode' },
