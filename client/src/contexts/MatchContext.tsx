@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
-import { MAPS, QUEUE_MODES, QueueMode, Recommendation, MatchDeathEntry, RANK_MIN, RANK_MAX, clampRank, Account, ACCOUNTS, DEFAULT_ACCOUNT, isAccount } from '../types';
+import { MAPS, QUEUE_MODES, QueueMode, Recommendation, RANK_MIN, RANK_MAX, clampRank, Account, ACCOUNTS, DEFAULT_ACCOUNT, isAccount } from '../types';
 
 // Coaching always shows a DPS and a Support column side by side — the advisor
 // endpoint returns one recommendation per role (either can be null if that
@@ -15,11 +15,8 @@ const TEST_ROLE_KEY = 'ow-test-role';
 // deliberately changes it (the crux of the sens study). Shared here because the
 // input lives in the Pre-Match row while the log form reads it on submit.
 const SENS_KEY = 'ow-last-sens';
-// Bumped to v4 (2026-09-09) when the buffer entry shape changed from the old
-// axis-judgment {axis, value} to the new fact-only {killer, killer_role,
-// ult} — a stale v-axis buffer sitting in localStorage from before this
-// change would otherwise load malformed entries into the new capture UI.
-const DEATH_BUFFER_KEY = 'ow-death-buffer-v4';
+// deathBuffer (and its localStorage key) moved to DeathBufferContext.tsx,
+// 2026-09-26 — see that file's header comment for why.
 
 // Competitive rank. Sean's own rank changes only when he ranks up, so it
 // persists like sens does. The LOBBY range is different: it is a reading taken
@@ -177,16 +174,9 @@ interface MatchContextValue {
   // matching mode tile. `seq` rises each log so a repeat result re-triggers.
   lastLog: { mode: QueueMode; win: boolean; seq: number } | null;
   notifyMatchLogged: (info?: { mode: QueueMode; win: boolean }) => void;
-  // In-match death buffer: accumulated via the DeathLogger inside LogMatch's
-  // Deaths card during a match (one tap = one death, fact-only), then flushed
-  // to the match record on submit.
-  deathBuffer: MatchDeathEntry[];
-  addDeathToBuffer: (r: MatchDeathEntry) => void;
-  removeDeathFromBuffer: (i: number) => void;
-  // Flips a buffered death's ult flag after the fact — the ⚡ toggle is
-  // deliberately not part of the tap-to-log path (see DeathLogger.tsx).
-  toggleDeathUlt: (i: number) => void;
-  clearDeathBuffer: () => void;
+  // deathBuffer + its mutators moved to DeathBufferContext (useDeathBuffer()),
+  // 2026-09-26 — a death tap no longer needs to re-render this context's
+  // other consumers (Dashboard, Prematch).
 }
 
 const MatchContext = createContext<MatchContextValue | null>(null);
@@ -364,39 +354,6 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   const [matchLoggedSignal, setMatchLoggedSignal] = useState(0);
   const [lastLog, setLastLog] = useState<{ mode: QueueMode; win: boolean; seq: number } | null>(null);
 
-  const [deathBuffer, setDeathBuffer] = useState<MatchDeathEntry[]>(() => {
-    try { return JSON.parse(localStorage.getItem(DEATH_BUFFER_KEY) ?? '[]'); } catch { return []; }
-  });
-
-  const addDeathToBuffer = useCallback((r: MatchDeathEntry) => {
-    setDeathBuffer(prev => {
-      const updated = [...prev, r];
-      localStorage.setItem(DEATH_BUFFER_KEY, JSON.stringify(updated));
-      return updated;
-    });
-  }, []);
-
-  const removeDeathFromBuffer = useCallback((i: number) => {
-    setDeathBuffer(prev => {
-      const updated = prev.filter((_, j) => j !== i);
-      localStorage.setItem(DEATH_BUFFER_KEY, JSON.stringify(updated));
-      return updated;
-    });
-  }, []);
-
-  const toggleDeathUlt = useCallback((i: number) => {
-    setDeathBuffer(prev => {
-      const updated = prev.map((d, j) => (j === i ? { ...d, ult: !d.ult } : d));
-      localStorage.setItem(DEATH_BUFFER_KEY, JSON.stringify(updated));
-      return updated;
-    });
-  }, []);
-
-  const clearDeathBuffer = useCallback(() => {
-    setDeathBuffer([]);
-    localStorage.removeItem(DEATH_BUFFER_KEY);
-  }, []);
-
   const [rec, setRec] = useState<AdvisorByRole | null>(null);
   const [recLoading, setRecLoading] = useState(false);
   const [recError, setRecError] = useState<string | null>(null);
@@ -440,7 +397,6 @@ export function MatchProvider({ children }: { children: ReactNode }) {
       pendingHeroes, setPendingHeroes,
       matchLoggedSignal,
       lastLog,
-      deathBuffer, addDeathToBuffer, removeDeathFromBuffer, toggleDeathUlt, clearDeathBuffer,
       notifyMatchLogged: (info) => {
         setMatchLoggedSignal(s => s + 1);
         if (info) setLastLog(prev => ({ mode: info.mode, win: info.win, seq: (prev?.seq ?? 0) + 1 }));

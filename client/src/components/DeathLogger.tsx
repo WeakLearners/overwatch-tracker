@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { HEROES } from '../types';
-import { useMatch } from '../contexts/MatchContext';
+import { useDeathBuffer } from '../contexts/DeathBufferContext';
 
 type Role = 'Tank' | 'DPS' | 'Support';
 const ROLES: Role[] = ['Tank', 'DPS', 'Support'];
@@ -35,7 +35,7 @@ Object.entries(HEROES).forEach(([hero, role]) => {
 // to-back deaths are the common case) and the buffer review panel + count
 // pill are gone, since the card already lists the buffer right below.
 export default function DeathLogger() {
-  const { deathBuffer, addDeathToBuffer } = useMatch();
+  const { deathBuffer, addDeathToBuffer } = useDeathBuffer();
   const [open, setOpen] = useState(false);
   const [role, setRole] = useState<Role>('DPS');
 

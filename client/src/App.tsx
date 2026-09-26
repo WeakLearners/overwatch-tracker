@@ -11,6 +11,7 @@ import MapDrawer from './components/MapDrawer';
 import { HeroDrawerProvider } from './contexts/HeroDrawerContext';
 import HeroDrawer from './components/HeroDrawer';
 import { MatchProvider } from './contexts/MatchContext';
+import { DeathBufferProvider } from './contexts/DeathBufferContext';
 import { MatchEditDrawerProvider } from './contexts/MatchEditDrawerContext';
 import MatchEditDrawer from './components/MatchEditDrawer';
 import InspectorOverlay from './debug/InspectorOverlay';
@@ -29,6 +30,7 @@ export default function App() {
     <HeroDrawerProvider>
     <MapDrawerProvider>
     <MatchProvider>
+    <DeathBufferProvider>
     <MatchEditDrawerProvider>
     <FieldConfigProvider>
     <BrowserRouter>
@@ -110,6 +112,7 @@ export default function App() {
     {import.meta.env.DEV && <InspectorOverlay />}
     </FieldConfigProvider>
     </MatchEditDrawerProvider>
+    </DeathBufferProvider>
     </MatchProvider>
     </MapDrawerProvider>
     </HeroDrawerProvider>
