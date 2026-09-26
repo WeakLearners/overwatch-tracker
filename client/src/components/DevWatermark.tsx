@@ -19,12 +19,12 @@ const WORD = 'DEVELOPMENT';
 // Cell (r, c) shows WORD[(r + c) % 11]: each row is the row above shifted
 // one letter left, so rows read DEVELOPMENT wrapped around and every column
 // reads it top to bottom. One letter per grid cell (not a text run) so the
-// columns line up regardless of glyph widths. Cells are square-ish (row
-// height 100vh/11, column width the same) so the letters sit tight; 33
+// columns line up regardless of glyph widths. Cells are 1.4x as wide as tall (row
+// height 100vh/11); 33
 // columns overrun the widest screen and the centred grid crops both edges
 // evenly.
 const COLS = 33;
-const CELL = 'calc(100vh / 11)';
+const CELL = 'calc(100vh / 11 * 1.4)';
 export default function DevWatermark() {
   if (!import.meta.env.DEV) return null;
   return (
