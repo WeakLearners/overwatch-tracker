@@ -555,7 +555,7 @@ function computeTrendsDerived(trends: TrendPoint[] | null) {
   const rankLo = rankTierLoIdx * 5 + 0.5;
   const rankHi = rankTierHiIdx * 5 + 5.5;
   const rankSpan = rankHi - rankLo;
-  const RANK_H = 109;
+  const RANK_H = 120;
   const rankY = (v: number) => RANK_H - ((v - rankLo) / rankSpan) * RANK_H;
   const rankTierBands = RANK_TIERS
     .slice(rankTierLoIdx, rankTierHiIdx + 1)
@@ -1092,7 +1092,7 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
                 <svg
                   viewBox={`0 0 ${CH_W} ${RANK_H}`}
                   preserveAspectRatio="none"
-                  className="relative z-10 w-full h-[109px] overflow-visible"
+                  className="relative z-10 w-full h-[120px] overflow-visible"
                   role="img"
                   aria-label={
                     rankHasData
@@ -1120,7 +1120,7 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
                 <svg
                   viewBox={`0 0 ${CH_W} ${RANK_H}`}
                   preserveAspectRatio="none"
-                  className="rank-glow absolute inset-0 z-20 w-full h-[109px] overflow-visible pointer-events-none"
+                  className="rank-glow absolute inset-0 z-20 w-full h-[120px] overflow-visible pointer-events-none"
                   aria-hidden="true"
                   style={{ '--glow': rankSeries.find(s => s.current)?.color } as React.CSSProperties}
                 >
