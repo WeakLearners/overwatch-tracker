@@ -76,6 +76,10 @@ export default function App() {
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              {/* Dev-only inspector toggle portals in here (InspectorToggleButton).
+                  Deliberately no data-inspect-id on this wrapper, or the
+                  inspector would swallow clicks on its own button. */}
+              <span id="header-inspector-slot" className="contents" />
               <Link
                 to="/settings"
                 aria-label="Settings"
