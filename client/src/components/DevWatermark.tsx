@@ -16,31 +16,36 @@
 // events and text selection both switched off so it never intercepts a click
 // or a drag-select.
 const WORD = 'DEVELOPMENT';
-// Row r is WORD rotated left by r letters, so every row reads DEVELOPMENT
-// wrapped around and every column does too, top to bottom. The left edge
-// column reads it exactly; that's the gutter between the viewport edge and
-// the cards, where the watermark is actually visible. One letter per grid
-// cell (not a text run) so the columns line up regardless of glyph widths.
-const ROWS = Array.from({ length: WORD.length }, (_, r) => WORD.slice(r) + WORD.slice(0, r));
-
+// Cell (r, c) shows WORD[(r + c) % 11]: each row is the row above shifted
+// one letter left, so rows read DEVELOPMENT wrapped around and every column
+// reads it top to bottom. One letter per grid cell (not a text run) so the
+// columns line up regardless of glyph widths. Cells are square-ish (row
+// height 100vh/11, column width the same) so the letters sit tight; 33
+// columns overrun the widest screen and the centred grid crops both edges
+// evenly.
+const COLS = 33;
+const CELL = 'calc(100vh / 11)';
 export default function DevWatermark() {
   if (!import.meta.env.DEV) return null;
   return (
     <div
       aria-hidden="true"
       data-inspect-id="dev-watermark"
-      className="fixed inset-y-0 z-0 grid overflow-hidden pointer-events-none select-none opacity-[0.12]"
-      style={{ left: '-5vw', right: '-5vw', gridTemplateColumns: `repeat(${WORD.length}, 1fr)`, gridTemplateRows: `repeat(${WORD.length}, 1fr)` }}
+      className="fixed inset-0 z-0 grid justify-center overflow-hidden pointer-events-none select-none opacity-[0.12]"
+      style={{ gridTemplateColumns: `repeat(${COLS}, ${CELL})`, gridTemplateRows: `repeat(${WORD.length}, 1fr)` }}
     >
-      {ROWS.flatMap((row, r) => [...row].map((ch, c) => (
-        <span
-          key={`${r}-${c}`}
-          className="num-display italic font-black leading-none flex items-center justify-center"
-          style={{ color: 'var(--gauge-empty)', fontSize: 'min(13vh, 14vw)' }}
-        >
-          {ch}
-        </span>
-      )))}
+      {Array.from({ length: WORD.length * COLS }, (_, i) => {
+        const r = Math.floor(i / COLS), c = i % COLS;
+        return (
+          <span
+            key={i}
+            className="num-display italic font-black leading-none flex items-center justify-center"
+            style={{ color: 'var(--gauge-empty)', fontSize: '13vh' }}
+          >
+            {WORD[(r + c) % WORD.length]}
+          </span>
+        );
+      })}
     </div>
   );
 }
