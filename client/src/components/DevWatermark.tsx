@@ -23,12 +23,22 @@ export default function DevWatermark() {
       data-inspect-id="dev-watermark"
       className="fixed inset-0 z-0 flex items-center justify-center overflow-hidden pointer-events-none select-none"
     >
-      <span
-        className="num-display italic leading-none tracking-[-0.07em] opacity-[0.07]"
-        style={{ color: 'var(--ink)', fontSize: '22vw' }}
-      >
-        DEV
-      </span>
+      {/* An svg whose text is stretched to the viewBox width (textLength), then
+          scaled uniformly (default preserveAspectRatio, never "none") to the
+          viewport width — so the word spans edge to edge at any window size
+          without distorting the letters, and shows in the gaps between cards. */}
+      <svg viewBox="0 0 1000 160" className="w-full opacity-[0.07]">
+        <text
+          x="0"
+          y="145"
+          textLength="1000"
+          lengthAdjust="spacingAndGlyphs"
+          className="num-display italic"
+          style={{ fill: 'var(--ink)', fontSize: 180 }}
+        >
+          DEVELOPMENT
+        </text>
+      </svg>
     </div>
   );
 }
