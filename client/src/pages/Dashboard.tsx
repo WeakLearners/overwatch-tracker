@@ -9,6 +9,8 @@ import AnimatedNumber from '../components/AnimatedNumber';
 import EmptyState from '../components/EmptyState';
 import ModeWatermark from '../components/ModeWatermark';
 import PageHeader from '../components/PageHeader';
+import SegmentedPills from '../components/SegmentedPills';
+import AppTools from '../components/AppTools';
 import { useHeroDrawer } from '../contexts/HeroDrawerContext';
 import { useMatch } from '../contexts/MatchContext';
 import { format, parseISO } from 'date-fns';
@@ -1408,27 +1410,32 @@ export default function Dashboard() {
     <div>
       {/* Wayfinding rail: the page is one long scroll of readout panels, so a
           sticky jump-strip stands in for the section tabs a multi-page app
-          would use. Sits flush under the sticky header. */}
+          would use. Styled as the "Playing as" strip (2026-09-26): same thin
+          card, same sliding lit pill row (SegmentedPills), and the app tools
+          (inspector / settings / theme) moved in from the header on the right.
+          The label and the tools both take flex-1 basis-0, so the section
+          pills sit on the strip's true centre, as the identity pills do. */}
       <nav
         data-inspect-id="dash-section-nav"
         aria-label="Jump to section"
-        className="sticky top-16 z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 py-2 mb-6 flex items-center gap-1.5 overflow-x-auto backdrop-blur border-b border-ow-border"
-        style={{ backgroundColor: 'color-mix(in srgb, var(--surface) 88%, transparent)' }}
+        className="card !py-0 sticky top-16 z-20 mb-6 flex items-stretch gap-2.5 min-h-[34px]"
       >
-        {sections.map(s => (
-          <a
-            key={s.id}
-            href={`#${s.id}`}
-            aria-current={activeSection === s.id ? 'true' : undefined}
-            className={`pill shrink-0 border transition-colors heading-display tracking-[0.08em] ${
-              activeSection === s.id
-                ? 'is-selected text-orange-700 dark:text-ow-accent'
-                : 'border-ow-border text-[var(--muted)] hover:text-ow-accent hover:border-ow-accent/60'
-            }`}
-          >
-            {activeSection === s.id ? <span className="lit-text">{s.label}</span> : s.label}
-          </a>
-        ))}
+        <span className="hidden sm:block text-xs card-title shrink-0 flex-1 basis-0 min-w-0 self-center">Jump to</span>
+        <SegmentedPills
+          options={sections.map(s => s.id)}
+          value={activeSection}
+          onPick={id => {
+            document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+            history.replaceState(null, '', `#${id}`);
+          }}
+          labelFor={id => sections.find(s => s.id === id)!.label}
+          inspectId="dash-section-nav-pills"
+          idFor={id => `dash-section-nav-${id.replace('sec-', '')}`}
+          titleFor={id => `Jump to ${sections.find(s => s.id === id)!.label}`}
+        />
+        <div className="flex-1 basis-0 min-w-0 flex justify-end">
+          <AppTools />
+        </div>
       </nav>
 
       <div id="sec-mode" className="scroll-mt-32">

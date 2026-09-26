@@ -1,3 +1,4 @@
+import SegmentedPills from '../components/SegmentedPills';
 import { useState, useRef, useEffect } from 'react';
 import { format } from 'date-fns';
 import { useApi, revalidateAll } from '../hooks/useApi';
@@ -533,15 +534,6 @@ export default function Prematch() {
   // travelling from where it was to where it went, so a mis-click is obvious
   // from the direction alone.
   //
-  // Three things make the slide exact rather than approximate:
-  //   - auto-cols-fr gives every option the same width, so step N is always
-  //     N x 100% of the indicator's own width. No measuring, no refs, nothing
-  //     to re-read on resize.
-  //   - no gap between options. A gap is not part of that 100%, so the
-  //     indicator would drift further out of register with each step.
-  //   - the indicator carries the border and .is-selected; the buttons carry
-  //     only text. Two elements painting a border would double it mid-slide.
-  const NOTCH = 'polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px)';
   // One button width across BOTH groups (2026-09-24). auto-cols-fr only
   // equalises within a group, so the account pills came out narrower than
   // "Support". Every button stacks all six labels invisibly in one grid
@@ -558,54 +550,13 @@ export default function Prematch() {
     inspectId: string,
     idFor: (v: T) => string,
     titleFor: (v: T) => string,
-  ) => {
-    const i = Math.max(0, options.indexOf(value));
-    return (
-      // The group sits 3px inboard of the strip, and the lit block reaches back
-      // out to the strip's own edge. Net effect: the selected option stands 6px
-      // taller than its neighbours and meets the card border, which is what
-      // reads as raised. It CANNOT overhang the border: .card carries a
-      // clip-path for its notched corner, and a clip-path cuts its descendants,
-      // so anything past the edge is silently sliced off. Growing outward looks
-      // like nothing happened. Insetting the resting state is the same illusion
-      // without fighting the card's own shape.
-      <div className="relative grid grid-flow-col auto-cols-fr my-[3px]" data-inspect-id={inspectId}>
-        <span
-          aria-hidden="true"
-          className="is-selected mode-fill absolute -inset-y-[3px] left-0 border-2 pointer-events-none transition-[transform,background-color,border-color,box-shadow] duration-200 ease-out motion-reduce:transition-none"
-          style={{
-            width: `${100 / options.length}%`,
-            transform: `translateX(${i * 100}%)`,
-            clipPath: NOTCH,
-            ...(sel ? ({ '--sel': sel } as React.CSSProperties) : {}),
-          }}
-        />
-        {options.map(o => (
-          <button
-            key={o}
-            type="button"
-            onClick={() => onPick(o)}
-            aria-pressed={value === o}
-            title={titleFor(o)}
-            data-inspect-id={idFor(o)}
-            style={value === o && sel ? ({ '--sel': sel } as React.CSSProperties) : undefined}
-            className={`relative z-10 px-3 flex items-center justify-center text-xs leading-none font-semibold tracking-wide transition-colors ${
-              value === o ? 'text-[var(--ink)]' : 'text-[var(--faint)] hover:text-[var(--ink)]'
-            }`}
-          >
-            <span className="grid justify-items-center">
-              {IDENTITY_LABELS.map(l => (
-                <span key={l} aria-hidden="true" className="invisible col-start-1 row-start-1">{l}</span>
-              ))}
-              <span className="col-start-1 row-start-1">
-                {value === o && sel ? <span className="lit-text">{o}</span> : o}
-              </span>
-            </span>
-          </button>
-        ))}
-      </div>
-    );
-  };
+  ) => (
+    <SegmentedPills
+      options={options} value={value} onPick={onPick} sel={sel}
+      inspectId={inspectId} idFor={idFor} titleFor={titleFor}
+      sizeLabels={IDENTITY_LABELS}
+    />
+  );
 
   return (
     <div>

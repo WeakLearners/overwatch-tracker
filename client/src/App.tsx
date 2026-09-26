@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { Link } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import AppTools, { ThemeProvider } from './components/AppTools';
 import Dashboard from './pages/Dashboard';
 import SensLog from './pages/SensLog';
 import SensAnalysis from './pages/SensAnalysis';
@@ -22,12 +22,19 @@ import DevWatermark from './components/DevWatermark';
  * Root application component. Sets up context providers (hero/map drawers),
  * client-side routing, and renders the single-page Dashboard.
  */
+// Dashboard routes carry the tools in their section nav strip instead.
+const DASHBOARD_PATHS = ['/', '/prematch', '/log', '/trends'];
+function HeaderTools() {
+  const { pathname } = useLocation();
+  if (DASHBOARD_PATHS.includes(pathname)) return null;
+  return (
+    <div className="card !py-0 !px-0 flex items-stretch min-h-[34px] shrink-0">
+      <AppTools />
+    </div>
+  );
+}
+
 export default function App() {
-  const [dark, setDark] = useState(() => localStorage.getItem('ow-theme') === 'dark');
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', dark);
-    localStorage.setItem('ow-theme', dark ? 'dark' : 'light');
-  }, [dark]);
   // Dev-only tab-title tell (2026-09-26): the same import.meta.env.DEV switch
   // DevWatermark uses, so the two always agree — one flag, two signals (the
   // page and the tab) that this is the editing server, not the one to use.
@@ -35,6 +42,7 @@ export default function App() {
     if (import.meta.env.DEV) document.title = `DEV · ${document.title}`;
   }, []);
   return (
+    <ThemeProvider>
     <HeroDrawerProvider>
     <MapDrawerProvider>
     <MatchProvider>
@@ -75,31 +83,7 @@ export default function App() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {/* Dev-only inspector toggle portals in here (InspectorToggleButton).
-                  Deliberately no data-inspect-id on this wrapper, or the
-                  inspector would swallow clicks on its own button. */}
-              <span id="header-inspector-slot" className="contents" />
-              <Link
-                to="/settings"
-                aria-label="Settings"
-                data-inspect-id="app-settings-link"
-                className="w-9 h-9 shrink-0 grid place-items-center bg-ow-card border border-ow-border text-[var(--ink-2)] hover:text-ow-accent transition-all"
-                style={{ clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)' }}
-              >
-                ⚙
-              </Link>
-              <button
-                type="button"
-                onClick={() => setDark(d => !d)}
-                aria-label="Toggle theme"
-                data-inspect-id="app-theme-toggle"
-                className="w-9 h-9 shrink-0 grid place-items-center bg-ow-card border border-ow-border text-[var(--ink-2)] hover:text-ow-accent transition-all"
-                style={{ clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)' }}
-              >
-                {dark ? '☀' : '☾'}
-              </button>
-            </div>
+            <HeaderTools />
           </div>
         </header>
         <main className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 pt-6 pb-10">
@@ -131,5 +115,6 @@ export default function App() {
     </MatchProvider>
     </MapDrawerProvider>
     </HeroDrawerProvider>
+    </ThemeProvider>
   );
 }
