@@ -640,11 +640,11 @@
      Tight radii keep the edge sharp; --glow is the line's own colour. */
   .rank-glow { animation: rank-glow-pulse 1.8s ease-in-out infinite; }
   @keyframes rank-glow-pulse {
-    0%, 100% { filter: drop-shadow(0 0 0.5px var(--glow)) drop-shadow(0 0 1.5px color-mix(in oklch, var(--glow) 50%, transparent)); }
-    50%      { filter: drop-shadow(0 0 1px var(--glow)) drop-shadow(0 0 3px var(--glow)); }
+    0%, 100% { filter: drop-shadow(0 0 1px var(--glow)) drop-shadow(0 0 2px var(--glow)) drop-shadow(0 0 3px var(--glow)); }
+    50%      { filter: drop-shadow(0 0 1px var(--glow)) drop-shadow(0 0 3px var(--glow)) drop-shadow(0 0 5px var(--glow)) drop-shadow(0 0 5px var(--glow)); }
   }
   @media (prefers-reduced-motion: reduce) {
-    .rank-glow { animation: none; filter: drop-shadow(0 0 1px var(--glow)) drop-shadow(0 0 2px var(--glow)); }
+    .rank-glow { animation: none; filter: drop-shadow(0 0 1px var(--glow)) drop-shadow(0 0 3px var(--glow)) drop-shadow(0 0 4px var(--glow)); }
   }
 
   /* Card titles. Lifted from the Lobby Rank header, which Sean picked as the
