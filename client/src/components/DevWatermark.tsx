@@ -15,30 +15,32 @@
 // front of the page background but behind every card via z-index, pointer-
 // events and text selection both switched off so it never intercepts a click
 // or a drag-select.
+const WORD = 'DEVELOPMENT';
+// Row r is WORD rotated left by r letters, so every row reads DEVELOPMENT
+// wrapped around and every column does too, top to bottom. The left edge
+// column reads it exactly; that's the gutter between the viewport edge and
+// the cards, where the watermark is actually visible. One letter per grid
+// cell (not a text run) so the columns line up regardless of glyph widths.
+const ROWS = Array.from({ length: WORD.length }, (_, r) => WORD.slice(r) + WORD.slice(0, r));
+
 export default function DevWatermark() {
   if (!import.meta.env.DEV) return null;
   return (
     <div
       aria-hidden="true"
       data-inspect-id="dev-watermark"
-      className="fixed inset-0 z-0 flex items-center justify-center overflow-hidden pointer-events-none select-none"
+      className="fixed inset-0 z-0 grid overflow-hidden pointer-events-none select-none opacity-[0.12]"
+      style={{ gridTemplateColumns: `repeat(${WORD.length}, 1fr)`, gridTemplateRows: `repeat(${WORD.length}, 1fr)` }}
     >
-      {/* An svg whose text is stretched to the viewBox width (textLength), then
-          scaled uniformly (default preserveAspectRatio, never "none") to the
-          viewport width — so the word spans edge to edge at any window size
-          without distorting the letters, and shows in the gaps between cards. */}
-      <svg viewBox="0 0 1000 160" className="w-full opacity-[0.12]">
-        <text
-          x="0"
-          y="145"
-          textLength="1000"
-          lengthAdjust="spacingAndGlyphs"
-          className="num-display italic font-black"
-          style={{ fill: 'var(--gauge-empty)', fontSize: 180 }}
+      {ROWS.flatMap((row, r) => [...row].map((ch, c) => (
+        <span
+          key={`${r}-${c}`}
+          className="num-display italic font-black leading-none flex items-center justify-center"
+          style={{ color: 'var(--gauge-empty)', fontSize: 'min(11vh, 12vw)' }}
         >
-          DEVELOPMENT
-        </text>
-      </svg>
+          {ch}
+        </span>
+      )))}
     </div>
   );
 }
