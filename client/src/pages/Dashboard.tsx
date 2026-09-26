@@ -1114,15 +1114,15 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
                     </polyline>
                   ))}
                 </svg>
-                {/* The current account/role's line, in its own svg so the glow is a
-                    CSS drop-shadow on the html box: a filter inside the stretched
+                {/* The current account/role's line, in its own svg so the glow (.rank-glow,
+                    a pulsing CSS drop-shadow) sits on the html box: a filter inside the stretched
                     svg (preserveAspectRatio="none") would smear sideways. */}
                 <svg
                   viewBox={`0 0 ${CH_W} ${RANK_H}`}
                   preserveAspectRatio="none"
-                  className="absolute inset-0 z-20 w-full h-[109px] overflow-visible pointer-events-none"
+                  className="rank-glow absolute inset-0 z-20 w-full h-[109px] overflow-visible pointer-events-none"
                   aria-hidden="true"
-                  style={{ filter: `drop-shadow(0 0 2px ${rankSeries.find(s => s.current)?.color}) drop-shadow(0 0 6px ${rankSeries.find(s => s.current)?.color})` }}
+                  style={{ '--glow': rankSeries.find(s => s.current)?.color } as React.CSSProperties}
                 >
                   {rankSeries.filter(s => s.current && s.steps.length > 0).map(s => (
                     <polyline
