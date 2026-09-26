@@ -478,7 +478,11 @@ function computeTrendsDerived(trends: TrendPoint[] | null) {
   const RANK_SERIES_OPACITY: Record<RankRole, number> = { DPS: 1, Support: 0.7 };
 
   type RankStep = { x: number; y: number };
-  type RankSeries = { account: Account; role: RankRole; color: string; opacity: number; steps: RankStep[] };
+  type RankSeries = { account: Account; role: RankRole; color: string; opacity: number; steps: RankStep[]; current: boolean };
+
+  // "Current" = the account and role of the most recent match with an account
+  // on file (trends run oldest → newest). That line gets the glow.
+  const lastWithAccount = [...(trends ?? [])].reverse().find(g => g.account != null);
 
   // Rows with a rank reading but no account on file (7 matches, logged
   // 2026-09-19/20 before the account column existed) are excluded from every
@@ -535,6 +539,7 @@ function computeTrendsDerived(trends: TrendPoint[] | null) {
         color: `oklch(from rgb(${RANK_SERIES_RGB[account]}) l calc(c * 1.5) h)`,
         opacity: RANK_SERIES_OPACITY[role],
         steps,
+        current: lastWithAccount?.account === account && lastWithAccount?.role === role,
       };
     }),
   );
@@ -1095,7 +1100,7 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
                       : 'Competitive rank over time. No ranked matches with a known account fall inside the currently visible window.'
                   }
                 >
-                  {rankSeries.map(s => s.steps.length > 0 && (
+                  {rankSeries.map(s => s.steps.length > 0 && !s.current && (
                     <polyline
                       key={`rank-line-${s.account}-${s.role}`}
                       points={s.steps.map(p => `${p.x},${rankY(p.y)}`).join(' ')}
@@ -1107,6 +1112,28 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
                     >
                       <title>{`${s.account} · ${s.role}`}</title>
                     </polyline>
+                  ))}
+                </svg>
+                {/* The current account/role's line, in its own svg so the glow is a
+                    CSS drop-shadow on the html box: a filter inside the stretched
+                    svg (preserveAspectRatio="none") would smear sideways. */}
+                <svg
+                  viewBox={`0 0 ${CH_W} ${RANK_H}`}
+                  preserveAspectRatio="none"
+                  className="absolute inset-0 z-20 w-full h-[109px] overflow-visible pointer-events-none"
+                  aria-hidden="true"
+                  style={{ filter: `drop-shadow(0 0 2px ${rankSeries.find(s => s.current)?.color}) drop-shadow(0 0 6px ${rankSeries.find(s => s.current)?.color})` }}
+                >
+                  {rankSeries.filter(s => s.current && s.steps.length > 0).map(s => (
+                    <polyline
+                      key={`rank-line-${s.account}-${s.role}`}
+                      points={s.steps.map(p => `${p.x},${rankY(p.y)}`).join(' ')}
+                      fill="none"
+                      stroke={s.color}
+                      strokeOpacity={s.opacity}
+                      strokeWidth="2.5"
+                      vectorEffect="non-scaling-stroke"
+                    />
                   ))}
                 </svg>
                 {/* Each band is lit like a selected mode tile (.is-selected
