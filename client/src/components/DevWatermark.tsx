@@ -27,14 +27,14 @@ export default function DevWatermark() {
           scaled uniformly (default preserveAspectRatio, never "none") to the
           viewport width — so the word spans edge to edge at any window size
           without distorting the letters, and shows in the gaps between cards. */}
-      <svg viewBox="0 0 1000 160" className="w-full opacity-[0.07]">
+      <svg viewBox="0 0 1000 160" className="w-full opacity-[0.12]">
         <text
           x="0"
           y="145"
           textLength="1000"
           lengthAdjust="spacingAndGlyphs"
           className="num-display italic font-black"
-          style={{ fill: 'var(--ink)', fontSize: 180 }}
+          style={{ fill: 'var(--gauge-empty)', fontSize: 180 }}
         >
           DEVELOPMENT
         </text>
