@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { HEROES, MAPS, ROLE_COLORS, ROLE_PILL_CLASS, ROLE_PILL_CLASS_DARK, TYPE_COLORS, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB, MODE_WASH_CLASS, MODE_COMPACT, OLDEST_DASH_FADE_STYLE } from '../types';
+import { HEROES, MAPS, ROLE_COLORS, ROLE_PILL_CLASS, ROLE_PILL_CLASS_DARK, TYPE_COLORS, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB, MODE_WASH_CLASS, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, isAccount, rankLabel, clampRank } from '../types';
 import { useMatch } from '../contexts/MatchContext';
 import { useDeathBuffer } from '../contexts/DeathBufferContext';
 import { revalidateRec } from '../contexts/AdvisorContext';
@@ -55,7 +55,15 @@ interface TodayMatchRow {
   // just weren't declared here until the edit form needed them 2026-09-24.
   leaver: 0 | 1 | null;
   leaver_side: 'mine' | 'theirs' | null;
+  // Also already on every row via SELECT *; declared 2026-09-26 for the
+  // card's promotion/demotion fix.
+  role: string;
+  account: string | null;
+  player_rank: number | null;
+  player_rank_start: number | null;
 }
+
+type RankFixOutcome = 'promoted' | 'demoted' | 'none';
 
 interface MatchHeroRow {
   hero: string;
@@ -118,6 +126,16 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueM
   // actually taps a sliver.
   const [leaverSide, setLeaverSide] = useState<'mine' | 'theirs' | null>(match.leaver_side ?? null);
   const [leaverUnknown, setLeaverUnknown] = useState(!!match.leaver && match.leaver_side == null);
+  // Promotion/demotion — for when it was forgotten at log time. Read off the
+  // row's own start/end ranks. Saved through its own endpoint, which also
+  // shifts every later game on this ladder and the live rank (matches.ts).
+  const { applyRankFix } = useMatch();
+  const rankStart = match.player_rank_start;
+  const origOutcome: RankFixOutcome | null = rankStart == null ? null
+    : (match.player_rank ?? rankStart) > rankStart ? 'promoted'
+    : (match.player_rank ?? rankStart) < rankStart ? 'demoted' : 'none';
+  const [rankOutcome, setRankOutcome] = useState<RankFixOutcome | null>(origOutcome);
+  const showRankFix = match.queue_mode !== 'qp_role' && (match.role === 'DPS' || match.role === 'Support');
 
   useEffect(() => {
     let cancelled = false;
@@ -201,6 +219,18 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueM
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error('Failed');
+      if (rankOutcome && rankOutcome !== origOutcome) {
+        const rr = await fetch(`/api/matches/${match.id}/rank-outcome`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ outcome: rankOutcome }),
+        });
+        if (!rr.ok) throw new Error('Failed');
+        const fix = await rr.json();
+        if (isAccount(fix.account) && (fix.role === 'DPS' || fix.role === 'Support')) {
+          applyRankFix(fix.account, fix.role, fix.rank, fix.latestEnd);
+        }
+      }
       revalidateAll();
       onDone();
     } catch {
@@ -371,6 +401,40 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueM
           gapClass="gap-3"
         />
       </div>
+
+      {showRankFix && (
+        <div data-inspect-id="logmatch-inline-edit-rank-outcome">
+          <label className="block text-xs text-[var(--muted)] mb-1.5">
+            Rank
+            {rankStart != null && rankOutcome && (
+              <span className="text-ow-accent">
+                {' · '}{rankLabel(rankStart)} → {rankLabel(clampRank(rankStart + (rankOutcome === 'promoted' ? 1 : rankOutcome === 'demoted' ? -1 : 0)))}
+              </span>
+            )}
+          </label>
+          {rankStart == null ? (
+            <p className="text-xs text-[var(--faint)]">No starting rank on this match, so there's nothing to move from.</p>
+          ) : (
+            <div className="grid grid-cols-3 gap-2">
+              {([['demoted', 'Demoted'], ['none', 'No change'], ['promoted', 'Promoted']] as const).map(([v, label]) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setRankOutcome(v)}
+                  aria-pressed={rankOutcome === v}
+                  data-inspect-id={`logmatch-inline-edit-rank-outcome-${v}`}
+                  className={`text-xs font-semibold py-2 rounded-lg border transition-colors ${
+                    rankOutcome === v ? 'is-selected text-[var(--ink)]' : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
+                  }`}
+                >{rankOutcome === v ? <span className="lit-text">{label}</span> : label}</button>
+              ))}
+            </div>
+          )}
+          {rankOutcome !== origOutcome && (
+            <p className="text-[10px] text-[var(--faint)] mt-1">Later games on {match.account ?? 'this account'} {match.role}, and the live rank, shift to match.</p>
+          )}
+        </div>
+      )}
 
       <div className="pt-1 space-y-2">
         <button

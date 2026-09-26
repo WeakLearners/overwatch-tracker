@@ -147,6 +147,9 @@ interface MatchContextValue {
   /** Rank the last logged match on this ladder ended at — the next match's start rank. */
   rankAtLastLog: number | null;
   commitRankAtLastLog: (r: number | null) => void;
+  /** After a Today's Matches rank-outcome fix: mirror what the server moved
+   *  (live rank and/or the ladder's latest end rank) for any account+role. */
+  applyRankFix: (a: Account, r: RankRole, rank: number | null, latestEnd: number | null) => void;
   setPlayerRank: (r: number | null) => void;
   lobbyLow: number | null;
   lobbyHigh: number | null;
@@ -281,6 +284,22 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     } catch { /* ignore */ }
   }, [account, testRole]);
 
+  // The server already wrote player_ranks; this only brings the in-memory
+  // copies (and the localStorage mirrors) in line, for whichever ladder the
+  // fix touched — not necessarily the one currently selected.
+  const applyRankFix = useCallback((a: Account, r: RankRole, rank: number | null, latestEnd: number | null) => {
+    const current = a === account && r === testRole;
+    if (rank != null) {
+      setRankMap(prev => ({ ...(prev ?? {}), [rankSlotKey(a, r)]: rank }));
+      try { localStorage.setItem(rankKeyFor(a, r), String(rank)); } catch { /* ignore */ }
+      if (current) setPlayerRankState(rank);
+    }
+    if (latestEnd != null) {
+      try { localStorage.setItem(rankAtLastLogKeyFor(a, r), String(latestEnd)); } catch { /* ignore */ }
+      if (current) setRankAtLastLogState(latestEnd);
+    }
+  }, [account, testRole, rankSlotKey]);
+
   const [lobbyRange, setLobbyRange] = useState<{ low: number; high: number } | null>(() => readLobby(account, testRole));
 
   // Account and role each swap the whole rank context in one move: the drum's
@@ -374,7 +393,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     testRole, setTestRole,
     mapType,
     account, setAccount,
-    playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog,
+    playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, applyRankFix,
     lobbyLow, lobbyHigh,
     setLobbyRange: setLobbyRangeValues, applyLobbySpread, nudgeLobby, clearLobbyRange,
     pendingHeroes, setPendingHeroes,
@@ -383,7 +402,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     notifyMatchLogged,
   }), [
     queueMode, setQueueMode, map, setMap, sens, setSens, testRole, setTestRole, mapType,
-    account, setAccount, playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog,
+    account, setAccount, playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, applyRankFix,
     lobbyLow, lobbyHigh, setLobbyRangeValues, applyLobbySpread, nudgeLobby, clearLobbyRange,
     pendingHeroes, matchLoggedSignal, lastLog, notifyMatchLogged,
   ]);

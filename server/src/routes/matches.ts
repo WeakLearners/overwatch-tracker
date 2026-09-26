@@ -614,6 +614,84 @@ router.get('/map-history', (req: Request, res: Response) => {
   res.json({ byMap });
 });
 
+// Fix a forgotten promotion/demotion after the fact (Today's Matches card,
+// 2026-09-26). A match's end rank is the next match's start rank, so a wrong
+// outcome on one game leaves every later game on that ladder, and the live
+// badge in player_ranks, off by the same amount. This rewrites the whole
+// chain in one transaction:
+//   1. this match's end = start ± 1 (or = start for "none");
+//   2. each later ranked match on the same account+role whose start equals
+//      the previous match's OLD end is shifted by the same delta, start and
+//      end both. The walk stops at the first row that doesn't chain — that
+//      game's start was already hand-corrected, so the fix is absorbed there;
+//   3. if the walk reached the ladder's latest match, player_ranks moves too,
+//      but only if it still equals that match's old end (i.e. the drum wasn't
+//      already fixed by hand).
+router.put('/:id/rank-outcome', (req: Request, res: Response) => {
+  const db = getDb();
+  const outcome = req.body?.outcome;
+  if (outcome !== 'promoted' && outcome !== 'demoted' && outcome !== 'none') {
+    res.status(400).json({ error: "outcome must be 'promoted', 'demoted' or 'none'" });
+    return;
+  }
+  const m = db.prepare('SELECT id, account, role, date, time, player_rank, player_rank_start FROM matches WHERE id = :id')
+    .get({ id: req.params.id }) as { id: number; account: string | null; role: string; date: string; time: string | null; player_rank: number | null; player_rank_start: number | null } | undefined;
+  if (!m) { res.status(404).json({ error: 'match not found' }); return; }
+  if (m.player_rank_start == null) {
+    res.status(400).json({ error: 'this match has no starting rank to move from' });
+    return;
+  }
+  const clamp = (r: number) => Math.min(45, Math.max(1, r));
+  const step = outcome === 'promoted' ? 1 : outcome === 'demoted' ? -1 : 0;
+  const oldEnd = m.player_rank ?? m.player_rank_start;
+  const newEnd = clamp(m.player_rank_start + step);
+  const delta = newEnd - oldEnd;
+  const shifted: number[] = [];
+  let rank: number | null = null;
+  let reachedLatest = true;
+  let prevOldEnd = oldEnd;
+
+  db.exec('BEGIN');
+  try {
+    db.prepare('UPDATE matches SET player_rank = :r WHERE id = :id').run({ r: newEnd, id: m.id });
+
+    if (delta !== 0) {
+      const later = db.prepare(`
+        SELECT id, player_rank, player_rank_start FROM matches
+        WHERE account IS :account AND role = :role AND id != :id
+          AND (player_rank_start IS NOT NULL OR player_rank IS NOT NULL)
+          AND (date, COALESCE(time, ''), id) > (:date, :time, :id)
+        ORDER BY date, COALESCE(time, ''), id
+      `).all({ account: m.account, role: m.role, id: m.id, date: m.date, time: m.time ?? '' }) as { id: number; player_rank: number | null; player_rank_start: number | null }[];
+      const upd = db.prepare('UPDATE matches SET player_rank_start = :s, player_rank = :e WHERE id = :id');
+      for (const r of later) {
+        if (r.player_rank_start !== prevOldEnd) { reachedLatest = false; break; }
+        const end = r.player_rank ?? r.player_rank_start;
+        upd.run({ id: r.id, s: clamp(r.player_rank_start + delta), e: clamp(end + delta) });
+        shifted.push(r.id);
+        prevOldEnd = end;
+      }
+      if (reachedLatest && m.account != null) {
+        const live = db.prepare('SELECT rank FROM player_ranks WHERE account = :a AND role = :r')
+          .get({ a: m.account, r: m.role }) as { rank: number | null } | undefined;
+        if (live?.rank === prevOldEnd) {
+          rank = clamp(prevOldEnd + delta);
+          db.prepare('UPDATE player_ranks SET rank = :rank WHERE account = :a AND role = :r')
+            .run({ rank, a: m.account, r: m.role });
+        }
+      }
+    }
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+  // rank: the live ladder's new value when it moved, else null (untouched).
+  // latestEnd: the ladder's latest match's new end rank, when the fix reached
+  // it (null otherwise) — the client's "rank at last log" follows it.
+  res.json({ id: m.id, player_rank: newEnd, shifted, rank, latestEnd: reachedLatest ? prevOldEnd + delta : null, account: m.account, role: m.role });
+});
+
 router.put('/:id', (req: Request, res: Response) => {
   const db = getDb();
   const fields = EDITABLE.filter(k => k in req.body);

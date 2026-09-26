@@ -644,3 +644,56 @@ describe('MatchEditDrawer: per-slot sens edits are stored as sent, not re-stampe
     assert.equal(matchRow(id).sens, 2.75, 'an unrelated edit must not silently revert the hand-edited sens');
   });
 });
+
+// Fixing a forgotten promotion/demotion from the Today's Matches card. One
+// match's end rank is the next one's start, so the fix has to carry forward.
+describe('PUT /api/matches/:id/rank-outcome — correcting a missed rank change', () => {
+  const ladder = async (rows: [number, number][]) => {
+    const ids: number[] = [];
+    for (const [i, [s, e]] of rows.entries()) {
+      ids.push(await logMatch({ hero: 'Ashe', role: 'DPS', account: 'Pinx', time: `12:0${i}`, player_rank_start: s, player_rank: e }));
+    }
+    return ids;
+  };
+
+  test('a forgotten promotion shifts every later game and the live rank', async () => {
+    const [a, b, c] = await ladder([[15, 15], [15, 15], [15, 14]]);
+    await h.put('/api/ranks', { account: 'Pinx', role: 'DPS', rank: 14 });
+    const r = await h.put(`/api/matches/${a}/rank-outcome`, { outcome: 'promoted' });
+    assert.equal(r.status, 200);
+    assert.deepEqual([matchRow(a), matchRow(b), matchRow(c)].map(m => [m.player_rank_start, m.player_rank]), [[15, 16], [16, 16], [16, 15]]);
+    assert.equal((await h.get('/api/ranks')).body['Pinx|DPS'], 15, 'live badge follows');
+    assert.equal(r.body.latestEnd, 15);
+  });
+
+  test('the carry stops at a game whose start was already fixed by hand', async () => {
+    const [a, b, c] = await ladder([[15, 15], [16, 16], [16, 16]]);
+    await h.put('/api/ranks', { account: 'Pinx', role: 'DPS', rank: 16 });
+    const r = await h.put(`/api/matches/${a}/rank-outcome`, { outcome: 'promoted' });
+    assert.deepEqual([matchRow(a), matchRow(b), matchRow(c)].map(m => [m.player_rank_start, m.player_rank]), [[15, 16], [16, 16], [16, 16]]);
+    assert.equal((await h.get('/api/ranks')).body['Pinx|DPS'], 16, 'already right, untouched');
+    assert.equal(r.body.latestEnd, null);
+  });
+
+  test('undoing a promotion to "none" walks the chain back down', async () => {
+    const [a, b] = await ladder([[15, 16], [16, 16]]);
+    await h.put('/api/ranks', { account: 'Pinx', role: 'DPS', rank: 16 });
+    await h.put(`/api/matches/${a}/rank-outcome`, { outcome: 'none' });
+    assert.deepEqual([matchRow(a), matchRow(b)].map(m => [m.player_rank_start, m.player_rank]), [[15, 15], [15, 15]]);
+    assert.equal((await h.get('/api/ranks')).body['Pinx|DPS'], 15);
+  });
+
+  test('another ladder is never touched', async () => {
+    const [a] = await ladder([[15, 15]]);
+    const other = await logMatch({ hero: 'Kiriko', role: 'Support', account: 'Pinx', time: '12:05', player_rank_start: 15, player_rank: 15 });
+    await h.put(`/api/matches/${a}/rank-outcome`, { outcome: 'demoted' });
+    assert.equal(matchRow(a).player_rank, 14);
+    assert.deepEqual([matchRow(other).player_rank_start, matchRow(other).player_rank], [15, 15]);
+  });
+
+  test('a match with no starting rank is refused, not guessed', async () => {
+    const id = await logMatch({ hero: 'Ashe', role: 'DPS', account: 'Pinx', player_rank: 15 });
+    assert.equal((await h.put(`/api/matches/${id}/rank-outcome`, { outcome: 'promoted' })).status, 400);
+    assert.equal(matchRow(id).player_rank, 15);
+  });
+});
