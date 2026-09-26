@@ -63,10 +63,16 @@ fi
 rm -rf "client/$NEXT"
 if (cd client && npx tsc && npx vite build --outDir "$NEXT") >> "$LOG" 2>&1; then
   # Atomic swap: stage the new symlink under a temp name, then rename it over
-  # the live one. `mv` of a symlink onto an existing path is one rename()
-  # syscall on the same filesystem — client/current is never briefly absent.
+  # the live one. NOT `mv` here — macOS's mv, when the destination is itself a
+  # symlink pointing at a directory, follows that symlink and moves the
+  # source INSIDE the target directory instead of replacing the symlink
+  # (confirmed by testing: `mv -f current.new current` left `current`
+  # pointing at its OLD target and silently dropped current.new inside it).
+  # python3's os.rename() calls the raw rename(2) syscall, which never
+  # follows the destination's final path component — it replaces the
+  # symlink itself, in one filesystem operation, exactly as intended.
   ln -sfn "$NEXT" client/current.new
-  mv -f client/current.new client/current
+  python3 -c "import os; os.rename('client/current.new', 'client/current')"
   log "build OK for $SHA -> client/current -> $NEXT"
 else
   log "BUILD FAILED for $SHA -- client/current left pointing at the last good build (${CUR_TARGET:-none yet})"
