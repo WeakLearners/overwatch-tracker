@@ -191,6 +191,9 @@ export default function InspectorOverlay() {
     function onClick(ev: MouseEvent) {
       const target = ev.target as HTMLElement | null;
       if (bubbleRef.current && bubbleElRef.current?.contains(target)) return;
+      // Never capture the toggle itself, whatever labelled strip it sits in
+      // (it now lives inside the Dashboard's section nav, which carries an id).
+      if (target?.closest('[data-inspector-toggle]')) return;
 
       const match = target?.closest<HTMLElement>('[data-inspect-id]') ?? null;
       if (!match) {

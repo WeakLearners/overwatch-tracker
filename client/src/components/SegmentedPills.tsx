@@ -3,7 +3,19 @@ import type { ReactNode } from 'react';
 // The "Playing as" segmented pill row, shared (2026-09-26) so the Dashboard's
 // section nav can wear the same style. Originally inline in Prematch.tsx as
 // identityGroup; the comments below travelled with it.
-//
+
+// Default lit hue when a caller passes no --sel: the app accent. .lit-text
+// paints its text with a gradient built from --sel, so without one the
+// selected label rendered fully transparent (bug found 2026-09-26).
+export const ACCENT_SEL = '247 147 30';
+
+// sm: the Pre-Match "Playing as" strip. lg: main navigation (Dashboard
+// section nav) — taller strip, larger display-face labels.
+export const PILL_SIZE = {
+  sm: 'px-3 text-xs font-semibold tracking-wide',
+  lg: 'px-5 text-sm heading-display uppercase tracking-[0.12em]',
+} as const;
+
 // Three things make the slide exact rather than approximate:
 //   - auto-cols-fr gives every option the same width, so step N is always
 //     N x 100% of the indicator's own width. No measuring, no refs, nothing
@@ -15,7 +27,7 @@ import type { ReactNode } from 'react';
 export const NOTCH = 'polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px)';
 
 export default function SegmentedPills<T extends string>({
-  options, value, onPick, sel, inspectId, idFor, titleFor, labelFor, sizeLabels,
+  options, value, onPick, sel: selProp, inspectId, idFor, titleFor, labelFor, sizeLabels, size = 'sm',
 }: {
   options: readonly T[];
   /** null lights nothing (the indicator hides). */
@@ -30,7 +42,9 @@ export default function SegmentedPills<T extends string>({
   /** Every label stacked invisibly in each button, so every button is as wide
    *  as the widest of these. Defaults to this group's own labels. */
   sizeLabels?: readonly string[];
+  size?: keyof typeof PILL_SIZE;
 }) {
+  const sel = selProp ?? ACCENT_SEL;
   const label = labelFor ?? ((v: T) => v);
   const sizes = sizeLabels ?? options.map(label);
   const i = value == null ? -1 : options.indexOf(value);
@@ -50,8 +64,8 @@ export default function SegmentedPills<T extends string>({
             width: `${100 / options.length}%`,
             transform: `translateX(${i * 100}%)`,
             clipPath: NOTCH,
-            ...(sel ? ({ '--sel': sel } as React.CSSProperties) : {}),
-          }}
+            '--sel': sel,
+          } as React.CSSProperties}
         />
       )}
       {options.map(o => (
@@ -62,8 +76,8 @@ export default function SegmentedPills<T extends string>({
           aria-pressed={value === o}
           title={titleFor(o)}
           data-inspect-id={idFor(o)}
-          style={value === o && sel ? ({ '--sel': sel } as React.CSSProperties) : undefined}
-          className={`relative z-10 px-3 flex items-center justify-center text-xs leading-none font-semibold tracking-wide transition-colors ${
+          style={value === o ? ({ '--sel': sel } as React.CSSProperties) : undefined}
+          className={`relative z-10 flex items-center justify-center leading-none transition-colors ${PILL_SIZE[size]} ${
             value === o ? 'text-[var(--ink)]' : 'text-[var(--faint)] hover:text-[var(--ink)]'
           }`}
         >

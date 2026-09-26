@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { INSPECTOR_SLOT_EVENT, ToolLit } from '../components/AppTools';
+import { ACCENT_SEL } from '../components/SegmentedPills';
 
 type Props = { enabled: boolean; onToggle: () => void };
 
@@ -25,14 +26,15 @@ export default function InspectorToggleButton({ enabled, onToggle }: Props) {
       type="button"
       onClick={onToggle}
       aria-label="Toggle inspector mode"
+      data-inspector-toggle=""
       aria-pressed={enabled}
       title="Toggle inspector mode — hover a UI element, click to compose a Claude prompt for it"
-      className={`relative px-3 flex items-center justify-center text-sm leading-none transition-colors ${
+      className={`relative px-4 flex items-center justify-center text-base leading-none transition-colors ${
         enabled ? 'text-[var(--ink)]' : 'text-[var(--faint)] hover:text-[var(--ink)]'
       }`}
     >
       {enabled && <ToolLit />}
-      <span className={`relative z-10 ${enabled ? 'lit-text' : ''}`}>⌖</span>
+      <span className={`relative z-10 ${enabled ? 'lit-text' : ''}`} style={{ '--sel': ACCENT_SEL } as React.CSSProperties}>⌖</span>
     </button>,
     slot,
   );

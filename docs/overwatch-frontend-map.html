@@ -521,7 +521,7 @@ const DATA = {
           "kind": "icon-button",
           "description": "Sun/moon cell in the app tools group (AppTools): flips dark/light mode and persists the choice to localStorage. Sits in the Dashboard section nav strip, or in the header on non-Dashboard pages (2026-09-26).",
           "locate": {
-            "path": "client/src/components/AppTools.tsx:44",
+            "path": "client/src/components/AppTools.tsx:48",
             "grep": "grep -n -F -- 'data-inspect-id=\"app-theme-toggle\"' client/src/components/AppTools.tsx"
           }
         },
@@ -531,8 +531,28 @@ const DATA = {
           "kind": "icon-button",
           "description": "Gear cell in the app tools group (AppTools), next to the theme toggle, that navigates to /settings \u2014 the field registry's category toggle page. Added 2026-09-23; moved into the Dashboard section nav strip 2026-09-26 (header on other pages).",
           "locate": {
-            "path": "client/src/components/AppTools.tsx:43",
+            "path": "client/src/components/AppTools.tsx:47",
             "grep": "grep -n -F -- 'data-inspect-id=\"app-settings-link\"' client/src/components/AppTools.tsx"
+          }
+        },
+        {
+          "id": "app-home-wordmark",
+          "label": "Overwatch wordmark (home link)",
+          "kind": "link",
+          "description": "The header wordmark (slash mark + OVERWATCH / MATCH TRACKER) is a link to the Dashboard (/). Added 2026-09-26: Settings and the Sens pages had no way back.",
+          "locate": {
+            "path": "client/src/App.tsx:68",
+            "grep": "grep -n -F -- 'data-inspect-id=\"app-home-wordmark\"' client/src/App.tsx"
+          }
+        },
+        {
+          "id": "app-home-link",
+          "label": "Home button (app tools)",
+          "kind": "icon-button",
+          "description": "House cell in the app tools group, shown only on non-Dashboard pages (header). Links to the Dashboard. Added 2026-09-26.",
+          "locate": {
+            "path": "client/src/components/AppTools.tsx:45",
+            "grep": "grep -n -F -- 'data-inspect-id=\"app-home-link\"' client/src/components/AppTools.tsx"
           }
         },
         {
@@ -575,9 +595,9 @@ const DATA = {
           "id": "dash-section-nav",
           "label": "Section jump nav",
           "kind": "nav",
-          "description": "Sticky wayfinding strip under the header, styled as the Pre-Match \"Playing as\" strip (thin card, SegmentedPills). Label left, section pills centred (Mode, Match, Trends, Career; a lit block slides to the in-view section), app tools (inspector / settings / theme) on the right. Restyled 2026-09-26.",
+          "description": "Sticky wayfinding strip under the header, styled as the Pre-Match \"Playing as\" strip (thin card, SegmentedPills). Label left, section pills centred (Mode, Match, Trends, Career; a lit block slides to the in-view section), app tools (inspector / settings / theme) on the right. Restyled 2026-09-26; pills use the large main-nav size, a click lights its pill at once, and the last section lights at the bottom of the page.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1419",
+            "path": "client/src/pages/Dashboard.tsx:1438",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-section-nav\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -587,7 +607,7 @@ const DATA = {
           "kind": "button-group",
           "description": "The section jump pills in the section nav strip (SegmentedPills). Click scrolls to the section; the lit block follows whichever section is in view.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1432",
+            "path": "client/src/pages/Dashboard.tsx:1449",
             "grep": "grep -n -F -- 'inspectId=\"dash-section-nav-pills\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -597,7 +617,7 @@ const DATA = {
           "kind": "button",
           "description": "Jump pill for the Mode section. (Locate command matches all four section pills.)",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1433",
+            "path": "client/src/pages/Dashboard.tsx:1450",
             "grep": "grep -n -F -- 'dash-section-nav-${id.replace' client/src/pages/Dashboard.tsx"
           }
         },
@@ -607,7 +627,7 @@ const DATA = {
           "kind": "button",
           "description": "Jump pill for the Match section. (Locate command matches all four section pills.)",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1433",
+            "path": "client/src/pages/Dashboard.tsx:1450",
             "grep": "grep -n -F -- 'dash-section-nav-${id.replace' client/src/pages/Dashboard.tsx"
           }
         },
@@ -617,7 +637,7 @@ const DATA = {
           "kind": "button",
           "description": "Jump pill for the Trends section. (Locate command matches all four section pills.)",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1433",
+            "path": "client/src/pages/Dashboard.tsx:1450",
             "grep": "grep -n -F -- 'dash-section-nav-${id.replace' client/src/pages/Dashboard.tsx"
           }
         },
@@ -627,18 +647,8 @@ const DATA = {
           "kind": "button",
           "description": "Jump pill for the Career section. (Locate command matches all four section pills.)",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1433",
+            "path": "client/src/pages/Dashboard.tsx:1450",
             "grep": "grep -n -F -- 'dash-section-nav-${id.replace' client/src/pages/Dashboard.tsx"
-          }
-        },
-        {
-          "id": "app-tools",
-          "label": "App tools group",
-          "kind": "button-group",
-          "description": "Inspector (dev only) / settings / theme cells in the Playing-as pill shell. Rendered in the Dashboard section nav strip, and in the header on every other page (HeaderTools in App.tsx).",
-          "locate": {
-            "path": "client/src/components/AppTools.tsx:38",
-            "grep": "grep -n -F -- 'data-inspect-id=\"app-tools\"' client/src/components/AppTools.tsx"
           }
         },
         {
@@ -767,7 +777,7 @@ const DATA = {
           "kind": "header",
           "description": "Section header titled 'Match' with subtitle 'Prep with the advisor, then log the result.', introducing the Prematch advisor and LogMatch form below.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1452",
+            "path": "client/src/pages/Dashboard.tsx:1469",
             "grep": "grep -n -F -- 'sub=\"Prep with the advisor, then log the result.\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -777,7 +787,7 @@ const DATA = {
           "kind": "link",
           "description": "Link in the Match section header that opens the sensitivity-study page (/sens) in a new tab, keeping the dashboard in place.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1462",
+            "path": "client/src/pages/Dashboard.tsx:1479",
             "grep": "grep -n -F -- 'Log sens stats' client/src/pages/Dashboard.tsx"
           }
         },
@@ -787,7 +797,7 @@ const DATA = {
           "kind": "section",
           "description": "Embeds the Prematch advisor component, which lets the user prep (map/mode selection, LLM pre-match advice) before logging a result.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1465",
+            "path": "client/src/pages/Dashboard.tsx:1482",
             "grep": "grep -n -F -- '<Prematch />' client/src/pages/Dashboard.tsx"
           }
         },
@@ -797,7 +807,7 @@ const DATA = {
           "kind": "section",
           "description": "Embeds the LogMatch component, the form used to record the result (hero, map, win/loss, etc.) of the just-played match.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1466",
+            "path": "client/src/pages/Dashboard.tsx:1483",
             "grep": "grep -n -F -- '<LogMatch />' client/src/pages/Dashboard.tsx"
           }
         },
@@ -807,7 +817,7 @@ const DATA = {
           "kind": "header",
           "description": "Section header titled 'Trends' with subtitle 'Recent form and momentum.', introducing the trends summary below.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1470",
+            "path": "client/src/pages/Dashboard.tsx:1487",
             "grep": "grep -n -F -- 'title=\"Trends\" sub=\"Recent form and momentum.\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -817,7 +827,7 @@ const DATA = {
           "kind": "section",
           "description": "Embeds the TrendsSummary component showing recent-form charts/metrics and momentum indicators.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1471",
+            "path": "client/src/pages/Dashboard.tsx:1488",
             "grep": "grep -n -F -- '<TrendsSummary />' client/src/pages/Dashboard.tsx"
           }
         },
@@ -827,7 +837,7 @@ const DATA = {
           "kind": "section",
           "description": "Embeds KillerFrequencyCard (Who Kills Me) \u2014 field registry Phase 1's read surface for match_deaths. Gated on the 'deaths' field via FieldConfigContext; renders nothing at all if that field is off. Added 2026-09-23.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1475",
+            "path": "client/src/pages/Dashboard.tsx:1492",
             "grep": "grep -n -F -- 'dash-killer-frequency-section' client/src/pages/Dashboard.tsx"
           }
         },
@@ -837,7 +847,7 @@ const DATA = {
           "kind": "header",
           "description": "Section header titled 'Career' with subtitle 'All-time totals across every mode.', introducing the career stat-tile grid below.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1481",
+            "path": "client/src/pages/Dashboard.tsx:1498",
             "grep": "grep -n -F -- 'title=\"Career\" sub=\"All-time totals across every mode.\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -847,7 +857,7 @@ const DATA = {
           "kind": "stat-tile",
           "description": "Displays the all-time total number of logged games.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1485",
+            "path": "client/src/pages/Dashboard.tsx:1502",
             "grep": "grep -n -F -- 'label=\"Total Games\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -857,7 +867,7 @@ const DATA = {
           "kind": "stat-tile",
           "description": "Displays the all-time win-rate percentage, colored green if 50% or higher and red otherwise.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1489",
+            "path": "client/src/pages/Dashboard.tsx:1506",
             "grep": "grep -n -F -- 'label=\"Win Rate\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -867,7 +877,7 @@ const DATA = {
           "kind": "stat-tile",
           "description": "Displays the all-time count of wins, styled in the 'win' color.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1495",
+            "path": "client/src/pages/Dashboard.tsx:1512",
             "grep": "grep -n -F -- 'label=\"Wins\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -877,7 +887,7 @@ const DATA = {
           "kind": "stat-tile",
           "description": "Displays the all-time count of losses (total minus wins), styled in the 'loss' color.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1496",
+            "path": "client/src/pages/Dashboard.tsx:1513",
             "grep": "grep -n -F -- 'label=\"Losses\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -887,7 +897,7 @@ const DATA = {
           "kind": "stat-tile",
           "description": "Displays the count of distinct heroes played across all logged matches.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1497",
+            "path": "client/src/pages/Dashboard.tsx:1514",
             "grep": "grep -n -F -- 'label=\"Heroes Played\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -897,7 +907,7 @@ const DATA = {
           "kind": "stat-tile",
           "description": "Displays the current win or loss streak length and type (e.g. '3 W'), colored to match win or loss.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1501",
+            "path": "client/src/pages/Dashboard.tsx:1518",
             "grep": "grep -n -F -- 'label=\"Current Streak\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -907,7 +917,7 @@ const DATA = {
           "kind": "stat-tile",
           "description": "Displays the longest win streak recorded all-time, styled in the 'win' color.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1505",
+            "path": "client/src/pages/Dashboard.tsx:1522",
             "grep": "grep -n -F -- 'label=\"Longest Win Streak\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -917,7 +927,7 @@ const DATA = {
           "kind": "stat-tile",
           "description": "Count of matches where somebody left, plus a sub-line giving the denominator and the win rate with leaver matches dropped. The denominator is printed on purpose: matches logged before 2026-09-23 hold leaver NULL because the question was never asked, and they are excluded from the ratio rather than counted as 'no leaver'. Eighth tile in the Career strip, which widened from 7 to 8 columns to hold it.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1511",
+            "path": "client/src/pages/Dashboard.tsx:1528",
             "grep": "grep -n -F -- 'dataInspectId=\"dash-stat-leavers\"' client/src/pages/Dashboard.tsx"
           }
         }
@@ -5294,6 +5304,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 

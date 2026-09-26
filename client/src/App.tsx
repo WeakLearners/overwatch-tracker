@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation, Link } from 'react-router-dom';
 import AppTools, { ThemeProvider } from './components/AppTools';
 import Dashboard from './pages/Dashboard';
 import SensLog from './pages/SensLog';
@@ -28,8 +28,8 @@ function HeaderTools() {
   const { pathname } = useLocation();
   if (DASHBOARD_PATHS.includes(pathname)) return null;
   return (
-    <div className="card !py-0 !px-0 flex items-stretch min-h-[34px] shrink-0">
-      <AppTools />
+    <div className="card !py-0 !px-0 flex items-stretch min-h-[40px] shrink-0">
+      <AppTools home />
     </div>
   );
 }
@@ -39,7 +39,7 @@ export default function App() {
   // DevWatermark uses, so the two always agree — one flag, two signals (the
   // page and the tab) that this is the editing server, not the one to use.
   useEffect(() => {
-    if (import.meta.env.DEV) document.title = `DEV · ${document.title}`;
+    if (import.meta.env.DEV && !document.title.startsWith('DEV · ')) document.title = `DEV · ${document.title}`;
   }, []);
   return (
     <ThemeProvider>
@@ -63,7 +63,9 @@ export default function App() {
             aria-hidden="true"
           />
           <div className="relative max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            {/* The wordmark is the home button (2026-09-26): Settings and the
+                Sens pages had no way back to the Dashboard. */}
+            <Link to="/" aria-label="Overwatch Match Tracker — home" data-inspect-id="app-home-wordmark" className="flex items-center gap-2 sm:gap-3 min-w-0">
               {/* Diagonal slash: the orange/cyan split repeated in miniature as
                   a mark, echoing the game's own team-color divide. */}
               <span
@@ -82,7 +84,7 @@ export default function App() {
                   Match Tracker
                 </div>
               </div>
-            </div>
+            </Link>
             <HeaderTools />
           </div>
         </header>

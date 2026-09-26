@@ -1031,7 +1031,7 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
                     mark points at the line it moved. The sign already says the
                     direction; green/red would only repeat it. Replaced the
                     tier-coloured triangles 2026-09-25. */}
-                {tierMarks.map(m => {
+                {tierMarks.map((m, mi) => {
                   const c = candles[m.j];
                   const y = m.up ? chartY(c.high) : chartY(c.low);
                   const stack = tierStackIdx.get(m)!;
@@ -1045,7 +1045,7 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
                   );
                   return (
                     <span
-                      key={`tier-${m.date}-${label}-${m.up}`}
+                      key={`tier-${m.date}-${label}-${m.up}-${mi}`}
                       data-inspect-id="dash-recent-form-tier-mark"
                       title={`[${label}] ${rankLabel(m.prev)} → ${rankLabel(m.rank)}${m.from !== m.tier ? ` · ${m.up ? 'promoted' : 'demoted'} out of ${m.from}` : ''} · ${format(parseISO(m.date), 'MMM d')}`}
                       aria-label={`${m.account ?? ''} ${m.role} ${m.up ? 'up' : 'down'} from ${rankLabel(m.prev)} to ${rankLabel(m.rank)} on ${format(parseISO(m.date), 'MMMM d')}`}
@@ -1390,9 +1390,19 @@ export default function Dashboard() {
     // One frame, so the just-rendered panels are laid out before measuring.
     requestAnimationFrame(() => el.scrollIntoView({ block: 'start' }));
   }, [hash, aboveLoaded]);
+  // A clicked pill lights at once and holds while the smooth scroll passes
+  // the sections in between (they would otherwise flicker through).
+  const pinnedUntil = useRef(0);
+  const jumpTo = (id: string) => {
+    setActiveSection(id);
+    pinnedUntil.current = Date.now() + 1200;
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+    history.replaceState(null, '', `#${id}`);
+  };
   useEffect(() => {
     const observer = new IntersectionObserver(
       entries => {
+        if (Date.now() < pinnedUntil.current) return;
         const visible = entries.find(e => e.isIntersecting);
         if (visible) setActiveSection(visible.target.id);
       },
@@ -1402,7 +1412,16 @@ export default function Dashboard() {
       const el = document.getElementById(s.id);
       if (el) observer.observe(el);
     });
-    return () => observer.disconnect();
+    // The last sections are too short to ever reach the band above, so at
+    // the bottom of the page the last one is current (2026-09-26: Career
+    // never lit).
+    const onScroll = () => {
+      if (Date.now() < pinnedUntil.current) return;
+      const el = document.documentElement;
+      if (el.scrollTop + window.innerHeight >= el.scrollHeight - 4) setActiveSection(sections[sections.length - 1].id);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => { observer.disconnect(); window.removeEventListener('scroll', onScroll); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1418,17 +1437,15 @@ export default function Dashboard() {
       <nav
         data-inspect-id="dash-section-nav"
         aria-label="Jump to section"
-        className="card !py-0 sticky top-16 z-20 mb-6 flex items-stretch gap-2.5 min-h-[34px]"
+        className="card !py-0 sticky top-16 z-20 mb-6 flex items-stretch gap-2.5 min-h-[46px]"
       >
-        <span className="hidden sm:block text-xs card-title shrink-0 flex-1 basis-0 min-w-0 self-center">Jump to</span>
+        <span className="hidden sm:block text-sm card-title shrink-0 flex-1 basis-0 min-w-0 self-center">Jump to</span>
         <SegmentedPills
           options={sections.map(s => s.id)}
           value={activeSection}
-          onPick={id => {
-            document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
-            history.replaceState(null, '', `#${id}`);
-          }}
+          onPick={jumpTo}
           labelFor={id => sections.find(s => s.id === id)!.label}
+          size="lg"
           inspectId="dash-section-nav-pills"
           idFor={id => `dash-section-nav-${id.replace('sec-', '')}`}
           titleFor={id => `Jump to ${sections.find(s => s.id === id)!.label}`}
