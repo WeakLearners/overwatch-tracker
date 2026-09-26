@@ -33,7 +33,7 @@ export default function DevWatermark() {
           y="145"
           textLength="1000"
           lengthAdjust="spacingAndGlyphs"
-          className="num-display italic"
+          className="num-display italic font-black"
           style={{ fill: 'var(--ink)', fontSize: 180 }}
         >
           DEVELOPMENT
