@@ -27,7 +27,7 @@
           "kind": "icon-button",
           "description": "Fixed top-right circular button (sun/moon glyph) that flips dark/light mode and persists the choice to localStorage.",
           "locate": {
-            "path": "client/src/App.tsx:91",
+            "path": "client/src/App.tsx:95",
             "grep": "grep -n -F -- 'aria-label=\"Toggle theme\"' client/src/App.tsx"
           }
         },
@@ -37,7 +37,7 @@
           "kind": "icon-button",
           "description": "Fixed top-right gear icon, next to the theme toggle, that navigates to /settings \u2014 the field registry's category toggle page. Added 2026-09-23.",
           "locate": {
-            "path": "client/src/App.tsx:82",
+            "path": "client/src/App.tsx:86",
             "grep": "grep -n -F -- 'app-settings-link' client/src/App.tsx"
           }
         },
