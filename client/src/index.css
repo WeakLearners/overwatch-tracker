@@ -638,7 +638,7 @@
   /* Pulsing glow on the rank strip's current account/role line. Set on the
      overlay <svg> (an html box, so the blur isn't stretched with the chart).
      Tight radii keep the edge sharp; --glow is the line's own colour. */
-  .rank-glow { animation: rank-glow-pulse 3.6s ease-in-out infinite; }
+  .rank-glow { animation: rank-glow-pulse 3s ease-in-out infinite; }
   @keyframes rank-glow-pulse {
     /* Same number of shadows at both ends, or the browser can't interpolate
        and the glow snaps between them instead of building. */
