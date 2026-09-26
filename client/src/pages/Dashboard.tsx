@@ -464,21 +464,20 @@ function computeTrendsDerived(trends: TrendPoint[] | null) {
   const RANK_ROLES = ['DPS', 'Support'] as const;
   type RankRole = typeof RANK_ROLES[number];
 
-  // One hue per account, borrowed from the existing rank-tier palette
-  // (RANK_TIER_RGB) rather than a new one — the standing rule is no
-  // off-palette hues. Support is the same hue at lower opacity, so the two
-  // lines for one account read as two weights of the same color instead of
-  // an unrelated pair.
-  const RANK_SERIES_RGB: Record<Account, string> = {
-    Pinx: RANK_TIER_RGB.Diamond,
-    Jinx: RANK_TIER_RGB.Grandmaster,
-    Winx: RANK_TIER_RGB.Master,
-    Linx: RANK_TIER_RGB.Bronze,
+  // One distinct hue per account x role, all from existing palettes (no
+  // off-palette hues). Sean, 2026-09-26: one hue per account at two weights
+  // read as near-identical. The six series with ranked data (as of 2026-09-26)
+  // get the six hues furthest apart — red, gold, green, teal, blue, magenta;
+  // the two without data take orange and bronze.
+  const RANK_SERIES_RGB: Record<Account, Record<RankRole, string>> = {
+    Pinx: { DPS: RANK_TIER_RGB.Diamond,     Support: RANK_TIER_RGB.Platinum },
+    Jinx: { DPS: RANK_TIER_RGB.Grandmaster, Support: RANK_TIER_RGB.Champion },
+    Winx: { DPS: RANK_TIER_RGB.Gold,        Support: QUEUE_MODE_SEL_RGB.comp_open },
+    Linx: { DPS: RANK_TIER_RGB.Bronze,      Support: RANK_TIER_RGB.Emerald },
   };
-  const RANK_SERIES_OPACITY: Record<RankRole, number> = { DPS: 1, Support: 0.7 };
 
   type RankStep = { x: number; y: number };
-  type RankSeries = { account: Account; role: RankRole; color: string; opacity: number; steps: RankStep[]; current: boolean };
+  type RankSeries = { account: Account; role: RankRole; color: string; steps: RankStep[]; current: boolean };
 
   // "Current" = the account and role of the most recent match with an account
   // on file (trends run oldest → newest). That line gets the glow.
@@ -536,8 +535,7 @@ function computeTrendsDerived(trends: TrendPoint[] | null) {
         account, role,
         // Same hue, chroma boosted 1.5x (the oklch relative-colour move the
         // lit-text glows use), so the lines read over the lit tier bands.
-        color: `oklch(from rgb(${RANK_SERIES_RGB[account]}) l calc(c * 1.5) h)`,
-        opacity: RANK_SERIES_OPACITY[role],
+        color: `oklch(from rgb(${RANK_SERIES_RGB[account][role]}) l calc(c * 1.5) h)`,
         steps,
         current: lastWithAccount?.account === account && lastWithAccount?.role === role,
       };
@@ -685,7 +683,7 @@ function computeTrendsDerived(trends: TrendPoint[] | null) {
   const bestDay = dayNets.length ? Math.max(...dayNets) : 0;
   const worstDay = dayNets.length ? Math.min(...dayNets) : 0;
 
-  return { last100, last500, winRate, wr100, wr500, wrDelta, CANDLE_DAYS, candles, careerComp, careerEdge, perMatchSd, paceAt, sdAt, CH_W, CH_H, CH_PAD, VOL_H, PLOT_BOTTOM, bandLo, bandHi, lowV, highV, vSpan, slotW, bodyW, volW, slotX, chartY, maxVol, ROOFLINE, volY, FALLOFF, VOL_STOPS, volStopColor, pacePts, bandUpper, bandLower, bandPoly, candleIdxByDate, tierMarks, tierMarkByDay, drumLabel, tierStackIdx, RANK_ROLES, RANK_SERIES_RGB, RANK_SERIES_OPACITY, rankSeries, rankValuesSeen, rankHasData, rankMinRaw, rankMaxRaw, rankTierLoIdx, rankTierHiIdx, rankLo, rankHi, rankSpan, RANK_H, rankY, rankTierBands, zeroY, lastCandle, lastClose, lastN, lastZ, BLEND_THRESHOLD, SAT_FLOOR, SAT_CEIL, SAT_FULL_AT, GRAD_STOPS, gradStops, UP_COLOR, DOWN_COLOR, UP_SWATCH, DOWN_SWATCH, LEGEND_SWATCH, LEGEND_TITLE, yTicks, labelEvery, dayTicks, dayNets, bestDay, worstDay };
+  return { last100, last500, winRate, wr100, wr500, wrDelta, CANDLE_DAYS, candles, careerComp, careerEdge, perMatchSd, paceAt, sdAt, CH_W, CH_H, CH_PAD, VOL_H, PLOT_BOTTOM, bandLo, bandHi, lowV, highV, vSpan, slotW, bodyW, volW, slotX, chartY, maxVol, ROOFLINE, volY, FALLOFF, VOL_STOPS, volStopColor, pacePts, bandUpper, bandLower, bandPoly, candleIdxByDate, tierMarks, tierMarkByDay, drumLabel, tierStackIdx, RANK_ROLES, RANK_SERIES_RGB, rankSeries, rankValuesSeen, rankHasData, rankMinRaw, rankMaxRaw, rankTierLoIdx, rankTierHiIdx, rankLo, rankHi, rankSpan, RANK_H, rankY, rankTierBands, zeroY, lastCandle, lastClose, lastN, lastZ, BLEND_THRESHOLD, SAT_FLOOR, SAT_CEIL, SAT_FULL_AT, GRAD_STOPS, gradStops, UP_COLOR, DOWN_COLOR, UP_SWATCH, DOWN_SWATCH, LEGEND_SWATCH, LEGEND_TITLE, yTicks, labelEvery, dayTicks, dayNets, bestDay, worstDay };
 }
 // Extracted 2026-09-26 (perf pass, round 2): this card (the candle/volume/
 // rank-strip chart) is the single heaviest subtree Dashboard renders --
@@ -703,7 +701,7 @@ interface RecentMatchesCardProps {
   tilt: { on_tilt: boolean; tilt_win_rate: number | null; tilt_games: number } | null | undefined;
 }
 const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: RecentMatchesCardProps) {
-  const { last100, last500, winRate, wr100, wr500, wrDelta, CANDLE_DAYS, candles, careerComp, careerEdge, perMatchSd, paceAt, sdAt, CH_W, CH_H, CH_PAD, VOL_H, PLOT_BOTTOM, bandLo, bandHi, lowV, highV, vSpan, slotW, bodyW, volW, slotX, chartY, maxVol, ROOFLINE, volY, FALLOFF, VOL_STOPS, volStopColor, pacePts, bandUpper, bandLower, bandPoly, candleIdxByDate, tierMarks, tierMarkByDay, drumLabel, tierStackIdx, RANK_ROLES, RANK_SERIES_RGB, RANK_SERIES_OPACITY, rankSeries, rankValuesSeen, rankHasData, rankMinRaw, rankMaxRaw, rankTierLoIdx, rankTierHiIdx, rankLo, rankHi, rankSpan, RANK_H, rankY, rankTierBands, zeroY, lastCandle, lastClose, lastN, lastZ, BLEND_THRESHOLD, SAT_FLOOR, SAT_CEIL, SAT_FULL_AT, GRAD_STOPS, gradStops, UP_COLOR, DOWN_COLOR, UP_SWATCH, DOWN_SWATCH, LEGEND_SWATCH, LEGEND_TITLE, yTicks, labelEvery, dayTicks, dayNets, bestDay, worstDay } = useMemo(() => computeTrendsDerived(trends), [trends]);
+  const { last100, last500, winRate, wr100, wr500, wrDelta, CANDLE_DAYS, candles, careerComp, careerEdge, perMatchSd, paceAt, sdAt, CH_W, CH_H, CH_PAD, VOL_H, PLOT_BOTTOM, bandLo, bandHi, lowV, highV, vSpan, slotW, bodyW, volW, slotX, chartY, maxVol, ROOFLINE, volY, FALLOFF, VOL_STOPS, volStopColor, pacePts, bandUpper, bandLower, bandPoly, candleIdxByDate, tierMarks, tierMarkByDay, drumLabel, tierStackIdx, RANK_ROLES, RANK_SERIES_RGB, rankSeries, rankValuesSeen, rankHasData, rankMinRaw, rankMaxRaw, rankTierLoIdx, rankTierHiIdx, rankLo, rankHi, rankSpan, RANK_H, rankY, rankTierBands, zeroY, lastCandle, lastClose, lastN, lastZ, BLEND_THRESHOLD, SAT_FLOOR, SAT_CEIL, SAT_FULL_AT, GRAD_STOPS, gradStops, UP_COLOR, DOWN_COLOR, UP_SWATCH, DOWN_SWATCH, LEGEND_SWATCH, LEGEND_TITLE, yTicks, labelEvery, dayTicks, dayNets, bestDay, worstDay } = useMemo(() => computeTrendsDerived(trends), [trends]);
   return (
         <div className="card reveal" style={{ '--reveal-delay': '60ms' } as React.CSSProperties} data-inspect-id="dash-recent-matches-card">
           <div className="flex items-center justify-between flex-wrap gap-y-1 mb-4">
@@ -1055,10 +1053,9 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
                         transform: m.up
                           ? `translate(-50%, -100%) translateY(${-1 - outward}px)`
                           : `translate(-50%, ${1 + outward}px)`,
-                        color: m.account && isAccount(m.account)
-                          ? `oklch(from rgb(${RANK_SERIES_RGB[m.account]}) l calc(c * 1.5) h)`
+                        color: m.account && isAccount(m.account) && (m.role === 'DPS' || m.role === 'Support')
+                          ? `oklch(from rgb(${RANK_SERIES_RGB[m.account][m.role]}) l calc(c * 1.5) h)`
                           : 'var(--faint)',
-                        opacity: m.role === 'Support' ? RANK_SERIES_OPACITY.Support : 1,
                         // The sign carries a surface-coloured halo, so it stays
                         // legible over a candle in either theme.
                       }}
@@ -1106,8 +1103,7 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
                       points={s.steps.map(p => `${p.x},${rankY(p.y)}`).join(' ')}
                       fill="none"
                       stroke={s.color}
-                      strokeOpacity={s.opacity}
-                      strokeWidth="2"
+                                            strokeWidth="2"
                       vectorEffect="non-scaling-stroke"
                     >
                       <title>{`${s.account} · ${s.role}`}</title>
@@ -1130,8 +1126,7 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
                       points={s.steps.map(p => `${p.x},${rankY(p.y)}`).join(' ')}
                       fill="none"
                       stroke={s.color}
-                      strokeOpacity={s.opacity}
-                      strokeWidth="2.5"
+                                            strokeWidth="2.5"
                       vectorEffect="non-scaling-stroke"
                     />
                   ))}
@@ -1175,7 +1170,7 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
                       <span key={`rank-legend-${s.account}-${s.role}`} className="inline-flex items-center gap-1">
                         <span
                           className="inline-block w-2 h-2 rounded-full shrink-0"
-                          style={{ background: s.color, opacity: has ? s.opacity : 0.25 }}
+                          style={{ background: s.color, opacity: has ? 1 : 0.25 }}
                         />
                         <span className={has ? '' : 'italic opacity-60'}>
                           {s.account} · {s.role}{has ? '' : ' (no data)'}
@@ -1312,8 +1307,8 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
                   <div className="flex items-start gap-2 min-w-0">
                     <span className={LEGEND_SWATCH} aria-hidden="true">
                       <span className="inline-flex flex-col leading-[0.75] text-[11px]">
-                        <span className="font-black" style={{ color: `oklch(from rgb(${RANK_SERIES_RGB.Pinx}) l calc(c * 1.5) h)` }}>+</span>
-                        <span className="font-black" style={{ color: `oklch(from rgb(${RANK_SERIES_RGB.Jinx}) l calc(c * 1.5) h)` }}>−</span>
+                        <span className="font-black" style={{ color: `oklch(from rgb(${RANK_SERIES_RGB.Pinx.DPS}) l calc(c * 1.5) h)` }}>+</span>
+                        <span className="font-black" style={{ color: `oklch(from rgb(${RANK_SERIES_RGB.Jinx.DPS}) l calc(c * 1.5) h)` }}>−</span>
                       </span>
                     </span>
                     <span>
