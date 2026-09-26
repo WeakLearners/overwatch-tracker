@@ -13,7 +13,7 @@ export const ACCENT_SEL = '247 147 30';
 // section nav) — taller strip, larger display-face labels.
 export const PILL_SIZE = {
   sm: 'px-3 text-xs font-semibold tracking-wide',
-  lg: 'px-5 text-sm heading-display uppercase tracking-[0.12em]',
+  lg: 'px-4 text-[13px] heading-display uppercase tracking-[0.12em]',
 } as const;
 
 // Three things make the slide exact rather than approximate:
@@ -27,7 +27,7 @@ export const PILL_SIZE = {
 export const NOTCH = 'polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px)';
 
 export default function SegmentedPills<T extends string>({
-  options, value, onPick, sel: selProp, inspectId, idFor, titleFor, labelFor, sizeLabels, size = 'sm',
+  options, value, onPick, sel: selProp, inspectId, idFor, titleFor, labelFor, sizeLabels, size = 'sm', strong = false,
 }: {
   options: readonly T[];
   /** null lights nothing (the indicator hides). */
@@ -43,6 +43,8 @@ export default function SegmentedPills<T extends string>({
    *  as the widest of these. Defaults to this group's own labels. */
   sizeLabels?: readonly string[];
   size?: keyof typeof PILL_SIZE;
+  /** Hotter glow: .fill-strong on the block, .lit-strong on the label. */
+  strong?: boolean;
 }) {
   const sel = selProp ?? ACCENT_SEL;
   const label = labelFor ?? ((v: T) => v);
@@ -59,7 +61,7 @@ export default function SegmentedPills<T extends string>({
       {i >= 0 && (
         <span
           aria-hidden="true"
-          className="is-selected mode-fill absolute -inset-y-[3px] left-0 border-2 pointer-events-none transition-[transform,background-color,border-color,box-shadow] duration-200 ease-out motion-reduce:transition-none"
+          className={`is-selected mode-fill ${strong ? 'fill-strong' : ''} absolute -inset-y-[3px] left-0 border-2 pointer-events-none transition-[transform,background-color,border-color,box-shadow] duration-200 ease-out motion-reduce:transition-none`}
           style={{
             width: `${100 / options.length}%`,
             transform: `translateX(${i * 100}%)`,
@@ -82,7 +84,7 @@ export default function SegmentedPills<T extends string>({
           }`}
         >
           <SizedLabel sizes={sizes}>
-            {value === o ? <span className="lit-text">{label(o)}</span> : label(o)}
+            {value === o ? <span className={`lit-text ${strong ? 'lit-strong' : ''}`}>{label(o)}</span> : label(o)}
           </SizedLabel>
         </button>
       ))}

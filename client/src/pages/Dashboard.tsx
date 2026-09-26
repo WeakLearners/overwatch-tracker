@@ -1437,7 +1437,7 @@ export default function Dashboard() {
       <nav
         data-inspect-id="dash-section-nav"
         aria-label="Jump to section"
-        className="card !py-0 sticky top-16 z-20 mb-6 flex items-stretch gap-2.5 min-h-[46px]"
+        className="card !py-0 sticky top-16 z-20 mb-6 flex items-stretch gap-2.5 min-h-[42px]"
       >
         <span className="hidden sm:block text-sm card-title shrink-0 flex-1 basis-0 min-w-0 self-center">Jump to</span>
         <SegmentedPills
@@ -1446,6 +1446,7 @@ export default function Dashboard() {
           onPick={jumpTo}
           labelFor={id => sections.find(s => s.id === id)!.label}
           size="lg"
+          strong
           inspectId="dash-section-nav-pills"
           idFor={id => `dash-section-nav-${id.replace('sec-', '')}`}
           titleFor={id => `Jump to ${sections.find(s => s.id === id)!.label}`}
