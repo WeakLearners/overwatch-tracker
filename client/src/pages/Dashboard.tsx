@@ -4,7 +4,6 @@ import { useApi } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { Overview, Streaks, TrendPoint, ModeComparison, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB, RANK_TIER_RGB, rankTier, rankLabel, RANK_TIERS, ACCOUNTS, Account, isAccount, RANK_MIN, RANK_MAX } from '../types';
-import StatCard from '../components/StatCard';
 import AnimatedNumber from '../components/AnimatedNumber';
 import EmptyState from '../components/EmptyState';
 import ModeWatermark from '../components/ModeWatermark';
@@ -18,6 +17,7 @@ import Prematch from './Prematch';
 import LogMatch from './LogMatch';
 import TrendsSummary from '../components/TrendsSummary';
 import KillerFrequencyCard from '../components/KillerFrequencyCard';
+import CareerStrip from '../components/dashboard/CareerStrip';
 import { useFieldConfig } from '../contexts/FieldConfigContext';
 
 
@@ -1495,53 +1495,7 @@ export default function Dashboard() {
       </div>
       )}
 
-      <div id="sec-career" className="mt-8 border-t border-ow-border pt-6 reveal scroll-mt-32" style={{ '--reveal-delay': '240ms' } as React.CSSProperties}>
-        <PageHeader dataInspectId="dash-career-section-header" title="Career" sub="All-time totals across every mode." />
-        {/* One continuous readout strip rather than two stacked 4-tile grids —
-            all eight career totals scan as a single row on wide screens. */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-          <StatCard compact dataInspectId="dash-stat-total-games" label="Total Games" value={overview?.total ?? '—'} />
-          <StatCard
-            compact
-            dataInspectId="dash-stat-win-rate"
-            label="Win Rate"
-            value={overview ? overview.win_rate : '—'}
-            decimals={1}
-            suffix="%"
-            color={overview && overview.win_rate >= 50 ? 'win' : 'loss'}
-          />
-          <StatCard compact dataInspectId="dash-stat-wins" label="Wins" value={overview?.wins ?? '—'} color="win" />
-          <StatCard compact dataInspectId="dash-stat-losses" label="Losses" value={overview ? overview.total - overview.wins : '—'} color="loss" />
-          <StatCard compact dataInspectId="dash-stat-heroes-played" label="Heroes Played" value={overview?.heroes_played ?? '—'} />
-          <StatCard
-            compact
-            dataInspectId="dash-stat-current-streak"
-            label="Current Streak"
-            value={streaks ? `${streaks.currentStreak} ${streaks.currentStreakType === 1 ? 'W' : 'L'}` : '—'}
-            color={streaks?.currentStreakType === 1 ? 'win' : 'loss'}
-          />
-          <StatCard compact dataInspectId="dash-stat-longest-win-streak" label="Longest Win Streak" value={streaks?.longestWin ?? '—'} color="win" />
-          {/* Counted only over matches where the question was asked, which is
-              why the sub-line prints the denominator instead of a bare
-              percentage. The old rows are silent here, not zero. */}
-          <StatCard
-            compact
-            dataInspectId="dash-stat-leavers"
-            label="Leavers"
-            value={overview?.leaver_games ?? '—'}
-            sub={
-              overview && overview.leaver_logged > 0
-                ? `of ${overview.leaver_logged} asked · ${overview.win_rate_no_leaver ?? '—'}% WR without${
-                    overview.leaver_mine + overview.leaver_theirs > 0
-                      ? ` · ${overview.leaver_mine} mine / ${overview.leaver_theirs} theirs`
-                      : ''
-                  }`
-                : 'not logged yet'
-            }
-            color="loss"
-          />
-        </div>
-      </div>
+      <CareerStrip overview={overview} streaks={streaks} />
     </div>
   );
 }

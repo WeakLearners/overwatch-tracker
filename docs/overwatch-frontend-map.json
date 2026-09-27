@@ -88,7 +88,7 @@
       "category": "client-page",
       "layer": 1,
       "file": "client/src/pages/Dashboard.tsx",
-      "description": "Single continuous-scroll page (not tabbed) composing every top-level section in order: a Mode card (queue-mode selector tiles), a Recent Matches card (win-rate readout + match history strip + tilt warning banner), the Match section embedding Prematch + LogMatch, a Trends section embedding TrendsSummary, and a Career section of all-time stat tiles.",
+      "description": "Single continuous-scroll page (not tabbed) composing every top-level section in order: a Mode card (queue-mode selector tiles), a Recent Matches card (win-rate readout + match history strip + tilt warning banner), the Match section embedding Prematch + LogMatch, a Trends section embedding TrendsSummary, and and a Career section (CareerStrip component, extracted 2026-09-27) of all-time stat tiles.",
       "calls": [
         "GET /api/stats/overview",
         "GET /api/stats/streaks",
@@ -345,96 +345,6 @@
           "locate": {
             "path": "client/src/pages/Dashboard.tsx:1493",
             "grep": "grep -n -F -- 'dash-killer-frequency-section' client/src/pages/Dashboard.tsx"
-          }
-        },
-        {
-          "id": "dash-career-section-header",
-          "label": "Career section header",
-          "kind": "header",
-          "description": "Section header titled 'Career' with subtitle 'All-time totals across every mode.', introducing the career stat-tile grid below.",
-          "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1499",
-            "grep": "grep -n -F -- 'title=\"Career\" sub=\"All-time totals across every mode.\"' client/src/pages/Dashboard.tsx"
-          }
-        },
-        {
-          "id": "dash-stat-total-games",
-          "label": "Total Games stat tile",
-          "kind": "stat-tile",
-          "description": "Displays the all-time total number of logged games.",
-          "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1503",
-            "grep": "grep -n -F -- 'label=\"Total Games\"' client/src/pages/Dashboard.tsx"
-          }
-        },
-        {
-          "id": "dash-stat-win-rate",
-          "label": "Win Rate stat tile",
-          "kind": "stat-tile",
-          "description": "Displays the all-time win-rate percentage, colored green if 50% or higher and red otherwise.",
-          "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1507",
-            "grep": "grep -n -F -- 'label=\"Win Rate\"' client/src/pages/Dashboard.tsx"
-          }
-        },
-        {
-          "id": "dash-stat-wins",
-          "label": "Wins stat tile",
-          "kind": "stat-tile",
-          "description": "Displays the all-time count of wins, styled in the 'win' color.",
-          "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1513",
-            "grep": "grep -n -F -- 'label=\"Wins\"' client/src/pages/Dashboard.tsx"
-          }
-        },
-        {
-          "id": "dash-stat-losses",
-          "label": "Losses stat tile",
-          "kind": "stat-tile",
-          "description": "Displays the all-time count of losses (total minus wins), styled in the 'loss' color.",
-          "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1514",
-            "grep": "grep -n -F -- 'label=\"Losses\"' client/src/pages/Dashboard.tsx"
-          }
-        },
-        {
-          "id": "dash-stat-heroes-played",
-          "label": "Heroes Played stat tile",
-          "kind": "stat-tile",
-          "description": "Displays the count of distinct heroes played across all logged matches.",
-          "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1515",
-            "grep": "grep -n -F -- 'label=\"Heroes Played\"' client/src/pages/Dashboard.tsx"
-          }
-        },
-        {
-          "id": "dash-stat-current-streak",
-          "label": "Current Streak stat tile",
-          "kind": "stat-tile",
-          "description": "Displays the current win or loss streak length and type (e.g. '3 W'), colored to match win or loss.",
-          "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1519",
-            "grep": "grep -n -F -- 'label=\"Current Streak\"' client/src/pages/Dashboard.tsx"
-          }
-        },
-        {
-          "id": "dash-stat-longest-win-streak",
-          "label": "Longest Win Streak stat tile",
-          "kind": "stat-tile",
-          "description": "Displays the longest win streak recorded all-time, styled in the 'win' color.",
-          "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1523",
-            "grep": "grep -n -F -- 'label=\"Longest Win Streak\"' client/src/pages/Dashboard.tsx"
-          }
-        },
-        {
-          "id": "dash-stat-leavers",
-          "label": "Leavers stat tile",
-          "kind": "stat-tile",
-          "description": "Count of matches where somebody left, plus a sub-line giving the denominator and the win rate with leaver matches dropped. The denominator is printed on purpose: matches logged before 2026-09-23 hold leaver NULL because the question was never asked, and they are excluded from the ratio rather than counted as 'no leaver'. Eighth tile in the Career strip, which widened from 7 to 8 columns to hold it.",
-          "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1529",
-            "grep": "grep -n -F -- 'dataInspectId=\"dash-stat-leavers\"' client/src/pages/Dashboard.tsx"
           }
         }
       ]
@@ -1752,7 +1662,7 @@
           "id": "logmatch-inline-edit-rank-outcome",
           "label": "Rank outcome (inline edit form)",
           "kind": "button-group",
-          "description": "Demoted / No change / Promoted fix for a Today's Matches row, with the start → end rank it produces. Saves through PUT /api/matches/:id/rank-outcome, which also shifts every later game on that account+role and the live rank (stops at a game already hand-fixed). Hidden on quickplay and Tank.",
+          "description": "Demoted / No change / Promoted fix for a Today's Matches row, with the start \u2192 end rank it produces. Saves through PUT /api/matches/:id/rank-outcome, which also shifts every later game on that account+role and the live rank (stops at a game already hand-fixed). Hidden on quickplay and Tank.",
           "locate": {
             "path": "client/src/pages/LogMatch.tsx:406",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-inline-edit-rank-outcome\"' client/src/pages/LogMatch.tsx"
@@ -4427,6 +4337,106 @@
       "file": "client/src/lib/aim.ts",
       "description": "Client-side mirror of the server's aim math: MOUSE_DPI constant, eDPI(sens,dpi) and cm360(sens,dpi) \u2014 kept in sync by hand with server/src/lib/aim.ts.",
       "uiElements": []
+    },
+    {
+      "id": "careerStrip",
+      "label": "CareerStrip.tsx",
+      "category": "client-component",
+      "layer": 2,
+      "file": "client/src/components/dashboard/CareerStrip.tsx",
+      "description": "Career section's all-time totals strip (8 stat tiles + header) on the Dashboard. Extracted from Dashboard.tsx as a pure move (modularization plan step 2, 2026-09-27) \u2014 takes already-fetched overview/streaks as props, no new fetches.",
+      "uiElements": [
+        {
+          "id": "dash-career-section-header",
+          "label": "Career section header",
+          "kind": "header",
+          "description": "Section header titled 'Career' with subtitle 'All-time totals across every mode.', introducing the career stat-tile grid below.",
+          "locate": {
+            "path": "client/src/components/dashboard/CareerStrip.tsx:16",
+            "grep": "grep -n -F -- 'title=\"Career\" sub=\"All-time totals across every mode.\"' client/src/components/dashboard/CareerStrip.tsx"
+          }
+        },
+        {
+          "id": "dash-stat-total-games",
+          "label": "Total Games stat tile",
+          "kind": "stat-tile",
+          "description": "Displays the all-time total number of logged games.",
+          "locate": {
+            "path": "client/src/components/dashboard/CareerStrip.tsx:20",
+            "grep": "grep -n -F -- 'label=\"Total Games\"' client/src/components/dashboard/CareerStrip.tsx"
+          }
+        },
+        {
+          "id": "dash-stat-win-rate",
+          "label": "Win Rate stat tile",
+          "kind": "stat-tile",
+          "description": "Displays the all-time win-rate percentage, colored green if 50% or higher and red otherwise.",
+          "locate": {
+            "path": "client/src/components/dashboard/CareerStrip.tsx:24",
+            "grep": "grep -n -F -- 'label=\"Win Rate\"' client/src/components/dashboard/CareerStrip.tsx"
+          }
+        },
+        {
+          "id": "dash-stat-wins",
+          "label": "Wins stat tile",
+          "kind": "stat-tile",
+          "description": "Displays the all-time count of wins, styled in the 'win' color.",
+          "locate": {
+            "path": "client/src/components/dashboard/CareerStrip.tsx:30",
+            "grep": "grep -n -F -- 'label=\"Wins\"' client/src/components/dashboard/CareerStrip.tsx"
+          }
+        },
+        {
+          "id": "dash-stat-losses",
+          "label": "Losses stat tile",
+          "kind": "stat-tile",
+          "description": "Displays the all-time count of losses (total minus wins), styled in the 'loss' color.",
+          "locate": {
+            "path": "client/src/components/dashboard/CareerStrip.tsx:31",
+            "grep": "grep -n -F -- 'label=\"Losses\"' client/src/components/dashboard/CareerStrip.tsx"
+          }
+        },
+        {
+          "id": "dash-stat-heroes-played",
+          "label": "Heroes Played stat tile",
+          "kind": "stat-tile",
+          "description": "Displays the count of distinct heroes played across all logged matches.",
+          "locate": {
+            "path": "client/src/components/dashboard/CareerStrip.tsx:32",
+            "grep": "grep -n -F -- 'label=\"Heroes Played\"' client/src/components/dashboard/CareerStrip.tsx"
+          }
+        },
+        {
+          "id": "dash-stat-current-streak",
+          "label": "Current Streak stat tile",
+          "kind": "stat-tile",
+          "description": "Displays the current win or loss streak length and type (e.g. '3 W'), colored to match win or loss.",
+          "locate": {
+            "path": "client/src/components/dashboard/CareerStrip.tsx:36",
+            "grep": "grep -n -F -- 'label=\"Current Streak\"' client/src/components/dashboard/CareerStrip.tsx"
+          }
+        },
+        {
+          "id": "dash-stat-longest-win-streak",
+          "label": "Longest Win Streak stat tile",
+          "kind": "stat-tile",
+          "description": "Displays the longest win streak recorded all-time, styled in the 'win' color.",
+          "locate": {
+            "path": "client/src/components/dashboard/CareerStrip.tsx:40",
+            "grep": "grep -n -F -- 'label=\"Longest Win Streak\"' client/src/components/dashboard/CareerStrip.tsx"
+          }
+        },
+        {
+          "id": "dash-stat-leavers",
+          "label": "Leavers stat tile",
+          "kind": "stat-tile",
+          "description": "Count of matches where somebody left, plus a sub-line giving the denominator and the win rate with leaver matches dropped. The denominator is printed on purpose: matches logged before 2026-09-23 hold leaver NULL because the question was never asked, and they are excluded from the ratio rather than counted as 'no leaver'. Eighth tile in the Career strip, which widened from 7 to 8 columns to hold it.",
+          "locate": {
+            "path": "client/src/components/dashboard/CareerStrip.tsx:46",
+            "grep": "grep -n -F -- 'dataInspectId=\"dash-stat-leavers\"' client/src/components/dashboard/CareerStrip.tsx"
+          }
+        }
+      ]
     }
   ],
   "edges": [
@@ -4516,7 +4526,7 @@
     },
     {
       "id": "e15",
-      "source": "dashboard",
+      "source": "careerStrip",
       "target": "statCard",
       "type": "compose",
       "label": "Career stat tiles"
@@ -4807,6 +4817,20 @@
       "target": "killerFrequencyCard",
       "type": "compose",
       "label": "renders Killer Frequency section, gated on the deaths field"
+    },
+    {
+      "id": "e57",
+      "source": "dashboard",
+      "target": "careerStrip",
+      "type": "compose",
+      "label": "renders Career section (extracted 2026-09-27)"
+    },
+    {
+      "id": "e58",
+      "source": "careerStrip",
+      "target": "pageHeader",
+      "type": "compose",
+      "label": "Career section header"
     }
   ]
 }
