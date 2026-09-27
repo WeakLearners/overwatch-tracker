@@ -25,7 +25,7 @@ executes only the first slice below; everything else is plan, not code.
 | 2 | `client/src/pages/SensLog.tsx` | 1979 | One component: hero-stat form, aim entry, blind-trial UI, curve params UI. |
 | 3 | `client/src/pages/Prematch.tsx` | 1594 | One component: advisor call, hero/map picks, tilt nudge, rank drum. |
 | 4 | `client/src/pages/LogMatch.tsx` | 1374 | One component: match form, death logger wiring, hero/map pickers, quality/driver/leaver judgment fields. |
-| 5 | `client/src/pages/Dashboard.tsx` | 1289 | One component: career strip, trends, by-hero/map/hour cards, streaks. |
+| 5 | `client/src/pages/Dashboard.tsx` | 1289 | One component: career strip (done, `5d52b3e`), Mode/Match/Trends/Killer-Frequency section wrappers. |
 | 6 | `server/src/routes/aim.ts` | 977 | One router file: per-hero aim upsert, validation, blind-trial credit wiring. |
 | 7 | `server/src/routes/stats.ts` | 1087 | One router file: 19 route handlers + 6 pure compute functions used only by `/insights`. |
 | 8 | `server/src/db/schema.ts` | 877 | Every migration ever written, linearly, never split by era. |
@@ -63,16 +63,28 @@ version-tracking state — this one has real behavior-change risk if a split
 reorders anything. Escalate before touching: this is the "broad blast
 radius" case from the brief, not a pure move.
 
-**`client/src/pages/Dashboard.tsx` (1289 lines)**
-Seam candidates, each already a self-contained JSX block reading from one
-or two `useApi` hooks: the Career strip, the Trends section, the by-hero
-card, the by-map card, the by-hour card, the streaks card. Each becomes its
-own component under `client/src/components/dashboard/`, taking its slice of
-already-fetched data as props (no new fetches, no behavior change). Highest
-value because it's the file Sean edits most when adding a new stat card —
-but every one of these blocks likely carries `data-inspect-id`s, so each
-slice here needs the map sweep. Sequence as N separate slices, one card
-per slice, not one big move.
+**`client/src/pages/Dashboard.tsx` (1289 lines as surveyed 2026-09-23; 1501
+after the Career slice landed)**
+**Correction, 2026-09-27:** the original version of this entry named a
+by-hero card, a by-map card, a by-hour card, and a separate streaks block.
+None of those ever existed in Dashboard.tsx — `git log -S byHour --
+Dashboard.tsx` returns nothing. The streaks tiles were always part of the
+Career strip, which is why they moved with it in the Career slice. The real
+sections, by `id="sec-*"`, are: **Mode** (`sec-mode` — `ModeTile`,
+`ModeComparisonCard`, `computeTrendsDerived`, and `RecentMatchesCard`, all
+still defined inline in Dashboard.tsx; ~1314 of the file's current ~1501
+lines, by far the biggest remaining seam), **Match** (`sec-match` — a thin
+~17-line wrapper mounting the already-separate `Prematch`/`LogMatch`
+pages), **Trends** (`sec-trends` — a thin ~4-line wrapper around the
+already-separate `TrendsSummary` component), and **Killer Frequency**
+(`sec-killer-frequency` — a thin ~5-line wrapper around the already-separate
+`KillerFrequencyCard`, gated on the `deaths` field). **Career** (`sec-career`)
+is done — extracted to `components/dashboard/CareerStrip.tsx` in `5d52b3e`.
+Each remaining section becomes its own component under
+`client/src/components/dashboard/`, taking its slice of already-fetched data
+as props (no new fetches, no behavior change). Every one of these blocks
+likely carries `data-inspect-id`s, so each slice needs the map sweep.
+Sequence as separate slices, one section per slice, not one big move.
 
 **`client/src/pages/LogMatch.tsx` (1374 lines)**
 Seam candidates: the hero/map picker JSX, the death-logger wiring (already
@@ -97,15 +109,31 @@ is based on real numbers instead of a guess.
    `client/src/{App,components,contexts,hooks,lib,pages}` — no server file
    is in it). Fully covered by `stats.test.ts`. **Executed this session.**
 2. Dashboard: extract the Career strip into its own component.
-3. Dashboard: extract the by-hero/by-map/by-hour cards, one slice each.
-4. Dashboard: extract the streaks + trends blocks.
-5. LogMatch: extract `MatchJudgmentFields` (quality/driver/leaver).
-6. LogMatch: extract the hero/map picker JSX.
-7. `aim.ts`: split CRUD from blind-credit resolution logic (needs its own
+   **Executed** (`5d52b3e`, `components/dashboard/CareerStrip.tsx`).
+3. Dashboard: extract the Trends section wrapper (`sec-trends`) into its
+   own component. Thin — ~4 lines; `TrendsSummary` itself is already its
+   own file.
+4. Dashboard: extract the Mode section (`ModeTile`, `ModeComparisonCard`,
+   `computeTrendsDerived`, `RecentMatchesCard`) into its own component(s).
+   ~1314 lines — the real payoff of this plan; everything else left in
+   Dashboard.tsx is thin wrapper markup around components already
+   extracted elsewhere.
+5. Dashboard: extract the Match section wrapper (`sec-match`) into its own
+   component. ~17 lines.
+6. Dashboard: extract the Killer Frequency section wrapper
+   (`sec-killer-frequency`) into its own component. ~5 lines.
+7. LogMatch: extract `MatchJudgmentFields` (quality/driver/leaver).
+8. LogMatch: extract the hero/map picker JSX.
+9. `aim.ts`: split CRUD from blind-credit resolution logic (needs its own
    design pass first — flagged above, not detailed here).
-8. Re-survey Prematch/SensLog/SensAnalysis with real per-slice cost data
-   from steps 2–6 in hand, then plan their splits.
-9. `schema.ts` split — escalate to Sean before scoping; broad blast radius.
+10. Re-survey Prematch/SensLog/SensAnalysis with real per-slice cost data
+    from steps 2–6 in hand, then plan their splits.
+11. `schema.ts` split — escalate to Sean before scoping; broad blast radius.
+
+**Correction, 2026-09-27:** the by-hero/by-map/by-hour cards and separate
+streaks block named in the original steps 3–4 never existed in
+Dashboard.tsx — confirmed via `git log -S byHour -- Dashboard.tsx` (no
+hits). Steps above reflect the file's real sections.
 
 Each slice from 2 onward should land as its own commit, its own map sweep
 (where client-side), and its own test-count check — never batched.
