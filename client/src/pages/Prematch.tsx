@@ -1477,7 +1477,14 @@ export default function Prematch() {
                           // One constant hue per role: the card's own
                           // selection colour (ROLE_SEL_RGB), so the gauge and
                           // the selected state read as one colour family.
-                          const gaugeRgb = ROLE_SEL_RGB[role];
+                          // Muted a tad: each channel moved 25% toward the
+                          // colour's own grey, so the gauge sits under the
+                          // selected state instead of matching its intensity.
+                          const gaugeRgb = (() => {
+                            const ch = ROLE_SEL_RGB[role].split(' ').map(Number);
+                            const grey = (ch[0] + ch[1] + ch[2]) / 3;
+                            return ch.map(c => Math.round(c * 0.75 + grey * 0.25)).join(' ');
+                          })();
                           const label = c ? c.label : String(testStageFor(h.hero)?.cur ?? '');
                           return (
                             <span
