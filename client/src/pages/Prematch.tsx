@@ -29,6 +29,12 @@ interface NextTestResponse {
   finishedHeroes?: string[];
   phase?: string | null;
   block?: { hero: string; role: string; openMinutes: number } | null;
+  // Distinguishes block===null's two causes, added 2026-09-27: a block just
+  // closed (the most-recently-credited match's hero, now at 0/60 open
+  // minutes) vs. nothing played yet this phase (no test-credited match at
+  // all). Drives whether the full-recompute branch below can honestly say
+  // "Block done" or has to stay neutral.
+  justClosed?: { hero: string } | null;
   recommendedRole?: string | null;
   orderedHeroes?: { hero: string; role: string; credited: number; target: number; daysSinceLastPlayed: number | null; cold: boolean }[];
 }
@@ -1172,14 +1178,17 @@ export default function Prematch() {
                   </p>
                 ) : (
                   <div data-inspect-id="prematch-next-test-list">
-                    {/* This branch fires both when a block just closed AND
-                        when nothing has been played yet this phase — the
-                        API's `block: null` doesn't currently distinguish
-                        the two (see the task report), so the copy stays
-                        neutral rather than claiming "block done" when
-                        nothing may have started at all. */}
-                    <p className="text-xs text-[var(--ink)] mb-1.5">
-                      Queue <b>{nextTest.recommendedRole}</b> → {nextTest.orderedHeroes?.map(h => h.hero).join(', ')}
+                    {/* nextTest.justClosed (added 2026-09-27) tells the two
+                        causes of block===null apart: a block that just
+                        closed (say so plainly) vs. nothing played yet this
+                        phase (stay neutral — there's no "block" to call
+                        done). */}
+                    <p className="text-xs text-[var(--ink)] mb-1.5" data-inspect-id="prematch-next-test-just-closed">
+                      {nextTest.justClosed ? (
+                        <>Block done on <b className="hero-name">{nextTest.justClosed.hero}</b> — switch to <b className="hero-name">{nextTest.orderedHeroes?.[0]?.hero}</b></>
+                      ) : (
+                        <>Queue <b>{nextTest.recommendedRole}</b> → {nextTest.orderedHeroes?.map(h => h.hero).join(', ')}</>
+                      )}
                     </p>
                     <div className="flex flex-col gap-0.5">
                       {nextTest.orderedHeroes?.map(h => (

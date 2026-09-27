@@ -145,6 +145,51 @@ describe('GET /api/blind/next — block (real match log)', () => {
   });
 });
 
+describe('GET /api/blind/next — justClosed (2026-09-27)', () => {
+  test('nothing played yet this phase: block and justClosed are both null', async () => {
+    await makeSet({ hero: 'Tracer', batch_size: 40, phase: 'phaseA' });
+    const r = await h.get('/api/blind/next?queue_mode=comp_role');
+    assert.equal(r.body.block, null);
+    assert.equal(r.body.justClosed, null);
+  });
+
+  test('mid-block (open minutes > 0): justClosed stays null, only block locks', async () => {
+    await makeSet({ hero: 'Tracer', batch_size: 40, phase: 'phaseA' });
+    await playGames('Tracer', 2); // 24 min, still open
+    const r = await h.get('/api/blind/next?queue_mode=comp_role');
+    assert.equal(r.body.block.openMinutes, 24);
+    assert.equal(r.body.justClosed, null);
+  });
+
+  test('exactly 60 minutes: justClosed names the hero whose block just closed', async () => {
+    await makeSet({ hero: 'Tracer', batch_size: 40, phase: 'phaseA' });
+    await makeSet({ hero: 'Ana', batch_size: 40, phase: 'phaseA' });
+    await playGames('Tracer', 5); // exactly 60 min -> block closes
+    const r = await h.get('/api/blind/next?queue_mode=comp_role');
+    assert.equal(r.body.block, null);
+    assert.deepEqual(r.body.justClosed, { hero: 'Tracer' });
+  });
+
+  // The "stay put" lock is a fact about the MOST RECENTLY credited match's
+  // hero, never a scan for "any hero with an open (>0 minute) block" —
+  // every hero in a phase normally has SOME nonzero open block at once, so
+  // the latter would be ambiguous. Ana plays second here and ends with a
+  // smaller open block (12 min) than Tracer (24 min), which would flip the
+  // pick if this were a "biggest/any open block" rule instead of "whoever
+  // was played most recently."
+  test('the lock is on the most-recently-played hero, not any hero with a partial block', async () => {
+    await makeSet({ hero: 'Tracer', batch_size: 40, phase: 'phaseA' });
+    await makeSet({ hero: 'Ana', batch_size: 40, phase: 'phaseA' });
+    await playGames('Tracer', 2); // 24 min open on Tracer
+    await playGames('Ana', 1);    // 12 min open on Ana, played more recently
+
+    const r = await h.get('/api/blind/next?queue_mode=comp_role');
+    assert.equal(r.body.block.hero, 'Ana', 'Ana was the most recently credited match, even with the smaller open block');
+    assert.equal(r.body.block.openMinutes, 12);
+    assert.equal(r.body.justClosed, null);
+  });
+});
+
 describe('GET /api/blind/next — going cold', () => {
   test('a hero unplayed 7+ days jumps to the top of its role even though it is MORE progressed', async () => {
     const oldId = await makeSet({ hero: 'Pharah', batch_size: 40, phase: 'phaseA' });

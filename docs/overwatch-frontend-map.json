@@ -597,10 +597,20 @@
           "id": "prematch-next-test-list",
           "label": "Next test \u2014 ordered role/hero recommendation",
           "kind": "list",
-          "description": "Full recompute state (no active open block, or one that just closed \u2014 the payload doesn't currently distinguish \"just closed\" from \"nothing played yet this phase,\" so the copy stays neutral rather than claiming a block just finished): 'Queue <role> \u2192 hero, hero, ...' plus a per-hero progress row (prematch-next-test-hero-row) for every pending hero in that role, ordered least-progressed first (ties broken by longest since last played), with a cold hero (7+ days unplayed, COLD_DAYS in lib/nextTest.ts) bumped to the top of its own role's list only. credited/target are closed blocks for a chunked (ABBA) set, plain games for a legacy one \u2014 see prematch-next-test-hero-row.",
+          "description": "Full recompute state (no active open block, or one that just closed). Headline (prematch-next-test-just-closed) branches on nextTest.justClosed (GET /api/blind/next, added 2026-09-27): 'Block done on <hero> \u2014 switch to <top recommended hero>' when a block genuinely just closed, else a neutral 'Queue <role> \u2192 hero, hero, ...' when nothing has been played yet this phase \u2014 the two are otherwise indistinguishable from block alone being null. Below that, a per-hero progress row (prematch-next-test-hero-row) for every pending hero in that role, ordered least-progressed first (ties broken by longest since last played), with a cold hero (7+ days unplayed, COLD_DAYS in lib/nextTest.ts) bumped to the top of its own role's list only. credited/target are closed blocks for a chunked (ABBA) set, plain games for a legacy one \u2014 see prematch-next-test-hero-row.",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:1174",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-next-test-list\"' client/src/pages/Prematch.tsx"
+          }
+        },
+        {
+          "id": "prematch-next-test-just-closed",
+          "label": "Next test \u2014 recompute headline (block-done vs. neutral queue)",
+          "kind": "text",
+          "description": "The headline line of the full-recompute branch (prematch-next-test-list), added 2026-09-27. Branches on nextTest.justClosed (GET /api/blind/next \u2014 server/src/routes/blind.ts's /next handler): '{hero}'s open block just closed' state shows 'Block done on <hero> \u2014 switch to <orderedHeroes[0]>'; the null case (nothing test-credited yet this phase) shows the older neutral 'Queue <role> \u2192 hero, hero, ...' instead, since claiming a block \"just closed\" would be false when nothing has actually been played.",
+          "locate": {
+            "path": "client/src/pages/Prematch.tsx:1186",
+            "grep": "grep -n -F -- 'data-inspect-id=\"prematch-next-test-just-closed\"' client/src/pages/Prematch.tsx"
           }
         },
         {
@@ -609,7 +619,7 @@
           "kind": "list-item",
           "description": "One row per pending hero in the recommended role: hero name, credited/target, and a 'cold' badge when unplayed 7+ days. credited/target are in closed BLOCKS (both stages summed) for a chunked (ABBA) set as of 2026-09-27 \u2014 STAGE_BLOCKS(8) x n_stages is the target \u2014 or plain games for a legacy/unchunked set, batch_size x n_stages. Function is called once per hero in nextTest.orderedHeroes, so the id is intentionally shared across rows (see the map's own duplicate-id rule) \u2014 each row's content is what distinguishes it, not a unique DOM id.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1186",
+            "path": "client/src/pages/Prematch.tsx:1195",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-next-test-hero-row\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -619,7 +629,7 @@
           "kind": "text",
           "description": "Small footer line listing heroes that already finished this phase's test (nextTest.finishedHeroes), shown alongside the active recommendation so Sean can see the whole phase roster's state at a glance, not just whoever's next.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1200",
+            "path": "client/src/pages/Prematch.tsx:1209",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-next-test-done-heroes\"' client/src/pages/Prematch.tsx"
           }
         },

@@ -684,7 +684,7 @@ router.get('/next', (req: Request, res: Response) => {
   if (!phase) {
     res.json({
       isQuickplay: false, phase: null, heroes: [], projection: { ratePerDay: 0, projectedDays: null },
-      allFinished: true, finishedHeroes: [], block: null, recommendedRole: null, orderedHeroes: [],
+      allFinished: true, finishedHeroes: [], block: null, justClosed: null, recommendedRole: null, orderedHeroes: [],
     });
     return;
   }
@@ -692,6 +692,15 @@ router.get('/next', (req: Request, res: Response) => {
   const heroes = heroProgressForPhase(db, phase);
   const block = currentBlock(db);
   const rec = computeNextTest(heroes, block);
+  // Distinguishes rec.block === null's two real causes, which are otherwise
+  // indistinguishable from the response alone: a block just closed (there
+  // WAS a most-recently-credited match, its openMinutes reads exactly 0) vs.
+  // nothing has been played yet this phase (currentBlock found no
+  // test-credited match at all). Read off the raw `block` input, not
+  // computeNextTest's output — a hero whose test has SINCE completed still
+  // "just closed" its block even though computeNextTest's own recompute
+  // falls through past it (see computeNextTest's fallthrough comment).
+  const justClosed = block && block.openMinutes === 0 ? { hero: block.hero } : null;
 
   // Phase-wide projection (the /sens overview's job, not Prematch's card —
   // included here rather than a second endpoint since it's the same roster
@@ -714,7 +723,7 @@ router.get('/next', (req: Request, res: Response) => {
   const windowDays = Math.min(PROJECTION_WINDOW_DAYS, Math.max(1, daysRunning));
   const projection = projectPhaseFinish(remaining, gamesInWindow, windowDays);
 
-  res.json({ isQuickplay: false, phase, heroes, projection, ...rec });
+  res.json({ isQuickplay: false, phase, heroes, projection, justClosed, ...rec });
 });
 
 export default router;
