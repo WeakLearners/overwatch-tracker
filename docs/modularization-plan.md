@@ -121,10 +121,10 @@ Every step below is now two commits, not one:
   same as after (a).
 
 **Step log:**
-- Step 2 (Career strip): (a) `5d52b3e`. (b) `<pending backfill>`.
-- Step 3 (Trends section): (a) `66666a7`. (b) `<pending backfill>`.
-- Step 4 (Mode section), piece 1 of N — `ModeComparisonCard`: (a)
-  `<hash>`. (b) `<hash>`.
+- Step 2 (Career strip): (a) `5d52b3e`. (b) `679320e` (memo — backfilled).
+- Step 3 (Trends section): (a) `66666a7`. (b) `679320e` (memo — backfilled).
+- Step 4 (Mode section), piece 1 of 3 — `ModeComparisonCard`: (a)
+  `999aa38`. (b) `f6878c7` (memo).
 
 ## Ordered slice sequence
 
