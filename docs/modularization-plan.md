@@ -125,6 +125,18 @@ Every step below is now two commits, not one:
 - Step 3 (Trends section): (a) `66666a7`. (b) `679320e` (memo — backfilled).
 - Step 4 (Mode section), piece 1 of 3 — `ModeComparisonCard`: (a)
   `999aa38`. (b) `f6878c7` (memo).
+- Step 4 (Mode section), piece 2 of 3 — `computeTrendsDerived` (moved to
+  `lib/trendsDerived.ts`): (a) `ecf6500`. (b) optimization pass: no
+  changes. Checked: needless re-renders (n/a, pure function, not a
+  component); work redone every render (n/a — the `useMemo(() =>
+  computeTrendsDerived(trends), [trends])` call site, inside a
+  memo-wrapped `RecentMatchesCard`, was already correct before this
+  move and is unchanged by it); dead code/unused locals (none found —
+  every local in the function reaches the returned object); duplicated
+  logic (none — reuses the shared `rankTier`/`RANK_TIER_RGB` helpers
+  from `types`, the same ones `RankBadge`/`LobbyRangeSlider`/`Prematch`
+  already call, not a second implementation); repeat fetches (n/a, pure
+  function, no fetches).
 
 ## Ordered slice sequence
 
