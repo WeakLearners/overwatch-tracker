@@ -435,12 +435,6 @@ export default function Prematch() {
   // and every bar covers the same batch_size/5 games instead of the end bars
   // being half-width.
   const GAUGE_SEGMENTS = 5;
-  // Battery colour for a gauge's lit bars, from the fraction still left. It
-  // slides along the card-title gradient: cyan when full, gold when nearly
-  // empty (--gauge-full/--gauge-empty in index.css, per theme). One colour
-  // for every lit bar, like a phone battery, not a per-bar rainbow.
-  const batteryColor = (fractionLeft: number) =>
-    `color-mix(in oklab, var(--gauge-full) ${Math.round(100 * Math.max(0, Math.min(1, fractionLeft)))}%, var(--gauge-empty))`;
   const testStageLeftFor = (hero: string): { left: number; total: number } | null => {
     const a = btActives.find(a => a.hero === hero);
     if (!a || a.batch_size <= 0) return null;
@@ -1467,20 +1461,23 @@ export default function Prematch() {
                           // The whole card is the gauge (2026-09-27). A tinted
                           // fill grows left -> right as the hero's open 60-min
                           // block fills (legacy unchunked set: games played at
-                          // this sens). Same batteryColor ramp the old bar used,
+                          // this sens). A constant per-role hue (see gaugeRgb),
                           // with a solid bottom rule on the filled part, like
                           // the lit edge of a selected tile.
                           // The stage/chunk label ("A1".."B4", or the bare
                           // stage number) is a watermark in the rank strip's
                           // style (RecentMatchesCard tier bands): oversized
                           // italic, centred on the card, .lit-text.lit-strong
-                          // in the gold tier hue at 22.5% opacity.
+                          // in the gauge's role hue at 22.5% opacity.
                           // -z-10 + the button's `isolate` puts this layer above
                           // the card's own fill but under its text.
                           const c = chunkFor(h.hero);
                           const r = testStageLeftFor(h.hero);
                           const done = c ? Math.min(1, c.openMinutes / 60) : r && r.total > 0 ? 1 - r.left / r.total : 0;
-                          const color = batteryColor(1 - done);
+                          // One constant hue per role (2026-09-27, trial:
+                          // silver on DPS/Tank, violet on Support), chosen to
+                          // stay clear of the role tints on the card itself.
+                          const gaugeRgb = role === 'Support' ? '167 139 250' : RANK_TIER_RGB.Silver;
                           const label = c ? c.label : String(testStageFor(h.hero)?.cur ?? '');
                           return (
                             <span
@@ -1499,13 +1496,15 @@ export default function Prematch() {
                                 style={{
                                   width: `calc(${done * 100}% + ${done > 0 ? 14 : 0}px)`,
                                   clipPath: 'polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%)',
-                                  backgroundColor: `color-mix(in oklab, ${color} 18%, transparent)`,
-                                  boxShadow: `inset 0 -2px 0 0 ${color}`,
+                                  backgroundColor: `rgb(${gaugeRgb} / 0.18)`,
+                                  // A selected card's own lit bottom edge owns
+                                  // the bottom; a second rule there would fight it.
+                                  boxShadow: isClicked ? undefined : `inset 0 -2px 0 0 rgb(${gaugeRgb})`,
                                 }}
                               />
                               <span
                                 className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 num-display italic font-black uppercase leading-none tracking-[-0.07em] whitespace-nowrap opacity-[0.225] text-[64px]"
-                                style={{ '--sel': RANK_TIER_RGB.Gold } as React.CSSProperties}
+                                style={{ '--sel': gaugeRgb } as React.CSSProperties}
                                 data-inspect-id="prematch-hero-picker-stage-badge"
                               >
                                 <span className="lit-text lit-strong pr-[0.1em]">{label}</span>
