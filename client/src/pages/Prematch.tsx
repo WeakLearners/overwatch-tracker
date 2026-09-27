@@ -1520,7 +1520,7 @@ export default function Prematch() {
                                 const openMin = chunkFor(h.hero)!.openMinutes;
                                 const pct = Math.max(0, Math.min(100, (openMin / 60) * 100));
                                 return (
-                                  <span className="relative w-10 h-3 -skew-x-[20deg] overflow-hidden bg-gray-400/50">
+                                  <span className="relative w-16 h-3 -skew-x-[20deg] overflow-hidden border border-ow-border bg-gray-400/50">
                                     <span
                                       className="absolute inset-y-0 left-0"
                                       style={{ width: `${pct}%`, backgroundColor: batteryColor(1 - openMin / 60) }}
