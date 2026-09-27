@@ -1420,11 +1420,20 @@ export default function Prematch() {
                         // one hue. The order badge below already colours by role
                         // for the same reason: the row should read as "this
                         // role's pick", not as a generic accent highlight.
-                        style={{ '--sel': ROLE_SEL_RGB[role] } as React.CSSProperties}
-                        className={`relative isolate flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-lg border cursor-pointer active:scale-[0.98] transition-all group ${isTestHero ? 'test-glow' : ''} ${
+                        // Styled like Log Match's mode tiles (2026-09-27):
+                        // selected = .is-selected.mode-fill (border, bottom-lit
+                        // tint, lit edge); resting = no box, faint text. On a
+                        // test hero the card-wide bottom edge is turned off
+                        // because the gauge below draws that edge instead,
+                        // only as far as the block's minutes reach.
+                        style={{
+                          '--sel': ROLE_SEL_RGB[role],
+                          ...(isClicked && !isDfHero && (testGaugeFor(h.hero) != null || chunkFor(h.hero)) ? { boxShadow: 'none' } : {}),
+                        } as React.CSSProperties}
+                        className={`relative isolate flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-lg border-2 cursor-pointer active:scale-[0.98] transition-all group ${isTestHero ? 'test-glow' : ''} ${
                           isClicked
-                            ? 'is-selected'
-                            : 'border-ow-border bg-ow-darker hover-sel'
+                            ? 'is-selected mode-fill'
+                            : 'border-transparent hover-sel'
                         }`}
                       >
                         {isClicked && (
@@ -1443,7 +1452,7 @@ export default function Prematch() {
                           </span>
                         )}
                         <span className={`text-sm ${h.win_rate >= 50 ? 'text-emerald-700' : 'text-red-500'}`}>{h.win_rate >= 50 ? '↑' : '↓'}</span>
-                        <span className={`flex-1 text-xs hero-name transition-colors ${isClicked ? 'lit-text' : 'text-[var(--ink)] group-hover:text-ow-accent'}`}>
+                        <span className={`flex-1 text-xs hero-name font-display italic transition-colors ${isClicked ? 'lit-text lit-strong' : 'text-[var(--faint)] group-hover:text-[var(--ink)]'}`}>
                           {isDfHero ? withDfBadge(withHeroCount(h.hero, heroCounts), dfMap, h.hero) : withHeroCount(h.hero, heroCounts)}
                           {sensTag && (
                             <span
@@ -1458,66 +1467,51 @@ export default function Prematch() {
                           )}
                         </span>
                         {!isDfHero && (testGaugeFor(h.hero) != null || chunkFor(h.hero)) ? (() => {
-                          // The whole card is the gauge (2026-09-27). A tinted
-                          // fill grows left -> right as the hero's open 60-min
-                          // block fills (legacy unchunked set: games played at
-                          // this sens). A constant per-role hue (see gaugeRgb),
-                          // with a solid bottom rule on the filled part, like
-                          // the lit edge of a selected tile.
-                          // The stage/chunk label ("A1".."B4", or the bare
-                          // stage number) is a watermark in the rank strip's
-                          // style (RecentMatchesCard tier bands): oversized
-                          // italic, centred on the card, .lit-text.lit-strong
-                          // in the gauge's role hue at 22.5% opacity.
-                          // -z-10 + the button's `isolate` puts this layer above
+                          // The gauge IS the lit bottom edge (2026-09-27): the
+                          // mode tile's 3px edge + upward underglow, drawn only
+                          // as far as the hero's open 60-min block has filled
+                          // (legacy unchunked set: games played at this sens).
+                          // Full strength on a selected card, half at rest.
+                          // Behind it, the stage/chunk label ("A1".."B4") as an
+                          // oversized watermark, sized and set like the mode
+                          // tiles' QP/V5/V6 (ModeWatermark "selector" variant).
+                          // -z-10 + the card's `isolate` puts this layer above
                           // the card's own fill but under its text.
                           const c = chunkFor(h.hero);
                           const r = testStageLeftFor(h.hero);
                           const done = c ? Math.min(1, c.openMinutes / 60) : r && r.total > 0 ? 1 - r.left / r.total : 0;
-                          // One constant hue per role: the card's own
-                          // selection colour (ROLE_SEL_RGB), so the gauge and
-                          // the selected state read as one colour family.
-                          // Muted a tad: each channel moved 25% toward the
-                          // colour's own grey, so the gauge sits under the
-                          // selected state instead of matching its intensity.
-                          const gaugeRgb = (() => {
-                            const ch = ROLE_SEL_RGB[role].split(' ').map(Number);
-                            const grey = (ch[0] + ch[1] + ch[2]) / 3;
-                            return ch.map(c => Math.round(c * 0.75 + grey * 0.25)).join(' ');
-                          })();
+                          const hue = ROLE_SEL_RGB[role];
+                          const a = isClicked ? 1 : 0.5;
                           const label = c ? c.label : String(testStageFor(h.hero)?.cur ?? '');
                           return (
                             <span
-                              className="absolute inset-0 -z-10 rounded-lg overflow-hidden pointer-events-none"
+                              className="absolute inset-0 -z-10 rounded-[6px] overflow-hidden pointer-events-none"
                               title={c
                                 ? `${c.label} · ${Math.floor(c.openMinutes)} minutes played`
                                 : `${r?.left ?? 0} of ${r?.total ?? 0} games left at this sens`}
                               data-inspect-id="prematch-hero-picker-gauge"
                             >
                               <span
-                                // Lit from below like a selected tile, at the
-                                // Dashboard nav's stronger setting (.fill-strong):
-                                // bottom-lit tint, 3px edge, tall underglow.
-                                className="absolute inset-y-0 left-0 is-selected mode-fill fill-strong"
-                                style={{
-                                  '--sel': gaugeRgb,
-                                  width: `calc(${done * 100}% + ${done > 0 ? 14 : 0}px)`,
-                                  // Depletion edge keeps the old bar's 20deg slant
-                                  // (/); +14px (tan 20deg x ~40px card) lets a full
-                                  // block reach the bottom-right corner.
-                                  clipPath: 'polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%)',
-                                  // A selected card's own lit bottom edge owns
-                                  // the bottom; a second glow there would fight it.
-                                  ...(isClicked ? { boxShadow: 'none' } : {}),
-                                } as React.CSSProperties}
-                              />
-                              <span
-                                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 num-display italic font-black uppercase leading-none tracking-[-0.07em] whitespace-nowrap opacity-[0.225] text-[64px]"
-                                style={{ '--sel': gaugeRgb } as React.CSSProperties}
+                                aria-hidden="true"
+                                className={`absolute inset-0 flex items-center justify-center num-display italic font-black leading-none tracking-[-0.07em] text-[5rem] translate-x-[-0.125em] translate-y-[0.057em] whitespace-nowrap ${isClicked ? 'opacity-[0.225]' : 'opacity-15'}`}
+                                style={isClicked ? undefined : { color: `rgb(${hue})` }}
                                 data-inspect-id="prematch-hero-picker-stage-badge"
                               >
-                                <span className="lit-text lit-strong pr-[0.1em]">{label}</span>
+                                {isClicked ? <span className="lit-text lit-strong pr-[0.1em]">{label}</span> : label}
                               </span>
+                              <span
+                                className="absolute inset-y-0 left-0"
+                                style={{
+                                  width: `calc(${done * 100}% + ${done > 0 ? 14 : 0}px)`,
+                                  // Depletion end keeps the 20deg slant (/);
+                                  // +14px lets a full block reach the corner.
+                                  clipPath: 'polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%)',
+                                  // A gradient, not the tiles' inset box-shadow:
+                                  // a blurred shadow also bleeds up the left and
+                                  // slanted edges; this only climbs from the bottom.
+                                  background: `linear-gradient(to top, rgb(${hue} / ${a}) 0 3px, rgb(${hue} / ${a * 0.55}) 3px, rgb(${hue} / 0) 14px)`,
+                                }}
+                              />
                             </span>
                           );
                         })() : !isDfHero && doneThisPhase.has(h.hero) && (
