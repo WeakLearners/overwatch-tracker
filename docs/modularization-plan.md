@@ -101,6 +101,31 @@ after the Dashboard/LogMatch sequence proves the per-slice pattern (size of
 diff, map-sweep time, review burden) so the cost estimate for these three
 is based on real numbers instead of a guess.
 
+## Per-step procedure (standing rule, set 2026-09-27)
+
+Every step below is now two commits, not one:
+
+- **(a) Pure-move commit.** Behaviour and visuals identical to before the
+  move. Map updated in the same commit. This is everything the plan already
+  required.
+- **(b) Optimization commit**, on the just-moved component only. Review it
+  for: needless re-renders (unstable props or inline objects/functions
+  passed to children, missing or pointless `memo`), work redone every
+  render that could be derived once, dead code or unused props/imports,
+  duplicated logic another component already has, and fetches that repeat
+  what the parent already has. Change only what has a concrete, stated
+  reason, and record that reason in the commit message. If nothing is worth
+  changing, the step log below says "optimization pass: no changes" —
+  don't invent work to fill the slot. Behaviour and visuals must stay
+  identical here too. Re-run tsc, the build, and the map sweep after (b),
+  same as after (a).
+
+**Step log:**
+- Step 2 (Career strip): (a) `5d52b3e`. (b) `<pending backfill>`.
+- Step 3 (Trends section): (a) `66666a7`. (b) `<pending backfill>`.
+- Step 4 (Mode section), piece 1 of N — `ModeComparisonCard`: (a)
+  `<hash>`. (b) `<hash>`.
+
 ## Ordered slice sequence
 
 1. **`stats.ts` → extract 6 pure compute functions + `formatHour` into
@@ -113,11 +138,23 @@ is based on real numbers instead of a guess.
 3. Dashboard: extract the Trends section wrapper (`sec-trends`) into its
    own component. Thin — ~4 lines; `TrendsSummary` itself is already its
    own file.
-4. Dashboard: extract the Mode section (`ModeTile`, `ModeComparisonCard`,
-   `computeTrendsDerived`, `RecentMatchesCard`) into its own component(s).
-   ~1314 lines — the real payoff of this plan; everything else left in
-   Dashboard.tsx is thin wrapper markup around components already
-   extracted elsewhere.
+4. Dashboard: extract the Mode section into its own component(s), one
+   piece per slice. ~1314 lines total across all pieces — the real payoff
+   of this plan; everything else left in Dashboard.tsx is thin wrapper
+   markup around components already extracted elsewhere. Piece order,
+   smallest/most self-contained first:
+   1. `ModeTile` + `ModeComparisonCard` (~154 lines) — one prop
+      (`data: ModeComparison[]`), reads `useHeroDrawer`/`useMatch` context
+      directly, no dependency on anything else in Dashboard.tsx.
+      **Executed** — see step log above.
+   2. `computeTrendsDerived` (~510 lines) — pure function, no React, no
+      props beyond `trends`. Move next: zero rendering risk, it's the
+      easiest remaining piece even though it's the second-biggest.
+   3. `RecentMatchesCard` (~650 lines) — already memoized, already takes
+      only `trends`/`tilt` as props, but its JSX carries the most
+      `data-inspect-id`s of the three and it consumes
+      `computeTrendsDerived`'s output, so it should move only after that
+      function has its own file to import from.
 5. Dashboard: extract the Match section wrapper (`sec-match`) into its own
    component. ~17 lines.
 6. Dashboard: extract the Killer Frequency section wrapper
