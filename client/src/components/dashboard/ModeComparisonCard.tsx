@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { memo, useState, useEffect } from 'react';
 import { ModeComparison, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB } from '../../types';
 import { useTodayHeroCounts, withHeroCount } from '../../hooks/useHeroCounts';
 import AnimatedNumber from '../AnimatedNumber';
@@ -125,7 +125,19 @@ function ModeTile({ meta, m, selected, onSelect, openHero, lastLog }: {
 
 // Per-mode summary that doubles as the queue-mode selector: tap a card to set
 // the active mode that drives the advisor and the logged match.
-export default function ModeComparisonCard({ data }: { data: ModeComparison[] }) {
+//
+// Optimization pass (2026-09-27): wrapped in memo. Dashboard re-renders on
+// every scroll tick (activeSection state); this card's `data` prop is
+// useApi state that's stable unless it actually refetches, so those
+// scroll-driven re-renders were re-rendering all 3 ModeTiles for no
+// reason. memo skips that — it still re-renders normally whenever `data`
+// changes or the queueMode/lastLog context values it reads directly
+// change. Left as-is: the inline onSelect closure and ModeTile itself
+// aren't memoized, since useCallback-wrapping onSelect and memoizing
+// ModeTile would be a bigger behavior-risk change than this pass's scope
+// (per-tile flash/selection state) — a candidate for a future pass, not
+// invented here.
+const ModeComparisonCard = memo(function ModeComparisonCard({ data }: { data: ModeComparison[] }) {
   const { openHero } = useHeroDrawer();
   const { queueMode, setQueueMode, lastLog } = useMatch();
   const byMode = Object.fromEntries(data.map(m => [m.queue_mode, m]));
@@ -154,4 +166,6 @@ export default function ModeComparisonCard({ data }: { data: ModeComparison[] })
       </div>
     </div>
   );
-}
+});
+
+export default ModeComparisonCard;

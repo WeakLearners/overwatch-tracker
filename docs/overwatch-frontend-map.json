@@ -4452,7 +4452,7 @@
           "kind": "card",
           "description": "Card wrapping the queue-mode selector; titled 'Mode' and holds the three mode tiles.",
           "locate": {
-            "path": "client/src/components/dashboard/ModeComparisonCard.tsx:135",
+            "path": "client/src/components/dashboard/ModeComparisonCard.tsx:147",
             "grep": "grep -n -F -- 'mb-4\">Mode</h2>' client/src/components/dashboard/ModeComparisonCard.tsx"
           }
         }
