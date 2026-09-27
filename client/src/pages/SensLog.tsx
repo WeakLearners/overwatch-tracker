@@ -1563,7 +1563,7 @@ function ActiveTestCard({ active }: { active: DpiTestActive }) {
             <div className="text-2xl heading-display text-[var(--ink)] mt-4">{active.chunk.stageBlocksTarget - active.chunk.stageBlocks}</div>
             <div className="text-xs text-[var(--faint)]">block{(active.chunk.stageBlocksTarget - active.chunk.stageBlocks) === 1 ? '' : 's'} left in this stage (of <b className="font-bold">{active.chunk.stageBlocksTarget}</b>)</div>
             <div className="text-[11px] text-[var(--faint-2)] mt-1" data-inspect-id="sl-chunk-progress">
-              chunk <b className="font-bold">{active.chunk.label}</b> · <b className="num-display">{Math.floor(active.chunk.openMinutes)}</b>/60 min this block
+              chunk <b className="font-bold">{active.chunk.label}</b> · <b className="num-display">{Math.floor(active.chunk.openMinutes)}</b> minutes played
             </div>
             <p className="text-[11px] text-[var(--faint-2)] mt-3">Log each game in the <b>Match Tracker</b> — it auto-tags to this stage and lands in the queue above for its combat details.</p>
           </>

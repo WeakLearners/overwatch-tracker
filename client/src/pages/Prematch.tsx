@@ -1173,7 +1173,7 @@ export default function Prematch() {
                   </p>
                 ) : nextTest.block ? (
                   <p className="text-xs text-[var(--ink)]" data-inspect-id="prematch-next-test-block">
-                    Stay on <b className="hero-name">{nextTest.block.hero}</b> — {Math.floor(nextTest.block.openMinutes)}/60 min this block
+                    Stay on <b className="hero-name">{nextTest.block.hero}</b> — {Math.floor(nextTest.block.openMinutes)} minutes played
                     <span className="text-[var(--faint-2)]"> · queue {nextTest.block.role}</span>
                   </p>
                 ) : (
@@ -1472,7 +1472,7 @@ export default function Prematch() {
                             // same gap-0.5 flush layout.
                             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center pointer-events-none gap-0.5"
                             title={chunkFor(h.hero)
-                              ? `${chunkFor(h.hero)!.label} · ${Math.floor(chunkFor(h.hero)!.openMinutes)}/60 min this block`
+                              ? `${chunkFor(h.hero)!.label} · ${Math.floor(chunkFor(h.hero)!.openMinutes)} minutes played`
                               : `${testStageLeftFor(h.hero)?.left ?? 0} of ${testStageLeftFor(h.hero)?.total ?? 0} games left at this sens`}
                             data-inspect-id="prematch-hero-picker-gauge"
                           >
@@ -1491,7 +1491,7 @@ export default function Prematch() {
                               <span
                                 className="h-3 px-1 -skew-x-[20deg] shrink-0 flex items-center justify-center text-[9px] font-bold leading-none tabular-nums text-[#3f2c00] dark:text-[#1a1200]"
                                 style={{ backgroundColor: 'var(--gauge-empty)' }}
-                                title={`Chunk ${chunkFor(h.hero)!.label} — ${Math.floor(chunkFor(h.hero)!.openMinutes)}/60 min this block`}
+                                title={`Chunk ${chunkFor(h.hero)!.label} — ${Math.floor(chunkFor(h.hero)!.openMinutes)} minutes played`}
                                 data-inspect-id="prematch-hero-picker-stage-badge"
                               >
                                 {chunkFor(h.hero)!.label}

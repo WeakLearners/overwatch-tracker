@@ -1081,7 +1081,7 @@ const DATA = {
           "id": "prematch-next-test-block",
           "label": "Next test \u2014 mid-block lock line",
           "kind": "text",
-          "description": "'Stay on <hero> \u2014 N/60 min this block \u00b7 queue <role>'. Converted 2026-09-27 from a fixed 5-game \"stint\" to a 60-minute \"block\" (BLOCK_MINUTES, lib/blind.ts) \u2014 minutes are that hero's own aim_stats_heroes.duration_min per credited match, not whole-match length. Shown while nextTest.block is set, i.e. Sean has an open (unclosed, >0 minute) block on one hero \u2014 the card deliberately does NOT recompute the round-robin pick until the block closes. Unlike the old stint, an interruption (playing another hero and coming back) does not reset this \u2014 the block is derived from that hero's own whole credited history, not a run of consecutive matches.",
+          "description": "'Stay on <hero> \u2014 N minutes played \u00b7 queue <role>'. Converted 2026-09-27 from a fixed 5-game \"stint\" to a 60-minute \"block\" (BLOCK_MINUTES, lib/blind.ts) \u2014 minutes are that hero's own aim_stats_heroes.duration_min per credited match, not whole-match length. Shown while nextTest.block is set, i.e. Sean has an open (unclosed, >0 minute) block on one hero \u2014 the card deliberately does NOT recompute the round-robin pick until the block closes. Unlike the old stint, an interruption (playing another hero and coming back) does not reset this \u2014 the block is derived from that hero's own whole credited history, not a run of consecutive matches.",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:1169",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-next-test-block\"' client/src/pages/Prematch.tsx"
@@ -2830,7 +2830,7 @@ const DATA = {
           "id": "sl-chunk-progress",
           "label": "Chunk/block progress line",
           "kind": "stat-tile",
-          "description": "'chunk <A1..B4> \u00b7 N/60 min this block' \u2014 the current chunk's letter/ordinal label plus minutes into the hero's open (unclosed) 60-minute block (GET /api/blind/state's chunk.label/chunk.openMinutes, lib/blind.ts's BLOCK_MINUTES/deriveBlockState). Converted 2026-09-27 from a game-count position ('x/chunk_size') to minutes, since a block's game count varies with match length. Sits alongside a blocks-left-in-stage figure (stageBlocksTarget - stageBlocks, replacing the old games-left-in-batch number for a chunked set specifically \u2014 a legacy/unchunked set still shows that games-based figure, untouched). Only rendered for a chunked set.",
+          "description": "'chunk <A1..B4> \u00b7 N minutes played' \u2014 the current chunk's letter/ordinal label plus minutes into the hero's open (unclosed) 60-minute block (GET /api/blind/state's chunk.label/chunk.openMinutes, lib/blind.ts's BLOCK_MINUTES/deriveBlockState). Converted 2026-09-27 from a game-count position ('x/chunk_size') to minutes, since a block's game count varies with match length. Sits alongside a blocks-left-in-stage figure (stageBlocksTarget - stageBlocks, replacing the old games-left-in-batch number for a chunked set specifically \u2014 a legacy/unchunked set still shows that games-based figure, untouched). Only rendered for a chunked set.",
           "locate": {
             "path": "client/src/pages/SensLog.tsx:1565",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-chunk-progress\"' client/src/pages/SensLog.tsx"
@@ -5390,6 +5390,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 
