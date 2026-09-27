@@ -1489,21 +1489,21 @@ export default function Prematch() {
                                 drifting apart. */}
                             {chunkFor(h.hero) ? (
                               <span
-                                className="h-3 px-1 -skew-x-[20deg] shrink-0 flex items-center justify-center text-[9px] font-bold leading-none tabular-nums text-[#3f2c00] dark:text-[#1a1200]"
-                                style={{ backgroundColor: 'var(--gauge-empty)' }}
+                                className="h-4 px-1 -skew-x-[20deg] shrink-0 flex items-center justify-center border is-selected mode-fill"
+                                style={{ '--sel': RANK_TIER_RGB.Gold } as React.CSSProperties}
                                 title={`Chunk ${chunkFor(h.hero)!.label} — ${Math.floor(chunkFor(h.hero)!.openMinutes)} minutes played`}
                                 data-inspect-id="prematch-hero-picker-stage-badge"
                               >
-                                {chunkFor(h.hero)!.label}
+                                <span className="text-[10px] font-bold leading-none tabular-nums lit-text">{chunkFor(h.hero)!.label}</span>
                               </span>
                             ) : testStageFor(h.hero) && (
                               <span
-                                className="h-3 px-1 -skew-x-[20deg] shrink-0 flex items-center justify-center text-[9px] font-bold leading-none tabular-nums text-[#3f2c00] dark:text-[#1a1200]"
-                                style={{ backgroundColor: 'var(--gauge-empty)' }}
+                                className="h-4 px-1 -skew-x-[20deg] shrink-0 flex items-center justify-center border is-selected mode-fill"
+                                style={{ '--sel': RANK_TIER_RGB.Gold } as React.CSSProperties}
                                 title={`Stage ${testStageFor(h.hero)!.cur} of ${testStageFor(h.hero)!.total}`}
                                 data-inspect-id="prematch-hero-picker-stage-badge"
                               >
-                                {testStageFor(h.hero)!.cur}
+                                <span className="text-[10px] font-bold leading-none tabular-nums lit-text">{testStageFor(h.hero)!.cur}</span>
                               </span>
                             )}
                             {chunkFor(h.hero) ? (
@@ -1520,7 +1520,7 @@ export default function Prematch() {
                                 const openMin = chunkFor(h.hero)!.openMinutes;
                                 const pct = Math.max(0, Math.min(100, (openMin / 60) * 100));
                                 return (
-                                  <span className="relative w-16 h-3 -skew-x-[20deg] overflow-hidden border border-ow-border bg-gray-400/50">
+                                  <span className="relative w-16 h-4 -skew-x-[20deg] overflow-hidden border border-ow-border bg-gray-400/50">
                                     <span
                                       className="absolute inset-y-0 left-0"
                                       style={{ width: `${pct}%`, backgroundColor: batteryColor(1 - openMin / 60) }}

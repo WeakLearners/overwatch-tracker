@@ -1171,7 +1171,7 @@ const DATA = {
           "id": "prematch-hero-picker-stage-badge",
           "label": "Hero picker stage/chunk indicator",
           "kind": "badge",
-          "description": "Indicator immediately left of the remaining-matches gauge, flush against it as of 2026-09-27 (no more circle outline \u2014 same -skew-x parallelogram geometry and height as the bar it sits beside, gold-filled, so badge + bar read as one piece). For an UNCHUNKED/legacy set: the bare stage number (hover shows \"Stage X of Y\"), reading cur_stage/n_stages off GET /api/blind/state \u2014 unchanged since before 2026-09-23. For a CHUNKED (ABBA) set: the \"A1\".\"B4\" chunk label instead (lib/blind.ts's chunkLabelFor, GET /api/blind/state's chunk.label) \u2014 a bare stage number no longer says which of up to four A-chunks or four B-chunks Sean is actually on. Two mutually-exclusive JSX branches share this one id (same convention as every other per-row badge in this map \u2014 see prematch-hero-picker-order-badge). Distinguished from prematch-hero-picker-order-badge (solid, marks click position at the row's top-left corner) by position and shape, not by an outline any more. Rendered inside the gauge's own absolutely-positioned container so the badge and the bar travel together at any row width. Only shown for a hero with an active test.",
+          "description": "Indicator immediately left of the remaining-matches gauge, flush against it as of 2026-09-27 (no more circle outline \u2014 same -skew-x parallelogram geometry and height as the bar it sits beside, so badge + bar read as one piece; styled like RankBadge since 2026-09-27: border + is-selected mode-fill + lit-text in RANK_TIER_RGB.Gold). For an UNCHUNKED/legacy set: the bare stage number (hover shows \"Stage X of Y\"), reading cur_stage/n_stages off GET /api/blind/state \u2014 unchanged since before 2026-09-23. For a CHUNKED (ABBA) set: the \"A1\".\"B4\" chunk label instead (lib/blind.ts's chunkLabelFor, GET /api/blind/state's chunk.label) \u2014 a bare stage number no longer says which of up to four A-chunks or four B-chunks Sean is actually on. Two mutually-exclusive JSX branches share this one id (same convention as every other per-row badge in this map \u2014 see prematch-hero-picker-order-badge). Distinguished from prematch-hero-picker-order-badge (solid, marks click position at the row's top-left corner) by position and shape, not by an outline any more. Rendered inside the gauge's own absolutely-positioned container so the badge and the bar travel together at any row width. Only shown for a hero with an active test.",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:1486",
             "grep": "grep -n -F -- 'prematch-hero-picker-stage-badge' client/src/pages/Prematch.tsx"
@@ -5390,6 +5390,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 
