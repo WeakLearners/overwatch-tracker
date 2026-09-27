@@ -318,32 +318,12 @@
           }
         },
         {
-          "id": "dash-trends-section-header",
-          "label": "Trends section header",
-          "kind": "header",
-          "description": "Section header titled 'Trends' with subtitle 'Recent form and momentum.', introducing the trends summary below.",
-          "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1488",
-            "grep": "grep -n -F -- 'title=\"Trends\" sub=\"Recent form and momentum.\"' client/src/pages/Dashboard.tsx"
-          }
-        },
-        {
-          "id": "dash-trends-summary-section",
-          "label": "Trends summary",
-          "kind": "section",
-          "description": "Embeds the TrendsSummary component showing recent-form charts/metrics and momentum indicators.",
-          "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1489",
-            "grep": "grep -n -F -- '<TrendsSummary />' client/src/pages/Dashboard.tsx"
-          }
-        },
-        {
           "id": "dash-killer-frequency-section",
           "label": "Killer frequency section",
           "kind": "section",
           "description": "Embeds KillerFrequencyCard (Who Kills Me) \u2014 field registry Phase 1's read surface for match_deaths. Gated on the 'deaths' field via FieldConfigContext; renders nothing at all if that field is off. Added 2026-09-23.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:1493",
+            "path": "client/src/pages/Dashboard.tsx:1490",
             "grep": "grep -n -F -- 'dash-killer-frequency-section' client/src/pages/Dashboard.tsx"
           }
         }
@@ -4437,6 +4417,36 @@
           }
         }
       ]
+    },
+    {
+      "id": "trendsSection",
+      "label": "TrendsSection.tsx",
+      "category": "client-component",
+      "layer": 2,
+      "file": "client/src/components/dashboard/TrendsSection.tsx",
+      "description": "Dashboard's Trends section wrapper (header + TrendsSummary mount). Extracted from Dashboard.tsx as a pure move (modularization plan step 3, 2026-09-27) \u2014 no props, TrendsSummary fetches its own data.",
+      "uiElements": [
+        {
+          "id": "dash-trends-section-header",
+          "label": "Trends section header",
+          "kind": "header",
+          "description": "Section header titled 'Trends' with subtitle 'Recent form and momentum.', introducing the trends summary below.",
+          "locate": {
+            "path": "client/src/components/dashboard/TrendsSection.tsx:10",
+            "grep": "grep -n -F -- 'title=\"Trends\" sub=\"Recent form and momentum.\"' client/src/components/dashboard/TrendsSection.tsx"
+          }
+        },
+        {
+          "id": "dash-trends-summary-section",
+          "label": "Trends summary",
+          "kind": "section",
+          "description": "Embeds the TrendsSummary component showing recent-form charts/metrics and momentum indicators.",
+          "locate": {
+            "path": "client/src/components/dashboard/TrendsSection.tsx:11",
+            "grep": "grep -n -F -- '<TrendsSummary />' client/src/components/dashboard/TrendsSection.tsx"
+          }
+        }
+      ]
     }
   ],
   "edges": [
@@ -4481,13 +4491,6 @@
       "target": "logmatch",
       "type": "compose",
       "label": "renders Match section"
-    },
-    {
-      "id": "e7",
-      "source": "dashboard",
-      "target": "trendssummary",
-      "type": "compose",
-      "label": "renders Trends section"
     },
     {
       "id": "e8",
@@ -4831,6 +4834,27 @@
       "target": "pageHeader",
       "type": "compose",
       "label": "Career section header"
+    },
+    {
+      "id": "e59",
+      "source": "dashboard",
+      "target": "trendsSection",
+      "type": "compose",
+      "label": "renders Trends section (extracted 2026-09-27)"
+    },
+    {
+      "id": "e60",
+      "source": "trendsSection",
+      "target": "pageHeader",
+      "type": "compose",
+      "label": "Trends section header"
+    },
+    {
+      "id": "e61",
+      "source": "trendsSection",
+      "target": "trendssummary",
+      "type": "compose",
+      "label": "renders TrendsSummary"
     }
   ]
 }

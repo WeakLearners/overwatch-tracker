@@ -15,9 +15,9 @@ import { useMatch } from '../contexts/MatchContext';
 import { format, parseISO } from 'date-fns';
 import Prematch from './Prematch';
 import LogMatch from './LogMatch';
-import TrendsSummary from '../components/TrendsSummary';
 import KillerFrequencyCard from '../components/KillerFrequencyCard';
 import CareerStrip from '../components/dashboard/CareerStrip';
+import TrendsSection from '../components/dashboard/TrendsSection';
 import { useFieldConfig } from '../contexts/FieldConfigContext';
 
 
@@ -1484,10 +1484,7 @@ export default function Dashboard() {
         <div className="contents" data-inspect-id="dash-logmatch-section"><LogMatch /></div>
       </div>
 
-      <div id="sec-trends" className="mt-8 border-t border-ow-border pt-6 reveal scroll-mt-32" style={{ '--reveal-delay': '180ms' } as React.CSSProperties}>
-        <PageHeader dataInspectId="dash-trends-section-header" title="Trends" sub="Recent form and momentum." />
-        <TrendsSummary />
-      </div>
+      <TrendsSection />
 
       {isFieldEnabled('deaths') && (
       <div id="sec-killer-frequency" className="mt-8 border-t border-ow-border pt-6 reveal scroll-mt-32" data-inspect-id="dash-killer-frequency-section" style={{ '--reveal-delay': '200ms' } as React.CSSProperties}>
