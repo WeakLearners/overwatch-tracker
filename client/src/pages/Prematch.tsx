@@ -1430,10 +1430,13 @@ export default function Prematch() {
                           '--sel': ROLE_SEL_RGB[role],
                           ...(isClicked && !isDfHero && (testGaugeFor(h.hero) != null || chunkFor(h.hero)) ? { boxShadow: 'none' } : {}),
                         } as React.CSSProperties}
-                        className={`relative isolate flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-lg border-2 cursor-pointer active:scale-[0.98] transition-all group ${isTestHero ? 'test-glow' : ''} ${
+                        className={`relative isolate flex items-center gap-3 w-full text-left rounded cursor-pointer active:scale-[0.98] transition-all group ${isTestHero ? 'test-glow' : ''} ${
+                          // Resting wears the lobby slider's unlit rank-pane border; the extra
+                          // 1px padding makes up the width gap with the 2px
+                          // selected border, so selecting doesn't shift the row.
                           isClicked
-                            ? 'is-selected mode-fill'
-                            : 'border-transparent hover-sel'
+                            ? 'border-2 px-3 py-2.5 is-selected mode-fill'
+                            : 'hero-pane px-[13px] py-[11px] hover-sel'
                         }`}
                       >
                         {isClicked && (
@@ -1444,15 +1447,15 @@ export default function Prematch() {
                           // badges/pills elsewhere) rather than a generic accent
                           // color, so the badge reads as "this role's Nth pick."
                           <span
-                            className={`absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full text-white text-[9px] font-bold flex items-center justify-center pointer-events-none z-10 ${ROLE_PILL_CLASS[role]}`}
+                            className={`absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full text-white text-[11px] font-bold flex items-center justify-center pointer-events-none z-10 ${ROLE_PILL_CLASS[role]}`}
                             title={`Pick #${clickIndex + 1} this match`}
                             data-inspect-id="prematch-hero-picker-order-badge"
                           >
                             {clickIndex + 1}
                           </span>
                         )}
-                        <span className={`text-sm ${h.win_rate >= 50 ? 'text-emerald-700' : 'text-red-500'}`}>{h.win_rate >= 50 ? '↑' : '↓'}</span>
-                        <span className={`flex-1 text-xs hero-name font-display italic transition-colors ${isClicked ? 'lit-text lit-strong' : 'text-[var(--faint)] group-hover:text-[var(--ink)]'}`}>
+                        <span className={`text-[16.94px] ${map ? '' : 'invisible'} ${h.win_rate >= 50 ? 'text-emerald-700' : 'text-red-500'}`}>{h.win_rate >= 50 ? '↑' : '↓'}</span>
+                        <span className={`flex-1 translate-y-[2px] text-[14.52px] hero-name font-display italic transition-colors ${isClicked ? 'lit-text lit-strong' : 'text-[var(--faint)]'}`}>
                           {isDfHero ? withDfBadge(withHeroCount(h.hero, heroCounts), dfMap, h.hero) : withHeroCount(h.hero, heroCounts)}
                           {sensTag && (
                             <span
@@ -1485,7 +1488,7 @@ export default function Prematch() {
                           const label = c ? c.label : String(testStageFor(h.hero)?.cur ?? '');
                           return (
                             <span
-                              className="absolute inset-0 -z-10 rounded-[6px] overflow-hidden pointer-events-none"
+                              className="absolute inset-0 -z-10 rounded-[2px] overflow-hidden pointer-events-none"
                               title={c
                                 ? `${c.label} · ${Math.floor(c.openMinutes)} minutes played`
                                 : `${r?.left ?? 0} of ${r?.total ?? 0} games left at this sens`}
@@ -1493,14 +1496,14 @@ export default function Prematch() {
                             >
                               <span
                                 aria-hidden="true"
-                                className={`absolute inset-0 flex items-center justify-center num-display italic font-black leading-none tracking-[-0.07em] text-[5rem] translate-x-[-0.125em] translate-y-[0.057em] whitespace-nowrap ${isClicked ? 'opacity-[0.225]' : 'opacity-15'}`}
+                                className={`absolute inset-0 flex items-center justify-center num-display italic font-black leading-none tracking-[-0.07em] text-[4.2rem] translate-x-[-0.125em] translate-y-[0.007em] whitespace-nowrap ${isClicked ? 'opacity-[0.225]' : 'opacity-15'}`}
                                 style={isClicked ? undefined : { color: `rgb(${hue})` }}
                                 data-inspect-id="prematch-hero-picker-stage-badge"
                               >
                                 {isClicked ? <span className="lit-text lit-strong pr-[0.1em]">{label}</span> : label}
                               </span>
                               <span
-                                className="absolute inset-y-0 left-0"
+                                className={`absolute inset-y-0 left-0 transition-opacity ${isClicked ? '' : 'opacity-0 group-hover:opacity-100'}`}
                                 style={{
                                   width: `calc(${done * 100}% + ${done > 0 ? 14 : 0}px)`,
                                   // Depletion end keeps the 20deg slant (/);
@@ -1520,19 +1523,21 @@ export default function Prematch() {
                           // shown so Sean can see the whole phase at a glance,
                           // not just whichever hero is still running.
                           <span
-                            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-800 dark:text-emerald-600 pointer-events-none whitespace-nowrap"
+                            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[11px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-800 dark:text-emerald-600 pointer-events-none whitespace-nowrap"
                             title="Already tested this phase"
                             data-inspect-id="prematch-hero-picker-done-badge"
                           >
                             ✓ Done
                           </span>
                         )}
-                        {/* Fixed width + right-aligned so the win rate can't
+                        {/* Hidden (space kept) until a map is picked: these are
+                            this-map numbers, so before that every row reads 0%.
+                            Fixed width + right-aligned so the win rate can't
                             change the column's width — "0%" and "100%" occupy
                             the same box, so the row's layout doesn't slide
                             from row to row. */}
-                        <span className={`shrink-0 w-11 text-right text-sm font-bold ${h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
-                        <span className="text-xs text-[var(--faint-2)] w-7 text-right font-bold">{h.games}g</span>
+                        <span className={`shrink-0 w-12 translate-y-[2px] text-right text-[14.52px] hero-name font-display italic ${map ? '' : 'invisible'} ${h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
+                        <span className={`translate-y-[2px] text-[14.52px] hero-name font-display italic text-[var(--faint-2)] w-9 text-right ${map ? '' : 'invisible'}`}>{h.games}g</span>
                       </div>
                       );
                     })}

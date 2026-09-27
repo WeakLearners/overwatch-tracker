@@ -625,6 +625,16 @@
      resting hover and the chosen state then agree on colour instead of hovering
      accent-orange and settling into teal. Falls back to the accent when --sel
      is not set. */
+  /* Resting hero-picker card: the unlit .rank-pane border and bottom tint, in the role's hue
+     (--sel) instead of the tier's. Declared before .hover-sel so hover wins in
+     light; dark skips :hover for the same reason (its selector is heavier). */
+  .hero-pane {
+    border: 1px solid rgb(var(--sel) / 0.35);
+    background-image: linear-gradient(to top, rgb(var(--sel) / 0.12), rgb(var(--sel) / 0.05) 55%, transparent);
+  }
+  html.dark .hero-pane { background-image: linear-gradient(to top, rgb(var(--sel) / 0.14), rgb(var(--sel) / 0.05) 55%, transparent); }
+  html.dark .hero-pane:not(:hover) { border-color: rgb(var(--sel) / 0.15); }
+
   .hover-sel:hover {
     border-color: rgb(var(--sel, 247 147 30) / 0.7);
     background-color: rgb(var(--sel, 247 147 30) / 0.10);
