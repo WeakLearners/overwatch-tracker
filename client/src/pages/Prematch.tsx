@@ -1427,7 +1427,7 @@ export default function Prematch() {
                         // for the same reason: the row should read as "this
                         // role's pick", not as a generic accent highlight.
                         style={{ '--sel': ROLE_SEL_RGB[role] } as React.CSSProperties}
-                        className={`relative flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-lg border cursor-pointer active:scale-[0.98] transition-all group ${isTestHero ? 'test-glow' : ''} ${
+                        className={`relative isolate flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-lg border cursor-pointer active:scale-[0.98] transition-all group ${isTestHero ? 'test-glow' : ''} ${
                           isClicked
                             ? 'is-selected'
                             : 'border-ow-border bg-ow-darker hover-sel'
@@ -1463,82 +1463,56 @@ export default function Prematch() {
                             </span>
                           )}
                         </span>
-                        {!isDfHero && (testGaugeFor(h.hero) != null || chunkFor(h.hero)) ? (
-                          <span
-                            // Chunked gauges are a single continuous bar now
-                            // (2026-09-27) rather than segmented bars, so
-                            // they don't need the extra gap/offset the old
-                            // per-match bars did — both variants share the
-                            // same gap-0.5 flush layout.
-                            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center pointer-events-none gap-0.5"
-                            title={chunkFor(h.hero)
-                              ? `${chunkFor(h.hero)!.label} · ${Math.floor(chunkFor(h.hero)!.openMinutes)} minutes played`
-                              : `${testStageLeftFor(h.hero)?.left ?? 0} of ${testStageLeftFor(h.hero)?.total ?? 0} games left at this sens`}
-                            data-inspect-id="prematch-hero-picker-gauge"
-                          >
-                            {/* Which stage of the set (or, for a chunked ABBA
-                                set, which lettered/ordinal CHUNK — "A1".."B4",
-                                lib/blind.ts's chunkLabelFor) — the gauge's own
-                                left end cap (2026-09-27: no longer a separate
-                                outlined circle; same -skew-x parallelogram
-                                geometry and height as the bar, flush against
-                                it, gold-filled, so badge + bar read as one
-                                piece). Lives inside the gauge's own
-                                absolutely-positioned container so the pair
-                                stays together at any row width instead of
-                                drifting apart. */}
-                            {chunkFor(h.hero) ? (
+                        {!isDfHero && (testGaugeFor(h.hero) != null || chunkFor(h.hero)) ? (() => {
+                          // The whole card is the gauge (2026-09-27). A tinted
+                          // fill grows left -> right as the hero's open 60-min
+                          // block fills (legacy unchunked set: games played at
+                          // this sens). Same batteryColor ramp the old bar used,
+                          // with a solid bottom rule on the filled part, like
+                          // the lit edge of a selected tile.
+                          // The stage/chunk label ("A1".."B4", or the bare
+                          // stage number) is a watermark in the rank strip's
+                          // style (RecentMatchesCard tier bands): oversized
+                          // italic, centred on the card, .lit-text.lit-strong
+                          // in the gold tier hue at 22.5% opacity.
+                          // -z-10 + the button's `isolate` puts this layer above
+                          // the card's own fill but under its text.
+                          const c = chunkFor(h.hero);
+                          const r = testStageLeftFor(h.hero);
+                          const done = c ? Math.min(1, c.openMinutes / 60) : r && r.total > 0 ? 1 - r.left / r.total : 0;
+                          const color = batteryColor(1 - done);
+                          const label = c ? c.label : String(testStageFor(h.hero)?.cur ?? '');
+                          return (
+                            <span
+                              className="absolute inset-0 -z-10 rounded-lg overflow-hidden pointer-events-none"
+                              title={c
+                                ? `${c.label} · ${Math.floor(c.openMinutes)} minutes played`
+                                : `${r?.left ?? 0} of ${r?.total ?? 0} games left at this sens`}
+                              data-inspect-id="prematch-hero-picker-gauge"
+                            >
                               <span
-                                className="h-4 px-1 -skew-x-[20deg] shrink-0 flex items-center justify-center border is-selected mode-fill"
+                                className="absolute inset-y-0 left-0"
+                                // Depletion edge keeps the old bar's 20deg
+                                // slant (/). The extra 14px (tan 20deg x the
+                                // ~40px card) lets a full block reach the
+                                // right edge at the bottom corner too.
+                                style={{
+                                  width: `calc(${done * 100}% + ${done > 0 ? 14 : 0}px)`,
+                                  clipPath: 'polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%)',
+                                  backgroundColor: `color-mix(in oklab, ${color} 18%, transparent)`,
+                                  boxShadow: `inset 0 -2px 0 0 ${color}`,
+                                }}
+                              />
+                              <span
+                                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 num-display italic font-black uppercase leading-none tracking-[-0.07em] whitespace-nowrap opacity-[0.225] text-[64px]"
                                 style={{ '--sel': RANK_TIER_RGB.Gold } as React.CSSProperties}
-                                title={`Chunk ${chunkFor(h.hero)!.label} — ${Math.floor(chunkFor(h.hero)!.openMinutes)} minutes played`}
                                 data-inspect-id="prematch-hero-picker-stage-badge"
                               >
-                                <span className="text-[10px] font-bold leading-none tabular-nums lit-text">{chunkFor(h.hero)!.label}</span>
+                                <span className="lit-text lit-strong pr-[0.1em]">{label}</span>
                               </span>
-                            ) : testStageFor(h.hero) && (
-                              <span
-                                className="h-4 px-1 -skew-x-[20deg] shrink-0 flex items-center justify-center border is-selected mode-fill"
-                                style={{ '--sel': RANK_TIER_RGB.Gold } as React.CSSProperties}
-                                title={`Stage ${testStageFor(h.hero)!.cur} of ${testStageFor(h.hero)!.total}`}
-                                data-inspect-id="prematch-hero-picker-stage-badge"
-                              >
-                                <span className="text-[10px] font-bold leading-none tabular-nums lit-text">{testStageFor(h.hero)!.cur}</span>
-                              </span>
-                            )}
-                            {chunkFor(h.hero) ? (
-                              // A single continuous bar filling 0->60 min for
-                              // this hero's current OPEN block (2026-09-27 —
-                              // replaces the old chunk_size segmented-bar
-                              // countdown and its mid-chunk dashed tick).
-                              // Color still comes from batteryColor: as the
-                              // open block fills toward 60 min (closer to the
-                              // next switch), the fill slides toward gold,
-                              // the same "nearly empty" meaning the old
-                              // countdown gauge used.
-                              (() => {
-                                const openMin = chunkFor(h.hero)!.openMinutes;
-                                const pct = Math.max(0, Math.min(100, (openMin / 60) * 100));
-                                return (
-                                  <span className="relative w-16 h-4 -skew-x-[20deg] overflow-hidden border border-ow-border bg-gray-400/50">
-                                    <span
-                                      className="absolute inset-y-0 left-0"
-                                      style={{ width: `${pct}%`, backgroundColor: batteryColor(1 - openMin / 60) }}
-                                    />
-                                  </span>
-                                );
-                              })()
-                            ) : (
-                              Array.from({ length: GAUGE_SEGMENTS }).map((_, i) => (
-                                <span
-                                  key={i}
-                                  style={i < testGaugeFor(h.hero)! ? { backgroundColor: batteryColor(testGaugeFor(h.hero)! / GAUGE_SEGMENTS) } : undefined}
-                                  className={`w-1.5 h-3 -skew-x-[20deg] ${i < testGaugeFor(h.hero)! ? '' : 'bg-gray-400/50'}`}
-                                />
-                              ))
-                            )}
-                          </span>
-                        ) : !isDfHero && doneThisPhase.has(h.hero) && (
+                            </span>
+                          );
+                        })() : !isDfHero && doneThisPhase.has(h.hero) && (
                           // No active test right now, but this hero belongs to the
                           // current phase's roster and has already finished it —
                           // shown so Sean can see the whole phase at a glance,
