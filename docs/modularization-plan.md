@@ -137,6 +137,18 @@ Every step below is now two commits, not one:
   from `types`, the same ones `RankBadge`/`LobbyRangeSlider`/`Prematch`
   already call, not a second implementation); repeat fetches (n/a, pure
   function, no fetches).
+- Step 4 (Mode section), piece 3 of 3 — `RecentMatchesCard` (moved to
+  `components/dashboard/RecentMatchesCard.tsx`): (a) `35d4f8a` — verified
+  byte-identical to the pre-move body by diff. (b) optimization pass: no
+  changes. The stated concern for this piece was whether `memo` still
+  holds after the move — checked and confirmed: `trends`/`tilt` are
+  passed straight through at the Dashboard call site
+  (`<RecentMatchesCard trends={trends} tilt={tilt} />`), no inline
+  object or closure, so the shallow-equal prop check `memo` relies on
+  still bails out correctly. No child component inside it takes an
+  unstable prop either — the only one rendered, `AnimatedNumber`, gets a
+  plain number. Mode section (all 3 pieces) done — Dashboard.tsx is down
+  to 174 lines.
 
 ## Ordered slice sequence
 
