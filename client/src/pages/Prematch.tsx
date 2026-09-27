@@ -1488,19 +1488,21 @@ export default function Prematch() {
                               data-inspect-id="prematch-hero-picker-gauge"
                             >
                               <span
-                                className="absolute inset-y-0 left-0"
-                                // Depletion edge keeps the old bar's 20deg
-                                // slant (/). The extra 14px (tan 20deg x the
-                                // ~40px card) lets a full block reach the
-                                // right edge at the bottom corner too.
+                                // Lit from below like a selected tile, at the
+                                // Dashboard nav's stronger setting (.fill-strong):
+                                // bottom-lit tint, 3px edge, tall underglow.
+                                className="absolute inset-y-0 left-0 is-selected mode-fill fill-strong"
                                 style={{
+                                  '--sel': gaugeRgb,
                                   width: `calc(${done * 100}% + ${done > 0 ? 14 : 0}px)`,
+                                  // Depletion edge keeps the old bar's 20deg slant
+                                  // (/); +14px (tan 20deg x ~40px card) lets a full
+                                  // block reach the bottom-right corner.
                                   clipPath: 'polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%)',
-                                  backgroundColor: `rgb(${gaugeRgb} / 0.18)`,
                                   // A selected card's own lit bottom edge owns
-                                  // the bottom; a second rule there would fight it.
-                                  boxShadow: isClicked ? undefined : `inset 0 -2px 0 0 rgb(${gaugeRgb})`,
-                                }}
+                                  // the bottom; a second glow there would fight it.
+                                  ...(isClicked ? { boxShadow: 'none' } : {}),
+                                } as React.CSSProperties}
                               />
                               <span
                                 className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 num-display italic font-black uppercase leading-none tracking-[-0.07em] whitespace-nowrap opacity-[0.225] text-[64px]"
