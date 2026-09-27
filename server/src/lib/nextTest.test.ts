@@ -1,9 +1,9 @@
 // Pure-function tests for lib/nextTest.ts's computeNextTest — no DB. See
 // routes/blind.next.test.ts for the DB-integration layer (gathering
-// HeroTestProgress/StintInfo from real tables).
+// HeroTestProgress/BlockInfo from real tables).
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeNextTest, projectPhaseFinish, STINT_LENGTH, COLD_DAYS, type HeroTestProgress } from './nextTest';
+import { computeNextTest, projectPhaseFinish, COLD_DAYS, type HeroTestProgress } from './nextTest';
 
 function hero(overrides: Partial<HeroTestProgress> & { hero: string; role: string }): HeroTestProgress {
   return { credited: 0, target: 80, daysSinceLastPlayed: null, completed: false, ...overrides };
@@ -117,54 +117,47 @@ describe('computeNextTest — finished heroes', () => {
   });
 });
 
-describe('computeNextTest — stint', () => {
-  test('mid-stint (2 of 5) locks the role and does not recompute the ordered list', () => {
-    // Kiriko is not the global least-progressed pick, but the stint
+describe('computeNextTest — block', () => {
+  test('mid-block (34 of 60 min) locks the role and does not recompute the ordered list', () => {
+    // Kiriko is not the global least-progressed pick, but the open block
     // overrides the recompute entirely.
-    const r = computeNextTest(ROSTER, { hero: 'Kiriko', count: 2 });
-    assert.deepEqual(r.stint, { hero: 'Kiriko', role: 'Support', position: 2, length: STINT_LENGTH });
+    const r = computeNextTest(ROSTER, { hero: 'Kiriko', openMinutes: 34 });
+    assert.deepEqual(r.block, { hero: 'Kiriko', role: 'Support', openMinutes: 34 });
     assert.equal(r.recommendedRole, 'Support');
     assert.deepEqual(r.orderedHeroes, []);
   });
 
-  test('position 1 of a fresh stint still locks (an off-plan hero starts its own stint)', () => {
-    const r = computeNextTest(ROSTER, { hero: 'Shion', count: 1 });
-    assert.equal(r.stint?.position, 1);
-    assert.equal(r.stint?.hero, 'Shion');
+  test('a freshly started block (1 minute in) still locks (an off-plan hero starts its own block)', () => {
+    const r = computeNextTest(ROSTER, { hero: 'Shion', openMinutes: 1 });
+    assert.equal(r.block?.openMinutes, 1);
+    assert.equal(r.block?.hero, 'Shion');
   });
 
-  test('at the stint boundary (5 of 5), the card recomputes instead of staying', () => {
-    const r = computeNextTest(ROSTER, { hero: 'Kiriko', count: STINT_LENGTH });
-    assert.equal(r.stint, null);
+  test('at the block boundary (0 open minutes — it just closed), the card recomputes instead of staying', () => {
+    const r = computeNextTest(ROSTER, { hero: 'Kiriko', openMinutes: 0 });
+    assert.equal(r.block, null);
     assert.equal(r.recommendedRole, 'DPS'); // back to the true global pick (Tracer)
   });
 
-  test('a stint longer than 5 (Sean ignored the switch prompt) starts a fresh lap at position 1', () => {
-    // count = 6 -> position ((6-1) % 5) + 1 = 1: game 6 is the first game of
-    // this hero's SECOND lap, not a continuation of the first.
-    const r = computeNextTest(ROSTER, { hero: 'Kiriko', count: 6 });
-    assert.equal(r.stint?.position, 1);
-  });
-
-  test('a stint on a hero whose test has since completed falls through to a full recompute', () => {
+  test('a block on a hero whose test has since completed falls through to a full recompute', () => {
     const roster: HeroTestProgress[] = [
       hero({ hero: 'Kiriko', role: 'Support', credited: 80, completed: true }),
       hero({ hero: 'Tracer', role: 'DPS', credited: 5 }),
     ];
-    const r = computeNextTest(roster, { hero: 'Kiriko', count: 3 }); // would be mid-stint if still pending
-    assert.equal(r.stint, null);
+    const r = computeNextTest(roster, { hero: 'Kiriko', openMinutes: 25 }); // would be mid-block if still pending
+    assert.equal(r.block, null);
     assert.equal(r.recommendedRole, 'DPS');
   });
 
-  test('a stint on a hero not in the current roster falls through to a full recompute', () => {
-    const r = computeNextTest(ROSTER, { hero: 'Widowmaker', count: 2 });
-    assert.equal(r.stint, null);
+  test('a block on a hero not in the current roster falls through to a full recompute', () => {
+    const r = computeNextTest(ROSTER, { hero: 'Widowmaker', openMinutes: 12 });
+    assert.equal(r.block, null);
     assert.equal(r.recommendedRole, 'DPS');
   });
 
-  test('no stint at all (null) is a full recompute', () => {
+  test('no block at all (null) is a full recompute', () => {
     const r = computeNextTest(ROSTER, null);
-    assert.equal(r.stint, null);
+    assert.equal(r.block, null);
   });
 });
 

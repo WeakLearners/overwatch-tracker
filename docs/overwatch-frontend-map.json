@@ -554,12 +554,12 @@
           "id": "prematch-next-test-card",
           "label": "Next test recommender card",
           "kind": "card",
-          "description": "Sens-study round-robin recommender (GET /api/blind/next, server/src/lib/nextTest.ts). Gated on the sens-study field-registry category (useFieldConfig().isCategoryEnabled). Sits top-right of the advisor card header, opposite \"Your Best Heroes\" (moved 2026-09-23): which role to queue and which hero in it is least-progressed this phase. Branches on isQuickplay (prematch-next-test-qp), allFinished (prematch-next-test-finished), an active mid-stint lock (prematch-next-test-stint), or the full ordered recommendation (prematch-next-test-list).",
+          "description": "Sens-study round-robin recommender (GET /api/blind/next, server/src/lib/nextTest.ts). Gated on the sens-study field-registry category (useFieldConfig().isCategoryEnabled). Sits top-right of the advisor card header, opposite \"Your Best Heroes\" (moved 2026-09-23): which role to queue and which hero in it is least-progressed this phase. Branches on isQuickplay (prematch-next-test-qp), allFinished (prematch-next-test-finished), an active mid-block lock (prematch-next-test-block), or the full ordered recommendation (prematch-next-test-list).",
           "calls": [
             "GET /api/blind/next?queue_mode=..."
           ],
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1155",
+            "path": "client/src/pages/Prematch.tsx:1158",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-next-test-card\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -569,7 +569,7 @@
           "kind": "text",
           "description": "Shown when queueMode is Quickplay: 'Quickplay doesn't count toward testing \u2014 queue Competitive'. No role/hero list \u2014 Quickplay earns zero test credit for any role (be23788, lib/blind.ts's isStudyQueueMode), so there is nothing to recommend.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1158",
+            "path": "client/src/pages/Prematch.tsx:1161",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-next-test-qp\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -579,27 +579,27 @@
           "kind": "text",
           "description": "Shown when every hero in the current phase has completed its set (nextTest.allFinished). Nudges toward creating the next phase on the Sens page \u2014 never auto-creates one or picks sens values itself.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1162",
+            "path": "client/src/pages/Prematch.tsx:1165",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-next-test-finished\"' client/src/pages/Prematch.tsx"
           }
         },
         {
-          "id": "prematch-next-test-stint",
-          "label": "Next test \u2014 mid-stint lock line",
+          "id": "prematch-next-test-block",
+          "label": "Next test \u2014 mid-block lock line",
           "kind": "text",
-          "description": "'Stay on <hero> \u2014 N of 5 this stint \u00b7 queue <role>'. Shown while nextTest.stint is set, i.e. Sean is 1-4 games into a 5-game stint (STINT_LENGTH, lib/nextTest.ts) on one hero \u2014 the card deliberately does NOT recompute the round-robin pick until the stint boundary. 'this stint' is explicit in the copy so it can't be misread as the stage-of-set badge (prematch-hero-picker-stage-badge) a few lines below, which is also an 'N of M' count but over a different unit (test stages, not this recommender's 5-game stint).",
+          "description": "'Stay on <hero> \u2014 N/60 min this block \u00b7 queue <role>'. Converted 2026-09-27 from a fixed 5-game \"stint\" to a 60-minute \"block\" (BLOCK_MINUTES, lib/blind.ts) \u2014 minutes are that hero's own aim_stats_heroes.duration_min per credited match, not whole-match length. Shown while nextTest.block is set, i.e. Sean has an open (unclosed, >0 minute) block on one hero \u2014 the card deliberately does NOT recompute the round-robin pick until the block closes. Unlike the old stint, an interruption (playing another hero and coming back) does not reset this \u2014 the block is derived from that hero's own whole credited history, not a run of consecutive matches.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1166",
-            "grep": "grep -n -F -- 'data-inspect-id=\"prematch-next-test-stint\"' client/src/pages/Prematch.tsx"
+            "path": "client/src/pages/Prematch.tsx:1169",
+            "grep": "grep -n -F -- 'data-inspect-id=\"prematch-next-test-block\"' client/src/pages/Prematch.tsx"
           }
         },
         {
           "id": "prematch-next-test-list",
           "label": "Next test \u2014 ordered role/hero recommendation",
           "kind": "list",
-          "description": "Full recompute state (no active stint, or one that just hit its boundary): 'Queue <role> \u2192 hero, hero, ...' plus a per-hero progress row (prematch-next-test-hero-row) for every pending hero in that role, ordered least-progressed first (ties broken by longest since last played), with a cold hero (7+ days unplayed, COLD_DAYS in lib/nextTest.ts) bumped to the top of its own role's list only.",
+          "description": "Full recompute state (no active open block, or one that just closed \u2014 the payload doesn't currently distinguish \"just closed\" from \"nothing played yet this phase,\" so the copy stays neutral rather than claiming a block just finished): 'Queue <role> \u2192 hero, hero, ...' plus a per-hero progress row (prematch-next-test-hero-row) for every pending hero in that role, ordered least-progressed first (ties broken by longest since last played), with a cold hero (7+ days unplayed, COLD_DAYS in lib/nextTest.ts) bumped to the top of its own role's list only. credited/target are closed blocks for a chunked (ABBA) set, plain games for a legacy one \u2014 see prematch-next-test-hero-row.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1171",
+            "path": "client/src/pages/Prematch.tsx:1174",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-next-test-list\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -607,9 +607,9 @@
           "id": "prematch-next-test-hero-row",
           "label": "Next test \u2014 per-hero progress row",
           "kind": "list-item",
-          "description": "One row per pending hero in the recommended role: hero name, credited/target (both test stages summed), and a 'cold' badge when unplayed 7+ days. Function is called once per hero in nextTest.orderedHeroes, so the id is intentionally shared across rows (see the map's own duplicate-id rule) \u2014 each row's content is what distinguishes it, not a unique DOM id.",
+          "description": "One row per pending hero in the recommended role: hero name, credited/target, and a 'cold' badge when unplayed 7+ days. credited/target are in closed BLOCKS (both stages summed) for a chunked (ABBA) set as of 2026-09-27 \u2014 STAGE_BLOCKS(8) x n_stages is the target \u2014 or plain games for a legacy/unchunked set, batch_size x n_stages. Function is called once per hero in nextTest.orderedHeroes, so the id is intentionally shared across rows (see the map's own duplicate-id rule) \u2014 each row's content is what distinguishes it, not a unique DOM id.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1177",
+            "path": "client/src/pages/Prematch.tsx:1186",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-next-test-hero-row\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -619,7 +619,7 @@
           "kind": "text",
           "description": "Small footer line listing heroes that already finished this phase's test (nextTest.finishedHeroes), shown alongside the active recommendation so Sean can see the whole phase roster's state at a glance, not just whoever's next.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1191",
+            "path": "client/src/pages/Prematch.tsx:1200",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-next-test-done-heroes\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -657,9 +657,9 @@
           "id": "prematch-hero-picker-gauge",
           "label": "Hero picker remaining-tests gauge",
           "kind": "meter",
-          "description": "Parallelogram gauge (battery-meter style) centered horizontally inside each hero picker row. For an UNCHUNKED/legacy set: 5 bars, green = games remaining in the current DPI/sens stage, grey (50% opacity) = already logged, quantized from batch_size/games_on_stage onto the 5-bar scale. For a CHUNKED (ABBA) set: one narrower bar per match in the CURRENT chunk (chunk_size bars, 10 for every live set), green = matches left in that chunk (GET /api/blind/state's chunk.left), with a subtle static tick (left border) on the bar past the midpoint. Changed 2026-09-23 from 5 bars at 2 matches each with a half bar. prematch-hero-picker-stage-badge sits immediately left of it either way; a hover title carries the chunk label and matches left. Lit bars share one battery colour set by the fraction left (batteryColor: color-mix along the card-title gradient, cyan full \u2192 gold near empty; --gauge-full/--gauge-empty in index.css, per theme), added 2026-09-23. Only shown for a hero with an active test.",
+          "description": "Parallelogram gauge (battery-meter style) centered horizontally inside each hero picker row. For an UNCHUNKED/legacy set: 5 bars, green = games remaining in the current DPI/sens stage, grey (50% opacity) = already logged, quantized from batch_size/games_on_stage onto the 5-bar scale (GAUGE_SEGMENTS, unchanged since 2026-09-23). For a CHUNKED (ABBA) set: ONE continuous bar (2026-09-27, replacing the old chunk_size segmented bars and their mid-chunk dashed tick) filling left-to-right 0\u219260 minutes of this hero's current OPEN block (GET /api/blind/state's chunk.openMinutes, lib/blind.ts's deriveBlockState) \u2014 not a game count, since a block's game count varies with match length. prematch-hero-picker-stage-badge sits flush left of it either way, same height/skew, no gap. Fill colour still comes from batteryColor (color-mix along the card-title gradient, cyan full \u2192 gold near empty; --gauge-full/--gauge-empty in index.css, per theme), applied to the filled fraction as (1 - openMinutes/60) so a block nearing its 60-minute close reads the same \"nearly empty/about to switch\" gold the old countdown gauge used. Only shown for a hero with an active test.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1463",
+            "path": "client/src/pages/Prematch.tsx:1466",
             "grep": "grep -n -F -- 'prematch-hero-picker-gauge' client/src/pages/Prematch.tsx"
           }
         },
@@ -667,9 +667,9 @@
           "id": "prematch-hero-picker-stage-badge",
           "label": "Hero picker stage/chunk indicator",
           "kind": "badge",
-          "description": "Encircled indicator immediately left of the remaining-matches gauge. For an UNCHUNKED/legacy set: the bare stage number (hover shows \"Stage X of Y\"), reading cur_stage/n_stages off GET /api/blind/state \u2014 unchanged since before 2026-09-23. For a CHUNKED (ABBA) set: the \"A1\".\"B4\" chunk label instead (lib/blind.ts's chunkLabelFor, GET /api/blind/state's chunk.label) \u2014 a bare stage number no longer says which of up to four A-chunks or four B-chunks Sean is actually on. Two mutually-exclusive JSX branches share this one id (same convention as every other per-row badge in this map \u2014 see prematch-hero-picker-order-badge). Outlined rather than filled so it does not read as a second prematch-hero-picker-order-badge, which is solid and marks click position at the row's top-left corner. Rendered inside the gauge's own absolutely-positioned container so the badge and the bars travel together at any row width. Only shown for a hero with an active test.",
+          "description": "Indicator immediately left of the remaining-matches gauge, flush against it as of 2026-09-27 (no more circle outline \u2014 same -skew-x parallelogram geometry and height as the bar it sits beside, gold-filled, so badge + bar read as one piece). For an UNCHUNKED/legacy set: the bare stage number (hover shows \"Stage X of Y\"), reading cur_stage/n_stages off GET /api/blind/state \u2014 unchanged since before 2026-09-23. For a CHUNKED (ABBA) set: the \"A1\".\"B4\" chunk label instead (lib/blind.ts's chunkLabelFor, GET /api/blind/state's chunk.label) \u2014 a bare stage number no longer says which of up to four A-chunks or four B-chunks Sean is actually on. Two mutually-exclusive JSX branches share this one id (same convention as every other per-row badge in this map \u2014 see prematch-hero-picker-order-badge). Distinguished from prematch-hero-picker-order-badge (solid, marks click position at the row's top-left corner) by position and shape, not by an outline any more. Rendered inside the gauge's own absolutely-positioned container so the badge and the bar travel together at any row width. Only shown for a hero with an active test.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1480",
+            "path": "client/src/pages/Prematch.tsx:1486",
             "grep": "grep -n -F -- 'prematch-hero-picker-stage-badge' client/src/pages/Prematch.tsx"
           },
           "expectedMatches": 2
@@ -2286,9 +2286,9 @@
           "id": "sl-active-test-card",
           "label": "Active DPI/sens stage card",
           "kind": "card",
-          "description": "Shows the current stage number and target \u2014 an in-game sens for sens-varying sets (\"set your in-game sens to\"), or a mouse DPI for the legacy DPI-varying path (\"set your mouse to\", pre-lock stages only) \u2014 plus games remaining in the current batch. When the active stage's phase has Mouse Acceleration on, an extra subline notes it and points at the Jump-curve params card. One card renders per active set; the panel lays them out in two columns, DPS on the left and Support on the right (hero-less ad-hoc sets default to the DPS column).",
+          "description": "Shows the current stage number and target \u2014 an in-game sens for sens-varying sets (\"set your in-game sens to\"), or a mouse DPI for the legacy DPI-varying path (\"set your mouse to\", pre-lock stages only) \u2014 plus remaining progress in the current stage: games left (batch_size - games_on_stage) for a legacy/unchunked set, or closed blocks left (stageBlocksTarget - stageBlocks, 2026-09-27) for a chunked (ABBA) set, since a chunked stage's game count varies with match length. When the active stage's phase has Mouse Acceleration on, an extra subline notes it and points at the Jump-curve params card. One card renders per active set; the panel lays them out in two columns, DPS on the left and Support on the right (hero-less ad-hoc sets default to the DPS column).",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1514",
+            "path": "client/src/pages/SensLog.tsx:1519",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-active-test-card\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2298,7 +2298,7 @@
           "kind": "text",
           "description": "Amber 'switch stages' banner shown when needSwitch is true. Text differs by set type: 'Batch complete' for a legacy contiguous set (pairs with the Get next stage button below it), 'Chunk complete' for an ABBA-chunked set (2026-09-23 \u2014 pairs with the auto-switch note instead, no button).",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1537",
+            "path": "client/src/pages/SensLog.tsx:1542",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-switch-banner\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2308,7 +2308,7 @@
           "kind": "button",
           "description": "Advances the active DPI test set to its next stage once the current batch's game quota is met, via POST /api/blind/advance. Legacy contiguous sets only (2026-09-23) \u2014 a chunked set alternates automatically and this button doesn't render for one (POST /advance now refuses chunked sets server-side).",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1549",
+            "path": "client/src/pages/SensLog.tsx:1554",
             "grep": "grep -n -F -- 'Get next stage \u2192' client/src/pages/SensLog.tsx"
           }
         },
@@ -2318,17 +2318,17 @@
           "kind": "text",
           "description": "Shown instead of the advance button on a chunked set when needSwitch is true \u2014 tells Sean there's no button, just change the physical setting and log the next match; it auto-credits to the new stage via lib/blind.ts's abbaStageFor. Added 2026-09-23.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1545",
+            "path": "client/src/pages/SensLog.tsx:1550",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-chunk-autoswitch-note\"' client/src/pages/SensLog.tsx"
           }
         },
         {
           "id": "sl-chunk-progress",
-          "label": "Chunk progress line",
+          "label": "Chunk/block progress line",
           "kind": "stat-tile",
-          "description": "'chunk N of M \u00b7 x/chunk_size' \u2014 position within the current 10-game (or whatever chunk_size is) alternation block, alongside the existing games-left-in-batch number. Only rendered for a chunked set. Added 2026-09-23 alongside ABBA alternation.",
+          "description": "'chunk <A1..B4> \u00b7 N/60 min this block' \u2014 the current chunk's letter/ordinal label plus minutes into the hero's open (unclosed) 60-minute block (GET /api/blind/state's chunk.label/chunk.openMinutes, lib/blind.ts's BLOCK_MINUTES/deriveBlockState). Converted 2026-09-27 from a game-count position ('x/chunk_size') to minutes, since a block's game count varies with match length. Sits alongside a blocks-left-in-stage figure (stageBlocksTarget - stageBlocks, replacing the old games-left-in-batch number for a chunked set specifically \u2014 a legacy/unchunked set still shows that games-based figure, untouched). Only rendered for a chunked set.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1557",
+            "path": "client/src/pages/SensLog.tsx:1565",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-chunk-progress\"' client/src/pages/SensLog.tsx"
           }
         },

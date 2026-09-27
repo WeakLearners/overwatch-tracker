@@ -7,7 +7,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   stagesFromSens, generateStages, stagesFromDpis, LOCKED_DPI, abbaStageFor,
-  chunkLabelFor, leftInCurrentChunk,
+  chunkLabelFor, leftInCurrentChunk, deriveBlockState, BLOCK_MINUTES, CHUNK_BLOCKS, STAGE_BLOCKS,
 } from './blind';
 
 describe('stagesFromSens', () => {
@@ -155,5 +155,69 @@ describe('leftInCurrentChunk', () => {
     assert.equal(leftInCurrentChunk(3, 10), 7);
     assert.equal(leftInCurrentChunk(9, 10), 1);
     assert.equal(leftInCurrentChunk(10, 10), 10); // fresh chunk, full again
+  });
+});
+
+describe('deriveBlockState (2026-09-27 block model)', () => {
+  test('an exact 60-minute run closes one block with nothing left open', () => {
+    const s = deriveBlockState([20, 20, 20]);
+    assert.equal(s.closedBlocks, 1);
+    assert.equal(s.openMinutes, 0);
+    assert.equal(s.openMatchCount, 0);
+  });
+
+  test('overflow above BLOCK_MINUTES is dropped, not carried into the next block', () => {
+    // 55 + 15 = 70: closes at the second match, discarding the 10-minute
+    // overflow rather than seeding the next block with it.
+    const s = deriveBlockState([55, 15]);
+    assert.equal(s.closedBlocks, 1);
+    assert.equal(s.openMinutes, 0);
+  });
+
+  test('a partial run under BLOCK_MINUTES stays open', () => {
+    const s = deriveBlockState([20, 14]);
+    assert.equal(s.closedBlocks, 0);
+    assert.equal(s.openMinutes, 34);
+    assert.equal(s.openMatchCount, 2);
+  });
+
+  test('a missing duration_min (NULL/undefined) counts as 0 minutes, not a skip', () => {
+    const s = deriveBlockState([30, null, undefined, 30]);
+    assert.equal(s.closedBlocks, 1);
+    assert.equal(s.openMinutes, 0);
+    assert.equal(s.openMatchCount, 0);
+  });
+
+  test('multiple blocks close in sequence, each with its own overflow dropped', () => {
+    const s = deriveBlockState([60, 60, 10]);
+    assert.equal(s.closedBlocks, 2);
+    assert.equal(s.openMinutes, 10);
+    assert.equal(s.openMatchCount, 1);
+  });
+
+  test('an empty history has nothing closed and nothing open', () => {
+    const s = deriveBlockState([]);
+    assert.equal(s.closedBlocks, 0);
+    assert.equal(s.openMinutes, 0);
+  });
+
+  test('BLOCK_MINUTES/CHUNK_BLOCKS/STAGE_BLOCKS are the frozen production values (2026-09-27)', () => {
+    // chunk = 2 blocks, stage = 8 blocks/4 chunks per physical stage —
+    // mirrors the old 5-game stint / 40-game batch_size ratios exactly.
+    assert.equal(BLOCK_MINUTES, 60);
+    assert.equal(CHUNK_BLOCKS, 2);
+    assert.equal(STAGE_BLOCKS, 8);
+  });
+
+  test('feeding closed-block counts into abbaStageFor/chunkLabelFor at CHUNK_BLOCKS reproduces the same ABBA pattern as the old 10-game chunk scale', () => {
+    // Direct rescale check: abbaStageFor(n, 10) at the old game scale and
+    // abbaStageFor(n/5, 2) at the new block scale must agree at every
+    // sampled game count, since 5 games = 1 block under the fixture
+    // convention this task's tests use elsewhere (12 min/game).
+    for (let games = 0; games < 80; games += 5) {
+      const blocks = games / 5;
+      assert.equal(abbaStageFor(blocks, CHUNK_BLOCKS), abbaStageFor(games, 10));
+      assert.equal(chunkLabelFor(blocks, CHUNK_BLOCKS), chunkLabelFor(games, 10));
+    }
   });
 });

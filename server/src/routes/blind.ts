@@ -2,10 +2,10 @@ import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
 import {
   generateStages, stagesFromDpis, stagesFromSens, LOCKED_DPI, abbaStageFor, isStudyQueueMode, NOT_QP_SQL,
-  chunkLabelFor, leftInCurrentChunk,
+  chunkLabelFor, deriveBlockState, CHUNK_BLOCKS, STAGE_BLOCKS, type BlockState,
 } from '../lib/blind';
 import { cm360, eDPI } from '../lib/aim';
-import { computeNextTest, projectPhaseFinish, type HeroTestProgress, type StintInfo } from '../lib/nextTest';
+import { computeNextTest, projectPhaseFinish, type HeroTestProgress, type BlockInfo } from '../lib/nextTest';
 import { HEROES_BY_ROLE } from './advisor';
 import { isDfHero } from '../lib/df';
 
@@ -49,6 +49,37 @@ export const gamesOnStageOf = (db: ReturnType<typeof getDb>, setId: number, stag
   (db.prepare('SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id AND stage_index = :si')
     .get({ id: setId, si: stageIndex }) as { n: number }).n;
 
+// ── Block state (added 2026-09-27) ──────────────────────────────────────────
+// Ordered-by-time minutes for every credited match of one set — the hero's
+// own aim_stats_heroes.duration_min per credited match, NULL treated as 0
+// (lib/blind.ts's deriveBlockState already does this; a missing reading is
+// 2 of 1,181 historical rows). Optionally restricted to one physical
+// stage_index. Feeds deriveBlockState for both the whole-set schedule clock
+// (stageIndex omitted — the single continuous per-hero clock the ABBA
+// schedule and the cross-hero "stay on X" reminder both read from) and one
+// physical stage's own progress toward STAGE_BLOCKS (stageIndex given).
+// Valid per-stage because a chunk (2 blocks) never straddles a stage switch
+// — Sean's physical setting only changes at a chunk boundary, so every
+// credited match sharing a stage_index is an unbroken run of that stage's
+// own blocks, with no interleaving from the other stage.
+function creditedDurationsFor(db: ReturnType<typeof getDb>, setId: number, stageIndex?: number): (number | null)[] {
+  const rows = db.prepare(`
+    SELECT ah.duration_min AS duration_min
+    FROM blind_credits bc
+    JOIN matches m ON m.id = bc.match_id
+    LEFT JOIN aim_stats_heroes ah ON ah.match_id = bc.match_id AND ah.hero = bc.hero
+    WHERE bc.blind_set_id = :sid ${stageIndex != null ? 'AND bc.stage_index = :si' : ''}
+    ORDER BY m.created_at ASC, m.id ASC
+  `).all(stageIndex != null ? { sid: setId, si: stageIndex } : { sid: setId }) as { duration_min: number | null }[];
+  return rows.map(r => r.duration_min);
+}
+
+export const blockStateOf = (db: ReturnType<typeof getDb>, setId: number): BlockState =>
+  deriveBlockState(creditedDurationsFor(db, setId));
+
+export const blockStateOfStage = (db: ReturnType<typeof getDb>, setId: number, stageIndex: number): BlockState =>
+  deriveBlockState(creditedDurationsFor(db, setId, stageIndex));
+
 // ── Live stage resolution (legacy cur_rel, or ABBA-derived) ─────────────────
 // The physical stage_index that the NEXT credited game for this set will
 // land on — the single thing every caller that used to read `cur_rel`
@@ -62,24 +93,33 @@ export const gamesOnStageOf = (db: ReturnType<typeof getDb>, setId: number, stag
 //
 // Chunked 2-stage sets have no manual advance at all — cur_rel is never
 // written for them and stays at its insert-time value of 1, unused. The
-// current stage is derived live from totalGamesOf, the same "derive from
+// current stage is derived live from the whole set's closed-block count
+// (blockStateOf), the block-model equivalent of the same "derive from
 // blind_credits, never trust a hand-maintained counter" rule this file
-// already applies to gamesOnStageOf/totalGamesOf above.
+// already applies to gamesOnStageOf/totalGamesOf above. chunk_size on the
+// row is still just the ABBA-enabled flag (its stored value is a leftover
+// game count from before 2026-09-27 and is no longer read as a unit size —
+// the fixed CHUNK_BLOCKS constant is the real chunk size now).
 export type StageResolvableSet = Pick<SetRow, 'id' | 'chunk_size' | 'cur_rel' | 'batch_size'>;
 
 export function liveStageIndex(db: ReturnType<typeof getDb>, set: StageResolvableSet, nStages: number): number {
   if (set.chunk_size == null || nStages !== 2) return set.cur_rel;
-  return abbaStageFor(totalGamesOf(db, set.id), set.chunk_size);
+  return abbaStageFor(blockStateOf(db, set.id).closedBlocks, CHUNK_BLOCKS);
 }
 
 // Whether Sean needs to switch his physical setting before the NEXT game.
 // For a chunked set this compares the stage the next game would land on
-// against the stage the last-credited game landed on — not just "did we
-// cross a multiple of chunk_size," because two consecutive chunks can
-// legitimately share a stage (A,B,B,A's 3rd and 4th chunks, both A, run
-// back to back with no switch between them) and that must not fire a
-// false prompt. For a legacy set this is the original rule, unchanged:
-// the current stage's own running total has reached the full batch_size.
+// against the stage the last-credited game landed on, in closed-block
+// terms — not just "did the block count cross a multiple of CHUNK_BLOCKS,"
+// because two consecutive chunks can legitimately share a stage (A,B,B,A's
+// 3rd and 4th chunks, both A, run back to back with no switch between them)
+// and that must not fire a false prompt. Recomputing the block state with
+// and without the most recent credited match (rather than a simple minus-
+// one) is deliberate: removing one match can close zero or one blocks
+// depending on whether that match itself is what pushed the block over 60
+// minutes, so it isn't a fixed decrement the way removing one GAME used to
+// be. For a legacy set this is the original rule, unchanged: the current
+// stage's own running total has reached the full batch_size.
 export function needsSwitchNow(
   db: ReturnType<typeof getDb>, set: StageResolvableSet, nStages: number, completed: boolean,
 ): boolean {
@@ -87,9 +127,11 @@ export function needsSwitchNow(
   if (set.chunk_size == null || nStages !== 2) {
     return gamesOnStageOf(db, set.id, set.cur_rel) >= set.batch_size;
   }
-  const total = totalGamesOf(db, set.id);
-  if (total === 0) return false;
-  return abbaStageFor(total, set.chunk_size) !== abbaStageFor(total - 1, set.chunk_size);
+  const durations = creditedDurationsFor(db, set.id);
+  if (durations.length === 0) return false;
+  const after = deriveBlockState(durations).closedBlocks;
+  const before = deriveBlockState(durations.slice(0, -1)).closedBlocks;
+  return abbaStageFor(after, CHUNK_BLOCKS) !== abbaStageFor(before, CHUNK_BLOCKS);
 }
 
 // ── Completion, per stage ────────────────────────────────────────────────────
@@ -106,13 +148,16 @@ export function needsSwitchNow(
 // legacy_closed short-circuits this for the sets retired before the rule
 // changed — see the column's note in schema.ts.
 export function isSetComplete(db: ReturnType<typeof getDb>, setId: number): boolean {
-  const set = db.prepare('SELECT batch_size, legacy_closed FROM blind_stage_sets WHERE id = :id')
-    .get({ id: setId }) as { batch_size: number; legacy_closed: number } | undefined;
+  const set = db.prepare('SELECT batch_size, legacy_closed, chunk_size FROM blind_stage_sets WHERE id = :id')
+    .get({ id: setId }) as { batch_size: number; legacy_closed: number; chunk_size: number | null } | undefined;
   if (!set) return false;
   if (set.legacy_closed) return true;
   const stages = stagesOf(db, setId);
   if (!stages.length) return false;
-  return stages.every(s => s.abandoned || gamesOnStageOf(db, setId, s.stage_index) >= set.batch_size);
+  const chunked = set.chunk_size != null && stages.length === 2;
+  return stages.every(s => s.abandoned || (chunked
+    ? blockStateOfStage(db, setId, s.stage_index).closedBlocks >= STAGE_BLOCKS
+    : gamesOnStageOf(db, setId, s.stage_index) >= set.batch_size));
 }
 
 // Recompute a set's active flag from its credits. Two-way on purpose:
@@ -345,28 +390,28 @@ router.get('/state', (_req: Request, res: Response) => {
     const gamesOnStage = gamesOnStageOf(db, set.id, curRel);
 
     // Chunk-local display, only meaningful when this set is actually
-    // chunked. gamesOnStage always counts in complete chunk_size blocks in
-    // order for a chunked set (chunk_size divides batch_size evenly), so
-    // "which chunk, how far into it" is a plain division — no need to
-    // track a separate running chunk index anywhere.
-    //
-    // label/left (added 2026-09-23) replace the plain
-    // stage-number badge and stage-wide gauge on the Select Your Hero HUD
-    // for a chunked set: `label` is the "A1".."B4" chunk badge
-    // (chunkLabelFor — built from the same abbaStageFor the switch-prompt
-    // logic already uses, not a parallel counter), and `left` counts down
-    // the CURRENT chunk rather than the whole 40-match stage. The client
-    // draws one gauge bar per match, chunk_size bars in all.
-    const chunkLeft = set.chunk_size != null ? leftInCurrentChunk(totalGames, set.chunk_size) : 0;
+    // chunked (2026-09-23, converted from games to 60-minute blocks
+    // 2026-09-27 — see lib/blind.ts's block-model comment). `label` is the
+    // "A1".."B4" chunk badge (chunkLabelFor, built from the same
+    // abbaStageFor the switch-prompt logic already uses, in closed-block
+    // units). `openMinutes` is the hero's current OPEN block's minutes
+    // (0..<60) — what the continuous gauge fills, replacing the old
+    // chunk_size segmented-bar countdown. `stageBlocks`/`stageBlocksTarget`
+    // give the current physical stage's own progress (closed blocks toward
+    // STAGE_BLOCKS), replacing the games-based "left in this batch" figure
+    // for a chunked set (a legacy/unchunked set keeps that games-based
+    // figure from batch_size/games_on_stage above, unaffected).
     const chunkInfo = (set.chunk_size != null && n_stages === 2)
-      ? {
-          chunk_size: set.chunk_size,
-          n_chunks_per_stage: Math.ceil(set.batch_size / set.chunk_size),
-          chunk_number: gamesOnStage > 0 ? Math.ceil(gamesOnStage / set.chunk_size) : 1,
-          chunk_position: gamesOnStage > 0 ? ((gamesOnStage - 1) % set.chunk_size) + 1 : 0,
-          label: chunkLabelFor(totalGames, set.chunk_size),
-          left: chunkLeft,
-        }
+      ? (() => {
+          const whole = blockStateOf(db, set.id);
+          const stageBlocks = blockStateOfStage(db, set.id, curRel).closedBlocks;
+          return {
+            label: chunkLabelFor(whole.closedBlocks, CHUNK_BLOCKS),
+            openMinutes: whole.openMinutes,
+            stageBlocks,
+            stageBlocksTarget: STAGE_BLOCKS,
+          };
+        })()
       : null;
 
     return {
@@ -541,7 +586,7 @@ router.get('/sets/:id', (req: Request, res: Response) => {
 
 // ── Next-test recommender ────────────────────────────────────────────────────
 // GET /api/blind/next?queue_mode=... — see lib/nextTest.ts for the actual
-// decision logic (round-robin pick, stint math, cold guard). Everything
+// decision logic (round-robin pick, block math, cold guard). Everything
 // below is just gathering that function's plain-data inputs from the DB;
 // nothing here is stored or computed ahead of time — it's all derived fresh
 // on every call, same as /state above.
@@ -567,6 +612,12 @@ function currentPhaseKey(db: ReturnType<typeof getDb>): string | null {
   return null;
 }
 
+// credited/target were plain game counts before 2026-09-27; a chunked
+// (ABBA) set now reports both in closed blocks (STAGE_BLOCKS * n_stages is
+// the block-model equivalent of the old batch_size * n_stages), while a
+// legacy/unchunked set keeps reporting games — computeNextTest's ranking
+// logic doesn't care about the unit, only that credited/target are
+// consistent for a given hero.
 function heroProgressForPhase(db: ReturnType<typeof getDb>, phase: string): HeroTestProgress[] {
   const rows = db.prepare('SELECT id, hero FROM blind_stage_sets WHERE phase = :phase AND hero IS NOT NULL')
     .all({ phase }) as { id: number; hero: string }[];
@@ -574,8 +625,11 @@ function heroProgressForPhase(db: ReturnType<typeof getDb>, phase: string): Hero
   return rows.map(row => {
     const role = roleOfHero(row.hero) ?? 'DPS';
     const nStages = stagesOf(db, row.id).length;
-    const credited = totalGamesOf(db, row.id);
-    const batch = (db.prepare('SELECT batch_size FROM blind_stage_sets WHERE id = :id').get({ id: row.id }) as { batch_size: number }).batch_size;
+    const setRow = db.prepare('SELECT batch_size, chunk_size FROM blind_stage_sets WHERE id = :id')
+      .get({ id: row.id }) as { batch_size: number; chunk_size: number | null };
+    const chunked = setRow.chunk_size != null && nStages === 2;
+    const credited = chunked ? blockStateOf(db, row.id).closedBlocks : totalGamesOf(db, row.id);
+    const target = chunked ? STAGE_BLOCKS * nStages : setRow.batch_size * nStages;
     const last = db.prepare(`
       SELECT MAX(m.created_at) last FROM blind_credits bc JOIN matches m ON m.id = bc.match_id
       WHERE bc.blind_set_id = :id
@@ -587,35 +641,30 @@ function heroProgressForPhase(db: ReturnType<typeof getDb>, phase: string): Hero
       ? Math.floor((now - new Date(last.last + 'Z').getTime()) / 86_400_000)
       : null;
     return {
-      hero: row.hero, role, credited, target: batch * nStages,
+      hero: row.hero, role, credited, target,
       daysSinceLastPlayed, completed: isSetComplete(db, row.id),
     };
   });
 }
 
-// The stint: how many of the most recent test-credited matches, in a row,
-// share the same PRIMARY hero (matches.hero — the hero Sean queued as, not
-// a mid-match switch). Reads straight off the match log, no stored state —
-// per the brief, a non-test match (no blind_credits row for its primary
-// hero) neither breaks nor advances this count, so it's simplest to just
-// never fetch them: the query below already filters to test-credited rows
-// only, so consecutive ROWS here are already consecutive TEST matches, with
-// any ordinary/QP matches in between invisibly skipped.
-function currentStint(db: ReturnType<typeof getDb>): StintInfo | null {
-  const rows = db.prepare(`
-    SELECT m.hero FROM matches m
+// The current block: the most recently test-credited match's PRIMARY hero
+// (matches.hero — the hero Sean queued as, not a mid-match switch), plus
+// that hero's own currently open block (lib/blind.ts's deriveBlockState,
+// same whole-set clock liveStageIndex reads). Unlike the old game-counted
+// "stint" this replaced, this does NOT require the recent matches to be
+// consecutive on that hero — the block state is derived from the WHOLE of
+// that hero's own set, so an interruption (playing something else and
+// coming back) doesn't reset it; see the frozen spec's item 3 and
+// nextTest.ts's BlockInfo doc.
+function currentBlock(db: ReturnType<typeof getDb>): BlockInfo | null {
+  const row = db.prepare(`
+    SELECT m.hero, bc.blind_set_id FROM matches m
     JOIN blind_credits bc ON bc.match_id = m.id AND bc.hero = m.hero
     ORDER BY m.created_at DESC, m.id DESC
-    LIMIT 200
-  `).all() as { hero: string }[];
-  if (rows.length === 0) return null;
-  const hero = rows[0].hero;
-  let count = 0;
-  for (const r of rows) {
-    if (r.hero !== hero) break;
-    count++;
-  }
-  return { hero, count };
+    LIMIT 1
+  `).get() as { hero: string; blind_set_id: number } | undefined;
+  if (!row) return null;
+  return { hero: row.hero, openMinutes: blockStateOf(db, row.blind_set_id).openMinutes };
 }
 
 router.get('/next', (req: Request, res: Response) => {
@@ -635,14 +684,14 @@ router.get('/next', (req: Request, res: Response) => {
   if (!phase) {
     res.json({
       isQuickplay: false, phase: null, heroes: [], projection: { ratePerDay: 0, projectedDays: null },
-      allFinished: true, finishedHeroes: [], stint: null, recommendedRole: null, orderedHeroes: [],
+      allFinished: true, finishedHeroes: [], block: null, recommendedRole: null, orderedHeroes: [],
     });
     return;
   }
 
   const heroes = heroProgressForPhase(db, phase);
-  const stint = currentStint(db);
-  const rec = computeNextTest(heroes, stint);
+  const block = currentBlock(db);
+  const rec = computeNextTest(heroes, block);
 
   // Phase-wide projection (the /sens overview's job, not Prematch's card —
   // included here rather than a second endpoint since it's the same roster

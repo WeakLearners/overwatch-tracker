@@ -20,7 +20,7 @@ import { useFieldConfig } from '../contexts/FieldConfigContext';
 import { useDfHeroes, dfHeroSet, withDfBadge } from '../hooks/useDfHeroes';
 
 // GET /api/blind/next's shape — see server/src/lib/nextTest.ts for what each
-// field means (role pick, stint lock, cold flag). Fetched fresh whenever
+// field means (role pick, block lock, cold flag). Fetched fresh whenever
 // queueMode changes (Quickplay gets its own no-list response) and whenever
 // any match is logged, via useApi's shared revalidateAll() subscription.
 interface NextTestResponse {
@@ -28,7 +28,7 @@ interface NextTestResponse {
   allFinished?: boolean;
   finishedHeroes?: string[];
   phase?: string | null;
-  stint?: { hero: string; role: string; position: number; length: number } | null;
+  block?: { hero: string; role: string; openMinutes: number } | null;
   recommendedRole?: string | null;
   orderedHeroes?: { hero: string; role: string; credited: number; target: number; daysSinceLastPlayed: number | null; cold: boolean }[];
 }
@@ -41,13 +41,16 @@ interface DpiTestHud {
     set_id: number; hero: string | null; cur_stage: number; n_stages: number; totalGames: number;
     batch_size: number; games_on_stage: number; dpi: number | null; sens: number | null;
     // Present only for a chunked (ABBA) 2-stage set — see routes/blind.ts's
-    // GET /state and lib/blind.ts's chunkLabelFor/leftInCurrentChunk/
-    // label is the "A1".."B4" chunk badge; left counts down the CURRENT
-    // chunk, not the whole stage. The gauge draws chunk_size bars, one per
-    // match.
+    // GET /state and lib/blind.ts's block model (chunkLabelFor/
+    // deriveBlockState). `label` is the "A1".."B4" chunk badge.
+    // `openMinutes` is this hero's currently open (unclosed) 60-minute
+    // block, 0..<60 — what the continuous gauge fills (2026-09-27; it used
+    // to be chunk_size segmented bars counting down games). stageBlocks/
+    // stageBlocksTarget give the current physical stage's own progress in
+    // closed blocks, replacing the games-based "left in this batch" figure
+    // for a chunked set.
     chunk?: {
-      chunk_size: number; n_chunks_per_stage: number; chunk_number: number; chunk_position: number;
-      label: string; left: number;
+      label: string; openMinutes: number; stageBlocks: number; stageBlocksTarget: number;
     } | null;
   }[];
 }
@@ -199,11 +202,11 @@ export default function Prematch() {
   // the fetch itself unconditional also means flipping the toggle on shows
   // fresh data immediately rather than a stale null from before it was on.
   const { data: nextTest } = useApi<NextTestResponse>(`/api/blind/next?queue_mode=${queueMode}`, [queueMode]);
-  // The hero the Next test card is pointing at: the locked stint hero, else
-  // the top of the recommended list. Its picker row pulses (.test-glow) so
-  // it can be found at a glance.
+  // The hero the Next test card is pointing at: the locked open-block hero,
+  // else the top of the recommended list. Its picker row pulses
+  // (.test-glow) so it can be found at a glance.
   const testHero = sensStudyOn && nextTest && !nextTest.isQuickplay && !nextTest.allFinished
-    ? (nextTest.stint?.hero ?? nextTest.orderedHeroes?.[0]?.hero ?? null)
+    ? (nextTest.block?.hero ?? nextTest.orderedHeroes?.[0]?.hero ?? null)
     : null;
   const mapCounts = useTodayMapCounts();
   const heroCounts = useTodayHeroCounts();
@@ -1162,13 +1165,19 @@ export default function Prematch() {
                   <p className="text-xs text-[var(--faint)]" data-inspect-id="prematch-next-test-finished">
                     Every hero in this phase is done — next phase needs creating on the Sens page.
                   </p>
-                ) : nextTest.stint ? (
-                  <p className="text-xs text-[var(--ink)]" data-inspect-id="prematch-next-test-stint">
-                    Stay on <b className="hero-name">{nextTest.stint.hero}</b> — {nextTest.stint.position} of {nextTest.stint.length} this stint
-                    <span className="text-[var(--faint-2)]"> · queue {nextTest.stint.role}</span>
+                ) : nextTest.block ? (
+                  <p className="text-xs text-[var(--ink)]" data-inspect-id="prematch-next-test-block">
+                    Stay on <b className="hero-name">{nextTest.block.hero}</b> — {nextTest.block.openMinutes}/60 min this block
+                    <span className="text-[var(--faint-2)]"> · queue {nextTest.block.role}</span>
                   </p>
                 ) : (
                   <div data-inspect-id="prematch-next-test-list">
+                    {/* This branch fires both when a block just closed AND
+                        when nothing has been played yet this phase — the
+                        API's `block: null` doesn't currently distinguish
+                        the two (see the task report), so the copy stays
+                        neutral rather than claiming "block done" when
+                        nothing may have started at all. */}
                     <p className="text-xs text-[var(--ink)] mb-1.5">
                       Queue <b>{nextTest.recommendedRole}</b> → {nextTest.orderedHeroes?.map(h => h.hero).join(', ')}
                     </p>
@@ -1445,45 +1454,43 @@ export default function Prematch() {
                             </span>
                           )}
                         </span>
-                        {!isDfHero && testGaugeFor(h.hero) != null ? (
+                        {!isDfHero && (testGaugeFor(h.hero) != null || chunkFor(h.hero)) ? (
                           <span
-                            // Chunked gauge bars are 1px wider than w-1 and 1px
-                            // further apart than gap-0.5, so the gauge is about
-                            // 20px wider overall. ml-[10px] shifts the centered
-                            // container right by half of that, so the left edge
-                            // stays put and it grows rightward only.
-                            className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center pointer-events-none ${chunkFor(h.hero) ? 'gap-[3px] ml-[10px]' : 'gap-0.5'}`}
-                            // Says games, not bars. It used to print the bar
-                            // count with the word "games" beside it — identical
-                            // numbers while a stage was 5 games, and off by a
-                            // factor of eight once stages became 40.
+                            // Chunked gauges are a single continuous bar now
+                            // (2026-09-27) rather than segmented bars, so
+                            // they don't need the extra gap/offset the old
+                            // per-match bars did — both variants share the
+                            // same gap-0.5 flush layout.
+                            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center pointer-events-none gap-0.5"
                             title={chunkFor(h.hero)
-                              ? `${chunkFor(h.hero)!.label} · ${chunkFor(h.hero)!.left} left in this chunk`
+                              ? `${chunkFor(h.hero)!.label} · ${chunkFor(h.hero)!.openMinutes}/60 min this block`
                               : `${testStageLeftFor(h.hero)?.left ?? 0} of ${testStageLeftFor(h.hero)?.total ?? 0} games left at this sens`}
                             data-inspect-id="prematch-hero-picker-gauge"
                           >
                             {/* Which stage of the set (or, for a chunked ABBA
                                 set, which lettered/ordinal CHUNK — "A1".."B4",
-                                lib/blind.ts's chunkLabelFor), encircled,
-                                immediately left of the gauge. Outlined rather
-                                than filled so it cannot be mistaken for the
-                                solid pick-order badge at the row's top-left
-                                corner — that one is a click position, this one
-                                is test progress. Lives inside the gauge's own
+                                lib/blind.ts's chunkLabelFor) — the gauge's own
+                                left end cap (2026-09-27: no longer a separate
+                                outlined circle; same -skew-x parallelogram
+                                geometry and height as the bar, flush against
+                                it, gold-filled, so badge + bar read as one
+                                piece). Lives inside the gauge's own
                                 absolutely-positioned container so the pair
                                 stays together at any row width instead of
                                 drifting apart. */}
                             {chunkFor(h.hero) ? (
                               <span
-                                className="h-4 min-w-[1rem] px-0.5 mr-1 shrink-0 relative right-[1%] rounded-full border border-ow-accent/70 text-[#9A3412] dark:text-ow-accent text-[9px] font-bold flex items-center justify-center leading-none tabular-nums"
-                                title={`Chunk ${chunkFor(h.hero)!.label} — ${chunkFor(h.hero)!.left} left`}
+                                className="h-3 px-1 -skew-x-[20deg] shrink-0 flex items-center justify-center text-[9px] font-bold leading-none tabular-nums text-[#3f2c00] dark:text-[#1a1200]"
+                                style={{ backgroundColor: 'var(--gauge-empty)' }}
+                                title={`Chunk ${chunkFor(h.hero)!.label} — ${chunkFor(h.hero)!.openMinutes}/60 min this block`}
                                 data-inspect-id="prematch-hero-picker-stage-badge"
                               >
                                 {chunkFor(h.hero)!.label}
                               </span>
                             ) : testStageFor(h.hero) && (
                               <span
-                                className="w-4 h-4 mr-1 shrink-0 relative right-[1%] rounded-full border border-ow-accent/70 text-[#9A3412] dark:text-ow-accent text-[9px] font-bold flex items-center justify-center leading-none tabular-nums"
+                                className="h-3 px-1 -skew-x-[20deg] shrink-0 flex items-center justify-center text-[9px] font-bold leading-none tabular-nums text-[#3f2c00] dark:text-[#1a1200]"
+                                style={{ backgroundColor: 'var(--gauge-empty)' }}
                                 title={`Stage ${testStageFor(h.hero)!.cur} of ${testStageFor(h.hero)!.total}`}
                                 data-inspect-id="prematch-hero-picker-stage-badge"
                               >
@@ -1491,23 +1498,27 @@ export default function Prematch() {
                               </span>
                             )}
                             {chunkFor(h.hero) ? (
-                              // Gauge counts down the CURRENT chunk, not the
-                              // whole 40-match stage: one bar per match
-                              // (chunk_size bars), lit bars = matches left.
-                              // Narrower bars than the stage gauge so ten
-                              // still fit the row. A subtle tick (a left
-                              // border on the bar past the midpoint) marks
-                              // the halfway point of every chunk.
-                              Array.from({ length: chunkFor(h.hero)!.chunk_size }).map((_, i) => {
-                                const c = chunkFor(h.hero)!;
+                              // A single continuous bar filling 0->60 min for
+                              // this hero's current OPEN block (2026-09-27 —
+                              // replaces the old chunk_size segmented-bar
+                              // countdown and its mid-chunk dashed tick).
+                              // Color still comes from batteryColor: as the
+                              // open block fills toward 60 min (closer to the
+                              // next switch), the fill slides toward gold,
+                              // the same "nearly empty" meaning the old
+                              // countdown gauge used.
+                              (() => {
+                                const openMin = chunkFor(h.hero)!.openMinutes;
+                                const pct = Math.max(0, Math.min(100, (openMin / 60) * 100));
                                 return (
-                                  <span
-                                    key={i}
-                                    style={i < c.left ? { backgroundColor: batteryColor(c.left / c.chunk_size) } : undefined}
-                                    className={`w-[5px] h-3 -skew-x-[20deg] ${i < c.left ? '' : 'bg-gray-400/50'} ${i === c.chunk_size / 2 ? 'border-l border-dashed border-gray-600/50 dark:border-gray-300/40' : ''}`}
-                                  />
+                                  <span className="relative w-10 h-3 -skew-x-[20deg] overflow-hidden bg-gray-400/50">
+                                    <span
+                                      className="absolute inset-y-0 left-0"
+                                      style={{ width: `${pct}%`, backgroundColor: batteryColor(1 - openMin / 60) }}
+                                    />
+                                  </span>
                                 );
-                              })
+                              })()
                             ) : (
                               Array.from({ length: GAUGE_SEGMENTS }).map((_, i) => (
                                 <span

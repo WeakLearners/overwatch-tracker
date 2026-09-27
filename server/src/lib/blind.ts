@@ -53,17 +53,83 @@ export function stagesFromSens(senses: number[]): StageSpec[] {
   }));
 }
 
+// ── Block model (added 2026-09-27) ──────────────────────────────────────────
+// A "block" is 60 minutes of play on one hero (that hero's own
+// aim_stats_heroes.duration_min on each credited match — a mid-match switch
+// credits each hero its own minutes, not the whole match's length). It
+// replaces the old fixed "5 games" stint/chunk-unit: minutes vary game to
+// game, so this counts UP a running total and closes a block the instant it
+// reaches 60, discarding whatever's left over (a game that ends a block at
+// 63 minutes doesn't carry 3 minutes into the next one — see
+// deriveBlockState). Blocks are the new atomic unit both the ABBA schedule
+// below and nextTest.ts's "stay on X" reminder are built from — see that
+// file for why a hero's own block persists across an interruption (playing
+// something else and coming back) instead of resetting.
+//
+// Chosen size: a chunk (the ABBA alternation unit just below) is 2 blocks,
+// same as it was 2 stints (10 games) before. A stage is 8 blocks per
+// physical stage (4 chunks), same as it was 8 stints (40 games) before —
+// this is a straight swap of the old fixed-game-count "stint" unit for a
+// fixed-minutes one, not a change to the schedule's shape. The original
+// stint rationale still holds and is worth restating here since it now
+// governs something that runs on a clock instead of a scoreboard: this is
+// a play-experience choice, not a statistical one. Across 905 matches, the
+// first game on a hero each day scored -0.27 accuracy points versus later
+// same-day games on the same hero (SE 0.46) — indistinguishable from zero.
+// Switching heroes carries no measurable warm-up cost in this data. Do not
+// shrink BLOCK_MINUTES to "optimize" it — there is nothing here to
+// optimize; it exists purely so a session doesn't feel like hero roulette,
+// and 60 minutes at Sean's typical per-match length lands in almost exactly
+// the same real-world cadence the old 5-game stint did.
+export const BLOCK_MINUTES = 60;
+
+// Chunk = 2 blocks (sens flips only at a chunk boundary — never mid-block).
+// Stage = 8 blocks per physical stage = 4 chunks, mirroring the old 8
+// stints x 5 games = 40-game batch_size for one stage.
+export const CHUNK_BLOCKS = 2;
+export const STAGE_BLOCKS = 8;
+
+export interface BlockState {
+  closedBlocks: number;   // completed 60-minute blocks, in order
+  openMinutes: number;    // minutes accumulated in the still-open (partial) block; 0 if none open
+  openMatchCount: number; // credited matches contributing to that open block
+}
+
+// Walks a hero's own credited matches in chronological order, accumulating
+// minutes per match (a missing duration_min — 2 of 1,181 historical rows —
+// counts as 0, never as a skip) until the running total reaches
+// BLOCK_MINUTES, at which point the block closes and the overflow above 60
+// is dropped rather than seeded into the next block. Whatever's left after
+// the last row is the current open (partial) block — 0 minutes/0 matches if
+// the most recent credited match closed a block exactly, or if there have
+// been none yet.
+export function deriveBlockState(durationsInOrder: (number | null | undefined)[]): BlockState {
+  let closedBlocks = 0, minutes = 0, count = 0;
+  for (const d of durationsInOrder) {
+    minutes += d ?? 0;
+    count += 1;
+    if (minutes >= BLOCK_MINUTES) {
+      closedBlocks += 1;
+      minutes = 0;
+      count = 0;
+    }
+  }
+  return { closedBlocks, openMinutes: minutes, openMatchCount: count };
+}
+
 // ── ABBA alternation ─────────────────────────────────────────────────────────
-// Added 2026-09-23. Each live 2-stage set (ids 141-148, one per hero,
-// batch_size 40) used to run all 40 games of stage 1 before any of stage 2.
-// The 8 sets run concurrently over roughly an 85-day phase, so Sean's own
+// Added 2026-09-23, converted from game-counted to block-counted 2026-09-27
+// (see the block-model comment above — the schedule's shape didn't change,
+// only the unit it counts in). Each live 2-stage set (ids 141-148, one per
+// hero) used to run all of stage 1 before any of stage 2. The 8 sets run
+// concurrently over roughly an 85-day phase, so Sean's own
 // improvement/patches/form drift over that span gets credited entirely to
 // whichever stage happens to run second — a confound, not noise, since it
 // has a direction. Alternating the two stages in chunks removes it.
 //
 // Order is A,B,B,A, not A,B,A,B. Picture a straight-line drift (Sean slowly
-// getting better) drawn across the 8 chunks of a 40-game stage split into
-// 4 chunks of 10: A,B,B,A repeated twice puts stage A's 4 chunks at
+// getting better) drawn across the 8 chunks of an 8-block stage split into
+// 4 chunks of 2: A,B,B,A repeated twice puts stage A's 4 chunks at
 // positions {1,4,5,8} and stage B's at {2,3,6,7} — each pair is symmetric
 // around the run's midpoint, so the drift's average contribution to A and
 // to B is identical. A,B,A,B puts B's chunks at {2,4,6,8}, systematically
@@ -84,29 +150,34 @@ export function stagesFromSens(senses: number[]): StageSpec[] {
 // concealed. So alternating stages changes nothing about that: it was
 // exactly this transparent before, and it is exactly this transparent now.
 //
-// Only meaningful for exactly 2 stages — callers fall back to the legacy
-// contiguous behavior (set.chunk_size == null, or stages.length !== 2)
-// rather than guessing at a pattern for more.
-export function abbaStageFor(totalGamesCreditedBefore: number, chunkSize: number): 1 | 2 {
-  const chunkIndex = Math.floor(totalGamesCreditedBefore / chunkSize);
+// Generic over its unit — the caller passes CHUNK_BLOCKS/closedBlocks now
+// (routes/blind.ts, scripts/nightlyReport.ts) instead of the game counts it
+// took before 2026-09-27; the math is identical either way. Only meaningful
+// for exactly 2 stages — callers fall back to the legacy contiguous
+// behavior (set.chunk_size == null, or stages.length !== 2) rather than
+// guessing at a pattern for more.
+export function abbaStageFor(unitsCreditedBefore: number, chunkSize: number): 1 | 2 {
+  const chunkIndex = Math.floor(unitsCreditedBefore / chunkSize);
   const pattern: [1, 2, 2, 1] = [1, 2, 2, 1];
   return pattern[chunkIndex % 4];
 }
 
 // ── Stage badge label ("A1".."B4") ──────────────────────────────────────────
-// Added 2026-09-23 alongside the stint/gauge rework below. The HUD used to
-// show a bare stage number (1 or 2) in a circle next to the gauge — useless
-// once two stages alternate in chunks, since "stage 1" no longer tells Sean
-// which of the (up to) four A-chunks or four B-chunks he's actually on.
-// The letter is just abbaStageFor's own 1/2 relabeled A/B; the ordinal counts
-// how many chunks of THAT letter have occurred up to and including the
-// current one. Deliberately built by walking abbaStageFor chunk-by-chunk
-// (bounded — at most batch_size/chunk_size chunks, 4-8 for every live set)
-// rather than a closed-form formula, so this label can never drift from the
-// alternation pattern the switch-prompt/completion logic (liveStageIndex,
-// needsSwitchNow in routes/blind.ts) already derives the same way.
-export function chunkLabelFor(totalGamesCreditedBefore: number, chunkSize: number): string {
-  const chunkIndex = Math.floor(totalGamesCreditedBefore / chunkSize);
+// Added 2026-09-23 alongside the stint/gauge rework below, converted to
+// blocks 2026-09-27. The HUD used to show a bare stage number (1 or 2) in a
+// circle next to the gauge — useless once two stages alternate in chunks,
+// since "stage 1" no longer tells Sean which of the (up to) four A-chunks
+// or four B-chunks he's actually on. The letter is just abbaStageFor's own
+// 1/2 relabeled A/B; the ordinal counts how many chunks of THAT letter have
+// occurred up to and including the current one. Deliberately built by
+// walking abbaStageFor chunk-by-chunk (bounded — at most
+// STAGE_BLOCKS/CHUNK_BLOCKS chunks, 4 for every live set) rather than a
+// closed-form formula, so this label can never drift from the alternation
+// pattern the switch-prompt/completion logic (liveStageIndex, needsSwitchNow
+// in routes/blind.ts) already derives the same way. Takes closed-block
+// counts now, not game counts — see the block-model comment above.
+export function chunkLabelFor(unitsCreditedBefore: number, chunkSize: number): string {
+  const chunkIndex = Math.floor(unitsCreditedBefore / chunkSize);
   let aCount = 0, bCount = 0;
   for (let i = 0; i <= chunkIndex; i++) {
     if (abbaStageFor(i * chunkSize, chunkSize) === 1) aCount++; else bCount++;
@@ -114,11 +185,14 @@ export function chunkLabelFor(totalGamesCreditedBefore: number, chunkSize: numbe
   return abbaStageFor(chunkIndex * chunkSize, chunkSize) === 1 ? `A${aCount}` : `B${bCount}`;
 }
 
-// Games left in the CURRENT chunk (not the whole stage) — what the gauge
-// below counts down, instead of the stage-wide count testStageLeftFor
-// already shows elsewhere on this HUD.
-export function leftInCurrentChunk(totalGamesCreditedBefore: number, chunkSize: number): number {
-  return chunkSize - (totalGamesCreditedBefore % chunkSize);
+// Closed blocks left in the CURRENT chunk (not the whole stage) — used for
+// the chunk/stage progress text on the HUD (SensLog.tsx). The gauge itself
+// no longer counts this down (2026-09-27: it's a single continuous 0-60min
+// fill of the hero's OPEN block instead, driven directly by
+// BlockState.openMinutes) but the chunk-of-4 progress line still wants "how
+// many closed blocks until the next switch."
+export function leftInCurrentChunk(unitsCreditedBefore: number, chunkSize: number): number {
+  return chunkSize - (unitsCreditedBefore % chunkSize);
 }
 
 // ── Queue-mode study eligibility ────────────────────────────────────────────

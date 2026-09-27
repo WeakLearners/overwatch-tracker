@@ -67,8 +67,13 @@ interface DpiTestActive {
   needSwitch: boolean;
   stages: { stage_index: number; dpi: number; sens: number | null }[];
   curveEnabled: boolean;
-  // ABBA alternation (2026-09-23) — null for a legacy contiguous set.
-  chunk: { chunk_size: number; n_chunks_per_stage: number; chunk_number: number; chunk_position: number } | null;
+  // ABBA alternation (2026-09-23, converted to a 60-minute block model
+  // 2026-09-27) — null for a legacy contiguous set. openMinutes is this
+  // hero's current open (unclosed) block; stageBlocks/stageBlocksTarget are
+  // the current physical stage's own progress in closed blocks (replacing
+  // the games-based batch_size/games_on_stage figures above for a chunked
+  // set specifically).
+  chunk: { label: string; openMinutes: number; stageBlocks: number; stageBlocksTarget: number } | null;
 }
 interface DpiTestState {
   actives: DpiTestActive[];
@@ -1549,15 +1554,23 @@ function ActiveTestCard({ active }: { active: DpiTestActive }) {
               <button type="button" onClick={advance} disabled={busy} data-inspect-id="sl-advance-stage-btn" className={`${btnSecondary} w-full py-2 text-sm mt-2`}>Get next stage →</button>
             )}
           </>
+        ) : active.chunk ? (
+          <>
+            {/* A chunked (ABBA) set reports progress in 60-minute blocks now
+                (2026-09-27), not games — the number of games left to hit
+                the next switch varies with how long each match runs, so a
+                games-based figure would be misleading here. */}
+            <div className="text-2xl heading-display text-[var(--ink)] mt-4">{active.chunk.stageBlocksTarget - active.chunk.stageBlocks}</div>
+            <div className="text-xs text-[var(--faint)]">block{(active.chunk.stageBlocksTarget - active.chunk.stageBlocks) === 1 ? '' : 's'} left in this stage (of <b className="font-bold">{active.chunk.stageBlocksTarget}</b>)</div>
+            <div className="text-[11px] text-[var(--faint-2)] mt-1" data-inspect-id="sl-chunk-progress">
+              chunk <b className="font-bold">{active.chunk.label}</b> · <b className="num-display">{active.chunk.openMinutes}</b>/60 min this block
+            </div>
+            <p className="text-[11px] text-[var(--faint-2)] mt-3">Log each game in the <b>Match Tracker</b> — it auto-tags to this stage and lands in the queue above for its combat details.</p>
+          </>
         ) : (
           <>
             <div className="text-2xl heading-display text-[var(--ink)] mt-4">{gamesLeft}</div>
             <div className="text-xs text-[var(--faint)]">game{gamesLeft === 1 ? '' : 's'} left in this batch (of <b className="font-bold">{active.batch_size}</b>)</div>
-            {active.chunk && (
-              <div className="text-[11px] text-[var(--faint-2)] mt-1" data-inspect-id="sl-chunk-progress">
-                chunk <b className="font-bold">{active.chunk.chunk_number}</b> of <b className="font-bold">{active.chunk.n_chunks_per_stage}</b> · <b className="num-display">{active.chunk.chunk_position}</b>/<b className="num-display">{active.chunk.chunk_size}</b>
-              </div>
-            )}
             <p className="text-[11px] text-[var(--faint-2)] mt-3">Log each game in the <b>Match Tracker</b> — it auto-tags to this stage and lands in the queue above for its combat details.</p>
           </>
         )}

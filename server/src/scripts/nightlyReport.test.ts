@@ -23,7 +23,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { getDb, closeDb } from '../db/schema';
-import { insertMatch, insertHeroSlot, insertBlindSet, insertBlindStage, insertBlindCredit } from '../db/fixtures';
+import { insertMatch, insertHeroSlot, insertBlindSet, insertBlindStage, insertBlindCredit, insertAimStatsHero } from '../db/fixtures';
 import { activeSets, gamesOnStageOf, totalGamesOf, liveStageIndex, needsSwitchNow, isSetComplete } from '../routes/blind';
 import { computeStageStatus, ActiveSetRow } from './nightlyReport';
 
@@ -68,13 +68,20 @@ function stateViaBlindRoute(db: ReturnType<typeof getDb>, set: ReturnType<typeof
 // Credits `n` games onto a set at a given stage — the shared fact both
 // implementations read (blind_credits), created via 3 real matches plus
 // their match_heroes rows so the fixture matches what the app actually
-// writes on a real credited match.
+// writes on a real credited match. Each game also gets a 12-minute
+// aim_stats_heroes.duration_min reading, so 5 games close exactly one
+// 60-minute block (BLOCK_MINUTES, lib/blind.ts) — a 1:1 stand-in for the
+// old "5 games = 1 stint" unit, chosen so every one of this file's
+// game-count fixtures (10 games per chunk, 40 per stage) still lands on
+// exact block boundaries (2 blocks per chunk, 8 per stage) under the
+// 2026-09-27 block model, without reshaping the scenarios themselves.
 function creditGames(db: ReturnType<typeof getDb>, setId: number, hero: string, stageIndex: number, n: number, startDate: string) {
   for (let i = 0; i < n; i++) {
     const date = `${startDate.slice(0, 8)}${String(Number(startDate.slice(8, 10)) + i).padStart(2, '0')}`;
     const matchId = insertMatch(db, { date, hero, role: 'DPS', win: 1, blind_set_id: setId, stage_index: stageIndex });
     insertHeroSlot(db, { match_id: matchId, slot: 1, hero, role: 'DPS' });
     insertBlindCredit(db, { match_id: matchId, hero, blind_set_id: setId, stage_index: stageIndex });
+    insertAimStatsHero(db, { match_id: matchId, hero, duration_min: 12 });
   }
 }
 
@@ -261,7 +268,9 @@ describe('stage-progress agreement — ABBA chunk boundaries (2026-09-23)', () =
     const viaNightly = computeStageStatus(db, set as unknown as ActiveSetRow);
 
     assert.equal(viaBlind.totalGames, 80);
-    assert.equal(viaNightly.totalGames, 80);
+    // viaNightly reports in blocks for a chunked set (12 min/game x 80 games
+    // = 960 min = 16 blocks = STAGE_BLOCKS(8) x n_stages(2), exactly full).
+    assert.equal(viaNightly.totalGames, 16);
     assert.equal(gamesOnStageOf(db, set.id, 1), 40);
     assert.equal(gamesOnStageOf(db, set.id, 2), 40);
     assert.equal(viaBlind.completed, true);
