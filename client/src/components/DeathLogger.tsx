@@ -30,13 +30,13 @@ Object.entries(HEROES).forEach(([hero, role]) => {
 // half-width column — hence the grid stepping back to 3-4 columns at lg. Capture and the list
 // of what's been captured are one thing, so they read as one thing; the
 // popover's cramped 288px width was also what forced the tiny type the
-// respawn window can't afford. Consequences of the move: the picker stays
-// open after a log (an inline panel costs nothing to leave open, and back-
-// to-back deaths are the common case) and the buffer review panel + count
-// pill are gone, since the card already lists the buffer right below.
+// respawn window can't afford. Consequences of the move: the picker is
+// always open — no collapsed 'Log a death' button (removed 2026-09-27; an
+// inline panel costs nothing to leave open, and back-to-back deaths are the
+// common case) — and the buffer review panel + count pill are gone, since
+// the card already lists the buffer right below.
 export default function DeathLogger() {
   const { deathBuffer, addDeathToBuffer } = useDeathBuffer();
-  const [open, setOpen] = useState(false);
   const [role, setRole] = useState<Role>('DPS');
 
   function logKill(hero: string) {
@@ -47,38 +47,12 @@ export default function DeathLogger() {
   // Most-recent-first distinct killers already logged this match.
   const mru = [...new Set([...deathBuffer].reverse().map(d => d.killer))];
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label="Log a death"
-        data-inspect-id="deathLogger-logDeathButton"
-        className="w-full py-2 px-3 rounded-lg bg-ow-darker border border-ow-border flex items-center justify-center hover:border-ow-accent/50 active:scale-[0.99] transition-all"
-      >
-        <span className="flex items-center gap-2">
-          <span className="text-base leading-5 select-none" role="img" aria-hidden>💀</span>
-          <span className="text-sm leading-5 font-semibold text-[var(--ink-2)]">Log a death</span>
-        </span>
-      </button>
-    );
-  }
-
   return (
     <div data-inspect-id="deathLogger-loggingPopover" className="rounded-xl bg-ow-darker border border-ow-accent/40 overflow-hidden">
       <div className="flex items-center justify-between px-2 pt-2 pb-1">
         <span data-inspect-id="deathLogger-popoverTitle" className="text-xs font-semibold text-[var(--ink-2)] uppercase tracking-wide">
           Death <b className="font-bold text-[var(--ink)]">{count + 1}</b> — who got you?
         </span>
-        <button
-          data-inspect-id="deathLogger-popoverCancelButton"
-          type="button"
-          onClick={() => setOpen(false)}
-          className="text-[var(--faint)] hover:text-[var(--ink)] text-lg leading-none px-1 transition-colors"
-          aria-label="Cancel"
-        >
-          ×
-        </button>
       </div>
 
       <div className="px-2 pb-2">

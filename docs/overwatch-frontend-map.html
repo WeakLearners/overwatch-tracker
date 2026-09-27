@@ -3768,9 +3768,9 @@ const DATA = {
           "id": "deathLogger-loggingPopover",
           "label": "Death picker panel",
           "kind": "card",
-          "description": "Compact inline panel that replaces the 'Log a death' button once expanded, containing the MRU killer row, the sticky role tabs, and the hero grid; collapsed again with the \u00d7. Deliberately dense (small type; hero grid runs 4/6 columns full-width, stepping back to 3-4 at lg) since it lives in the Deaths card's half-width right column.",
+          "description": "Compact inline panel, always open in the Deaths card's right column (the collapsed 'Log a death' button and its \u00d7 were removed 2026-09-27), containing the MRU killer row, the sticky role tabs, and the hero grid. Deliberately dense (small type; hero grid runs 4/6 columns full-width, stepping back to 3-4 at lg) since it lives in the Deaths card's half-width right column.",
           "locate": {
-            "path": "client/src/components/DeathLogger.tsx:68",
+            "path": "client/src/components/DeathLogger.tsx:51",
             "grep": "grep -n -F -- 'data-inspect-id=\"deathLogger-loggingPopover\"' client/src/components/DeathLogger.tsx"
           }
         },
@@ -3780,18 +3780,8 @@ const DATA = {
           "kind": "header",
           "description": "Label at the top of the logging popover showing the ordinal number of the death about to be logged.",
           "locate": {
-            "path": "client/src/components/DeathLogger.tsx:70",
+            "path": "client/src/components/DeathLogger.tsx:53",
             "grep": "grep -n -F -- 'deathLogger-popoverTitle' client/src/components/DeathLogger.tsx"
-          }
-        },
-        {
-          "id": "deathLogger-popoverCancelButton",
-          "label": "Popover cancel (\u00d7) button",
-          "kind": "icon-button",
-          "description": "\u00d7 button that collapses the death picker back to the 'Log a death' button without logging anything.",
-          "locate": {
-            "path": "client/src/components/DeathLogger.tsx:78",
-            "grep": "grep -n -F -- 'aria-label=\"Cancel\"' client/src/components/DeathLogger.tsx"
           }
         },
         {
@@ -3800,7 +3790,7 @@ const DATA = {
           "kind": "list",
           "description": "Chips for every distinct killer already logged this match, most-recent-first; empty at match start. The fast path \u2014 after 2-3 deaths this covers most re-logs in one tap.",
           "locate": {
-            "path": "client/src/components/DeathLogger.tsx:88",
+            "path": "client/src/components/DeathLogger.tsx:62",
             "grep": "grep -n -F -- 'data-inspect-id=\"deathLogger-mruRow\"' client/src/components/DeathLogger.tsx"
           }
         },
@@ -3810,7 +3800,7 @@ const DATA = {
           "kind": "button",
           "description": "One hero chip in the MRU row; tapping logs another death by that hero immediately (ult:false) and closes the popover.",
           "locate": {
-            "path": "client/src/components/DeathLogger.tsx:93",
+            "path": "client/src/components/DeathLogger.tsx:67",
             "grep": "grep -n -F -- 'data-inspect-id=\"deathLogger-mruChip\"' client/src/components/DeathLogger.tsx"
           }
         },
@@ -3820,7 +3810,7 @@ const DATA = {
           "kind": "tablist",
           "description": "Three role tabs above the hero grid; sticky \u2014 stays on the last role used across deaths, so repeat deaths to the same role skip a tap.",
           "locate": {
-            "path": "client/src/components/DeathLogger.tsx:105",
+            "path": "client/src/components/DeathLogger.tsx:79",
             "grep": "grep -n -F -- 'data-inspect-id=\"deathLogger-roleTabs\"' client/src/components/DeathLogger.tsx"
           }
         },
@@ -3830,7 +3820,7 @@ const DATA = {
           "kind": "button",
           "description": "One of the three Tank/DPS/Support tabs; selecting it filters the hero grid below to that role and stays selected for the next death.",
           "locate": {
-            "path": "client/src/components/DeathLogger.tsx:110",
+            "path": "client/src/components/DeathLogger.tsx:84",
             "grep": "grep -n -F -- 'data-inspect-id=\"deathLogger-roleTab\"' client/src/components/DeathLogger.tsx"
           }
         },
@@ -3840,18 +3830,8 @@ const DATA = {
           "kind": "button",
           "description": "One hero in the selected role's grid (source: HEROES in types/index.ts); tapping logs a death by that hero immediately (ult:false) and closes the popover. Fallback path for a killer not yet seen this match.",
           "locate": {
-            "path": "client/src/components/DeathLogger.tsx:129",
+            "path": "client/src/components/DeathLogger.tsx:103",
             "grep": "grep -n -F -- 'data-inspect-id=\"deathLogger-heroGridButton\"' client/src/components/DeathLogger.tsx"
-          }
-        },
-        {
-          "id": "deathLogger-logDeathButton",
-          "label": "Log a death button (skull)",
-          "kind": "icon-button",
-          "description": "Full-width skull-emoji button inside the Deaths card's capture column that expands the death picker in place; replaced the fixed bottom-right FAB. Built from the same box recipe as a buffered death row (py-2 px-3, rounded-lg, 1px border, text-sm/leading-5) so its collapsed height matches one row of the history column beside it.",
-          "locate": {
-            "path": "client/src/components/DeathLogger.tsx:55",
-            "grep": "grep -n -F -- 'aria-label=\"Log a death\"' client/src/components/DeathLogger.tsx"
           }
         }
       ]
@@ -5400,6 +5380,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 
