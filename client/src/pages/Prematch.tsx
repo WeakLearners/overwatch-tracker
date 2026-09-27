@@ -1474,10 +1474,10 @@ export default function Prematch() {
                           const c = chunkFor(h.hero);
                           const r = testStageLeftFor(h.hero);
                           const done = c ? Math.min(1, c.openMinutes / 60) : r && r.total > 0 ? 1 - r.left / r.total : 0;
-                          // One constant hue per role (2026-09-27, trial:
-                          // silver on DPS/Tank, violet on Support), chosen to
-                          // stay clear of the role tints on the card itself.
-                          const gaugeRgb = role === 'Support' ? '167 139 250' : RANK_TIER_RGB.Silver;
+                          // One constant hue per role: the card's own
+                          // selection colour (ROLE_SEL_RGB), so the gauge and
+                          // the selected state read as one colour family.
+                          const gaugeRgb = ROLE_SEL_RGB[role];
                           const label = c ? c.label : String(testStageFor(h.hero)?.cur ?? '');
                           return (
                             <span
