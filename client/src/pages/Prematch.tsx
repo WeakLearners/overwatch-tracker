@@ -423,6 +423,16 @@ export default function Prematch() {
   // encircled-stage-number badge and stage-wide gauge exactly as before.
   const chunkFor = (hero: string) => btActives.find(a => a.hero === hero)?.chunk ?? null;
 
+  // How far the hero's gauge has filled, 0..1, or null for a hero with no
+  // gauge. Shared by the gauge and by the lit letters above it, which only
+  // glow as far as the gauge reaches (2026-09-28).
+  const gaugeFillFor = (hero: string): number | null => {
+    const c = chunkFor(hero);
+    if (!c && testGaugeFor(hero) == null) return null;
+    const r = testStageLeftFor(hero);
+    return c ? Math.min(1, c.openMinutes / 60) : r && r.total > 0 ? 1 - r.left / r.total : 0;
+  };
+
   // Quantizes remaining-games-in-stage onto a 5-segment gauge (like a battery
   // meter) regardless of the set's actual batch_size, so every hero's gauge
   // reads on the same 5-bar scale.
@@ -1398,6 +1408,11 @@ export default function Prematch() {
                       const sensTag = pickerSensFor(h.hero);
                       const isDfHero = dfHeroes.has(h.hero);
                       const isTestHero = h.hero === testHero && !isDfHero;
+                      // Lit letters follow the gauge: glow where the bar is under
+                      // them, plain past its end. Selected cards only, since
+                      // resting names aren't lit.
+                      const fill = isDfHero ? null : gaugeFillFor(h.hero);
+                      const litFill = isClicked && fill != null;
                       return (
                       // role="button" rather than a real <button> because the
                       // row now nests its own "start next phase" button, and a
@@ -1428,9 +1443,10 @@ export default function Prematch() {
                         // only as far as the block's minutes reach.
                         style={{
                           '--sel': ROLE_SEL_RGB[role],
+                          ...(litFill ? { '--fill': fill } : {}),
                           ...(isClicked && !isDfHero && (testGaugeFor(h.hero) != null || chunkFor(h.hero)) ? { boxShadow: 'none' } : {}),
                         } as React.CSSProperties}
-                        className={`relative isolate flex items-center gap-3 w-full text-left rounded cursor-pointer active:scale-[0.98] transition-all group ${isTestHero ? 'test-glow' : ''} ${
+                        className={`relative isolate [container-type:inline-size] flex items-center gap-3 w-full text-left rounded cursor-pointer active:scale-[0.98] transition-all group ${isTestHero ? 'test-glow' : ''} ${
                           // Resting wears the lobby slider's unlit rank-pane border; the extra
                           // 1px padding makes up the width gap with the 2px
                           // selected border, so selecting doesn't shift the row.
@@ -1455,7 +1471,11 @@ export default function Prematch() {
                           </span>
                         )}
                         <span className={`text-[16.94px] ${map ? '' : 'invisible'} ${h.win_rate >= 50 ? 'text-emerald-700' : 'text-red-500'}`}>{h.win_rate >= 50 ? '↑' : '↓'}</span>
-                        <span className={`flex-1 translate-y-[2px] text-[14.52px] hero-name font-display italic transition-colors ${isClicked ? 'lit-text lit-strong' : 'text-[var(--faint)]'}`}>
+                        <span
+                          ref={litFill ? el => { if (el) el.style.setProperty('--nl', `${el.offsetLeft}px`); } : undefined}
+                          style={litFill ? { '--lit-x': 'calc(var(--fill) * (100cqw + 24px) + 7px - var(--nl, 0px))' } as React.CSSProperties : undefined}
+                          className={`flex-1 translate-y-[2px] text-[14.52px] hero-name font-display italic transition-colors ${isClicked ? `lit-text lit-strong${litFill ? ' lit-fill' : ''}` : 'text-[var(--faint)]'}`}
+                        >
                           {isDfHero ? withDfBadge(withHeroCount(h.hero, heroCounts), dfMap, h.hero) : withHeroCount(h.hero, heroCounts)}
                           {sensTag && (
                             <span
@@ -1482,7 +1502,7 @@ export default function Prematch() {
                           // the card's own fill but under its text.
                           const c = chunkFor(h.hero);
                           const r = testStageLeftFor(h.hero);
-                          const done = c ? Math.min(1, c.openMinutes / 60) : r && r.total > 0 ? 1 - r.left / r.total : 0;
+                          const done = fill ?? 0;
                           const hue = ROLE_SEL_RGB[role];
                           const a = isClicked ? 1 : 0.5;
                           const label = c ? c.label : String(testStageFor(h.hero)?.cur ?? '');
@@ -1505,7 +1525,16 @@ export default function Prematch() {
                                 style={isClicked ? undefined : { color: `rgb(${hue})` }}
                                 data-inspect-id="prematch-hero-picker-stage-badge"
                               >
-                                {isClicked ? <span className="lit-text lit-strong pr-[0.1em]">{label}</span> : label}
+                                {isClicked ? (
+                                  // The label is centred and shifted left 0.125em,
+                                  // so its left edge in card terms is worked out
+                                  // from its own measured width.
+                                  <span
+                                    className="lit-text lit-strong lit-fill pr-[0.1em]"
+                                    ref={el => { if (el) el.style.setProperty('--wl', `${el.offsetWidth}px`); }}
+                                    style={{ '--lit-x': 'calc(var(--fill) * (100cqw + 24px) + 7px - ((100cqw + 24px - var(--wl, 0px)) / 2 - 0.525rem))' } as React.CSSProperties}
+                                  >{label}</span>
+                                ) : label}
                               </span>
                               <span
                                 className={`absolute inset-y-0 left-0 transition-opacity ${isClicked ? '' : 'opacity-0 group-hover:opacity-100'}`}

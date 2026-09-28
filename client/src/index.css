@@ -551,6 +551,15 @@
     --lit-near: color-mix(in srgb, oklch(from rgb(var(--sel)) l calc(c * 1.35) h) 45%, #fff);
     --lit-far: color-mix(in srgb, var(--ink) 30%, #000);
   }
+  /* .lit-fill: the glow only reaches as far as the light under it (the
+     hero picker's gauge, 2026-09-28). A second layer on top paints the
+     unlit colour from --lit-x rightward, feathered over 16px. --lit-x is the
+     gauge's end in this element's own coordinates, set inline. */
+  .lit-text.lit-strong.lit-fill {
+    background-image:
+      linear-gradient(to right, transparent calc(var(--lit-x, 100%) - 8px), var(--lit-far) calc(var(--lit-x, 100%) + 8px)),
+      linear-gradient(var(--lit-dir, to top), var(--lit-near) 10%, var(--lit-far) 85%);
+  }
   /* Lobby rank panes are lit by the lamp under them, not by --sel. */
   /* Win-rate numbers: stay in their own win/loss hue end to end. Bright
      and saturated on the glow side, a deep shade of the same hue on the
