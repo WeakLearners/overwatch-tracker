@@ -1488,11 +1488,12 @@ export default function Prematch() {
                           const label = c ? c.label : String(testStageFor(h.hero)?.cur ?? '');
                           return (
                             <span
-                              // Selected: reach 2px down over the card's bottom
-                              // border so the lit edge sits ON the border, not
-                              // just above it. The watermark below takes the same
-                              // 2px back so it stays centred.
-                              className={`absolute inset-x-0 top-0 -z-10 overflow-hidden pointer-events-none ${isClicked ? '-bottom-[2px] rounded-t-[2px] rounded-b-[4px]' : 'bottom-0 rounded-[2px]'}`}
+                              // Reach down over the card's bottom border (2px
+                              // selected, 1px at rest) so the lit edge sits ON
+                              // the border; otherwise the border's dimmer tint
+                              // shows as a thin line under it. The watermark
+                              // takes the same px back so it stays centred.
+                              className={`absolute inset-x-0 top-0 -z-10 overflow-hidden pointer-events-none ${isClicked ? '-bottom-[2px] rounded-t-[2px] rounded-b-[4px]' : '-bottom-[1px] rounded-t-[3px] rounded-b-[4px]'}`}
                               title={c
                                 ? `${c.label} · ${Math.floor(c.openMinutes)} minutes played`
                                 : `${r?.left ?? 0} of ${r?.total ?? 0} games left at this sens`}
@@ -1500,7 +1501,7 @@ export default function Prematch() {
                             >
                               <span
                                 aria-hidden="true"
-                                className={`absolute inset-x-0 top-0 ${isClicked ? 'bottom-[2px]' : 'bottom-0'} flex items-center justify-center num-display italic font-black leading-none tracking-[-0.07em] text-[4.2rem] translate-x-[-0.125em] translate-y-[0.007em] whitespace-nowrap ${isClicked ? 'opacity-[0.225]' : 'opacity-15'}`}
+                                className={`absolute inset-x-0 top-0 ${isClicked ? 'bottom-[2px]' : 'bottom-[1px]'} flex items-center justify-center num-display italic font-black leading-none tracking-[-0.07em] text-[4.2rem] translate-x-[-0.125em] translate-y-[0.007em] whitespace-nowrap ${isClicked ? 'opacity-[0.225]' : 'opacity-15'}`}
                                 style={isClicked ? undefined : { color: `rgb(${hue})` }}
                                 data-inspect-id="prematch-hero-picker-stage-badge"
                               >
