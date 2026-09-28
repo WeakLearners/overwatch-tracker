@@ -1425,7 +1425,7 @@ export default function Prematch() {
                       } : null;
                       const wrHue = h.win_rate >= 60 ? '5 150 105' : h.win_rate >= 50 ? '41 211 242' : h.win_rate >= 40 ? '250 204 21' : '220 38 38';
                       const litName = litAs();
-                      const litArrow = litAs(h.win_rate >= 50 ? '4 120 87' : '239 68 68');
+                      const litArrow = litAs(h.win_rate >= 50 ? '16 185 129' : '239 68 68');
                       const litWr = litAs(wrHue);
                       const litGames = litAs();
                       const litSens = sensTag?.settled ? litAs('4 120 87') : null;
@@ -1490,7 +1490,7 @@ export default function Prematch() {
                             {clickIndex + 1}
                           </span>
                         )}
-                        <span ref={litArrow?.ref} style={litArrow?.style} className={`text-[16.94px] ${showNums ? '' : 'invisible'} ${litArrow ? litArrow.cls : h.win_rate >= 50 ? 'text-emerald-700' : 'text-red-500'}`}>{h.win_rate >= 50 ? '↑' : '↓'}</span>
+                        <span ref={litArrow?.ref} style={litArrow?.style} className={`text-[16.94px] font-bold ${showNums ? '' : 'invisible'} ${litArrow ? litArrow.cls : h.win_rate >= 50 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>{h.win_rate >= 50 ? '↑' : '↓'}</span>
                         <span
                           ref={litName?.ref}
                           style={litName?.style}
