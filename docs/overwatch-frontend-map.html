@@ -1161,7 +1161,7 @@ const DATA = {
           "id": "prematch-hero-picker-gauge",
           "label": "Hero picker underglow gauge",
           "kind": "meter",
-          "description": "The gauge is the card's lit bottom edge (2026-09-27): hidden on unselected cards until hover, always shown on selected ones; a 3px edge plus upward glow in the role hue (ROLE_SEL_RGB), drawn as a bottom-up linear-gradient only as far as the hero's open 60-min block has filled (GET /api/blind/state chunk.openMinutes, lib/blind.ts deriveBlockState; legacy unchunked set: games played at this sens). 20deg slanted end via clip-path. Full strength on a selected card (whose own card-wide edge is switched off so the gauge owns it), 50% at rest. On a selected card the layer extends 2px down over the bottom border (2026-09-28), so the lit edge sits on the border; the watermark takes those 2px back to stay centred. Fill = openMinutes/60, left to right (verified 2026-09-28: Juno 51.9 min -> 86%). Lives in a -z-10 layer inside the `isolate` card. Hover title: \"A1 \u00b7 N minutes played\".",
+          "description": "The gauge is the card's lit bottom edge (2026-09-27): hidden on unselected cards until hover, always shown on selected ones; a 2px edge plus a glow that eases out over ~24px (2026-09-28; was a hard step at 3px, gone by 14px) in the role hue (ROLE_SEL_RGB), drawn as a bottom-up linear-gradient only as far as the hero's open 60-min block has filled (GET /api/blind/state chunk.openMinutes, lib/blind.ts deriveBlockState; legacy unchunked set: games played at this sens). 20deg slanted end via clip-path. Full strength on a selected card (whose own card-wide edge is switched off so the gauge owns it), 50% at rest. On a selected card the layer extends 2px down over the bottom border (2026-09-28), so the lit edge sits on the border; the watermark takes those 2px back to stay centred. Fill = openMinutes/60, left to right (verified 2026-09-28: Juno 51.9 min -> 86%). Lives in a -z-10 layer inside the `isolate` card. Hover title: \"A1 \u00b7 N minutes played\".",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:1499",
             "grep": "grep -n -F -- 'prematch-hero-picker-gauge' client/src/pages/Prematch.tsx"
@@ -1184,7 +1184,7 @@ const DATA = {
           "kind": "badge",
           "description": "Shown on a hero row in Select Your Hero when that hero belongs to the current DPI/sens testing phase's roster but has already finished it (no active test, blind_stage_sets completed=true for that phase) \u2014 lets the whole phase roster stay visible instead of dropping a hero the moment its test completes.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1532",
+            "path": "client/src/pages/Prematch.tsx:1534",
             "grep": "grep -n -F -- 'prematch-hero-picker-done-badge' client/src/pages/Prematch.tsx"
           }
         },
@@ -1194,7 +1194,7 @@ const DATA = {
           "kind": "banner",
           "description": "Empty-state message shown when no games have been logged for the current map/filter, prompting the user to pick a map or log a match.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1558",
+            "path": "client/src/pages/Prematch.tsx:1560",
             "grep": "grep -n -F -- 'dataInspectId=\"prematch-empty-state-banner\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -5390,6 +5390,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 

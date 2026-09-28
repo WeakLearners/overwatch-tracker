@@ -1516,7 +1516,9 @@ export default function Prematch() {
                                   // A gradient, not the tiles' inset box-shadow:
                                   // a blurred shadow also bleeds up the left and
                                   // slanted edges; this only climbs from the bottom.
-                                  background: `linear-gradient(to top, rgb(${hue} / ${a}) 0 3px, rgb(${hue} / ${a * 0.55}) 3px, rgb(${hue} / 0) 14px)`,
+                                  // Eased falloff (2026-09-28): the old hard step from full to
+                                  // 55% at 3px read as a sudden band. Now it tapers over ~24px.
+                                  background: `linear-gradient(to top, rgb(${hue} / ${a}) 0 2px, rgb(${hue} / ${a * 0.6}) 4px, rgb(${hue} / ${a * 0.3}) 9px, rgb(${hue} / ${a * 0.12}) 16px, rgb(${hue} / 0) 24px)`,
                                 }}
                               />
                             </span>
