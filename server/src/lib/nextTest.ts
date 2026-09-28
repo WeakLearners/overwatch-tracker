@@ -45,6 +45,11 @@ export interface HeroTestProgress {
   role: string;
   credited: number;       // closed blocks this phase, both stages summed
   target: number;          // STAGE_BLOCKS * n_stages for this hero's set (chunked); legacy sets stay in games
+  // Display-only, chunked sets (2026-09-28): minutes played / minutes
+  // planned, so the UI can show time instead of blocks. Ranking still uses
+  // credited/target. Absent for a legacy set.
+  playedMinutes?: number;
+  targetMinutes?: number;
   daysSinceLastPlayed: number | null; // null = never test-played this set
   completed: boolean;
 }

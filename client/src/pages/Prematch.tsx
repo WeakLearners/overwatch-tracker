@@ -36,7 +36,7 @@ interface NextTestResponse {
   // "Block done" or has to stay neutral.
   justClosed?: { hero: string } | null;
   recommendedRole?: string | null;
-  orderedHeroes?: { hero: string; role: string; credited: number; target: number; daysSinceLastPlayed: number | null; cold: boolean }[];
+  orderedHeroes?: { hero: string; role: string; credited: number; target: number; playedMinutes?: number; targetMinutes?: number; daysSinceLastPlayed: number | null; cold: boolean }[];
 }
 
 // DPI stage-test HUD state — the dashboard reads this live to show the
@@ -763,7 +763,9 @@ export default function Prematch() {
                   being its own grid) so its drum is guaranteed to land in the
                   same x position as the two above — a separate grid re-centers
                   independently and drifts whenever the label text width differs. */}
-              <Odometer value={backlogCount} size={32} digits={1} warn={backlogCount >= BACKLOG_WARN} dataInspectId="prematch-backlog-odometer" />
+              {/* padTo={3}: two invisible spacer drums, so its one digit sits
+                  under the ones digit of the three-digit counters above. */}
+              <Odometer value={backlogCount} size={32} digits={1} padTo={3} warn={backlogCount >= BACKLOG_WARN} dataInspectId="prematch-backlog-odometer" />
               <div className="leading-tight">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">backlog</span>
@@ -1211,7 +1213,11 @@ export default function Prematch() {
                       {nextTest.orderedHeroes?.map(h => (
                         <div key={h.hero} className="flex items-center justify-end gap-1.5 text-[11px] text-[var(--faint-2)]" data-inspect-id="prematch-next-test-hero-row">
                           <span className="hero-name truncate">{h.hero}</span>
-                          <span className="num-display">{h.credited}/{h.target}</span>
+                          {/* Minutes played / planned for a block-based set
+                              (2026-09-28); games for a legacy one. */}
+                          <span className="num-display">
+                            {h.targetMinutes != null ? `${h.playedMinutes ?? 0}/${h.targetMinutes} min` : `${h.credited}/${h.target}`}
+                          </span>
                           {h.cold && (
                             <span className="text-[9px] font-bold uppercase tracking-wide text-blue-500" title={`${h.daysSinceLastPlayed} days since last played`}>
                               cold

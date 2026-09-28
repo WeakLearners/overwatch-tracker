@@ -27,14 +27,19 @@ function Drum({ digit, size, warn }: { digit: number; size: number; warn?: boole
   );
 }
 
+// `padTo` adds invisible spacer drums in front, so a short counter takes the
+// same width as a longer one and its digits line up under theirs.
 // `warn` lights the drums gold (.odo-warn in index.css): a heads-up that the
 // value is nearing its limit. The glow is a shadow, so it takes no layout space.
-export default function Odometer({ value, size = 46, digits = 2, warn = false, dataInspectId = 'odometer-display' }: { value: number; size?: number; digits?: number; warn?: boolean; dataInspectId?: string }) {
+export default function Odometer({ value, size = 46, digits = 2, padTo = 0, warn = false, dataInspectId = 'odometer-display' }: { value: number; size?: number; digits?: number; padTo?: number; warn?: boolean; dataInspectId?: string }) {
   const max = 10 ** digits - 1;
   const v = Math.max(0, Math.min(max, Math.round(value)));
   const places = Array.from({ length: digits }, (_, i) => 10 ** (digits - 1 - i));
   return (
     <div className="flex gap-0" data-inspect-id={dataInspectId}>
+      {Array.from({ length: Math.max(0, padTo - digits) }, (_, i) => (
+        <div key={`pad-${i}`} aria-hidden="true" style={{ width: Math.round(size * 0.72), height: size }} />
+      ))}
       {places.map(pl => <Drum key={pl} digit={Math.floor(v / pl) % 10} size={size} warn={warn} />)}
     </div>
   );

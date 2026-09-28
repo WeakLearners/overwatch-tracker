@@ -632,8 +632,13 @@ function heroProgressForPhase(db: ReturnType<typeof getDb>, phase: string): Hero
     const setRow = db.prepare('SELECT batch_size, chunk_size FROM blind_stage_sets WHERE id = :id')
       .get({ id: row.id }) as { batch_size: number; chunk_size: number | null };
     const chunked = setRow.chunk_size != null && nStages === 2;
-    const credited = chunked ? blockStateOf(db, row.id).closedBlocks : totalGamesOf(db, row.id);
+    const blocks = chunked ? blockStateOf(db, row.id) : null;
+    const credited = blocks ? blocks.closedBlocks : totalGamesOf(db, row.id);
     const target = chunked ? STAGE_BLOCKS * nStages : setRow.batch_size * nStages;
+    // Minutes for display (closed blocks x 60 plus the open block's minutes).
+    const minutes = blocks
+      ? { playedMinutes: Math.floor(blocks.closedBlocks * 60 + blocks.openMinutes), targetMinutes: target * 60 }
+      : {};
     const last = db.prepare(`
       SELECT MAX(m.created_at) last FROM blind_credits bc JOIN matches m ON m.id = bc.match_id
       WHERE bc.blind_set_id = :id
@@ -645,7 +650,7 @@ function heroProgressForPhase(db: ReturnType<typeof getDb>, phase: string): Hero
       ? Math.floor((now - new Date(last.last + 'Z').getTime()) / 86_400_000)
       : null;
     return {
-      hero: row.hero, role, credited, target,
+      hero: row.hero, role, credited, target, ...minutes,
       daysSinceLastPlayed, completed: isSetComplete(db, row.id),
     };
   });
