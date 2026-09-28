@@ -1543,18 +1543,19 @@ export default function Prematch() {
                             >
                               <span
                                 aria-hidden="true"
-                                className={`absolute inset-x-0 top-0 ${isClicked ? 'bottom-[2px]' : 'bottom-[1px]'} flex items-center justify-center num-display italic font-black leading-none tracking-[-0.07em] text-[4.2rem] translate-x-[-0.125em] translate-y-[0.007em] whitespace-nowrap ${isClicked ? 'opacity-[0.225]' : 'opacity-15'}`}
+                                className={`absolute inset-x-0 top-0 ${isClicked ? 'bottom-[2px]' : 'bottom-[1px]'} flex items-center justify-start num-display italic font-black leading-none tracking-[-0.07em] text-[4.2rem] translate-x-[-0.3em] translate-y-[0.007em] whitespace-nowrap ${isClicked ? 'opacity-[0.225]' : 'opacity-15'}`}
                                 style={isClicked ? undefined : { color: `rgb(${hue})` }}
                                 data-inspect-id="prematch-hero-picker-stage-badge"
                               >
                                 {isClicked ? (
-                                  // The label is centred and shifted left 0.125em,
-                                  // so its left edge in card terms is worked out
-                                  // from its own measured width.
+                                  // Pinned to the card's left edge and pushed 0.3em
+                                  // past it, like the rank plot's tier names
+                                  // (2026-09-28). 0.3em of 4.2rem = 1.26rem, so
+                                  // the gauge's end sits 1.26rem further along
+                                  // in the label's own coordinates.
                                   <span
                                     className="lit-text lit-strong lit-fill pr-[0.1em]"
-                                    ref={el => { if (el) el.style.setProperty('--wl', `${el.offsetWidth}px`); }}
-                                    style={{ '--lit-x': 'calc(var(--fill) * (100cqw + 24px) + 7px - ((100cqw + 24px - var(--wl, 0px)) / 2 - 0.525rem))' } as React.CSSProperties}
+                                    style={{ '--lit-x': 'calc(var(--fill) * (100cqw + 24px) + 7px + 1.26rem)' } as React.CSSProperties}
                                   >{label}</span>
                                 ) : label}
                               </span>
