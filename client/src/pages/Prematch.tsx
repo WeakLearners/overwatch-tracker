@@ -1554,19 +1554,19 @@ export default function Prematch() {
                             >
                               <span
                                 aria-hidden="true"
-                                className={`absolute inset-x-0 top-0 ${isClicked ? 'bottom-[2px]' : 'bottom-[1px]'} flex items-center justify-start pl-[13%] num-display italic font-black leading-none tracking-[-0.07em] text-[4.2rem] translate-x-[-0.3em] translate-y-[0.007em] whitespace-nowrap ${isClicked ? 'opacity-[0.225]' : 'opacity-15'}`}
+                                className={`absolute inset-x-0 top-0 ${isClicked ? 'bottom-[2px]' : 'bottom-[1px]'} flex items-center justify-start pl-[10%] num-display italic font-black leading-none tracking-[-0.07em] text-[4.2rem] translate-x-[-0.3em] translate-y-[0.007em] whitespace-nowrap ${isClicked ? 'opacity-[0.225]' : 'opacity-15'}`}
                                 style={isClicked ? undefined : { color: `rgb(${hue})` }}
                                 data-inspect-id="prematch-hero-picker-stage-badge"
                               >
                                 {isClicked ? (
                                   // Left-aligned like the rank plot's tier names,
-                                  // then brought back 13% of the card's width
+                                  // then brought back 10% of the card's width
                                   // (2026-09-28). Its left edge is therefore
-                                  // 13% of the card minus 0.3em (0.3 x 4.2rem =
+                                  // 10% of the card minus 0.3em (0.3 x 4.2rem =
                                   // 1.26rem); --lit-x subtracts that.
                                   <span
                                     className="lit-text lit-strong lit-fill pr-[0.1em]"
-                                    style={{ '--lit-x': 'calc((var(--fill) - 0.13) * (100cqw + 24px) + 7px + 1.26rem)' } as React.CSSProperties}
+                                    style={{ '--lit-x': 'calc((var(--fill) - 0.1) * (100cqw + 24px) + 7px + 1.26rem)' } as React.CSSProperties}
                                   >{label}</span>
                                 ) : label}
                               </span>
