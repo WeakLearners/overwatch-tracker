@@ -1494,7 +1494,7 @@ export default function Prematch() {
                         <span
                           ref={litName?.ref}
                           style={litName?.style}
-                          className={`flex-1 translate-y-[2px] text-[14.52px] hero-name transition-colors ${litName ? litName.cls : isClicked ? 'lit-text lit-strong' : 'text-[var(--faint)]'}`}
+                          className={`flex-1 translate-y-[2px] text-[14.52px] hero-name transition-colors ${litName ? litName.cls : isClicked ? 'lit-text lit-strong' : 'text-[var(--muted)]'}`}
                         >
                           {isDfHero ? withDfBadge(withHeroCount(h.hero, heroCounts), dfMap, h.hero) : withHeroCount(h.hero, heroCounts)}
                           {sensTag && (
@@ -1597,7 +1597,7 @@ export default function Prematch() {
                             the same box, so the row's layout doesn't slide
                             from row to row. */}
                         <span ref={litWr?.ref} style={litWr?.style} className={`shrink-0 w-12 translate-y-[2px] text-right text-[14.52px] hero-name ${showNums ? '' : 'invisible'} ${litWr ? litWr.cls : h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
-                        <span ref={litGames?.ref} style={litGames?.style} className={`translate-y-[2px] text-[14.52px] hero-name w-9 text-right ${showNums ? '' : 'invisible'} ${litGames ? litGames.cls : 'text-[var(--faint-2)]'}`}>{h.games}g</span>
+                        <span ref={litGames?.ref} style={litGames?.style} className={`translate-y-[2px] text-[14.52px] hero-name w-9 text-right ${showNums ? '' : 'invisible'} ${litGames ? litGames.cls : 'text-[var(--faint)]'}`}>{h.games}g</span>
                       </div>
                       );
                     })}
