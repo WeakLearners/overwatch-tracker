@@ -204,6 +204,8 @@ export default function Prematch() {
     : bt ? Math.max(0, bt.n_stages * bt.batch_size - bt.totalGames) : 0;
   const { data: pendingData } = useApi<{ total: number }>('/api/aim/pending?limit=1');
   const backlogCount = pendingData?.total ?? 0;
+  // One-digit backlog (max 9, 2026-09-28): gold from 7 up, a warning before it fills.
+  const BACKLOG_WARN = 7;
   const { isCategoryEnabled, isFieldEnabled } = useFieldConfig();
   const sensStudyOn = isCategoryEnabled('sens-study');
   // Field-registry Phase 2 (2026-09-24) — lobby_low/lobby_high's registry
@@ -742,7 +744,7 @@ export default function Prematch() {
             // the two cards' differing internal content gets without that
             // tradeoff.
             <div className="flex-1 grid grid-cols-[auto_auto] items-center gap-x-3 gap-y-0.5 content-start mt-2.5">
-              <Odometer value={btTestLeft} size={32} dataInspectId="prematch-dpi-matches-left-odometer" />
+              <Odometer value={btTestLeft} size={32} digits={3} dataInspectId="prematch-dpi-matches-left-odometer" />
               <div className="leading-tight">
                 {/* text-[10px] uppercase tracking-wider text-[var(--muted)]
                     matches Hero Advisor's stat-tile labels (Today/Streak/
@@ -752,7 +754,7 @@ export default function Prematch() {
                 <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">{btChunk ? 'minutes left' : 'matches left'}</div>
                 <div className="text-[10px] text-[var(--faint-2)]">in this test</div>
               </div>
-              <Odometer value={btGamesLeft} size={32} dataInspectId="prematch-dpi-games-left-odometer" />
+              <Odometer value={btGamesLeft} size={32} digits={3} dataInspectId="prematch-dpi-games-left-odometer" />
               <div className="leading-tight">
                 <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">{btChunk ? 'minutes left' : 'games left'}</div>
                 <div className="text-[10px] text-[var(--faint-2)]">in stage <b className="font-bold">{bt.cur_stage}</b></div>
@@ -761,7 +763,7 @@ export default function Prematch() {
                   being its own grid) so its drum is guaranteed to land in the
                   same x position as the two above — a separate grid re-centers
                   independently and drifts whenever the label text width differs. */}
-              <Odometer value={backlogCount} size={32} dataInspectId="prematch-backlog-odometer" />
+              <Odometer value={backlogCount} size={32} digits={1} warn={backlogCount >= BACKLOG_WARN} dataInspectId="prematch-backlog-odometer" />
               <div className="leading-tight">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">backlog</span>
@@ -789,7 +791,7 @@ export default function Prematch() {
               counter gets its own simple centered row here instead. */}
           {btActives.length === 0 && (
             <div className="flex items-center justify-center gap-3 pt-3 mt-2">
-              <Odometer value={backlogCount} />
+              <Odometer value={backlogCount} digits={1} warn={backlogCount >= BACKLOG_WARN} />
               <div className="leading-tight">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">backlog</span>

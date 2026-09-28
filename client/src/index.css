@@ -645,6 +645,18 @@
   html.dark .hero-pane { background-image: linear-gradient(to top, rgb(var(--sel) / 0.14), rgb(var(--sel) / 0.05) 55%, transparent); }
   html.dark .hero-pane:not(:hover) { border-color: rgb(var(--sel) / 0.15); }
 
+  /* Odometer near its limit (the Prematch backlog at 7+ of 9): gold digits,
+     gold rim, a soft gold halo that breathes. Shadows only, no layout space. */
+  .odo-warn {
+    box-shadow: inset 0 0 0 1px rgb(234 179 8 / 0.8), 0 0 6px rgb(234 179 8 / 0.55);
+    animation: odo-warn-pulse 1.6s ease-in-out infinite;
+  }
+  .odo-warn .num-display { color: rgb(202 138 4); }
+  html.dark .odo-warn .num-display { color: rgb(250 204 21); }
+  @keyframes odo-warn-pulse {
+    50% { box-shadow: inset 0 0 0 1px rgb(234 179 8), 0 0 9px rgb(234 179 8 / 0.8); }
+  }
+
   .hover-sel:hover {
     border-color: rgb(var(--sel, 247 147 30) / 0.7);
     background-color: rgb(var(--sel, 247 147 30) / 0.10);
