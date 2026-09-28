@@ -1153,7 +1153,7 @@ const DATA = {
           "kind": "badge",
           "description": "\u2460/\u2461/\u2462 badge shown on a hero row once it's been clicked, marking its position in the up-to-3 ordered click sequence that fills Log Match's hero slots (1st click \u2192 primary hero, 2nd/3rd \u2192 the two switch-hero slots). Colored via ROLE_PILL_CLASS to match the app's existing DPS/Tank/Support role-color convention rather than a generic accent.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1468",
+            "path": "client/src/pages/Prematch.tsx:1488",
             "grep": "grep -n -F -- 'prematch-hero-picker-order-badge' client/src/pages/Prematch.tsx"
           }
         },
@@ -1163,7 +1163,7 @@ const DATA = {
           "kind": "meter",
           "description": "The gauge is the card's lit bottom edge (2026-09-27): hidden on unselected cards until hover, always shown on selected ones; a 2px edge plus a glow that eases out over ~24px (2026-09-28; was a hard step at 3px, gone by 14px) in the role hue (ROLE_SEL_RGB), drawn as a bottom-up linear-gradient only as far as the hero's open 60-min block has filled (GET /api/blind/state chunk.openMinutes, lib/blind.ts deriveBlockState; legacy unchunked set: games played at this sens). 20deg slanted end via clip-path. Full strength on a selected card (whose own card-wide edge is switched off so the gauge owns it), 50% at rest. The layer extends down over the card's bottom border, 2px selected / 1px at rest (2026-09-28), so the lit edge sits on the border; the watermark takes those 2px back to stay centred. On a selected card the lit hero name and A1 watermark glow only as far as the gauge reaches (.lit-fill, --fill/--lit-x, 2026-09-28); past its end the letters are the unlit colour. Fill = openMinutes/60, left to right (verified 2026-09-28: Juno 51.9 min -> 86%). Lives in a -z-10 layer inside the `isolate` card. Hover title: \"A1 \u00b7 N minutes played\".",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1520",
+            "path": "client/src/pages/Prematch.tsx:1542",
             "grep": "grep -n -F -- 'prematch-hero-picker-gauge' client/src/pages/Prematch.tsx"
           }
         },
@@ -1173,7 +1173,7 @@ const DATA = {
           "kind": "badge",
           "description": "Stage/chunk label (\"A1\"..\"B4\" via lib/blind.ts chunkLabelFor; bare stage number for a legacy set) as an oversized watermark set like Log Match's mode-tile QP/V5/V6 (ModeWatermark \"selector\" variant: 5rem num-display italic font-black, centred, translate -0.125em/0.057em). At rest: role hue at 15%. Selected: .lit-text.lit-strong at 22.5%.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1526",
+            "path": "client/src/pages/Prematch.tsx:1548",
             "grep": "grep -n -F -- 'prematch-hero-picker-stage-badge' client/src/pages/Prematch.tsx"
           },
           "expectedMatches": 2
@@ -1184,7 +1184,7 @@ const DATA = {
           "kind": "badge",
           "description": "Shown on a hero row in Select Your Hero when that hero belongs to the current DPI/sens testing phase's roster but has already finished it (no active test, blind_stage_sets completed=true for that phase) \u2014 lets the whole phase roster stay visible instead of dropping a hero the moment its test completes.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1564",
+            "path": "client/src/pages/Prematch.tsx:1586",
             "grep": "grep -n -F -- 'prematch-hero-picker-done-badge' client/src/pages/Prematch.tsx"
           }
         },
@@ -1194,7 +1194,7 @@ const DATA = {
           "kind": "banner",
           "description": "Empty-state message shown when no games have been logged for the current map/filter, prompting the user to pick a map or log a match.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1590",
+            "path": "client/src/pages/Prematch.tsx:1613",
             "grep": "grep -n -F -- 'dataInspectId=\"prematch-empty-state-banner\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -1212,9 +1212,9 @@ const DATA = {
           "id": "prematch-hero-picker-button",
           "label": "Hero picker button",
           "kind": "button",
-          "description": "One hero row in the Select Your Hero picker. Click toggles it into the match's pick order. Selected and hover states both use the ROLE's colour, not the brand accent \u2014 teal in the DPS column, pink in the Support column \u2014 via --sel set inline on every chip so hover and selection agree. Matches the order badge, which already coloured by role. The hero the Next test card points at (stint hero, else the top recommendation) gets .test-glow, a pulsing role-coloured halo. Styled like Log Match's mode tiles since 2026-09-27: selected = border-2 .is-selected.mode-fill with the name in font-display italic .lit-text.lit-strong; resting = .hero-pane, the lobby slider's unlit rank-pane look in the role hue (1px border at 35%/15% light/dark + bottom tint), with 1px extra padding so selecting doesn't shift the row; faint italic name with NO hover brightening (removed 2026-09-27 as jarring). 4px corners both states. Win rate/games use the hero-name font and are invisible until a map is picked (they are this-map numbers).",
+          "description": "One hero row in the Select Your Hero picker. Click toggles it into the match's pick order. Selected and hover states both use the ROLE's colour, not the brand accent \u2014 teal in the DPS column, pink in the Support column \u2014 via --sel set inline on every chip so hover and selection agree. Matches the order badge, which already coloured by role. The hero the Next test card points at (stint hero, else the top recommendation) gets .test-glow, a pulsing role-coloured halo. Styled like Log Match's mode tiles since 2026-09-27: selected = border-2 .is-selected.mode-fill with the name in .lit-text.lit-strong; resting = .hero-pane, the lobby slider's unlit rank-pane look in the role hue (1px border at 35%/15% light/dark + bottom tint), with 1px extra padding so selecting doesn't shift the row; faint name with NO hover brightening (removed 2026-09-27 as jarring). 4px corners both states. Name, win rate and games use the app's standard upright .hero-name face (Chakra Petch; italic dropped 2026-09-28). Win rate/games show this map's numbers once a map is picked and all maps' before that (GET /api/stats/prematch returns all-maps byHero when no map is sent); hidden only for a hero with 0 games. On a selected test card every letter (arrow, name, sens tag, win rate, games) glows only as far as the gauge reaches (.lit-fill); coloured numbers keep their own hue via .lit-hue.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1431",
+            "path": "client/src/pages/Prematch.tsx:1451",
             "grep": "grep -n -F -- 'prematch-hero-picker-button' client/src/pages/Prematch.tsx"
           }
         },
@@ -5390,6 +5390,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 

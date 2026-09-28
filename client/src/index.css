@@ -555,7 +555,8 @@
      hero picker's gauge, 2026-09-28). A second layer on top paints the
      unlit colour from --lit-x rightward, feathered over 16px. --lit-x is the
      gauge's end in this element's own coordinates, set inline. */
-  .lit-text.lit-strong.lit-fill {
+  .lit-text.lit-fill,
+  .lit-text.lit-hue.lit-loss.lit-fill {
     background-image:
       linear-gradient(to right, transparent calc(var(--lit-x, 100%) - 8px), var(--lit-far) calc(var(--lit-x, 100%) + 8px)),
       linear-gradient(var(--lit-dir, to top), var(--lit-near) 10%, var(--lit-far) 85%);

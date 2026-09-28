@@ -245,12 +245,16 @@ router.get('/prematch', (req: Request, res: Response) => {
   const db = getDb();
   const { map, game_type, hour, day_of_week } = req.query as Record<string, string>;
 
-  const byHero = map ? db.prepare(`
+  // With a map: that map's numbers. Without one: every map's (2026-09-28),
+  // so the hero picker shows overall form instead of a blank until a map
+  // is chosen.
+  const where = [map ? 'map = :map' : '', game_type ? 'game_type = :game_type' : ''].filter(Boolean);
+  const byHero = db.prepare(`
     SELECT hero, role, COUNT(*) as games, SUM(win) as wins,
            ROUND(AVG(win) * 100, 1) as win_rate
-    FROM matches_by_hero WHERE map = :map ${game_type ? 'AND game_type = :game_type' : ''}
+    FROM matches_by_hero ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
     GROUP BY hero ORDER BY win_rate DESC
-  `).all({ map, ...(game_type ? { game_type } : {}) }) : [];
+  `).all({ ...(map ? { map } : {}), ...(game_type ? { game_type } : {}) });
 
   const timeContext = db.prepare(`
     SELECT

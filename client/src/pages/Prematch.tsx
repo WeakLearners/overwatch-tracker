@@ -1413,6 +1413,26 @@ export default function Prematch() {
                       // resting names aren't lit.
                       const fill = isDfHero ? null : gaugeFillFor(h.hero);
                       const litFill = isClicked && fill != null;
+                      // Every piece of text on the card follows the glow, not
+                      // just the name. litAs() returns the props that do it:
+                      // a measured left edge (--nl) and the gauge's end in the
+                      // element's own coordinates (--lit-x). `hue` keeps a
+                      // coloured number (win rate, arrow) in its own colour.
+                      const litAs = (hue?: string) => litFill ? {
+                        ref: (el: HTMLElement | null) => { if (el) el.style.setProperty('--nl', `${el.offsetLeft}px`); },
+                        style: { '--lit-x': 'calc(var(--fill) * (100cqw + 24px) + 7px - var(--nl, 0px))', ...(hue ? { '--sel': hue } : {}) } as React.CSSProperties,
+                        cls: `lit-text ${hue ? 'lit-hue' : 'lit-strong'} lit-fill`,
+                      } : null;
+                      const wrHue = h.win_rate >= 60 ? '5 150 105' : h.win_rate >= 50 ? '41 211 242' : h.win_rate >= 40 ? '250 204 21' : '220 38 38';
+                      const litName = litAs();
+                      const litArrow = litAs(h.win_rate >= 50 ? '4 120 87' : '239 68 68');
+                      const litWr = litAs(wrHue);
+                      const litGames = litAs();
+                      const litSens = sensTag?.settled ? litAs('4 120 87') : null;
+                      // Per-map numbers when a map is picked, all-maps numbers
+                      // before (2026-09-28). A hero with no games at all still
+                      // hides them rather than reading 0%.
+                      const showNums = h.games > 0;
                       return (
                       // role="button" rather than a real <button> because the
                       // row now nests its own "start next phase" button, and a
@@ -1470,16 +1490,18 @@ export default function Prematch() {
                             {clickIndex + 1}
                           </span>
                         )}
-                        <span className={`text-[16.94px] ${map ? '' : 'invisible'} ${h.win_rate >= 50 ? 'text-emerald-700' : 'text-red-500'}`}>{h.win_rate >= 50 ? '↑' : '↓'}</span>
+                        <span ref={litArrow?.ref} style={litArrow?.style} className={`text-[16.94px] ${showNums ? '' : 'invisible'} ${litArrow ? litArrow.cls : h.win_rate >= 50 ? 'text-emerald-700' : 'text-red-500'}`}>{h.win_rate >= 50 ? '↑' : '↓'}</span>
                         <span
-                          ref={litFill ? el => { if (el) el.style.setProperty('--nl', `${el.offsetLeft}px`); } : undefined}
-                          style={litFill ? { '--lit-x': 'calc(var(--fill) * (100cqw + 24px) + 7px - var(--nl, 0px))' } as React.CSSProperties : undefined}
-                          className={`flex-1 translate-y-[2px] text-[14.52px] hero-name font-display italic transition-colors ${isClicked ? `lit-text lit-strong${litFill ? ' lit-fill' : ''}` : 'text-[var(--faint)]'}`}
+                          ref={litName?.ref}
+                          style={litName?.style}
+                          className={`flex-1 translate-y-[2px] text-[14.52px] hero-name transition-colors ${litName ? litName.cls : isClicked ? 'lit-text lit-strong' : 'text-[var(--faint)]'}`}
                         >
                           {isDfHero ? withDfBadge(withHeroCount(h.hero, heroCounts), dfMap, h.hero) : withHeroCount(h.hero, heroCounts)}
                           {sensTag && (
                             <span
-                              className={sensTag.settled ? 'text-emerald-700 dark:text-emerald-400' : undefined}
+                              ref={litSens?.ref}
+                              style={litSens?.style}
+                              className={litSens ? litSens.cls : sensTag.settled ? 'text-emerald-700 dark:text-emerald-400' : undefined}
                               title={sensTag.settled
                                 ? 'Best sens this hero’s own testing landed on'
                                 : 'Sens this test is running at'}
@@ -1566,14 +1588,15 @@ export default function Prematch() {
                             ✓ Done
                           </span>
                         )}
-                        {/* Hidden (space kept) until a map is picked: these are
-                            this-map numbers, so before that every row reads 0%.
+                        {/* This map's numbers once a map is picked, all maps'
+                            before that. Hidden (space kept) for a hero with
+                            no games, which would read 0%.
                             Fixed width + right-aligned so the win rate can't
                             change the column's width — "0%" and "100%" occupy
                             the same box, so the row's layout doesn't slide
                             from row to row. */}
-                        <span className={`shrink-0 w-12 translate-y-[2px] text-right text-[14.52px] hero-name font-display italic ${map ? '' : 'invisible'} ${h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
-                        <span className={`translate-y-[2px] text-[14.52px] hero-name font-display italic text-[var(--faint-2)] w-9 text-right ${map ? '' : 'invisible'}`}>{h.games}g</span>
+                        <span ref={litWr?.ref} style={litWr?.style} className={`shrink-0 w-12 translate-y-[2px] text-right text-[14.52px] hero-name ${showNums ? '' : 'invisible'} ${litWr ? litWr.cls : h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
+                        <span ref={litGames?.ref} style={litGames?.style} className={`translate-y-[2px] text-[14.52px] hero-name w-9 text-right ${showNums ? '' : 'invisible'} ${litGames ? litGames.cls : 'text-[var(--faint-2)]'}`}>{h.games}g</span>
                       </div>
                       );
                     })}
