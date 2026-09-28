@@ -57,6 +57,7 @@ interface DpiTestHud {
     // for a chunked set.
     chunk?: {
       label: string; openMinutes: number; stageBlocks: number; stageBlocksTarget: number;
+      closedBlocks: number; totalBlocksTarget: number;
     } | null;
   }[];
 }
@@ -190,8 +191,17 @@ export default function Prematch() {
     } catch { /* ignore */ }
   }, [btHeroPick]);
   const bt = btActives.find(a => (a.hero ?? AD_HOC_KEY) === btHeroPick) ?? btActives[0] ?? null;
-  const btGamesLeft = bt ? Math.max(0, bt.batch_size - bt.games_on_stage) : 0;
-  const btTestLeft = bt ? Math.max(0, bt.n_stages * bt.batch_size - bt.totalGames) : 0;
+  // A chunked set runs on 60-minute blocks (2026-09-27), so its HUD counts
+  // minutes left, not games (2026-09-28). The open block's minutes count
+  // toward both the whole test and the current stage. Rounded up so 0 only
+  // shows when it's truly done. A legacy unchunked set still counts games.
+  const btChunk = bt?.chunk ?? null;
+  const btGamesLeft = btChunk
+    ? Math.max(0, Math.ceil((btChunk.stageBlocksTarget - btChunk.stageBlocks) * 60 - btChunk.openMinutes))
+    : bt ? Math.max(0, bt.batch_size - bt.games_on_stage) : 0;
+  const btTestLeft = btChunk
+    ? Math.max(0, Math.ceil((btChunk.totalBlocksTarget - btChunk.closedBlocks) * 60 - btChunk.openMinutes))
+    : bt ? Math.max(0, bt.n_stages * bt.batch_size - bt.totalGames) : 0;
   const { data: pendingData } = useApi<{ total: number }>('/api/aim/pending?limit=1');
   const backlogCount = pendingData?.total ?? 0;
   const { isCategoryEnabled, isFieldEnabled } = useFieldConfig();
@@ -669,8 +679,9 @@ export default function Prematch() {
         {/* DPI stage-test HUD — a dropdown picks which "In Testing" hero you're
             about to play (several can be active at once, but the mouse can
             only sit on one DPI at a time), then shows that hero's current
-            stage DPI plainly (no hiding) plus two live wheels: matches left
-            in its whole test and games left before its next stage switch.
+            stage DPI plainly (no hiding) plus two live wheels: minutes left
+            in its whole test and in its current stage (games, for a legacy
+            unchunked set).
             Drives off the same state the Sens page loop does. Sits where the
             sens picker used to. */}
         <div className="card sm:aspect-square shrink-0 flex flex-col self-stretch" data-inspect-id="prematch-dpi-hud-card">
@@ -738,12 +749,12 @@ export default function Prematch() {
                     This hour, prematch-today-stat-tile etc.) exactly, so
                     this card's counter names read with the same caps
                     treatment as the app's other small stat labels. */}
-                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">matches left</div>
+                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">{btChunk ? 'minutes left' : 'matches left'}</div>
                 <div className="text-[10px] text-[var(--faint-2)]">in this test</div>
               </div>
               <Odometer value={btGamesLeft} size={32} dataInspectId="prematch-dpi-games-left-odometer" />
               <div className="leading-tight">
-                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">games left</div>
+                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">{btChunk ? 'minutes left' : 'games left'}</div>
                 <div className="text-[10px] text-[var(--faint-2)]">in stage <b className="font-bold">{bt.cur_stage}</b></div>
               </div>
               {/* Backlog counter shares this grid's column tracks (rather than

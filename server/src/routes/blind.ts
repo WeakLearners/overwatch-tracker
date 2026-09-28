@@ -410,6 +410,10 @@ router.get('/state', (_req: Request, res: Response) => {
             openMinutes: whole.openMinutes,
             stageBlocks,
             stageBlocksTarget: STAGE_BLOCKS,
+            // Whole-test progress in blocks, for the Prematch HUD's
+            // minutes-left counters (2026-09-28).
+            closedBlocks: whole.closedBlocks,
+            totalBlocksTarget: n_stages * STAGE_BLOCKS,
           };
         })()
       : null;
