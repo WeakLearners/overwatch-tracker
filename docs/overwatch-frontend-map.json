@@ -677,7 +677,7 @@
           "id": "prematch-hero-picker-stage-badge",
           "label": "Hero picker stage/chunk watermark",
           "kind": "badge",
-          "description": "Stage/chunk label (\"A1\"..\"B4\" via lib/blind.ts chunkLabelFor; bare stage number for a legacy set) as an oversized watermark set like Log Match's mode-tile QP/V5/V6 (ModeWatermark \"selector\" variant: 4.2rem num-display italic font-black). Since 2026-09-28 left-aligned (pl-[3%], i.e. 3% in from the card's left edge) then pushed 0.3em left, like the Dashboard rank plot's tier-name watermarks (RecentMatchesCard), so the first glyph bleeds off the edge. At rest: role hue at 15%. Selected: .lit-text.lit-strong at 22.5%.",
+          "description": "Stage/chunk label (\"A1\"..\"B4\" via lib/blind.ts chunkLabelFor; bare stage number for a legacy set) as an oversized watermark set like Log Match's mode-tile QP/V5/V6 (ModeWatermark \"selector\" variant: 4.2rem num-display italic font-black). Since 2026-09-28 left-aligned (pl-[13%], i.e. 13% in from the card's left edge) then pushed 0.3em left, like the Dashboard rank plot's tier-name watermarks (RecentMatchesCard), so the first glyph bleeds off the edge. At rest: role hue at 15%. Selected: .lit-text.lit-strong at 22.5%.",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:1559",
             "grep": "grep -n -F -- 'prematch-hero-picker-stage-badge' client/src/pages/Prematch.tsx"
