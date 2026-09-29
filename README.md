@@ -1,6 +1,6 @@
 # OW2 Match Tracker
 
-A full-stack match-tracking and analysis app for Overwatch 2 — built to log my own games and figure out what, if anything, in my play actually correlates with winning. It's been in daily use since November 2024 and currently holds **3,489 (...and counting) logged matches spanning 2024-11-28 to 2026-09-09** (overall win rate 48.55%).
+A full-stack match-tracking and analysis app for Overwatch 2 — built to log my own games and figure out what, if anything, in my play actually correlates with winning. It has been in daily use since November 2024. As of 2026-09-24 it holds **3,639 logged matches** (2024-11-28 to 2026-09-24), with an overall win rate of 48.42%.
 
 ## Why this exists
 
@@ -8,10 +8,10 @@ Most "OW2 stats" content is built on small samples dressed up as patterns. This 
 
 That happened here, concretely. An earlier pass over a partial dataset (~578 matches) surfaced a set of "key patterns" — specific maps and times of day with strong win rates. As the dataset grew roughly 6x, nearly every one of those patterns regressed to the baseline, which is exactly what you'd expect from noise on n≈18-per-bucket samples. Rather than quietly update the numbers, the app's stats layer now applies multiple-comparison correction before calling anything a finding:
 
-- Across 32 maps tested (n≥30), **none** clear Bonferroni correction. The best-looking outlier (Numbani, 35.2% WR, n=88) is suggestive (p≈0.005) but still fails the corrected threshold at 32 comparisons.
-- Across 12 hours-of-day tested (n≥50), exactly **one** clears correction: an unexplained dip at noon (38.5% WR, n=200, p≈0.001). Every other hour, including the ones an earlier pass called "best," sits within noise of the 48.55% baseline.
+- Across 32 maps tested (n≥30), **none** clear Bonferroni correction. The best-looking outlier (Numbani, 35.9% WR, n=92, p≈0.016) is suggestive and still fails the corrected threshold at 32 comparisons. Its p-value has been getting worse as the sample grows, which is what noise does.
+- Across 12 hours of the day (n≥50), **none** clear correction either. Noon is the lowest hour (39.4% WR, n=208, p≈0.009) against a corrected threshold of about 0.004. Two weeks earlier, at n=200, noon did clear that bar. Eight more noon games and it stopped. I am leaving that in here on purpose.
 
-That's the more interesting result than any individual win-rate number: knowing which of your own patterns are real versus which ones you'd have bet on and been wrong about.
+The result I care about is not any single win rate. It is knowing which of my own patterns are real, and which ones I would have bet on and lost. "Survives correction" describes one sample on one day. It is not a permanent property of the data, so a finding gets re-tested before it is published.
 
 The death-tracking model went through a similar correction. An earlier version asked for a subjective judgment call at every death mid-match (was it a bad trade? poor positioning? bad timing?) — and that data decayed, because judgment calls made under a 10-second respawn clock are slow and unreliable. It was rebuilt around a much narrower, purely factual capture: who killed you, their role, whether it was an ultimate. A separate once-per-match rating (`match_quality`, `result_driver`) captures the one subjective judgment that's cheap enough to survive — a single call per match, not one per event.
 
@@ -97,7 +97,6 @@ installs a `post-commit` hook that runs `scripts/build-client.sh` in the backgro
 ./scripts/build-client.sh
 ```
 
-From another machine on the tailnet: `http://your-mac:3001`.
 
 ### Starting from empty
 
