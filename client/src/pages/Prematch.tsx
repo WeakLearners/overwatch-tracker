@@ -763,7 +763,7 @@ export default function Prematch() {
                         Clicks pass through to the tile. */}
                     <span className="inline-flex flex-col items-stretch">
                         <span className={`text-lg xl:text-xl num-display font-black leading-none ${m === map || m === recommended ? 'lit-text' : 'text-[var(--ink)]'} ${m === map ? 'lit-strong' : ''}`} data-inspect-id="prematch-selected-map-chip-rate">{scoreMap[m] ? <>{Math.round(scoreMap[m].historical_rate)}<span className="text-[10px] font-bold ml-px">%</span></> : '—'}</span>
-                      <span className="flex items-stretch h-[4px] -mt-[3px] pointer-events-none" data-inspect-id="prematch-selected-map-chip-history">
+                      <span className="flex items-stretch h-[2px] -mt-[3px] pointer-events-none" data-inspect-id="prematch-selected-map-chip-history">
                         {(() => {
                           const hist = [...(mapHistory?.byMap?.[m] ?? [])].reverse();
                           return hist.map((h, i) => (

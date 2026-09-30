@@ -35,7 +35,7 @@ export default function Dashboard() {
   // here at all.
 
   const sections = [
-    { id: 'sec-form', label: 'Form & Rank' },
+    { id: 'sec-form', label: 'Form' },
     { id: 'sec-mode', label: 'Mode' },
     { id: 'sec-match', label: 'Match' },
     { id: 'sec-trends', label: 'Trends' },
