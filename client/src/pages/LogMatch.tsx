@@ -1009,7 +1009,10 @@ export default function LogMatch() {
       {isFieldEnabled('deaths') && (
       <div id="notable-deaths" className="card mb-6 scroll-mt-24" data-inspect-id="logmatch-deaths-card">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm card-title">Deaths</h2>
+          <div className="flex items-baseline gap-2 min-w-0">
+            <h2 className="text-sm card-title">Deaths</h2>
+            <span className="text-xs text-[var(--faint-2)]">log each death as it happens, one tap per death</span>
+          </div>
           {deathBuffer.length > 0 && (
             <button
               type="button"
@@ -1024,11 +1027,7 @@ export default function LogMatch() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
           <div data-inspect-id="logmatch-death-history-column">
-          {deathBuffer.length === 0 ? (
-            <p className="text-xs text-[var(--faint)]">
-              Log each death as it happens — one tap per death.
-            </p>
-          ) : (
+          {deathBuffer.length === 0 ? null : (
             <div className="space-y-1.5" data-inspect-id="logmatch-death-buffer-list">
               {deathBuffer.map((d, i) => (
                 <div key={i} className="flex items-center justify-between gap-2 py-2 px-3 rounded-lg bg-ow-darker border border-ow-border">

@@ -313,6 +313,10 @@ export const MAP_SHORT: Record<string, string> = {
 };
 export const mapShort = (m: string) => MAP_SHORT[m] ?? m;
 
+/** Short hero names for tight tiles. Only names too long for one are listed. */
+const HERO_SHORT: Record<string, string> = { 'Soldier: 76': 'S76', 'Junker Queen': 'JQ', 'Wrecking Ball': 'Ball', Lifeweaver: 'LW' };
+export const heroShort = (h: string) => HERO_SHORT[h] ?? h;
+
 // DPS teal / Support pink (not red/green) — this app already uses red for
 // Loss and Comp-Role mode, and emerald for Win, so a red DPS badge or green
 // Support badge read as an outcome/mode signal instead of a role one. Tank
