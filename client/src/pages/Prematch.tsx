@@ -612,19 +612,368 @@ export default function Prematch() {
         </span>
       </div>
 
-      {/* DPI test HUD (square) + Map Voting + Hero Advisor row — stacks on
-          phone widths; three-across only once there's room for each card's
-          own header (title + badge) to fit without wrapping. */}
-      {/* Fixed height at sm+ (sm:h-[13.68rem], 15.2rem - another 10%) so this row holds steady regardless of
-          card content, with Map Voting and Hero Advisor matching DPI-HUD's
-          card size instead of growing past it — their variable content
-          (vote recommendation, hero coaching, etc.) scrolls internally past
-          this fixed height rather than pushing it. DPI-HUD stays
-          self-stretch + aspect-square so its width is always derived from
-          this SAME shared height (square, deterministic) rather than a
-          separate guessed width — all three cards size off one number. */}
-      <div className="flex flex-col sm:flex-row items-stretch gap-4 mb-4 sm:h-[13.68rem]">
+      {/* Step 1 row (game sequence, design-language section 7): the Map card
+          (tracker input) first, then the advice that informs it (Map Voting),
+          then Today. No fixed height and no clipping: cards size to their
+          content, and nothing scrolls inside a card. The sens-test HUD used to
+          own this row's height; it now lives with the Experiment column at
+          step 5. */}
+      <div className="flex flex-col sm:flex-row items-stretch gap-4 mb-4">
 
+        {/* Map — game step 1. Tracker-owned inputs, moved out of the advice
+            cards that used to host them: the offered-maps search and chips (up
+            to 3, what the vote screen offered), then the match map itself.
+            State is MatchContext's `map`; this is placement only. */}
+        <div className="card flex-1 min-w-0 flex flex-col" data-inspect-id="prematch-map-card">
+          <div className="flex items-center justify-between mb-2 min-h-8">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm card-title whitespace-nowrap">Map</h2>
+              <span className="text-xs text-[var(--faint)] bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">tap up to 3</span>
+            </div>
+          </div>
+
+          {/* Search input */}
+          <div className="relative mb-2">
+            <input
+              ref={inputRef}
+              id="map-search"
+              type="text"
+              value={query}
+              onChange={e => { setQuery(e.target.value); setOpen(true); }}
+              onFocus={() => setOpen(true)}
+              onBlur={() => setTimeout(() => setOpen(false), 100)}
+              onKeyDown={e => {
+                if (e.key === 'Escape') { setQuery(''); setOpen(false); }
+                if (e.key === 'Enter' && results.length > 0) selectMap(results[0]);
+              }}
+              placeholder={selected.length >= 3 ? '3 maps selected' : 'Type a map name…'}
+              data-inspect-id="prematch-map-search-input"
+              disabled={selected.length >= 3}
+              className="w-full field px-3 py-2 text-sm"
+            />
+            {open && results.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-ow-card rounded-lg shadow-xl z-30 overflow-hidden" data-inspect-id="prematch-map-search-results-dropdown">
+                {results.map(m => (
+                  <button
+                    key={m}
+                    onMouseDown={() => selectMap(m)}
+                    className="w-full flex items-center justify-between px-3 py-2 text-xs hover:bg-white/5 transition-colors text-left"
+                  >
+                    <span className="map-name text-[var(--ink)]">{withMapCount(m, mapCounts)}</span>
+                    <span className={`pill ${TYPE_COLORS[MAPS[m]] ?? ''}`}>{MAPS[m]}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Selected chips — all four pills (up to 3 maps + Clear) share
+              equal width via flex-1/min-w-0 so they always sum to exactly
+              the row's width (one row, no wrap) regardless of card width;
+              the map name itself is a separate truncating span at a small
+              fixed font size so even the longest map names ("Shambali
+              Monastery") stay inside the pill instead of forcing it wider.
+              Shape matches Dashboard's "Log sens stats" link — same notched
+              clip-path (scaled down to a 6px cut for this smaller pill)
+              instead of rounded-full, so the two clipped-corner shapes in
+              the app are consistent rather than mixing pill styles. */}
+          {selected.length > 0 && (
+            <div className="flex items-start gap-2" data-inspect-id="prematch-selected-map-chips">
+              {selected.map(m => (
+                <div key={m} className="flex-1 min-w-0 flex flex-col gap-1">
+                <span
+                  className={`w-full min-w-0 flex items-center justify-center gap-1 pl-2 pr-1 py-1 text-[10px] map-name transition-colors ${
+                    m === recommended
+                      ? 'bg-emerald-500/20 text-emerald-700'
+                      : 'bg-ow-accent/15 text-ow-accent'
+                  }`}
+                  style={{ clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)' }}
+                >
+                  <button
+                    onClick={() => setMap(m)}
+                    className="flex items-center gap-1 min-w-0 hover:opacity-80 transition-opacity"
+                    title={`Set ${m} as the match map`}
+                  >
+                    {m === recommended && <span className="shrink-0 normal-case">✓</span>}
+                    <span className="truncate">{withMapCount(m, mapCounts)}</span>
+                  </button>
+                  <button
+                    onClick={() => toggleMap(m)}
+                    className="flex items-center justify-center w-4 h-4 shrink-0 rounded-full text-xs font-bold leading-none hover:bg-black/10 hover:text-red-600 transition-colors"
+                    title={`Remove ${m}`}
+                  >
+                    ×
+                  </button>
+                </span>
+                {/* Last 5 matches on this map (byMap from
+                    /api/matches/map-history?maps=) — same win/loss-colored dash
+                    treatment as the map history strip on Today's Matches rows,
+                    newest leftmost with the oldest dash faded. Sized to the
+                    chip's own column so it tracks the pill above it. */}
+                <div className="flex items-center gap-1 px-0.5" data-inspect-id="prematch-selected-map-chip-history">
+                  {(() => {
+                    const hist = [...(mapHistory?.byMap?.[m] ?? [])].reverse();
+                    return hist.map((h, i) => (
+                      <span
+                        key={i}
+                        style={i === hist.length - 1 ? OLDEST_DASH_FADE_STYLE : undefined}
+                        className={`flex-1 h-[3px] rounded-full ${h.win ? 'bg-emerald-500' : 'bg-red-500'}`}
+                        title={`${h.win ? 'Win' : 'Loss'} · ${MODE_COMPACT[h.queue_mode]?.top ?? h.queue_mode} ${MODE_COMPACT[h.queue_mode]?.bot ?? ''}`.trim()}
+                      />
+                    ));
+                  })()}
+                </div>
+                </div>
+              ))}
+              <button
+                onClick={() => { setSelected([]); advisorSelectRef.current?.focus(); }}
+                className="flex-1 min-w-0 flex items-center justify-center px-2 py-1 text-[10px] font-medium bg-ow-border/40 text-[var(--ink-2)] hover:bg-ow-border/70 hover:text-[var(--ink)] transition-colors"
+                style={{ clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)' }}
+                data-inspect-id="prematch-map-voting-clear-button"
+              >
+                Clear
+              </button>
+            </div>
+          )}
+
+          {/* The match map. Its choices narrow to the offered maps once any are
+              picked. */}
+          <div className="mt-2">
+          <div className="mb-2">
+            <select
+              ref={advisorSelectRef}
+              value={map}
+              onChange={e => setMap(e.target.value)}
+              className="w-full field px-3 py-2 text-sm"
+              data-inspect-id="prematch-map-select-dropdown"
+            >
+              <option value="">— Select map —</option>
+              {(selected.length > 0 ? [...selected] : Object.keys(MAPS)).sort().map(m => (
+                <option key={m} value={m} className="uppercase">{withMapCount(m, mapCounts)}</option>
+              ))}
+            </select>
+          </div>
+          </div>
+          {mapType && <span className={`pill ${TYPE_COLORS[mapType] ?? ''}`} data-inspect-id="prematch-map-type-badge">{mapType}</span>}
+        </div>
+
+        {/* Map Voting — advice only. The inputs it used to host are in the Map
+            card; this reads the offered maps and says which to vote for. */}
+        <div className="card flex-1 min-w-0 flex flex-col" data-inspect-id="prematch-map-voting-card">
+          <div className="flex items-center justify-between mb-2 min-h-8">
+            <h2 className="text-sm card-title whitespace-nowrap">Map Voting</h2>
+            <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">Advice</span>
+          </div>
+
+          <div className="flex-1 min-h-0 flex flex-col">
+
+          {/* Idle: best & worst maps by win rate — tap one to add it to your
+              picks (which swaps this block for the chips + vote below). */}
+          {selected.length === 0 && rankedMaps.length > 0 && (
+            <div className="flex-1 grid grid-cols-2 gap-x-4 content-start mt-4" data-inspect-id="prematch-best-worst-maps-list">
+              {([
+                { label: 'Best maps', color: 'text-emerald-600', pct: 'text-emerald-500', list: bestMaps },
+                { label: 'Worst maps', color: 'text-red-500', pct: 'text-red-500', list: worstMaps },
+              ] as const).map(col => (
+                <div key={col.label}>
+                  <div className={`text-[9px] uppercase tracking-wider mb-1 ${col.color}`}>{col.label}</div>
+                  {col.list.map(m => (
+                    <button
+                      key={m.map}
+                      onClick={() => selectMap(m.map)}
+                      className="flex items-center justify-between w-full text-left py-0.5 px-1 -mx-1 rounded hover:bg-white/5 transition-colors group"
+                    >
+                      <span className="text-xs map-name text-[var(--ink)] truncate group-hover:text-ow-accent transition-colors">{withMapCount(m.map, mapCounts)}</span>
+                      <span className={`text-[10px] font-bold shrink-0 ml-2 ${col.pct}`}>{Math.round(m.recent_rate!)}%</span>
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Vote recommendation — driven by testPick (the cross product of
+              candidate maps x current-phase roster for the Role Pick role)
+              when that data is available, since a hero-informed win rate is
+              more useful than a map-only blended score for actually deciding
+              which map to vote for. Falls back to the old map-only
+              blended_score ranking when testPick has nothing (no phase
+              heroes yet, or zero games logged for any of them) so the
+              section still works before a testing phase exists. Replaces
+              the former separate "Top Picks" list below this — folded in
+              per "new feature does not equate to new elements" rather than
+              keeping two side-by-side recommendations. */}
+          {selected.length > 0 && (testPick?.available ? testPick.picks.length > 0 : ranked.length > 0) && (
+            <div className="mt-auto pt-1">
+              {testPick?.available && testPick.picks.length > 0 ? (
+                <div className="flex items-start gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setMap(testPick.picks[0].map)} className="text-lg map-name text-emerald-600 hover:text-emerald-700 transition-colors text-left" data-inspect-id="prematch-vote-for-button">
+                        {withMapCount(testPick.picks[0].map, mapCounts)}
+                      </button>
+                      <span className={`pill ${ROLE_COLORS[testRole]}`}>{testRole}</span>
+                    </div>
+                    <div className="text-xs text-[var(--faint)]">
+                      <span className="hero-name">{testPick.picks[0].hero}</span> · <b className="font-bold text-emerald-500">{testPick.picks[0].win_rate}</b>%
+                      {testPick.picks[0].sample_size === 'thin' && <span className="text-amber-500"> · thin</span>}
+                      {' · '}<b className="font-bold">{testPick.picks[0].games}</b>g played
+                    </div>
+                  </div>
+                  <div className="text-right space-y-0.5 pt-0.5">
+                    {testPick.picks.slice(1).map(p => (
+                      <div key={`${p.map}|${p.hero}`} className="text-[10px] text-[var(--faint)]">
+                        <span className="map-name">{withMapCount(p.map, mapCounts)}</span> · <span className="hero-name">{p.hero}</span> · <b className="font-bold">{p.win_rate}</b>%
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : ranked.length === 1 ? (
+                <div className="text-sm text-[var(--muted)]">Select more maps to compare.</div>
+              ) : (
+                <div className="flex items-start gap-4">
+                  <div className="flex-1">
+                    <button onClick={() => openMap(winner)} className="text-lg map-name text-emerald-600 hover:text-emerald-700 transition-colors text-left" data-inspect-id="prematch-vote-for-button">
+                      {withMapCount(winner, mapCounts)}
+                    </button>
+                    {scoreMap[winner] && (
+                      <div className="text-xs text-[var(--faint)]">
+                        <b className="font-bold">{scoreMap[winner].blended_score}</b>% blended · <b className="font-bold">{scoreMap[winner].total_games}</b>g played
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-right space-y-0.5 pt-0.5">
+                    {ranked.slice(1).map(m => (
+                      <div key={m} className="text-[10px] text-[var(--faint)]">
+                        <span className="map-name">{withMapCount(m, mapCounts)}</span>{scoreMap[m] ? <> · <b className="font-bold">{scoreMap[m].blended_score}</b>%</> : ' · no data'}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          </div>
+        </div>
+
+        {/* Today — what is left of the old Hero Advisor card once the map
+            picker moved out. Stage 1.5 cuts it (flow spec, later item A). */}
+        <div className="card flex-1 min-w-0 flex flex-col" data-inspect-id="prematch-hero-advisor-card">
+          <div className="flex items-center justify-between mb-2 min-h-8">
+            <h2 className="text-sm card-title whitespace-nowrap">Today</h2>
+            {/* Today's matches as win/loss dots, most recent left, oldest
+                right. Moved here 2026-09-24 — first tried on the "Playing
+                as" strip, then Lobby Rank, which is Competitive-only. This
+                card shows in every mode. Same `today` query as the session
+                snapshot, so "today" means one thing on this page. No
+                scrolling: rows hold 10 dots each, so game 11 starts a
+                second row, and past 20 the dots shrink (no-scroll-in-cards
+                rule). */}
+            <div className="min-w-0 flex items-center gap-2" data-inspect-id="prematch-today-dots-strip">
+              <span className="text-[10px] uppercase tracking-wider text-[var(--faint-2)] shrink-0">Today</span>
+              {todayRows.length === 0 ? (
+                <span className="text-[10px] text-[var(--faint-2)] whitespace-nowrap">no games yet</span>
+              ) : (
+                <div
+                  className="grid items-center gap-1 min-w-0"
+                  style={{ gridTemplateColumns: `repeat(${Math.min(todayRows.length, 10)}, auto)` }}
+                >
+                  {todayRows.map((r, i) => (
+                    <span
+                      key={i}
+                      data-inspect-id="prematch-today-dot"
+                      title={`${r.win ? 'Win' : 'Loss'} — ${r.hero} on ${r.map}`}
+                      aria-label={`${r.win ? 'Win' : 'Loss'}, ${r.hero} on ${r.map}`}
+                      className={`inline-block rounded-full shrink-0 ${
+                        todayRows.length > 40 ? 'w-1 h-1' : todayRows.length > 20 ? 'w-1.5 h-1.5' : 'w-2 h-2'
+                      } ${r.win ? 'bg-emerald-500' : 'bg-rose-500'}`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Everything below the pinned map selector — same treatment as
+              Map Voting: no scroll region, content must fit the row's
+              fixed height through compression alone. */}
+          <div className="flex-1 min-h-0">
+
+          {/* Idle: session & timing snapshot — how you're doing right now.
+              The panel is deliberately roomier than its content strictly
+              needs: with no map picked yet this card would otherwise be
+              mostly dead space next to Sens Test / Map Voting's packed
+              lists, so the stat tiles get real card treatment (bordered
+              panel, generous padding, bigger numerals) instead of just
+              floating in the middle of the card. */}
+          {!map && (
+            <div className="flex-1 flex flex-col justify-center mt-[0.6604rem] gap-4">
+              {/* True 2-row grid (labels row, values row) instead of three
+                  independently-centered flex columns — that's what keeps all
+                  three labels on one line and all three value blocks on the
+                  next, regardless of the This Hour pills' extra padding
+                  making that value taller than a plain number. Columns stay
+                  content-sized (not stretched to equal width) with
+                  justify-evenly, so spacing is even without forcing the three
+                  categories to occupy equal space. */}
+              <div className="rounded-lg border border-ow-border/40 bg-gradient-to-br from-ow-accent/[0.06] via-ow-accent/[0.02] to-transparent grid grid-cols-[repeat(3,max-content)] justify-evenly items-center gap-x-2 pt-4 pb-6">
+                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] col-start-1 row-start-1 justify-self-center" data-inspect-id="prematch-today-stat-tile">Today</div>
+                <div className="col-start-1 row-start-2 justify-self-center">
+                  {todayRows.length > 0 ? (
+                    <div className="text-[27px] num-display leading-none">
+                      <span className="text-emerald-500">{todayW}</span><span className="text-[var(--muted)]">-</span><span className="text-red-500">{todayL}</span>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-[var(--faint)]">No games</div>
+                  )}
+                </div>
+
+                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] col-start-2 row-start-1 justify-self-center" data-inspect-id="prematch-streak-stat-tile">Streak</div>
+                <div className="col-start-2 row-start-2 justify-self-center">
+                  {streaksData && streaksData.currentStreak > 0 ? (
+                    <div className={`text-[27px] num-display leading-none ${streaksData.currentStreakType === 1 ? 'text-emerald-500' : 'text-red-500'}`}>
+                      {streaksData.currentStreak}{streaksData.currentStreakType === 1 ? 'W' : 'L'}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-[var(--faint)]">—</div>
+                  )}
+                </div>
+
+                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] col-start-3 row-start-1 justify-self-center" data-inspect-id="prematch-this-hour-stat-tile">This hour</div>
+                <div className="col-start-3 row-start-2 justify-self-center">
+                  {hourRow ? (
+                    <div className="flex items-center justify-center w-full">
+                      <div className="relative">
+                        <span
+                          className={`text-[27px] num-display leading-none rounded-lg px-1 py-2 ${hourRow.qp_games > 0 ? 'text-blue-500' : 'text-[var(--faint)]'}`}
+                        >
+                          {hourRow.qp_games > 0 ? `${Math.round(hourRow.qp_win_rate!)}%` : '—'}
+                        </span>
+                        <span className="absolute top-full inset-x-0 -mt-0.5 text-center text-[7px] uppercase tracking-wider text-[var(--faint)] whitespace-nowrap">Quickplay</span>
+                      </div>
+                      <span className="text-[27px] num-display leading-none text-[var(--faint-2)] -mx-0.5">/</span>
+                      <div className="relative">
+                        <span
+                          className={`text-[27px] num-display leading-none rounded-lg px-1 py-2 ${hourRow.comp_games > 0 ? 'text-red-500' : 'text-[var(--faint)]'}`}
+                        >
+                          {hourRow.comp_games > 0 ? `${Math.round(hourRow.comp_win_rate!)}%` : '—'}
+                        </span>
+                        <span className="absolute top-full inset-x-0 -mt-0.5 text-center text-[7px] uppercase tracking-wider text-[var(--faint)] whitespace-nowrap">Competitive</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-[var(--faint)]">—</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+          </div>
+        </div>
+      </div>
+
+      {sensStudyOn && (
+        <div className="mb-4 sm:w-72">
         {/* DPI stage-test HUD — a dropdown picks which "In Testing" hero you're
             about to play (several can be active at once, but the mouse can
             only sit on one DPI at a time), then shows that hero's current
@@ -633,7 +982,7 @@ export default function Prematch() {
             unchunked set).
             Drives off the same state the Sens page loop does. Sits where the
             sens picker used to. */}
-        <div className="card sm:aspect-square shrink-0 flex flex-col self-stretch" data-inspect-id="prematch-dpi-hud-card">
+        <div className="card flex flex-col" data-inspect-id="prematch-dpi-hud-card">
           {/* mb-2 min-h-8 matches Map Voting's/Hero Advisor's header row
               exactly (both use the same two classes) so this card's title
               sits at the same vertical position and the row below it starts
@@ -756,358 +1105,9 @@ export default function Prematch() {
             </div>
           )}
         </div>
-
-        {/* Map Voting */}
-        <div className="card flex-1 min-w-0 flex flex-col overflow-hidden" data-inspect-id="prematch-map-voting-card">
-          {/* Role Pick used to sit on the right of this row. It moved to the
-              page-level identity strip on 2026-09-19 — four things read it,
-              not just this card's recommendation, and it has to stay on
-              screen in Quickplay. */}
-          <div className="flex items-center justify-between mb-2 min-h-8">
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm card-title whitespace-nowrap">Map Voting</h2>
-              <span className="text-xs text-[var(--faint)] bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">tap up to 3</span>
-            </div>
-          </div>
-
-          {/* Search input */}
-          <div className="relative mb-2">
-            <input
-              ref={inputRef}
-              id="map-search"
-              type="text"
-              value={query}
-              onChange={e => { setQuery(e.target.value); setOpen(true); }}
-              onFocus={() => setOpen(true)}
-              onBlur={() => setTimeout(() => setOpen(false), 100)}
-              onKeyDown={e => {
-                if (e.key === 'Escape') { setQuery(''); setOpen(false); }
-                if (e.key === 'Enter' && results.length > 0) selectMap(results[0]);
-              }}
-              placeholder={selected.length >= 3 ? '3 maps selected' : 'Type a map name…'}
-              data-inspect-id="prematch-map-search-input"
-              disabled={selected.length >= 3}
-              className="w-full field px-3 py-2 text-sm"
-            />
-            {open && results.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-ow-card rounded-lg shadow-xl z-30 overflow-hidden" data-inspect-id="prematch-map-search-results-dropdown">
-                {results.map(m => (
-                  <button
-                    key={m}
-                    onMouseDown={() => selectMap(m)}
-                    className="w-full flex items-center justify-between px-3 py-2 text-xs hover:bg-white/5 transition-colors text-left"
-                  >
-                    <span className="map-name text-[var(--ink)]">{withMapCount(m, mapCounts)}</span>
-                    <span className={`pill ${TYPE_COLORS[MAPS[m]] ?? ''}`}>{MAPS[m]}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Everything below the pinned search input — content here must
-              stay compact enough to fit the row's fixed height on its own;
-              cards never scroll internally, so overflow is fixed by
-              shrinking content, not by adding a scroll region. flex-col so
-              the Vote-for block below can pin itself to the bottom edge
-              with mt-auto instead of sitting right under the chips. */}
-          <div className="flex-1 min-h-0 flex flex-col">
-
-          {/* Idle: best & worst maps by win rate — tap one to add it to your
-              picks (which swaps this block for the chips + vote below). */}
-          {selected.length === 0 && rankedMaps.length > 0 && (
-            <div className="flex-1 grid grid-cols-2 gap-x-4 content-start mt-4" data-inspect-id="prematch-best-worst-maps-list">
-              {([
-                { label: 'Best maps', color: 'text-emerald-600', pct: 'text-emerald-500', list: bestMaps },
-                { label: 'Worst maps', color: 'text-red-500', pct: 'text-red-500', list: worstMaps },
-              ] as const).map(col => (
-                <div key={col.label}>
-                  <div className={`text-[9px] uppercase tracking-wider mb-1 ${col.color}`}>{col.label}</div>
-                  {col.list.map(m => (
-                    <button
-                      key={m.map}
-                      onClick={() => selectMap(m.map)}
-                      className="flex items-center justify-between w-full text-left py-0.5 px-1 -mx-1 rounded hover:bg-white/5 transition-colors group"
-                    >
-                      <span className="text-xs map-name text-[var(--ink)] truncate group-hover:text-ow-accent transition-colors">{withMapCount(m.map, mapCounts)}</span>
-                      <span className={`text-[10px] font-bold shrink-0 ml-2 ${col.pct}`}>{Math.round(m.recent_rate!)}%</span>
-                    </button>
-                  ))}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Selected chips — all four pills (up to 3 maps + Clear) share
-              equal width via flex-1/min-w-0 so they always sum to exactly
-              the row's width (one row, no wrap) regardless of card width;
-              the map name itself is a separate truncating span at a small
-              fixed font size so even the longest map names ("Shambali
-              Monastery") stay inside the pill instead of forcing it wider.
-              Shape matches Dashboard's "Log sens stats" link — same notched
-              clip-path (scaled down to a 6px cut for this smaller pill)
-              instead of rounded-full, so the two clipped-corner shapes in
-              the app are consistent rather than mixing pill styles. */}
-          {selected.length > 0 && (
-            <div className="flex items-start gap-2" data-inspect-id="prematch-selected-map-chips">
-              {selected.map(m => (
-                <div key={m} className="flex-1 min-w-0 flex flex-col gap-1">
-                <span
-                  className={`w-full min-w-0 flex items-center justify-center gap-1 pl-2 pr-1 py-1 text-[10px] map-name transition-colors ${
-                    m === recommended
-                      ? 'bg-emerald-500/20 text-emerald-700'
-                      : 'bg-ow-accent/15 text-ow-accent'
-                  }`}
-                  style={{ clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)' }}
-                >
-                  <button
-                    onClick={() => setMap(m)}
-                    className="flex items-center gap-1 min-w-0 hover:opacity-80 transition-opacity"
-                    title={`Set ${m} as the match map`}
-                  >
-                    {m === recommended && <span className="shrink-0 normal-case">✓</span>}
-                    <span className="truncate">{withMapCount(m, mapCounts)}</span>
-                  </button>
-                  <button
-                    onClick={() => toggleMap(m)}
-                    className="flex items-center justify-center w-4 h-4 shrink-0 rounded-full text-xs font-bold leading-none hover:bg-black/10 hover:text-red-600 transition-colors"
-                    title={`Remove ${m}`}
-                  >
-                    ×
-                  </button>
-                </span>
-                {/* Last 5 matches on this map (byMap from
-                    /api/matches/map-history?maps=) — same win/loss-colored dash
-                    treatment as the map history strip on Today's Matches rows,
-                    newest leftmost with the oldest dash faded. Sized to the
-                    chip's own column so it tracks the pill above it. */}
-                <div className="flex items-center gap-1 px-0.5" data-inspect-id="prematch-selected-map-chip-history">
-                  {(() => {
-                    const hist = [...(mapHistory?.byMap?.[m] ?? [])].reverse();
-                    return hist.map((h, i) => (
-                      <span
-                        key={i}
-                        style={i === hist.length - 1 ? OLDEST_DASH_FADE_STYLE : undefined}
-                        className={`flex-1 h-[3px] rounded-full ${h.win ? 'bg-emerald-500' : 'bg-red-500'}`}
-                        title={`${h.win ? 'Win' : 'Loss'} · ${MODE_COMPACT[h.queue_mode]?.top ?? h.queue_mode} ${MODE_COMPACT[h.queue_mode]?.bot ?? ''}`.trim()}
-                      />
-                    ));
-                  })()}
-                </div>
-                </div>
-              ))}
-              <button
-                onClick={() => { setSelected([]); advisorSelectRef.current?.focus(); }}
-                className="flex-1 min-w-0 flex items-center justify-center px-2 py-1 text-[10px] font-medium bg-ow-border/40 text-[var(--ink-2)] hover:bg-ow-border/70 hover:text-[var(--ink)] transition-colors"
-                style={{ clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)' }}
-                data-inspect-id="prematch-map-voting-clear-button"
-              >
-                Clear
-              </button>
-            </div>
-          )}
-
-          {/* Vote recommendation — driven by testPick (the cross product of
-              candidate maps x current-phase roster for the Role Pick role)
-              when that data is available, since a hero-informed win rate is
-              more useful than a map-only blended score for actually deciding
-              which map to vote for. Falls back to the old map-only
-              blended_score ranking when testPick has nothing (no phase
-              heroes yet, or zero games logged for any of them) so the
-              section still works before a testing phase exists. Replaces
-              the former separate "Top Picks" list below this — folded in
-              per "new feature does not equate to new elements" rather than
-              keeping two side-by-side recommendations. */}
-          {selected.length > 0 && (testPick?.available ? testPick.picks.length > 0 : ranked.length > 0) && (
-            <div className="mt-auto pt-1">
-              {testPick?.available && testPick.picks.length > 0 ? (
-                <div className="flex items-start gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => setMap(testPick.picks[0].map)} className="text-lg map-name text-emerald-600 hover:text-emerald-700 transition-colors text-left" data-inspect-id="prematch-vote-for-button">
-                        {withMapCount(testPick.picks[0].map, mapCounts)}
-                      </button>
-                      <span className={`pill ${ROLE_COLORS[testRole]}`}>{testRole}</span>
-                    </div>
-                    <div className="text-xs text-[var(--faint)]">
-                      <span className="hero-name">{testPick.picks[0].hero}</span> · <b className="font-bold text-emerald-500">{testPick.picks[0].win_rate}</b>%
-                      {testPick.picks[0].sample_size === 'thin' && <span className="text-amber-500"> · thin</span>}
-                      {' · '}<b className="font-bold">{testPick.picks[0].games}</b>g played
-                    </div>
-                  </div>
-                  <div className="text-right space-y-0.5 pt-0.5">
-                    {testPick.picks.slice(1).map(p => (
-                      <div key={`${p.map}|${p.hero}`} className="text-[10px] text-[var(--faint)]">
-                        <span className="map-name">{withMapCount(p.map, mapCounts)}</span> · <span className="hero-name">{p.hero}</span> · <b className="font-bold">{p.win_rate}</b>%
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : ranked.length === 1 ? (
-                <div className="text-sm text-[var(--muted)]">Select more maps to compare.</div>
-              ) : (
-                <div className="flex items-start gap-4">
-                  <div className="flex-1">
-                    <button onClick={() => openMap(winner)} className="text-lg map-name text-emerald-600 hover:text-emerald-700 transition-colors text-left" data-inspect-id="prematch-vote-for-button">
-                      {withMapCount(winner, mapCounts)}
-                    </button>
-                    {scoreMap[winner] && (
-                      <div className="text-xs text-[var(--faint)]">
-                        <b className="font-bold">{scoreMap[winner].blended_score}</b>% blended · <b className="font-bold">{scoreMap[winner].total_games}</b>g played
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-right space-y-0.5 pt-0.5">
-                    {ranked.slice(1).map(m => (
-                      <div key={m} className="text-[10px] text-[var(--faint)]">
-                        <span className="map-name">{withMapCount(m, mapCounts)}</span>{scoreMap[m] ? <> · <b className="font-bold">{scoreMap[m].blended_score}</b>%</> : ' · no data'}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-          </div>
         </div>
+      )}
 
-        {/* Hero Advisor — Map selector */}
-        <div className="card flex-1 min-w-0 flex flex-col overflow-hidden" data-inspect-id="prematch-hero-advisor-card">
-          <div className="flex items-center justify-between mb-2 min-h-8">
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm card-title whitespace-nowrap">Hero Advisor</h2>
-              <span className="text-xs text-[var(--faint)] bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">pick a map</span>
-            </div>
-            {/* Today's matches as win/loss dots, most recent left, oldest
-                right. Moved here 2026-09-24 — first tried on the "Playing
-                as" strip, then Lobby Rank, which is Competitive-only. This
-                card shows in every mode. Same `today` query as the session
-                snapshot, so "today" means one thing on this page. No
-                scrolling: rows hold 10 dots each, so game 11 starts a
-                second row, and past 20 the dots shrink (no-scroll-in-cards
-                rule). */}
-            <div className="min-w-0 flex items-center gap-2" data-inspect-id="prematch-today-dots-strip">
-              <span className="text-[10px] uppercase tracking-wider text-[var(--faint-2)] shrink-0">Today</span>
-              {todayRows.length === 0 ? (
-                <span className="text-[10px] text-[var(--faint-2)] whitespace-nowrap">no games yet</span>
-              ) : (
-                <div
-                  className="grid items-center gap-1 min-w-0"
-                  style={{ gridTemplateColumns: `repeat(${Math.min(todayRows.length, 10)}, auto)` }}
-                >
-                  {todayRows.map((r, i) => (
-                    <span
-                      key={i}
-                      data-inspect-id="prematch-today-dot"
-                      title={`${r.win ? 'Win' : 'Loss'} — ${r.hero} on ${r.map}`}
-                      aria-label={`${r.win ? 'Win' : 'Loss'}, ${r.hero} on ${r.map}`}
-                      className={`inline-block rounded-full shrink-0 ${
-                        todayRows.length > 40 ? 'w-1 h-1' : todayRows.length > 20 ? 'w-1.5 h-1.5' : 'w-2 h-2'
-                      } ${r.win ? 'bg-emerald-500' : 'bg-rose-500'}`}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Map picker — game step 1 (map vote), so it sits here at the top of
-              the pre-game flow, not in the after-game Match Log. The value is
-              MatchContext's `map` (tracker-owned state); this is placement only. */}
-          <div className="mb-2">
-            <select
-              ref={advisorSelectRef}
-              value={map}
-              onChange={e => setMap(e.target.value)}
-              className="w-full field px-3 py-2 text-sm"
-              data-inspect-id="prematch-map-select-dropdown"
-            >
-              <option value="">— Select map —</option>
-              {(selected.length > 0 ? [...selected] : Object.keys(MAPS)).sort().map(m => (
-                <option key={m} value={m} className="uppercase">{withMapCount(m, mapCounts)}</option>
-              ))}
-            </select>
-          </div>
-          {mapType && <span className={`pill ${TYPE_COLORS[mapType] ?? ''}`} data-inspect-id="prematch-map-type-badge">{mapType}</span>}
-
-          {/* Everything below the pinned map selector — same treatment as
-              Map Voting: no scroll region, content must fit the row's
-              fixed height through compression alone. */}
-          <div className="flex-1 min-h-0">
-
-          {/* Idle: session & timing snapshot — how you're doing right now.
-              The panel is deliberately roomier than its content strictly
-              needs: with no map picked yet this card would otherwise be
-              mostly dead space next to Sens Test / Map Voting's packed
-              lists, so the stat tiles get real card treatment (bordered
-              panel, generous padding, bigger numerals) instead of just
-              floating in the middle of the card. */}
-          {!map && (
-            <div className="flex-1 flex flex-col justify-center mt-[0.6604rem] gap-4">
-              {/* True 2-row grid (labels row, values row) instead of three
-                  independently-centered flex columns — that's what keeps all
-                  three labels on one line and all three value blocks on the
-                  next, regardless of the This Hour pills' extra padding
-                  making that value taller than a plain number. Columns stay
-                  content-sized (not stretched to equal width) with
-                  justify-evenly, so spacing is even without forcing the three
-                  categories to occupy equal space. */}
-              <div className="rounded-lg border border-ow-border/40 bg-gradient-to-br from-ow-accent/[0.06] via-ow-accent/[0.02] to-transparent grid grid-cols-[repeat(3,max-content)] justify-evenly items-center gap-x-2 pt-4 pb-6">
-                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] col-start-1 row-start-1 justify-self-center" data-inspect-id="prematch-today-stat-tile">Today</div>
-                <div className="col-start-1 row-start-2 justify-self-center">
-                  {todayRows.length > 0 ? (
-                    <div className="text-[27px] num-display leading-none">
-                      <span className="text-emerald-500">{todayW}</span><span className="text-[var(--muted)]">-</span><span className="text-red-500">{todayL}</span>
-                    </div>
-                  ) : (
-                    <div className="text-sm text-[var(--faint)]">No games</div>
-                  )}
-                </div>
-
-                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] col-start-2 row-start-1 justify-self-center" data-inspect-id="prematch-streak-stat-tile">Streak</div>
-                <div className="col-start-2 row-start-2 justify-self-center">
-                  {streaksData && streaksData.currentStreak > 0 ? (
-                    <div className={`text-[27px] num-display leading-none ${streaksData.currentStreakType === 1 ? 'text-emerald-500' : 'text-red-500'}`}>
-                      {streaksData.currentStreak}{streaksData.currentStreakType === 1 ? 'W' : 'L'}
-                    </div>
-                  ) : (
-                    <div className="text-sm text-[var(--faint)]">—</div>
-                  )}
-                </div>
-
-                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] col-start-3 row-start-1 justify-self-center" data-inspect-id="prematch-this-hour-stat-tile">This hour</div>
-                <div className="col-start-3 row-start-2 justify-self-center">
-                  {hourRow ? (
-                    <div className="flex items-center justify-center w-full">
-                      <div className="relative">
-                        <span
-                          className={`text-[27px] num-display leading-none rounded-lg px-1 py-2 ${hourRow.qp_games > 0 ? 'text-blue-500' : 'text-[var(--faint)]'}`}
-                        >
-                          {hourRow.qp_games > 0 ? `${Math.round(hourRow.qp_win_rate!)}%` : '—'}
-                        </span>
-                        <span className="absolute top-full inset-x-0 -mt-0.5 text-center text-[7px] uppercase tracking-wider text-[var(--faint)] whitespace-nowrap">Quickplay</span>
-                      </div>
-                      <span className="text-[27px] num-display leading-none text-[var(--faint-2)] -mx-0.5">/</span>
-                      <div className="relative">
-                        <span
-                          className={`text-[27px] num-display leading-none rounded-lg px-1 py-2 ${hourRow.comp_games > 0 ? 'text-red-500' : 'text-[var(--faint)]'}`}
-                        >
-                          {hourRow.comp_games > 0 ? `${Math.round(hourRow.comp_win_rate!)}%` : '—'}
-                        </span>
-                        <span className="absolute top-full inset-x-0 -mt-0.5 text-center text-[7px] uppercase tracking-wider text-[var(--faint)] whitespace-nowrap">Competitive</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-sm text-[var(--faint)]">—</div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-          </div>
-        </div>
-
-      </div>
 
       {/* Consolidated advisor — recommendation + coaching + your heroes in one
           card below the row. When a map is picked these three used to repeat the
