@@ -296,6 +296,23 @@ export const MAPS: Record<string, string> = {
   'Throne of Anubis': 'Clash',
 };
 
+// Short map names for tight spaces (the best/worst tiles on Pre-Match), where
+// a cut-off "Numb…" reads worse than a real abbreviation. Every entry is
+// tested to fit a tile at 1024px. The rules, in order: the name players
+// actually say (Circuit, Eichen, Lijiang, Shambali, Anubis, Gib); standard
+// abbreviations of the words (Ant. Pen., Jct, St., Rt., Wld); contractions
+// in the H'wood style; initials only where the community uses them (NJC).
+// Maps not listed fit in full.
+export const MAP_SHORT: Record<string, string> = {
+  'Antarctic Peninsula': 'Ant. Pen.', 'Blizzard World': 'Blizz Wld',
+  'Circuit Royal': 'Circuit', Eichenwalde: 'Eichen', Esperanca: 'Espnza',
+  'Watchpoint: Gibraltar': 'Gib', Hollywood: "H'wood", Junkertown: "J'town",
+  "King's Row": 'K. Row', 'Lijiang Tower': 'Lijiang', 'Neon Junction': 'Neon Jct',
+  'New Junk City': 'NJC', 'New Queen Street': 'NQ St.', 'Route 66': 'Rt. 66',
+  'Shambali Monastery': 'Shambali', 'Throne of Anubis': 'Anubis',
+};
+export const mapShort = (m: string) => MAP_SHORT[m] ?? m;
+
 // DPS teal / Support pink (not red/green) — this app already uses red for
 // Loss and Comp-Role mode, and emerald for Win, so a red DPS badge or green
 // Support badge read as an outcome/mode signal instead of a role one. Tank
