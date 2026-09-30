@@ -582,7 +582,7 @@ const DATA = {
       "category": "client-page",
       "layer": 1,
       "file": "client/src/pages/Dashboard.tsx",
-      "description": "Single continuous-scroll page (not tabbed) composing every top-level section in order: a Mode card (queue-mode selector tiles), the Match section embedding Prematch + LogMatch and then the Recent Matches card (win-rate readout + match history strip + tilt warning banner, moved below the log form 2026-09-29), a Trends section embedding TrendsSummary, and and a Career section (CareerStrip component, extracted 2026-09-27) of all-time stat tiles.",
+      "description": "Single continuous-scroll page (not tabbed) composing every top-level section in order: the Form & Rank card first (ex-Recent Matches: win-rate readout + candle chart + rank strip + tilt warning banner; moved to the top 2026-09-30), a Mode card (queue-mode selector tiles), the Match section embedding Prematch + LogMatch, a Trends section embedding TrendsSummary, and and a Career section (CareerStrip component, extracted 2026-09-27) of all-time stat tiles.",
       "calls": [
         "GET /api/stats/overview",
         "GET /api/stats/streaks",
@@ -657,7 +657,7 @@ const DATA = {
           "kind": "header",
           "description": "Section header titled 'Match' with subtitle 'Prep with the advisor, then log the result.', introducing the Prematch advisor and LogMatch form below.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:144",
+            "path": "client/src/pages/Dashboard.tsx:149",
             "grep": "grep -n -F -- 'sub=\"Prep with the advisor, then log the result.\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -667,7 +667,7 @@ const DATA = {
           "kind": "link",
           "description": "Link in the Match section header that opens the sensitivity-study page (/sens) in a new tab, keeping the dashboard in place.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:154",
+            "path": "client/src/pages/Dashboard.tsx:159",
             "grep": "grep -n -F -- 'Log sens stats' client/src/pages/Dashboard.tsx"
           }
         },
@@ -677,7 +677,7 @@ const DATA = {
           "kind": "section",
           "description": "Embeds the Prematch advisor component, which lets the user prep (map/mode selection, LLM pre-match advice) before logging a result.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:157",
+            "path": "client/src/pages/Dashboard.tsx:162",
             "grep": "grep -n -F -- '<Prematch />' client/src/pages/Dashboard.tsx"
           }
         },
@@ -687,7 +687,7 @@ const DATA = {
           "kind": "section",
           "description": "Embeds the LogMatch component, the form used to record the result (hero, map, win/loss, etc.) of the just-played match.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:158",
+            "path": "client/src/pages/Dashboard.tsx:163",
             "grep": "grep -n -F -- '<LogMatch />' client/src/pages/Dashboard.tsx"
           }
         },
@@ -4988,16 +4988,16 @@ const DATA = {
       "category": "client-component",
       "layer": 2,
       "file": "client/src/components/dashboard/RecentMatchesCard.tsx",
-      "description": "Dashboard's Recent Matches card: win-rate readout, the candle/volume trend chart, the competitive rank strip, the tilt warning banner, and the empty-state placeholder. Extracted from Dashboard.tsx as a pure move (modularization plan step 4, piece 3, 2026-09-27) \u2014 takes only `trends`/`tilt` as props, memo-wrapped, no new fetches.",
+      "description": "Dashboard's Form & Rank card (titled 'Recent Matches' until 2026-09-30): win-rate readout, the candle/volume trend chart, the competitive rank strip, the tilt warning banner, and the empty-state placeholder. Extracted from Dashboard.tsx as a pure move (modularization plan step 4, piece 3, 2026-09-27) \u2014 takes only `trends`/`tilt` as props, memo-wrapped, no new fetches.",
       "uiElements": [
         {
           "id": "dash-recent-matches-card",
-          "label": "Recent Matches card",
+          "label": "Form & Rank card",
           "kind": "card",
-          "description": "Card titled 'Recent Matches' containing the win-rate summary, the recent-match history strip, and (when applicable) the tilt warning banner. Rendered by Dashboard after the Match section (after the log form and Today's Matches, before Trends) since 2026-09-29; it was between the mode tiles and the map.",
+          "description": "Card titled 'Form & Rank' (was 'Recent Matches' until 2026-09-30) containing the win-rate summary, the candle/volume chart, the rank strip, and (when applicable) the tilt warning banner. The first card on the Dashboard since 2026-09-30, right under the section-jump bar and above the Mode tiles: Sean watches it between matches, so it sits where he already is when a game starts. From 2026-09-29 to 09-30 it sat after the Match section.",
           "locate": {
-            "path": "client/src/components/dashboard/RecentMatchesCard.tsx:46",
-            "grep": "grep -n -F -- '>Recent Matches</h2>' client/src/components/dashboard/RecentMatchesCard.tsx"
+            "path": "client/src/components/dashboard/RecentMatchesCard.tsx:43",
+            "grep": "grep -n -F -- 'data-inspect-id=\"dash-recent-matches-card\"' client/src/components/dashboard/RecentMatchesCard.tsx"
           }
         },
         {
@@ -5512,7 +5512,7 @@ const DATA = {
       "source": "dashboard",
       "target": "recentMatchesCard",
       "type": "compose",
-      "label": "renders Recent Matches card (extracted 2026-09-27)"
+      "label": "renders Form & Rank card (ex-Recent Matches, extracted 2026-09-27)"
     },
     {
       "id": "e64",
@@ -5530,6 +5530,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 
