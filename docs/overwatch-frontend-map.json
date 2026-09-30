@@ -231,7 +231,7 @@
           "kind": "container",
           "description": "Column to the right of Select Your Hero (below it on phones). Mounted only when isCategoryEnabled('sens-study') is on; with the sens study off nothing renders. Holds the sens-test HUD, the Next test card, and the note explaining which games the sens test counts (moved here from the Match Log form).",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1337",
+            "path": "client/src/pages/Prematch.tsx:1369",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-experiment-card\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -241,7 +241,7 @@
           "kind": "card",
           "description": "Sens Test card at the top of the Experiment column (step-5 row, 1 of 3 grid columns). Header: title and the active sens. Hero picker when several tests run. Body is two columns with a divider: left (right-aligned) = minutes left in this test, in the current stage and in the open 60-minute block; right = aim backlog count and a full-width \"Go to backlog\" button. One-line footnote: counts Comp (any role) and QP Support only (full rule in its title).",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1346",
+            "path": "client/src/pages/Prematch.tsx:1378",
             "grep": "grep -n -F -- 'prematch-dpi-hud-card' client/src/pages/Prematch.tsx"
           }
         },
@@ -251,7 +251,7 @@
           "kind": "badge",
           "description": "Small badge in the DPI Test HUD header showing the current stage's DPI number for the picked hero.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1352",
+            "path": "client/src/pages/Prematch.tsx:1384",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-dpi-value-badge\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -261,7 +261,7 @@
           "kind": "select",
           "description": "Dropdown shown when multiple DPI tests are active at once, letting the user choose which hero's DPI/progress the HUD card displays.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1362",
+            "path": "client/src/pages/Prematch.tsx:1394",
             "grep": "grep -n -F -- 'aria-label=\"Hero to show DPI-test progress for\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -271,7 +271,7 @@
           "kind": "stat-tile",
           "description": "Minutes left in the whole test (all stages) for the tracked hero; games for a legacy unchunked set. Size-30 drums, three digits.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1389",
+            "path": "client/src/pages/Prematch.tsx:1421",
             "grep": "grep -n -F -- 'prematch-dpi-matches-left-odometer' client/src/pages/Prematch.tsx"
           }
         },
@@ -281,7 +281,7 @@
           "kind": "stat-tile",
           "description": "Minutes left in the current stage (games for a legacy set). Size-30 drums, three digits.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1395",
+            "path": "client/src/pages/Prematch.tsx:1427",
             "grep": "grep -n -F -- 'prematch-dpi-games-left-odometer' client/src/pages/Prematch.tsx"
           }
         },
@@ -291,7 +291,7 @@
           "kind": "display",
           "description": "Minutes left in the open 60-minute block (60 - openMinutes, rounded up). Chunked sets only; padded to three drums so its ones digit lines up with the counters above.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1404",
+            "path": "client/src/pages/Prematch.tsx:1436",
             "grep": "grep -n -F -- 'dataInspectId=\"prematch-dpi-block-left-odometer\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -301,7 +301,7 @@
           "kind": "stat-tile",
           "description": "Aim-stat backlog count (GET /api/aim/pending), size-40 single drum with \"in backlog\" label; gold from 7 up. Right column of the Sens Test card, shown whether or not a test is running.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1425",
+            "path": "client/src/pages/Prematch.tsx:1457",
             "grep": "grep -n -F -- 'dataInspectId=\"prematch-backlog-odometer\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -311,7 +311,7 @@
           "kind": "link",
           "description": "Full-width button under the backlog count, styled as a selected game-mode tile (rounded, 2px border, is-selected mode-fill in the accent, mode-tile hover lift, lit text). Opens /sens at the top.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1433",
+            "path": "client/src/pages/Prematch.tsx:1465",
             "grep": "grep -n -F -- 'prematch-backlog-go-link' client/src/pages/Prematch.tsx"
           },
           "expectedMatches": 2
@@ -322,7 +322,7 @@
           "kind": "banner",
           "description": "Placeholder message shown inside the DPI Test HUD card when no DPI stage test is currently active, prompting the user to start one on the Sens page.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1415",
+            "path": "client/src/pages/Prematch.tsx:1447",
             "grep": "grep -n -F -- 'No DPI test running' client/src/pages/Prematch.tsx"
           }
         },
@@ -332,7 +332,7 @@
           "kind": "card",
           "description": "Step-1 card spanning two of the three page columns (2026-09-30 redesign; Today takes the third). Header: title, the offered-maps search (prematch-map-search-input, inline completion), \"tap up to 3\", and the picked map's type pill. Body is three columns: left = offered-map tiles + Clear, middle = vote advice (prematch-map-voting-card), right = best/worst tiles. The step-1 row holds lg:min-h-[191px] so it keeps one height in every state. No match-map dropdown any more: tapping a tile sets MatchContext.map. Local `selected` = the offered maps.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:624",
+            "path": "client/src/pages/Prematch.tsx:656",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-map-card\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -342,7 +342,7 @@
           "kind": "card",
           "description": "Middle column of prematch-map-card since 2026-09-30 (was its own \"Map Voting\" card). Advice only: with maps offered, the first choice on top (map name large, role pill, hero - win% - games), then 2nd and 3rd stacked one line each (map name left, hero and win% right). With no maps offered it says \"Enter the offered maps for a vote.\" (prematch-map-voting-empty). Ranking prefers the hero-informed testPick across offered maps x the testing hero pool, falling back to the map-only blended score; it ranks map x hero PAIRS, so one map can appear twice and another not at all (known, not fixed).",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:745",
+            "path": "client/src/pages/Prematch.tsx:782",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-map-voting-card\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -352,7 +352,7 @@
           "kind": "text",
           "description": "Muted line in the vote advice column when no maps are offered: \"Enter the offered maps for a vote.\"",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:751",
+            "path": "client/src/pages/Prematch.tsx:788",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-map-voting-empty\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -362,7 +362,7 @@
           "kind": "text",
           "description": "Muted line when maps are offered but none has games to rank: \"No games on these maps yet - no vote to suggest.\"",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:823",
+            "path": "client/src/pages/Prematch.tsx:860",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-map-voting-no-games\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -375,7 +375,7 @@
             "GET /api/advisor/test-pick?role=...&maps=..."
           ],
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:591",
+            "path": "client/src/pages/Prematch.tsx:623",
             "grep": "grep -n -F -- \"'prematch-role-pick-toggle',\" client/src/pages/Prematch.tsx"
           }
         },
@@ -385,7 +385,7 @@
           "kind": "button",
           "description": "Selects DPS as the role to rank the \"Vote for\" recommendation for.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:592",
+            "path": "client/src/pages/Prematch.tsx:624",
             "grep": "grep -n -F -- 'prematch-role-pick-${r.toLowerCase()}-button' client/src/pages/Prematch.tsx"
           }
         },
@@ -395,7 +395,7 @@
           "kind": "button",
           "description": "Selects Support as the role to rank the \"Vote for\" recommendation for. (Rendered by the same map as prematch-role-pick-dps-button \u2014 locate command matches both.)",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:592",
+            "path": "client/src/pages/Prematch.tsx:624",
             "grep": "grep -n -F -- 'prematch-role-pick-${r.toLowerCase()}-button' client/src/pages/Prematch.tsx"
           }
         },
@@ -405,7 +405,7 @@
           "kind": "search-box",
           "description": "Offered-maps search, in the Map card header beside the title (id map-search; focused by the queue tiles, Match Cancelled and the after-log reset). No results list: inline completion from the START of the name only shows the rest greyed after the cursor (prematch-map-search-completion); Enter or Tab takes it, Escape clears. Stays visible but disabled (\"3 maps entered\") once three maps are in.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:643",
+            "path": "client/src/pages/Prematch.tsx:678",
             "grep": "grep -n -F -- ''\"'\"'Type a map name\u2026'\"'\"'' client/src/pages/Prematch.tsx"
           }
         },
@@ -415,7 +415,7 @@
           "kind": "text",
           "description": "Grey rest-of-name overlay on the map search: same padding and font as the input, typed part invisible, so the completion lands after the cursor. Start-of-name match only (ALL_MAPS.find startsWith).",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:654",
+            "path": "client/src/pages/Prematch.tsx:689",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-map-search-completion\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -425,7 +425,7 @@
           "kind": "list",
           "description": "Right column of prematch-map-card, always shown: two rows of three lit tiles, best maps (emerald) on top, worst (red) below, no labels. Styled as the Playing As lit pill (SegmentedPills NOTCH corner, 2px border, is-selected mode-fill, 11px semibold lit text): short map name (mapShort / MAP_SHORT in types/index.ts) over the 90-day recent win rate. Tap a tile to add that map as an offered map.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:836",
+            "path": "client/src/pages/Prematch.tsx:873",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-best-worst-maps-list\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -435,7 +435,7 @@
           "kind": "list",
           "description": "Row of up to three square tiles, one per offered map, with Clear as a full-width bar under them. Tapping a tile sets that map as the match map (MatchContext.map); there is no per-map remove. Lit states in the Playing As style: the picked map = orange with the strong glow, the vote-recommended map = green, others = plain grey outline. Content in rank-badge type: short name small caps (prematch-selected-map-chip-name), overall win rate big (prematch-selected-map-chip-rate), last-5 line under it (prematch-selected-map-chip-history).",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:685",
+            "path": "client/src/pages/Prematch.tsx:722",
             "grep": "grep -n -F -- 'prematch-selected-map-chips' client/src/pages/Prematch.tsx"
           }
         },
@@ -445,7 +445,7 @@
           "kind": "text",
           "description": "Short map name (mapShort) in rank-badge small caps, 9px bold, tracking-wide below xl and tracking-widest from xl so every MAP_SHORT name fits a tile at 1024px.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:703",
+            "path": "client/src/pages/Prematch.tsx:740",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-selected-map-chip-name\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -455,7 +455,7 @@
           "kind": "text",
           "description": "The map's overall win rate (historical_rate from /api/stats/map-voting: every logged game on the map), rank-badge number type (num-display font-black, text-lg / xl:text-xl) with a small % suffix.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:710",
+            "path": "client/src/pages/Prematch.tsx:747",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-selected-map-chip-rate\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -465,7 +465,7 @@
           "kind": "indicator",
           "description": "Last 5 matches on the map (byMap from /api/matches/map-history?maps=) as one continuous flat line under the tile's win rate, exactly as wide as the number, same gap below it as between name and number. Newest leftmost, oldest faded. No glow; clicks pass through to the tile.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:711",
+            "path": "client/src/pages/Prematch.tsx:748",
             "grep": "grep -n -F -- 'prematch-selected-map-chip-history' client/src/pages/Prematch.tsx"
           }
         },
@@ -475,7 +475,7 @@
           "kind": "button",
           "description": "Full-width bar under the offered-map tiles (notched grey outline). Empties the offered maps AND resets the match map (setMap('')) so a re-entered map does not come back pre-lit, then refocuses the search.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:734",
+            "path": "client/src/pages/Prematch.tsx:771",
             "grep": "grep -n -F -- 'prematch-map-voting-clear-button' client/src/pages/Prematch.tsx"
           }
         },
@@ -485,7 +485,7 @@
           "kind": "button",
           "description": "The first-choice map name in the vote advice (24px, emerald, truncates). Clicking it sets that map as the match map (testPick branch) or opens its map drawer (map-only fallback).",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:771",
+            "path": "client/src/pages/Prematch.tsx:808",
             "grep": "grep -n -F -- 'prematch-vote-for-button' client/src/pages/Prematch.tsx"
           },
           "expectedMatches": 2
@@ -494,9 +494,9 @@
           "id": "prematch-hero-advisor-card",
           "label": "Today card",
           "kind": "card",
-          "description": "Third column of the step-1 grid, kept by Sean 2026-09-30 (overrides flow spec later item A). Title only in the header. One stats box with Today (W-L), Streak and This hour (QP / Comp) tiles, shown in every state, with today's results as a line along its bottom edge (prematch-today-dots-strip). Id kept from the old Hero Advisor card.",
+          "description": "Third column of the step-1 grid, kept by Sean 2026-09-30 (overrides flow spec later item A). Title only in the header. One stats box of six readout tiles in a 3x2 (Today, Streak, Rank; Session, Top hero, Since last), two centred lines each, shown in every state. The box's top edge lines up with the best-maps tiles, and the row holds 191px at every width. Today's results run as a line along its bottom edge (prematch-today-dots-strip). Id kept from the old Hero Advisor card.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:864",
+            "path": "client/src/pages/Prematch.tsx:901",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-hero-advisor-card\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -506,7 +506,7 @@
           "kind": "badge",
           "description": "Type pill (Escort, Hybrid...) for the picked match map, right end of the Map card header.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:662",
+            "path": "client/src/pages/Prematch.tsx:698",
             "grep": "grep -n -F -- 'TYPE_COLORS[mapType] ?? '\"'\"''\"'\"'' client/src/pages/Prematch.tsx"
           }
         },
@@ -514,9 +514,9 @@
           "id": "prematch-today-stat-tile",
           "label": "Today W/L stat tile",
           "kind": "stat-tile",
-          "description": "Shows today's win/loss tally; idle-state filler in the Hero Advisor card shown when no map is selected.",
+          "description": "Today card tile (row 1, col 1): today's wins-losses, or \"No games\".",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:911",
+            "path": "client/src/pages/Prematch.tsx:946",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-today-stat-tile\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -524,20 +524,50 @@
           "id": "prematch-streak-stat-tile",
           "label": "Streak stat tile",
           "kind": "stat-tile",
-          "description": "Shows the current win or loss streak length; idle-state filler in the Hero Advisor card shown when no map is selected.",
+          "description": "Today card tile (row 1, col 2): the current win or loss streak, e.g. 2W.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:922",
+            "path": "client/src/pages/Prematch.tsx:954",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-streak-stat-tile\"' client/src/pages/Prematch.tsx"
           }
         },
         {
-          "id": "prematch-this-hour-stat-tile",
-          "label": "This hour stat tile",
+          "id": "prematch-rank-today-stat-tile",
+          "label": "Rank stat tile",
           "kind": "stat-tile",
-          "description": "Shows the historical win rate for the current hour of day; idle-state filler in the Hero Advisor card shown when no map is selected.",
+          "description": "Today card tile (row 1, col 3): net divisions gained or lost across today's ranked games (sum of each game's own change, so it survives account switches), with the current rank as a short tag (E2) beside it. Replaced This hour 2026-09-30; hour-of-day win rates were retired as noise.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:933",
-            "grep": "grep -n -F -- 'data-inspect-id=\"prematch-this-hour-stat-tile\"' client/src/pages/Prematch.tsx"
+            "path": "client/src/pages/Prematch.tsx:962",
+            "grep": "grep -n -F -- 'data-inspect-id=\"prematch-rank-today-stat-tile\"' client/src/pages/Prematch.tsx"
+          }
+        },
+        {
+          "id": "prematch-session-stat-tile",
+          "label": "Session stat tile",
+          "kind": "stat-tile",
+          "description": "Today card tile (row 2, col 1): time since today's first game started.",
+          "locate": {
+            "path": "client/src/pages/Prematch.tsx:971",
+            "grep": "grep -n -F -- 'data-inspect-id=\"prematch-session-stat-tile\"' client/src/pages/Prematch.tsx"
+          }
+        },
+        {
+          "id": "prematch-top-hero-stat-tile",
+          "label": "Top hero stat tile",
+          "kind": "stat-tile",
+          "description": "Today card tile (row 2, col 2): most-played hero today, shortened by heroShort (S76) to fit; its W-L is in the hover title.",
+          "locate": {
+            "path": "client/src/pages/Prematch.tsx:977",
+            "grep": "grep -n -F -- 'data-inspect-id=\"prematch-top-hero-stat-tile\"' client/src/pages/Prematch.tsx"
+          }
+        },
+        {
+          "id": "prematch-last-game-stat-tile",
+          "label": "Since last stat tile",
+          "kind": "stat-tile",
+          "description": "Today card tile (row 2, col 3): time since the last game today was logged (created_at, UTC). Ticks every minute; a break timer.",
+          "locate": {
+            "path": "client/src/pages/Prematch.tsx:985",
+            "grep": "grep -n -F -- 'data-inspect-id=\"prematch-last-game-stat-tile\"' client/src/pages/Prematch.tsx"
           }
         },
         {
@@ -546,7 +576,7 @@
           "kind": "card",
           "description": "Hero advice card (labelled Advice): \"Your Heroes on {map}\" header with refresh, recommended picks (no map) and coaching (map picked). Advice only since 2026-09-29; the hero picker moved to prematch-hero-select-card and Lobby Rank to its own card above. Its DOM id consolidated-advisor is where the map-pick scroll lands in Quickplay.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:979",
+            "path": "client/src/pages/Prematch.tsx:1011",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-consolidated-advisor-card\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -556,7 +586,7 @@
           "kind": "link",
           "description": "Clickable map name in the Consolidated Advisor card's header that opens the Map drawer for the currently selected map.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:984",
+            "path": "client/src/pages/Prematch.tsx:1016",
             "grep": "grep -n -F -- 'Your Heroes on <button onClick={() => openMap(map)}' client/src/pages/Prematch.tsx"
           }
         },
@@ -566,7 +596,7 @@
           "kind": "icon-button",
           "description": "Icon button (\u21bb) that re-fetches the LLM pre-match advisor recommendation for the current map and queue mode.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:997",
+            "path": "client/src/pages/Prematch.tsx:1029",
             "grep": "grep -n -F -- 'title=\"Refresh advisor\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -576,7 +606,7 @@
           "kind": "card",
           "description": "Highlighted panel shown when no map is selected, with one column per role (DPS/Support) showing that role's hottest-trending hero (biggest recent-vs-prior win-rate climb) with recent win rate and games played.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1013",
+            "path": "client/src/pages/Prematch.tsx:1045",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-recommended-pick-card\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -586,7 +616,7 @@
           "kind": "button",
           "description": "Clickable hero name inside the Recommended Pick panel; opens the Hero drawer for that hero.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1024",
+            "path": "client/src/pages/Prematch.tsx:1056",
             "grep": "grep -n -F -- 'onClick={() => openHero(rec.hero)}' client/src/pages/Prematch.tsx"
           }
         },
@@ -596,7 +626,7 @@
           "kind": "section",
           "description": "Section shown once a map is picked, embedding the LLM tactical-read AdvisorCard (matchup coaching and death patterns) for that map.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1064",
+            "path": "client/src/pages/Prematch.tsx:1096",
             "grep": "grep -n -F -- 'id=\"coaching\" className=\"scroll-mt-24' client/src/pages/Prematch.tsx"
           }
         },
@@ -606,7 +636,7 @@
           "kind": "list",
           "description": "Two-column (DPS/Support) layout inside the Coaching section, one AdvisorCard per role for the picked map, shown once the /api/advisor/recommend response is in.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1069",
+            "path": "client/src/pages/Prematch.tsx:1101",
             "grep": "grep -n -F -- 'prematch-coaching-columns' client/src/pages/Prematch.tsx"
           }
         },
@@ -619,7 +649,7 @@
             "GET /api/blind/next?queue_mode=..."
           ],
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1451",
+            "path": "client/src/pages/Prematch.tsx:1483",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-next-test-card\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -629,7 +659,7 @@
           "kind": "text",
           "description": "Shown when queueMode is Quickplay: 'Quickplay doesn't count toward testing \u2014 queue Competitive'. No role/hero list \u2014 Quickplay earns zero test credit for any role (be23788, lib/blind.ts's isStudyQueueMode), so there is nothing to recommend.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1454",
+            "path": "client/src/pages/Prematch.tsx:1486",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-next-test-qp\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -639,7 +669,7 @@
           "kind": "text",
           "description": "Shown when every hero in the current phase has completed its set (nextTest.allFinished). Nudges toward creating the next phase on the Sens page \u2014 never auto-creates one or picks sens values itself.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1458",
+            "path": "client/src/pages/Prematch.tsx:1490",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-next-test-finished\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -649,7 +679,7 @@
           "kind": "text",
           "description": "'Stay on <hero> \u2014 N minutes played \u00b7 queue <role>'. Converted 2026-09-27 from a fixed 5-game \"stint\" to a 60-minute \"block\" (BLOCK_MINUTES, lib/blind.ts) \u2014 minutes are that hero's own aim_stats_heroes.duration_min per credited match, not whole-match length. Shown while nextTest.block is set, i.e. Sean has an open (unclosed, >0 minute) block on one hero \u2014 the card deliberately does NOT recompute the round-robin pick until the block closes. Unlike the old stint, an interruption (playing another hero and coming back) does not reset this \u2014 the block is derived from that hero's own whole credited history, not a run of consecutive matches.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1462",
+            "path": "client/src/pages/Prematch.tsx:1494",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-next-test-block\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -659,7 +689,7 @@
           "kind": "list",
           "description": "Full recompute state (no active open block, or one that just closed). Headline (prematch-next-test-just-closed) branches on nextTest.justClosed (GET /api/blind/next, added 2026-09-27): 'Block done on <hero> \u2014 switch to <top recommended hero>' when a block genuinely just closed, else a neutral 'Queue <role> \u2192 hero, hero, ...' when nothing has been played yet this phase \u2014 the two are otherwise indistinguishable from block alone being null. Below that, a per-hero progress row (prematch-next-test-hero-row) for every pending hero in that role, ordered least-progressed first (ties broken by longest since last played), with a cold hero (7+ days unplayed, COLD_DAYS in lib/nextTest.ts) bumped to the top of its own role's list only. Each row shows minutes played / planned ('45/960 min', playedMinutes/targetMinutes from GET /api/blind/next, 2026-09-28) for a chunked (ABBA) set, plain games for a legacy one; ranking still uses credited/target (closed blocks) \u2014 see prematch-next-test-hero-row.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1467",
+            "path": "client/src/pages/Prematch.tsx:1499",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-next-test-list\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -669,7 +699,7 @@
           "kind": "text",
           "description": "The headline line of the full-recompute branch (prematch-next-test-list), added 2026-09-27. Branches on nextTest.justClosed (GET /api/blind/next \u2014 server/src/routes/blind.ts's /next handler): '{hero}'s open block just closed' state shows 'Block done on <hero> \u2014 switch to <orderedHeroes[0]>'; the null case (nothing test-credited yet this phase) shows the older neutral 'Queue <role> \u2192 hero, hero, ...' instead, since claiming a block \"just closed\" would be false when nothing has actually been played.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1473",
+            "path": "client/src/pages/Prematch.tsx:1505",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-next-test-just-closed\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -679,7 +709,7 @@
           "kind": "list-item",
           "description": "One row per pending hero in the recommended role: hero name, progress, and a 'cold' badge when unplayed 7+ days. Since 2026-09-28 a chunked set shows minutes played / planned ('45/960 min', playedMinutes/targetMinutes from GET /api/blind/next); ordering still uses credited/target below. credited/target are in closed BLOCKS (both stages summed) for a chunked (ABBA) set as of 2026-09-27 \u2014 STAGE_BLOCKS(8) x n_stages is the target \u2014 or plain games for a legacy/unchunked set, batch_size x n_stages. Function is called once per hero in nextTest.orderedHeroes, so the id is intentionally shared across rows (see the map's own duplicate-id rule) \u2014 each row's content is what distinguishes it, not a unique DOM id.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1482",
+            "path": "client/src/pages/Prematch.tsx:1514",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-next-test-hero-row\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -689,7 +719,7 @@
           "kind": "text",
           "description": "Small footer line listing heroes that already finished this phase's test (nextTest.finishedHeroes), shown alongside the active recommendation so Sean can see the whole phase roster's state at a glance, not just whoever's next.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1500",
+            "path": "client/src/pages/Prematch.tsx:1532",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-next-test-done-heroes\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -699,7 +729,7 @@
           "kind": "card",
           "description": "Select Your Hero, game step 5. On the page grid: spans 2 of 3 columns beside the Experiment column, all 3 when the sens study is off. Rows show hero @ sens, win rate and games at 13px on one line; stage watermark centred; progress fill with a straight end.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1103",
+            "path": "client/src/pages/Prematch.tsx:1135",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-hero-select-card\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -709,7 +739,7 @@
           "kind": "header",
           "description": "Header of prematch-hero-select-card, with the \"By role \u00b7 min 2 games \u00b7 tap hero to pre-fill log\" line.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1105",
+            "path": "client/src/pages/Prematch.tsx:1137",
             "grep": "grep -n -F -- 'Select Your Hero</h3>' client/src/pages/Prematch.tsx"
           }
         },
@@ -719,7 +749,7 @@
           "kind": "list",
           "description": "Two-column (DPS/Support) list of heroes \u2014 the union of every hero with an active sens test AND every hero belonging to the current DPI/sens testing phase's roster (so already-finished heroes stay visible instead of disappearing the moment their test completes), ranked by win rate on the selected map. Clicking a hero writes an ordered pick list into Log Match's hero slots (via setPendingHeroes); the highlighted rows and order badges READ the form's slots back (MatchContext.pickedHeroes), so the Log Match form is the single owner of the pick order (2026-09-29). This list is lab overlay (win-rate ranking, sens gauge); the plain hero capture is Log Match's own hero dropdowns. clicking an already-picked hero again toggles it off.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1109",
+            "path": "client/src/pages/Prematch.tsx:1141",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-hero-picker-list\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -729,7 +759,7 @@
           "kind": "badge",
           "description": "\u2460/\u2461/\u2462 badge shown on a hero row once it's been clicked, marking its position in the up-to-3 ordered click sequence that fills Log Match's hero slots (1st click \u2192 primary hero, 2nd/3rd \u2192 the two switch-hero slots). Colored via ROLE_PILL_CLASS to match the app's existing DPS/Tank/Support role-color convention rather than a generic accent.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1199",
+            "path": "client/src/pages/Prematch.tsx:1231",
             "grep": "grep -n -F -- 'prematch-hero-picker-order-badge' client/src/pages/Prematch.tsx"
           }
         },
@@ -739,7 +769,7 @@
           "kind": "meter",
           "description": "Hero row progress: fills the bottom of the row as far as the open 60-minute block (or legacy games at this sens) has gone, with a straight vertical end (was a 20deg slant until 2026-09-30). Full strength on a tapped row, on hover otherwise.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1253",
+            "path": "client/src/pages/Prematch.tsx:1285",
             "grep": "grep -n -F -- 'prematch-hero-picker-gauge' client/src/pages/Prematch.tsx"
           }
         },
@@ -749,7 +779,7 @@
           "kind": "badge",
           "description": "Oversized faded stage/chunk label (A1..B4) behind a hero row, centred (ink centre measured within 2px of the row centre; translate-x 0.15em corrects the italic lean). On a tapped row it is lit only as far as the progress fill reaches: the label spans the card width so --lit-x = fill x card width - 0.15em.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1259",
+            "path": "client/src/pages/Prematch.tsx:1291",
             "grep": "grep -n -F -- 'prematch-hero-picker-stage-badge' client/src/pages/Prematch.tsx"
           },
           "expectedMatches": 2
@@ -760,7 +790,7 @@
           "kind": "badge",
           "description": "Shown on a hero row in Select Your Hero when that hero belongs to the current DPI/sens testing phase's roster but has already finished it (no active test, blind_stage_sets completed=true for that phase) \u2014 lets the whole phase roster stay visible instead of dropping a hero the moment its test completes.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1297",
+            "path": "client/src/pages/Prematch.tsx:1329",
             "grep": "grep -n -F -- 'prematch-hero-picker-done-badge' client/src/pages/Prematch.tsx"
           }
         },
@@ -770,7 +800,7 @@
           "kind": "banner",
           "description": "Empty-state message shown when no games have been logged for the current map/filter, prompting the user to pick a map or log a match.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1324",
+            "path": "client/src/pages/Prematch.tsx:1356",
             "grep": "grep -n -F -- 'dataInspectId=\"prematch-empty-state-banner\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -780,7 +810,7 @@
           "kind": "stat-tile",
           "description": "In-game sens paired with the trending hero pick, derived from that hero's own best-tested DPI scale.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1043",
+            "path": "client/src/pages/Prematch.tsx:1075",
             "grep": "grep -n -F -- 'prematch-recommended-sens' client/src/pages/Prematch.tsx"
           }
         },
@@ -790,7 +820,7 @@
           "kind": "button",
           "description": "One hero row in the Select Your Hero picker. Click toggles it into the match's pick order. Selected and hover states both use the ROLE's colour, not the brand accent \u2014 teal in the DPS column, pink in the Support column \u2014 via --sel set inline on every chip so hover and selection agree. Matches the order badge, which already coloured by role. The hero the Next test card points at (stint hero, else the top recommendation) gets .test-glow, a pulsing role-coloured halo. Styled like Log Match's mode tiles since 2026-09-27: selected = border-2 .is-selected.mode-fill with the name in .lit-text.lit-strong; resting = .hero-pane, the lobby slider's unlit rank-pane look in the role hue (1px border at 35%/15% light/dark + bottom tint), with 1px extra padding so selecting doesn't shift the row; --muted name (was --faint; games --faint, was --faint-2; brightened 2026-09-28) with NO hover brightening (removed 2026-09-27 as jarring). 4px corners both states. Name, win rate and games use the app's standard upright .hero-name face (Chakra Petch; italic dropped 2026-09-28). Win rate/games show this map's numbers once a map is picked and all maps' before that (GET /api/stats/prematch returns all-maps byHero when no map is sent); hidden only for a hero with 0 games. On a selected test card every letter (arrow, name, sens tag, win rate, games) glows only as far as the gauge reaches (.lit-fill); coloured numbers keep their own hue via .lit-hue.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1162",
+            "path": "client/src/pages/Prematch.tsx:1194",
             "grep": "grep -n -F -- 'prematch-hero-picker-button' client/src/pages/Prematch.tsx"
           }
         },
@@ -800,7 +830,7 @@
           "kind": "text",
           "description": "\" @ <sens>\" after a hero's name in Select Your Hero: the sens this hero's test is running at, or (emerald) the best sens its own testing settled on. Shown only when the hero has a sens test.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1219",
+            "path": "client/src/pages/Prematch.tsx:1251",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-hero-picker-sens-tag\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -810,7 +840,7 @@
           "kind": "container",
           "description": "Page-level strip at the very top of Pre-Match holding both halves of 'who is playing right now': the four account pills (Pinx/Jinx/Winx/Linx) and the two role pills (DPS/Support), plus a right-aligned readout naming the active rank slot and its rank. Created 2026-09-19 by merging two controls that lived in different cards \u2014 account pills were in the Lobby Rank header, role pills in Map Voting's. Four things read the pair: the advisor request, the Hero Advisor card's role pill, Log Match's hero dropdown filter, and which of the eight rank slots the drum shows. It sits ABOVE the cards rather than inside one, and that is load-bearing: the Lobby Rank card is hidden entirely on Quickplay (queueMode === 'qp_role'), so folding role into it would have made the role pick vanish exactly when Quickplay needs it. Both pill groups render through one local identityPill() helper so the two choices cannot drift apart visually. Uses .card but overrides the VERTICAL half of its p-5 to zero \u2014 the pills span the bar edge to edge and define its height, with min-h-[34px] as the floor. Horizontal padding stays at the card's px-5 deliberately: the Sens Test card below shares that 20px inset, so 'Playing as' and that card's title start on the same vertical line. each group is a segmented control (identityGroup) with a single lit block that SLIDES between options rather than blinking off one and on to another. Three things make the step exact: auto-cols-fr equalises option widths within a group, and every button stacks all six labels (both groups) invisibly under its own so account and role pills share the width of the widest, 'Support'. So step N is always N x 100% of the indicator's width (no refs, nothing to re-measure on resize); there is NO gap between options, since a gap is not part of that 100% and the indicator would drift further out of register each step; and the indicator alone carries the border and .is-selected while the buttons carry only text, because two elements painting a border would double it mid-slide. Pills are full height with a 7px corner notch \u2014 half the .card's own 14px, the proportion used elsewhere on the page. The label and readout use self-center so they do not stretch with the pills. Its 'Playing as' label uses .card-title, the same class as every card heading, so the strip reads as a section of the page rather than stray text. The two pill groups are centred in the strip, done by giving the 'Playing as' label and the rank readout `flex-1 basis-0` rather than by margins \u2014 equal basis makes both side items claim equal width whatever they contain, so the centre does not drift when the readout's rank text changes length.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:554",
+            "path": "client/src/pages/Prematch.tsx:586",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-identity-strip\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -820,7 +850,7 @@
           "kind": "display",
           "description": "Right-aligned in the identity strip: 'rank slot Linx \\u00b7 Support \\u2014 Platinum 4'. Names which of the eight (4 accounts x 2 roles) slots the pills currently select, and what is stored in it. Replaces prematch-lobby-rank-slot-label, which existed only to report the value of a control on another card; here the control and its readout sit together.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:600",
+            "path": "client/src/pages/Prematch.tsx:632",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-identity-rank-readout\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -830,7 +860,7 @@
           "kind": "text",
           "description": "Small faint uppercase label just left of the account picker. Added 2026-09-24, same style as the Today label on the Hero Advisor dots.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:570",
+            "path": "client/src/pages/Prematch.tsx:602",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-account-label\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -840,7 +870,7 @@
           "kind": "text",
           "description": "Small faint uppercase label just left of the DPS/Support picker, after the divider. Added 2026-09-24, same style as the Account label.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:585",
+            "path": "client/src/pages/Prematch.tsx:617",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-role-label\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -850,7 +880,7 @@
           "kind": "input",
           "description": "Row of four pills in the page-level identity strip (moved there from the Lobby Rank header on 2026-09-19), one per Overwatch account: Pinx, Jinx, Winx, Linx (renamed from SOJ/SKI/26R/26J the same day). Added 2026-09-19. Styled from Map Voting's role pills \u2014 same clipped corner and the shared .is-selected bottom-lit state \u2014 because it is the same kind of control. The selected pill takes the hue of that account's current rank tier via --sel, so the pill row and the rank badge below agree. Switching accounts swaps the whole rank context: player_rank and the lobby range are stored per account AND per role \u2014 EIGHT slots \u2014 under 'ow-player-rank:<ACCT>:<Role>' and 'ow-lobby-range:<ACCT>:<Role>', read (not cleared) on switch, so every slot keeps where it was left. The role half comes from Role Pick on the Map Voting card; prematch-lobby-rank-slot-label names the active pairing. Both swaps happen inside the setters, not in an effect \u2014 an effect runs after the lobby-persist effect and would copy the outgoing slot's range onto the incoming slot's key. Pre-split values migrate once to Linx/Support (Sean's statement 2026-09-19 that the stored rank was Linx's support rank), guarded by 'ow-rank-migrated-to-role-slots' so a legitimate clear is not undone. NOTE: the account name IS the storage key suffix, so a future rename strands that account's stored rank and range \u2014 only the default is covered by the legacy adoption. NOTE: the account is NOT written to the matches table \u2014 no schema change was made; a logged match still records only player_rank. Rendered by identityGroup as a sliding segmented control; the lit block's hue transitions with the slide, so moving from a Gold account to a Platinum one changes colour as it travels.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:580",
+            "path": "client/src/pages/Prematch.tsx:612",
             "grep": "grep -n -F -- \"'prematch-account-toggle',\" client/src/pages/Prematch.tsx"
           }
         },
@@ -860,7 +890,7 @@
           "kind": "button",
           "description": "Selects the Pinx account. Loads that account's stored rank into the drum and its stored lobby range into the track; nothing is cleared, so switching back restores what was there.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:581",
+            "path": "client/src/pages/Prematch.tsx:613",
             "grep": "grep -n -F -- 'prematch-account-${a.toLowerCase()}-button' client/src/pages/Prematch.tsx"
           }
         },
@@ -870,7 +900,7 @@
           "kind": "button",
           "description": "Selects the Jinx account. Loads that account's stored rank into the drum and its stored lobby range into the track; nothing is cleared, so switching back restores what was there.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:581",
+            "path": "client/src/pages/Prematch.tsx:613",
             "grep": "grep -n -F -- 'prematch-account-${a.toLowerCase()}-button' client/src/pages/Prematch.tsx"
           }
         },
@@ -880,7 +910,7 @@
           "kind": "button",
           "description": "Selects the Winx account. Loads that account's stored rank into the drum and its stored lobby range into the track; nothing is cleared, so switching back restores what was there.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:581",
+            "path": "client/src/pages/Prematch.tsx:613",
             "grep": "grep -n -F -- 'prematch-account-${a.toLowerCase()}-button' client/src/pages/Prematch.tsx"
           }
         },
@@ -890,7 +920,7 @@
           "kind": "button",
           "description": "Selects the Linx account. Loads that account's stored rank into the drum and its stored lobby range into the track; nothing is cleared, so switching back restores what was there.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:581",
+            "path": "client/src/pages/Prematch.tsx:613",
             "grep": "grep -n -F -- 'prematch-account-${a.toLowerCase()}-button' client/src/pages/Prematch.tsx"
           }
         },
@@ -1030,7 +1060,7 @@
           "kind": "card",
           "description": "One continuous 4px line flush on the Today stats box's bottom border, the box's full inner width, split into equal segments, one per game today, most recent left, flat emerald/red. Empty grey track when no games. Clipped to the box's rounded corners.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:899",
+            "path": "client/src/pages/Prematch.tsx:931",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-today-dots-strip\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -1040,7 +1070,7 @@
           "kind": "badge",
           "description": "One game's segment of the Today results line; hover shows result, hero and map.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:903",
+            "path": "client/src/pages/Prematch.tsx:935",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-today-dot\"' client/src/pages/Prematch.tsx"
           }
         }
@@ -1074,7 +1104,7 @@
           "kind": "button",
           "description": "Button shown only when deaths are buffered; clears the entire in-progress death buffer for the current match.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1018",
+            "path": "client/src/pages/LogMatch.tsx:1021",
             "grep": "grep -n -F -- 'hover:text-red-600 transition-colors\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1084,7 +1114,7 @@
           "kind": "container",
           "description": "Left column of the Deaths card (full width when stacked below lg): holds the buffered death list, or the 'log each death as it happens' empty state.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1026",
+            "path": "client/src/pages/LogMatch.tsx:1029",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-death-history-column\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1094,7 +1124,7 @@
           "kind": "container",
           "description": "Right column of the Deaths card (stacks below the history column under lg): holds the DeathLogger picker, sticky from lg up so it stays in view as the death list grows.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1066",
+            "path": "client/src/pages/LogMatch.tsx:1065",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-death-capture-column\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1104,7 +1134,7 @@
           "kind": "list",
           "description": "List of deaths logged so far this match (fact-only capture, 2026-09-09 on) \u2014 each row shows the killer hero and role, an inline \u26a1 toggle to mark/unmark the death as an ult kill, and an x button to remove that entry from the buffer.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1032",
+            "path": "client/src/pages/LogMatch.tsx:1031",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-death-buffer-list\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1114,7 +1144,7 @@
           "kind": "button",
           "description": "Per-row toggle in the Deaths card buffer list that flips a buffered death's ult flag after the fact \u2014 never part of the tap-to-log path itself, since the ~10s respawn window only allows one tap for who killed you.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1044",
+            "path": "client/src/pages/LogMatch.tsx:1043",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-death-ult-toggle\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1124,7 +1154,7 @@
           "kind": "card",
           "description": "Card containing the match-logging form; its header includes the Reset button that clears hero, notes, map, and feel.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1076",
+            "path": "client/src/pages/LogMatch.tsx:1075",
             "grep": "grep -n -F -- '>Match Details<' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1134,7 +1164,7 @@
           "kind": "button",
           "description": "Clears the currently selected hero, notes, map, and resets the Feel slider back to its midpoint; disabled when nothing is selected. Does NOT clear the lobby rank range (changed 2026-09-19); that reading now persists across matches.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1111",
+            "path": "client/src/pages/LogMatch.tsx:1110",
             "grep": "grep -n -F -- 'disabled={!form.hero && !map}' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1144,7 +1174,7 @@
           "kind": "button",
           "description": "Cancels the match currently being built: clears hero, notes, map, feel, team rating, and the death buffer (with a confirm prompt if any deaths were already tracked), and calls notifyMatchLogged() with no args so Prematch's Map Voting picks reset too (bumps matchLoggedSignal without setting lastLog, so it doesn't also trigger the win/loss flash overlay). Sits beside Reset in the Match Details card header; unlike Reset it also clears the win/loss result and the death buffer. Scrolling/focusing the map search input is deferred a double requestAnimationFrame so it targets the post-reset layout (once the Map Voting card has actually collapsed) instead of the stale pre-reset one.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1103",
+            "path": "client/src/pages/LogMatch.tsx:1102",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-cancel-match-button\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1154,7 +1184,7 @@
           "kind": "form",
           "description": "The full match-logging form (date, time, sensitivity display, hero, map, mode, result, notes, feel) that POSTs a new match to /api/matches on submit.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1119",
+            "path": "client/src/pages/LogMatch.tsx:1118",
             "grep": "grep -n -F -- 'onSubmit={submit}' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1164,7 +1194,7 @@
           "kind": "input",
           "description": "Date picker for the match being logged; defaults to today and auto-advances with the clock until the user hand-edits it (backfill).",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1147",
+            "path": "client/src/pages/LogMatch.tsx:1146",
             "grep": "grep -n -F -- 'type=\"date\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1174,7 +1204,7 @@
           "kind": "input",
           "description": "Time picker for the match being logged; defaults to the current clock time and stops auto-following once hand-edited (backfill).",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1157",
+            "path": "client/src/pages/LogMatch.tsx:1156",
             "grep": "grep -n -F -- 'type=\"time\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1184,7 +1214,7 @@
           "kind": "stat-tile",
           "description": "Read-only display of the in-game sensitivity this match will actually be logged at: the picked hero's active DPI test stage value if one's running (Competitive, or Quickplay-as-Support), otherwise the frozen fallback sens. Not editable from this form.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1170",
+            "path": "client/src/pages/LogMatch.tsx:1169",
             "grep": "grep -n -F -- 'num-display text-[var(--ink)] whitespace-nowrap' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1194,7 +1224,7 @@
           "kind": "select",
           "description": "Dropdown grouped by role (DPS/Tank/Support) for choosing the match's starting hero (pre-filled from the Pre-Match picker); each option shows today's play count for that hero. First of three hero slots \u2014 see logmatch-hero-switch-select-2/3 for the optional mid-match switches, all of which share the match's result on submit.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1189",
+            "path": "client/src/pages/LogMatch.tsx:1188",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-hero-select\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1204,7 +1234,7 @@
           "kind": "select",
           "description": "Optional second hero slot for a mid-match hero switch; grouped by role like the 1st hero select. The logged result and death buffer apply to every filled hero slot, not just the first.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1216",
+            "path": "client/src/pages/LogMatch.tsx:1215",
             "grep": "grep -n -F -- 'logmatch-hero-switch-select-${i + 2}' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1214,7 +1244,7 @@
           "kind": "select",
           "description": "Optional third hero slot for a second mid-match hero switch; grouped by role like the 1st hero select. The logged result and death buffer apply to every filled hero slot, not just the first. (Rendered by the same map as logmatch-hero-switch-select-2 \u2014 locate command matches both.)",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1216",
+            "path": "client/src/pages/LogMatch.tsx:1215",
             "grep": "grep -n -F -- 'logmatch-hero-switch-select-${i + 2}' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1224,7 +1254,7 @@
           "kind": "badge",
           "description": "Colored pill (DPS/Tank/Support) that appears under the Hero select once a hero has been chosen, reflecting that hero's role.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1206",
+            "path": "client/src/pages/LogMatch.tsx:1205",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-hero-role-badge\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1234,7 +1264,7 @@
           "kind": "stat-tile",
           "description": "Shows the map currently picked in the Pre-Match section along with its type pill, or a prompt to pick one there if none is selected yet.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1248",
+            "path": "client/src/pages/LogMatch.tsx:1247",
             "grep": "grep -n -F -- 'Pick a map in the Pre-Match section above to log a result.' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1244,7 +1274,7 @@
           "kind": "badge",
           "description": "Pill showing the selected map's type (e.g. Control, Escort, Hybrid, Push) next to the map name.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1245",
+            "path": "client/src/pages/LogMatch.tsx:1244",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-map-type-badge\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1254,7 +1284,7 @@
           "kind": "container",
           "description": "Read-only \"Recording as {queue}\" line at the top of the Match Details form (2026-09-29): the queue is chosen once on the mode tiles and the log form no longer re-asks it (design-language section 7). Holds logmatch-recording-as-chip and logmatch-mode-change-link. The sens-test explainer paragraph that sat under the old toggle moved to prematch-experiment-card.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1124",
+            "path": "client/src/pages/LogMatch.tsx:1123",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-mode-toggle\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1264,7 +1294,7 @@
           "kind": "badge",
           "description": "Read-only chip inside logmatch-mode-toggle showing the queue this match will be recorded as, in that queue's own wash (QUEUE_MODE_SEL_RGB). Reads MatchContext.queueMode, which only the mode tiles set.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1129",
+            "path": "client/src/pages/LogMatch.tsx:1128",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-recording-as-chip\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1274,7 +1304,7 @@
           "kind": "link",
           "description": "The \"change\" link next to the Recording as chip. Scrolls back to the mode tiles (#sec-mode) where the queue is chosen.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1137",
+            "path": "client/src/pages/LogMatch.tsx:1136",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-mode-change-link\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1284,7 +1314,7 @@
           "kind": "radio-group",
           "description": "Win/Loss toggle with an animated sliding fill and chevron rank-insignia buttons; selecting Win or Loss sets the outcome to be logged for this match.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1253",
+            "path": "client/src/pages/LogMatch.tsx:1252",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-result-toggle\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1294,7 +1324,7 @@
           "kind": "textarea",
           "description": "Free-text field for notes on perceived factors affecting the match (e.g. fatigue, warmup, stage change), saved with the logged match. Rendered via the generic RegistryField component (client/src/components/RegistryField.tsx) as of 2026-09-23's field-registry contract freeze \u2014 re-anchored on the field-id call site since the actual <textarea> and its data-inspect-id now live in RegistryField.tsx, not here.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1306",
+            "path": "client/src/pages/LogMatch.tsx:1305",
             "grep": "grep -n -F -- \"registryField('notes')!\" client/src/pages/LogMatch.tsx"
           }
         },
@@ -1304,7 +1334,7 @@
           "kind": "slider",
           "description": "One range slider (0-100) per filled hero slot, capturing whether the sensitivity felt floaty (slow) or jittery (fast), snappy in the middle, on that hero during this specific match \u2014 captured live since the sensation fades before the next match. Container is logmatch-feel-sliders; each individual input shares this same data-inspect-id.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1329",
+            "path": "client/src/pages/LogMatch.tsx:1328",
             "grep": "grep -n -F -- \"registryField('feel')!\" client/src/pages/LogMatch.tsx"
           }
         },
@@ -1364,7 +1394,7 @@
           "kind": "button",
           "description": "Primary submit button that saves the match to the database (POST /api/matches); shows Saving\u2026/\u2713 Saved states and is disabled until hero, map, result, date, and sens are all valid.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1397",
+            "path": "client/src/pages/LogMatch.tsx:1396",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-log-match-button\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1374,7 +1404,7 @@
           "kind": "banner",
           "description": "Inline error message shown briefly under the Log Match button if saving the match to the server fails.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1403",
+            "path": "client/src/pages/LogMatch.tsx:1402",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-save-error-banner\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1384,7 +1414,7 @@
           "kind": "card",
           "description": "Card showing today's logged matches, read live from the database so it stays accurate and resets automatically when the day rolls over. Each row expands in place into an inline edit form (logmatch-inline-edit-form) instead of a side drawer \u2014 this is the app's only surface for correcting a match's hero/map/mode/result after logging, or deleting it.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1407",
+            "path": "client/src/pages/LogMatch.tsx:1406",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-todays-matches-card\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1394,7 +1424,7 @@
           "kind": "list",
           "description": "List of today's logged matches; each row's background is a subtle queue-mode-tinted wash (blue QP / red Comp Role / orange Comp Open) and shows an oversized W/L result watermark, a role-colored hero pill (mid-match switch heroes peek out behind it in progressively darker shades), a timestamp + stage/sens line, and the map name. Clicking the row toggles its inline edit form (logmatch-todays-matches-card-row / logmatch-inline-edit-form) open below it.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1410",
+            "path": "client/src/pages/LogMatch.tsx:1409",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-recently-logged-list\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1404,7 +1434,7 @@
           "kind": "list-item",
           "description": "One row in the Today's Matches list. Clicking anywhere on the collapsed header (outside the mode toggle group) toggles logmatch-inline-edit-form open/closed beneath it for that match.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1417",
+            "path": "client/src/pages/LogMatch.tsx:1416",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-todays-matches-card-row\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1414,7 +1444,7 @@
           "kind": "indicator",
           "description": "Up to 5 colored dashes below a Today's Matches row's hero pill \u2014 one per prior match on that hero, newest leftmost, green for a win / red for a loss; the oldest dash mask-fades out on its own trailing edge. Fixed to w-24, the same width as the hero pill. Backed by GET /api/matches/:id/hero-history.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1473",
+            "path": "client/src/pages/LogMatch.tsx:1472",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-todays-matches-hero-history\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1424,7 +1454,7 @@
           "kind": "indicator",
           "description": "Same win/loss dash treatment as the hero history strip, shown below the map name for the last 5 matches played on that map. Backed by GET /api/matches/:id/map-history.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1503",
+            "path": "client/src/pages/LogMatch.tsx:1502",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-todays-matches-map-history\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1434,7 +1464,7 @@
           "kind": "label",
           "description": "This row's timestamp and stage/sens readout, absolutely positioned between the hero and map columns with fixed left/right rem offsets off the row card \u2014 holds its position regardless of how wide mid-match-switch peek pills make the hero column, instead of living in normal flex flow.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1493",
+            "path": "client/src/pages/LogMatch.tsx:1492",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-todays-matches-time-sens\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1444,7 +1474,7 @@
           "kind": "form",
           "description": "Expanded editable-fields panel for a Today's Matches row, matching the Awaiting Stats/Logged Today collapsed-row/inline-form pattern on the Sens page instead of a side drawer. Contains the Mode toggle, Hero (1st/2nd/3rd) selects, Map select, Result toggle, a Save Changes button, and a Delete this match control (with a confirm step).",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1519",
+            "path": "client/src/pages/LogMatch.tsx:1518",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-inline-edit-form\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1664,7 +1694,7 @@
           "kind": "banner",
           "description": "Empty-state message shown in the Today's Matches card when no matches have been logged yet for the current day.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1539",
+            "path": "client/src/pages/LogMatch.tsx:1538",
             "grep": "grep -n -F -- 'title=\"Nothing logged today\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1674,7 +1704,7 @@
           "kind": "input",
           "description": "Perceived teammate-quality rating, 0-5 stars in half-star steps, captured live at log time. Rendered via the generic RegistryField component (client/src/components/RegistryField.tsx) as of 2026-09-23's field-registry contract freeze \u2014 re-anchored on the field-id call site since the actual <StarRating> and its data-inspect-id now live in RegistryField.tsx, not here.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1346",
+            "path": "client/src/pages/LogMatch.tsx:1345",
             "grep": "grep -n -F -- \"registryField('team_rating')!\" client/src/pages/LogMatch.tsx"
           }
         },
@@ -1684,7 +1714,7 @@
           "kind": "input",
           "description": "Stomp/Close two-option toggle \u2014 a fact about how decisive the score was, not a judgment. Starts unselected and stays null if untouched; clicking the selected option again deselects it.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1355",
+            "path": "client/src/pages/LogMatch.tsx:1354",
             "grep": "grep -n -F -- \"registryField('match_quality')!\" client/src/pages/LogMatch.tsx"
           }
         },
@@ -1694,7 +1724,7 @@
           "kind": "button",
           "description": "One of the two Stomp/Close buttons inside the match-quality toggle.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1355",
+            "path": "client/src/pages/LogMatch.tsx:1354",
             "grep": "grep -n -F -- \"registryField('match_quality')!\" client/src/pages/LogMatch.tsx"
           }
         },
@@ -1704,7 +1734,7 @@
           "kind": "input",
           "description": "Me/Team two-option toggle \u2014 collective-effort vs. individually-decided, NOT a rating of teammates ('Team' includes Sean himself). Starts unselected and stays null if untouched; clicking the selected option again deselects it.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1366",
+            "path": "client/src/pages/LogMatch.tsx:1365",
             "grep": "grep -n -F -- \"registryField('result_driver')!\" client/src/pages/LogMatch.tsx"
           }
         },
@@ -1714,7 +1744,7 @@
           "kind": "button",
           "description": "One of the two Me/Team buttons inside the result-driver toggle.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1366",
+            "path": "client/src/pages/LogMatch.tsx:1365",
             "grep": "grep -n -F -- \"registryField('result_driver')!\" client/src/pages/LogMatch.tsx"
           }
         },
@@ -1724,7 +1754,7 @@
           "kind": "input",
           "description": "Two buttons in the app's shared selected style. Win carries teal, Loss pink, via --sel; .is-selected draws the bottom-lit treatment. Replaced a sliding fill and an animated chevron insignia, whose 'is-selected' class name collided with the new shared one.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1260",
+            "path": "client/src/pages/LogMatch.tsx:1259",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-result-buttons\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1734,7 +1764,7 @@
           "kind": "button",
           "description": "Sets the match result. Selected shows the bottom-lit state in its own hue; unselected previews that hue on hover via .hover-sel.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1273",
+            "path": "client/src/pages/LogMatch.tsx:1272",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-result-option\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1744,7 +1774,7 @@
           "kind": "button-group",
           "description": "Two thin sliver buttons directly below the Win/Loss row, each spanning one result button: enemy leaver (left, under Win, muted teal) and friendly leaver (right, under Loss, muted pink). A lit bar gets .leaver-lamp: tinted fill with an inner glow rising from the bottom edge, no outer glow. Replaced the old square Leaver checkbox 2026-09-24 \u2014 which team the leaver was on matters more than a bare yes/no. Tap the selected side again to clear back to 'no leaver'. Extracted into the shared LeaverSliver.tsx component 2026-09-24 (same day MatchEditDrawer needed an identical control) \u2014 the id itself is built there from a `dataInspectPrefix` prop, so the anchor below points at LogMatch's call site, which passes dataInspectPrefix=\"logmatch-leaver-side\".",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1298",
+            "path": "client/src/pages/LogMatch.tsx:1297",
             "grep": "grep -n -F -- 'dataInspectPrefix=\"logmatch-leaver-side\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1754,7 +1784,7 @@
           "kind": "button",
           "description": "One of the two sliver buttons inside logmatch-leaver-side-toggle. Shared id across both (mine/theirs) \u2014 same convention as the identity-group toggles elsewhere on this app. Selected state lights with .leaver-lamp in its side's muted Win/Loss hue (SIDE_HUES in LeaverSliver.tsx); tapping the already-selected one clears leaverSide back to null. Rendered by LeaverSliver.tsx (see logmatch-leaver-side-toggle) \u2014 anchor points at the same LogMatch.tsx call site.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1298",
+            "path": "client/src/pages/LogMatch.tsx:1297",
             "grep": "grep -n -F -- 'dataInspectPrefix=\"logmatch-leaver-side\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1764,7 +1794,7 @@
           "kind": "text",
           "description": "Tiny captions, one under each leaver-side sliver: 'Enemy Leaver - Free win?' (left, under Win) and 'Friendly Leaver - GG go next' (right, under Loss). The picked side's caption is .lit-text, lit from above (brightest at the top, next to its bar). Rendered by LeaverSliver.tsx (see logmatch-leaver-side-toggle) \u2014 anchor points at the same LogMatch.tsx call site.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1298",
+            "path": "client/src/pages/LogMatch.tsx:1297",
             "grep": "grep -n -F -- 'dataInspectPrefix=\"logmatch-leaver-side\"' client/src/pages/LogMatch.tsx"
           }
         }
