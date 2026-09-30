@@ -1013,16 +1013,6 @@ export default function Prematch() {
         </div>
       </div>
 
-      {/* Lobby Rank — game step 4, the tracker's centrepiece: the lobby's
-          ranks show with the players, after the map vote and before hero
-          select. Its own full-width card, so its presence is a card's, not a
-          section's. The component and its state are tracker-owned
-          (MatchContext) and untouched here; only the card around it is new.
-          On Quickplay the component renders nothing, so no empty card
-          appears. #lobby-step is where the map-pick scroll lands. */}
-      <div id="lobby-step" className="scroll-mt-24">
-        <LobbyRankSection className="card mb-4" />
-      </div>
 
       {/* Hero advice — the recommendation and the coaching behind it, in one
           card above Select Your Hero (the tracker's hero input). */}
@@ -1571,6 +1561,16 @@ export default function Prematch() {
             )}
           </div>
         )}
+      </div>
+
+      {/* Lobby Rank — the tracker's centrepiece, in its own full-width card.
+          Game step 4, but it sits after hero select, right above the Deaths
+          card (Sean, 2026-09-30). Placed before hero select, it was off screen
+          while he got ready to log deaths, so he kept forgetting it. The
+          component and its state are tracker-owned (MatchContext). On
+          Quickplay the component renders nothing, so no empty card appears. */}
+      <div id="lobby-step" className="scroll-mt-24 mt-4">
+        <LobbyRankSection className="card" />
       </div>
     </div>
   );

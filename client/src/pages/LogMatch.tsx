@@ -740,14 +740,13 @@ export default function LogMatch() {
     }
   }, [pendingHeroes, setPendingHeroes]);
 
-  // Picking a map brings the next step into a centred view: in Competitive
-  // that is step 4, the Lobby Rank card (#lobby-step); in Quickplay there is
-  // no lobby rank, so it is the hero advice card. The short delay lets the
-  // map's hero list finish loading so the page is at full height before we
-  // measure and centre it.
+  // Picking a map brings the next card into a centred view: the hero advice
+  // card. (It centred on Lobby Rank until 2026-09-30, when that card moved
+  // below hero select.) The short delay lets the map's hero list finish
+  // loading so the page is at full height before we measure and centre it.
   useEffect(() => {
     if (!map) return;
-    const t = setTimeout(() => centerOnElement(isQP ? 'consolidated-advisor' : 'lobby-step'), 350);
+    const t = setTimeout(() => centerOnElement('consolidated-advisor'), 350);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map]);
