@@ -53,7 +53,7 @@
     --faint-2: #636a79; /* 5.43:1 on white, 4.59:1 on the recessed grey */
     /* --faint and --faint-2 sit close together in light theme, on purpose.
        Once both must clear 4.5:1 against a white card there is simply not much
-       room left between them. Dark theme keeps the wider spread it always had. */
+       room left between them. Dark theme was brought into line on 2026-09-29. */
     --card-border: rgba(20, 22, 28, 0.08);
     --card-border-hover: rgba(20, 22, 28, 0.16);
     /* Layered depth: a tight contact shadow that grounds the panel, plus a
@@ -78,8 +78,14 @@
     --ink: #edeff3;             /* primary text */
     --ink-2: #c6cad2;
     --muted: #8a8f9c;
-    --faint: #636874;
-    --faint-2: #454a56;
+    /* Brightened 2026-09-29, mirroring the light-theme fix above. The old
+       values (#636874, #454a56) measured 2.92:1 and 1.84:1 on the #1D2027
+       card, under 4.5:1 across ~257 text uses. Same hue, scaled up until both
+       clear 4.5:1 while staying under --muted (5.04:1). The spread between the
+       bottom three steps is now small, as in light theme; hierarchy rides on
+       size and weight. */
+    --faint: #848a9a;           /* 4.72:1 on the card, 5.43:1 on the recessed well */
+    --faint-2: #818797;         /* 4.54:1 on the card, 5.22:1 on the recessed well */
     --card-border: rgba(255, 255, 255, 0.07);
     --card-border-hover: rgba(255, 255, 255, 0.16);
     --card-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 6px 14px -8px rgba(0, 0, 0, 0.5), 0 24px 44px -26px rgba(0, 0, 0, 0.65);
