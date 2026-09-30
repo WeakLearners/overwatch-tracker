@@ -119,9 +119,9 @@
         },
         {
           "id": "dash-section-nav-form",
-          "label": "Section nav: Form & Rank",
+          "label": "Section nav: Form",
           "kind": "button",
-          "description": "Jump pill for the Form & Rank card (#sec-form), first in the strip since 2026-09-30 because the card leads the page. (Locate command matches all five section pills.)",
+          "description": "Jump pill labelled 'Form' for the Form & Rank card (#sec-form), first in the strip since 2026-09-30 because the card leads the page. (Locate command matches all five section pills.)",
           "locate": {
             "path": "client/src/pages/Dashboard.tsx:128",
             "grep": "grep -n -F -- 'dash-section-nav-${id.replace' client/src/pages/Dashboard.tsx"
@@ -473,7 +473,7 @@
           "id": "prematch-selected-map-chip-history",
           "label": "Selected map chip history strip",
           "kind": "indicator",
-          "description": "Last 5 matches on the map (byMap from /api/matches/map-history?maps=) as one continuous flat line under the tile's win rate, exactly as wide as the number, same gap below it as between name and number. Newest leftmost, oldest faded. No glow; clicks pass through to the tile.",
+          "description": "Last 5 matches on the map (byMap from /api/matches/map-history?maps=) as one continuous flat 2px line (4px until 2026-09-30) under the tile's win rate, exactly as wide as the number, same gap below it as between name and number. Newest leftmost, oldest faded. No glow; clicks pass through to the tile.",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:766",
             "grep": "grep -n -F -- 'prematch-selected-map-chip-history' client/src/pages/Prematch.tsx"
