@@ -972,6 +972,17 @@ export default function Prematch() {
         </div>
       </div>
 
+      {/* Lobby Rank — game step 4, the tracker's centrepiece: the lobby's
+          ranks show with the players, after the map vote and before hero
+          select. Its own full-width card, so its presence is a card's, not a
+          section's. The component and its state are tracker-owned
+          (MatchContext) and untouched here; only the card around it is new.
+          On Quickplay the component renders nothing, so no empty card
+          appears. #lobby-step is where the map-pick scroll lands. */}
+      <div id="lobby-step" className="scroll-mt-24">
+        <LobbyRankSection className="card mb-4" />
+      </div>
+
       {sensStudyOn && (
         <div className="mb-4 sm:w-72">
         {/* DPI stage-test HUD — a dropdown picks which "In Testing" hero you're
@@ -1288,12 +1299,6 @@ export default function Prematch() {
             )}
           </div>
         )}
-
-        {/* Lobby Rank — captured HERE, at hero select, and not in the Match Log.
-            See LobbyRankSection for why. The component and its state are
-            tracker-owned (MatchContext); only its placement is here, because
-            this is where the player is when the scoreboard is readable. */}
-        <LobbyRankSection className="mt-4 pt-4 border-t border-ow-border/40" />
 
         {/* Your heroes by role — the full breakdown, and the actual hero-select
             control (tapping a hero pre-fills the Match Log). Styled as its own
