@@ -738,8 +738,7 @@ export default function Prematch() {
 
           {/* The match map. Its choices narrow to the offered maps once any are
               picked. */}
-          <div className="mt-2">
-          <div className="mb-2">
+          <div className="mt-2 mb-2">
             <select
               ref={advisorSelectRef}
               value={map}
@@ -752,7 +751,6 @@ export default function Prematch() {
                 <option key={m} value={m} className="uppercase">{withMapCount(m, mapCounts)}</option>
               ))}
             </select>
-          </div>
           </div>
           {mapType && <span className={`pill ${TYPE_COLORS[mapType] ?? ''}`} data-inspect-id="prematch-map-type-badge">{mapType}</span>}
         </div>
@@ -767,8 +765,8 @@ export default function Prematch() {
 
           <div className="flex-1 min-h-0 flex flex-col">
 
-          {/* Idle: best & worst maps by win rate — tap one to add it to your
-              picks (which swaps this block for the chips + vote below). */}
+          {/* Idle: best & worst maps by win rate — tap one to select it, which
+              swaps this block for the vote recommendation below. */}
           {selected.length === 0 && rankedMaps.length > 0 && (
             <div className="flex-1 grid grid-cols-2 gap-x-4 content-start mt-4" data-inspect-id="prematch-best-worst-maps-list">
               {([
@@ -852,6 +850,12 @@ export default function Prematch() {
                 </div>
               )}
             </div>
+          )}
+
+          {/* Maps offered but no games on any of them — neither state above
+              renders, so say why the card is empty. */}
+          {selected.length > 0 && !(testPick?.available ? testPick.picks.length > 0 : ranked.length > 0) && (
+            <div className="text-xs text-[var(--muted)]" data-inspect-id="prematch-map-voting-no-games">No games on these maps yet — no vote to suggest.</div>
           )}
           </div>
         </div>
@@ -983,11 +987,9 @@ export default function Prematch() {
         <LobbyRankSection className="card mb-4" />
       </div>
 
-      {/* Consolidated advisor — recommendation + coaching + your heroes in one
-          card below the row. When a map is picked these three used to repeat the
-          same "what to play" answer across separate cards; here they read as one
-          flow: the pick, the coaching behind it, then the full breakdown. */}
-      <div id="consolidated-advisor" className="card" data-inspect-id="prematch-consolidated-advisor-card">
+      {/* Hero advice — the recommendation and the coaching behind it, in one
+          card above Select Your Hero (the tracker's hero input). */}
+      <div id="consolidated-advisor" className="card mb-4" data-inspect-id="prematch-consolidated-advisor-card">
         <div className="flex items-start justify-between gap-3 mb-1">
           <div>
             <h2 className="text-sm card-title">
@@ -1104,10 +1106,6 @@ export default function Prematch() {
       </div>
 
       <div className="flex flex-col sm:flex-row items-stretch gap-4">
-        {/* Your heroes by role — the full breakdown, and the actual hero-select
-            control (tapping a hero pre-fills the Match Log). Styled as its own
-            selection panel — bordered, tinted, chip buttons — rather than a
-            trailing stats list, so it doesn't get missed after Coaching above it. */}
         {/* Select Your Hero — game step 5, the tracker's hero input. Advice sits
             above it (the card above) and the Experiment column beside it. Its
             picks feed the Match Log's hero slots through MatchContext. */}
@@ -1356,11 +1354,8 @@ export default function Prematch() {
             Drives off the same state the Sens page loop does. Sits where the
             sens picker used to. */}
         <div className="card flex flex-col" data-inspect-id="prematch-dpi-hud-card">
-          {/* mb-2 min-h-8 matches Map Voting's/Hero Advisor's header row
-              exactly (both use the same two classes) so this card's title
-              sits at the same vertical position and the row below it starts
-              from the same 40px offset their search-input/select rows do —
-              see the mt-2.5 comment below for how that offset is spent. */}
+          {/* Header row uses the same mb-2 min-h-8 classes as the sibling
+              cards' headers, so the titles line up. */}
           <div className="flex items-center justify-between mb-2 min-h-8 gap-2">
             <h2 className="text-sm card-title whitespace-nowrap">{bt?.sens != null ? 'Sens Test' : 'DPI Test'}</h2>
             {bt && (
@@ -1385,33 +1380,16 @@ export default function Prematch() {
             </select>
           )}
           {btActives.length === 1 && (
-            // Fixed h-[23px] + mb-1 makes this row's total height/margin
-            // (27px) match the <select> branch above pixel-for-pixel (its
-            // ~23px field height + mb-1), so the odometer grid below starts
-            // from the same offset regardless of which of the two branches
-            // rendered — needed so the grid's bottom edge (aligned to Map
-            // Voting's best-maps list, see mt-2.5 comment below) doesn't
-            // shift depending on how many DPI tests are active.
+            // Fixed h-[23px] + mb-1 (27px) matches the <select> branch above
+            // (~23px field + mb-1), so the odometer grid below starts at the
+            // same offset whichever branch rendered.
             <div className="h-[23px] flex items-center mb-1">
               <span className="text-[10px] hero-name text-[var(--faint-2)] truncate">{bt!.hero ?? 'ad-hoc'}</span>
             </div>
           )}
           {bt ? (
-            // Two-point alignment with the Map Voting card's idle best-maps
-            // list (both cards share the same ~178.88px content budget):
-            // top of the hero-picker select == top of Map Voting's search
-            // box (both at 40px from content top: a 32px min-h-8 header row
-            // + 8px margin, identical classes on both cards' header rows),
-            // and bottom of this odometer group == bottom of Map Voting's
-            // 3-row best-maps list (both land at ~177px). Header(40) +
-            // select-or-name-line block(27, see branch above) = 67px used
-            // before this grid; mt-2.5 (10px) + the grid's own 3-row content
-            // (~100px at size=32/gap-y-0.5) lands its bottom at ~177px,
-            // matching Map Voting's list bottom. Odometers stay at 32 (down
-            // from the original 46 default) — shrinking further to buy more
-            // offset would make them hard to read, so this is as close as
-            // the two cards' differing internal content gets without that
-            // tradeoff.
+            // Three odometer rows at size 32 (down from the default 46) so
+            // the readouts stay legible while the card stays compact.
             <div className="flex-1 grid grid-cols-[auto_auto] items-center gap-x-3 gap-y-0.5 content-start mt-2.5">
               <Odometer value={btTestLeft} size={32} digits={3} dataInspectId="prematch-dpi-matches-left-odometer" />
               <div className="leading-tight">
@@ -1477,6 +1455,9 @@ export default function Prematch() {
               </div>
             </div>
           )}
+          <p className="mt-3 text-[11px] text-[var(--faint)] leading-snug">
+            Sens test only tracks Competitive games (any role) and Quickplay games played as Support — everything else logs at the frozen fallback sens instead of the active test value.
+          </p>
         </div>
 
             {/* Next test — the sens-study round-robin recommender (GET
@@ -1539,9 +1520,6 @@ export default function Prematch() {
                 )}
               </div>
             )}
-            <p className="text-[11px] text-[var(--faint)] leading-snug">
-              Sens test only tracks Competitive games (any role) and Quickplay games played as Support — everything else logs at the frozen fallback sens instead of the active test value.
-            </p>
           </div>
         )}
       </div>
