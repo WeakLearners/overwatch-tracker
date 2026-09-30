@@ -137,7 +137,7 @@
     background-image: linear-gradient(to bottom right, rgb(239 68 68 / 0.16), rgb(239 68 68 / 0.05), transparent);
   }
   .mode-wash-comp_open {
-    background-image: linear-gradient(to bottom right, rgb(249 115 22 / 0.16), rgb(249 115 22 / 0.05), transparent);
+    background-image: linear-gradient(to bottom right, rgb(239 68 68 / 0.16), rgb(239 68 68 / 0.05), transparent);
   }
   /* Headline stat numbers: Science Gothic, weight 200 — variable-weight
      grotesk, dialed down from 800 (7/30) to a light weight per request.
@@ -321,8 +321,8 @@
     /* --sel is the hue, as bare RGB channels. It defaults to the brand accent,
        which is what almost every selected control wants. The mode selectors
        override it per tile, because a mode's identity IS its colour — sky for
-       Quickplay, red for Competitive Role, orange for Competitive Open. Forcing
-       them all to accent orange would make two of the three unrecognisable.
+       Quickplay, red for both Competitive modes (as in the game). Forcing
+       them all to accent orange would make them unrecognisable.
        So the GRAMMAR travels and the hue stays local, the same split the
        lobby slider uses. */
     --sel: 247 147 30;

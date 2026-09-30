@@ -11,25 +11,29 @@ export const QUEUE_MODES: { value: QueueMode; label: string; short: string }[] =
 // Full Tailwind class strings (JIT requires static class names — don't interpolate).
 // qp = blue, comp_role = red — the game's own queue-select convention (blue
 // Quick Play tile, red Competitive tile), kept recognizable rather than
-// reinvented. comp_open is a third, open-queue variant of Competitive, so it
-// gets a related warm tone (orange, close to the brand accent) instead of a
-// fourth unrelated hue.
+// reinvented. comp_open is Competitive too, so it shares comp_role's red
+// (Sean, 2026-09-29: all competitive modes are one colour, as in the game).
+// Its "Open" label is what tells the two apart.
 //   selected: pill style · card: selected-card border+bg · accent: label text color
+const COMP_COLORS = { selected: 'border-red-400 bg-red-50 text-red-700 dark:border-red-400 dark:bg-red-500/15 dark:text-red-300', card: 'bg-red-50 dark:bg-red-500/25', tileDim: 'bg-red-500/5 dark:bg-red-500/10', accent: 'text-red-700 dark:text-red-300', glow: 'shadow-[0_10px_30px_-12px_rgba(239,68,68,0.45)]', bright: 'rgba(252,165,165,0.9)' };
+
 export const QUEUE_MODE_COLORS: Record<QueueMode, { selected: string; card: string; tileDim: string; accent: string; glow: string; bright: string }> = {
   qp_role:   { selected: 'border-sky-400 bg-sky-50 text-sky-700 dark:border-sky-400 dark:bg-sky-500/15 dark:text-sky-300', card: 'bg-sky-50 dark:bg-sky-500/25', tileDim: 'bg-sky-500/5 dark:bg-sky-500/10', accent: 'text-sky-700 dark:text-sky-300', glow: 'shadow-[0_10px_30px_-12px_rgba(56,189,248,0.45)]', bright: 'rgba(125,211,252,0.9)' },
-  comp_role: { selected: 'border-red-400 bg-red-50 text-red-700 dark:border-red-400 dark:bg-red-500/15 dark:text-red-300', card: 'bg-red-50 dark:bg-red-500/25', tileDim: 'bg-red-500/5 dark:bg-red-500/10', accent: 'text-red-700 dark:text-red-300', glow: 'shadow-[0_10px_30px_-12px_rgba(239,68,68,0.45)]', bright: 'rgba(252,165,165,0.9)' },
-  comp_open: { selected: 'border-orange-400 bg-orange-50 text-orange-700 dark:border-orange-400 dark:bg-orange-500/15 dark:text-orange-300', card: 'bg-orange-50 dark:bg-orange-500/25', tileDim: 'bg-orange-500/5 dark:bg-orange-500/10', accent: 'text-orange-700 dark:text-orange-300', glow: 'shadow-[0_10px_30px_-12px_rgba(249,115,22,0.45)]', bright: 'rgba(253,186,116,0.9)' },
+  comp_role: COMP_COLORS,
+  // Same red as comp_role, one shade deeper on the text/watermark so the two
+  // Competitive tiles are still distinguishable at a glance.
+  comp_open: { ...COMP_COLORS, accent: 'text-red-800 dark:text-red-400' },
 };
 
 // Each mode's selected-state hue, as bare RGB channels for the --sel custom
 // property that .is-selected reads (see index.css). Matches the border-*-400
-// each tile already used: sky, red, orange. A mode's identity is its colour, so
+// each tile already used: sky, red (both Competitive modes). A mode's identity is its colour, so
 // these override the shared class's accent default rather than replacing the
 // class — the bottom-lit treatment is the same everywhere, only the hue moves.
 export const QUEUE_MODE_SEL_RGB: Record<QueueMode, string> = {
   qp_role:   '56 189 248',  // sky-400
   comp_role: '248 113 113', // red-400
-  comp_open: '251 146 60',  // orange-400
+  comp_open: '248 113 113', // red-400, same as comp_role
 };
 
 // Short tag shown as the big italic mode watermark (the "background lettering").
