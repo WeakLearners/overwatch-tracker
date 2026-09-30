@@ -965,7 +965,7 @@ export default function Prematch() {
                   <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] leading-none">Today</div>
                   <div className="flex items-baseline justify-center gap-1 min-w-0 max-w-full">
                     {todayRows.length > 0 ? (
-                      <span className="text-2xl num-display !leading-none whitespace-nowrap"><span className="text-emerald-500">{todayW}</span><span className="text-[var(--muted)]">-</span><span className="text-red-500">{todayL}</span></span>
+                      <span className="text-xl num-display !leading-none whitespace-nowrap"><span className="text-emerald-500">{todayW}</span><span className="text-[var(--muted)]">-</span><span className="text-red-500">{todayL}</span></span>
                     ) : <span className="text-sm text-[var(--faint)] leading-none">No games</span>}
                   </div>
                 </div>
@@ -973,7 +973,7 @@ export default function Prematch() {
                   <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] leading-none">Streak</div>
                   <div className="flex items-baseline justify-center gap-1 min-w-0 max-w-full">
                     {streaksData && streaksData.currentStreak > 0 ? (
-                      <span className={`text-2xl num-display !leading-none whitespace-nowrap ${streaksData.currentStreakType === 1 ? 'text-emerald-500' : 'text-red-500'}`}>{streaksData.currentStreak}{streaksData.currentStreakType === 1 ? 'W' : 'L'}</span>
+                      <span className={`text-xl num-display !leading-none whitespace-nowrap ${streaksData.currentStreakType === 1 ? 'text-emerald-500' : 'text-red-500'}`}>{streaksData.currentStreak}{streaksData.currentStreakType === 1 ? 'W' : 'L'}</span>
                     ) : <span className="text-base text-[var(--faint)] leading-none">—</span>}
                   </div>
                 </div>
@@ -981,7 +981,7 @@ export default function Prematch() {
                   <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] leading-none">Rank</div>
                   <div className="flex items-baseline justify-center gap-1 min-w-0 max-w-full">
                     {rankDelta != null ? (<>
-                      <span className={`text-2xl num-display !leading-none whitespace-nowrap ${rankDelta > 0 ? 'text-emerald-500' : rankDelta < 0 ? 'text-red-500' : 'text-[var(--ink)]'}`}>{rankDelta > 0 ? `+${rankDelta}` : rankDelta < 0 ? `\u2212${-rankDelta}` : '\u00b10'}</span>
+                      <span className={`text-xl num-display !leading-none whitespace-nowrap ${rankDelta > 0 ? 'text-emerald-500' : rankDelta < 0 ? 'text-red-500' : 'text-[var(--ink)]'}`}>{rankDelta > 0 ? `+${rankDelta}` : rankDelta < 0 ? `\u2212${-rankDelta}` : '\u00b10'}</span>
                       <span className="text-[10px] text-[var(--faint)] leading-none whitespace-nowrap" title={rankLabel(rankedToday[0].player_rank)}>{rankShort(rankedToday[0].player_rank)}</span>
                     </>) : <span className="text-base text-[var(--faint)] leading-none">—</span>}
                   </div>
@@ -989,7 +989,7 @@ export default function Prematch() {
                 <div className="col-start-1 row-start-2 min-w-0 flex flex-col items-center justify-center gap-1.5 px-2 border-ow-border/40 border-r" data-inspect-id="prematch-session-stat-tile" title="Time since today's first game started">
                   <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] leading-none">Session</div>
                   <div className="flex items-baseline justify-center gap-1 min-w-0 max-w-full">
-                    {sessionLen != null ? <span className="text-2xl num-display !leading-none whitespace-nowrap text-[var(--ink)]">{sessionLen}</span> : <span className="text-base text-[var(--faint)] leading-none">—</span>}
+                    {sessionLen != null ? <span className="text-xl num-display !leading-none whitespace-nowrap text-[var(--ink)]">{sessionLen}</span> : <span className="text-base text-[var(--faint)] leading-none">—</span>}
                   </div>
                 </div>
                 <div className="col-start-2 row-start-2 min-w-0 flex flex-col items-center justify-center gap-1.5 px-2 border-ow-border/40 border-r" data-inspect-id="prematch-top-hero-stat-tile" title="Most-played hero today">
@@ -1003,7 +1003,7 @@ export default function Prematch() {
                 <div className="col-start-3 row-start-2 min-w-0 flex flex-col items-center justify-center gap-1.5 px-2 border-ow-border/40 " data-inspect-id="prematch-last-game-stat-tile" title="Time since your last game today was logged">
                   <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] leading-none">Since last</div>
                   <div className="flex items-baseline justify-center gap-1 min-w-0 max-w-full">
-                    {sinceLast != null ? <span className="text-2xl num-display !leading-none whitespace-nowrap text-[var(--ink)]">{sinceLast}</span> : <span className="text-base text-[var(--faint)] leading-none">—</span>}
+                    {sinceLast != null ? <span className="text-xl num-display !leading-none whitespace-nowrap text-[var(--ink)]">{sinceLast}</span> : <span className="text-base text-[var(--faint)] leading-none">—</span>}
                   </div>
                 </div>
               </div>
