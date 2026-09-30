@@ -43,7 +43,7 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
         <div className="card reveal" style={{ '--reveal-delay': '60ms' } as React.CSSProperties} data-inspect-id="dash-recent-matches-card">
           <div className="flex items-center justify-between flex-wrap gap-y-1 mb-4">
             <div className="flex items-center gap-2">
-              <h2 className="text-sm card-title">Recent Matches</h2>
+              <h2 className="text-sm card-title">Form &amp; Rank</h2>
             </div>
             {wr100 !== null && (
               <div className="flex items-baseline gap-2 text-xs" data-inspect-id="dash-recent-form-stat">

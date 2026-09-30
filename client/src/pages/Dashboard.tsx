@@ -132,6 +132,11 @@ export default function Dashboard() {
         </div>
       </nav>
 
+      {/* Form & Rank leads the page (Sean, 2026-09-30): the long view of how
+          play is going comes first. It sits above the "Mode" jump target, so
+          that jump still lands on the tiles. */}
+      <div className="mb-6"><RecentMatchesCard trends={trends} tilt={tilt} /></div>
+
       <div id="sec-mode" className="scroll-mt-32">
         {modeComparison && (
           <div className="reveal mb-6" style={{ '--reveal-delay': '0ms' } as React.CSSProperties}>
@@ -156,11 +161,6 @@ export default function Dashboard() {
         </PageHeader>
         <div className="contents" data-inspect-id="dash-prematch-section"><Prematch /></div>
         <div className="contents" data-inspect-id="dash-logmatch-section"><LogMatch /></div>
-        {/* Recent matches is history, so it sits after the log form with the
-            other history (flow spec 2026-09-29): picking the queue flows
-            straight into the map, and the chart updates where you look at it
-            after logging. The "Mode" jump target stays on the tiles. */}
-        <div className="mt-6"><RecentMatchesCard trends={trends} tilt={tilt} /></div>
       </div>
 
       <TrendsSection />
