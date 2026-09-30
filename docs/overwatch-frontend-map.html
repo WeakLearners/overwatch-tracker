@@ -597,7 +597,7 @@ const DATA = {
           "kind": "nav",
           "description": "Sticky wayfinding strip under the header, styled as the Pre-Match \"Playing as\" strip (thin card, SegmentedPills). Label left, section pills centred (Mode, Match, Trends, Career; a lit block slides to the in-view section), app tools (inspector / settings / theme) on the right. Restyled 2026-09-26; pills use the large main-nav size, a click lights its pill at once, and the last section lights at the bottom of the page.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:114",
+            "path": "client/src/pages/Dashboard.tsx:115",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-section-nav\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -607,17 +607,27 @@ const DATA = {
           "kind": "button-group",
           "description": "The section jump pills in the section nav strip (SegmentedPills). Click scrolls to the section; the lit block follows whichever section is in view.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:126",
+            "path": "client/src/pages/Dashboard.tsx:127",
             "grep": "grep -n -F -- 'inspectId=\"dash-section-nav-pills\"' client/src/pages/Dashboard.tsx"
+          }
+        },
+        {
+          "id": "dash-section-nav-form",
+          "label": "Section nav: Form & Rank",
+          "kind": "button",
+          "description": "Jump pill for the Form & Rank card (#sec-form), first in the strip since 2026-09-30 because the card leads the page. (Locate command matches all five section pills.)",
+          "locate": {
+            "path": "client/src/pages/Dashboard.tsx:128",
+            "grep": "grep -n -F -- 'dash-section-nav-${id.replace' client/src/pages/Dashboard.tsx"
           }
         },
         {
           "id": "dash-section-nav-mode",
           "label": "Section nav: Mode",
           "kind": "button",
-          "description": "Jump pill for the Mode section. (Locate command matches all four section pills.)",
+          "description": "Jump pill for the Mode section. (Locate command matches all five section pills.)",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:127",
+            "path": "client/src/pages/Dashboard.tsx:128",
             "grep": "grep -n -F -- 'dash-section-nav-${id.replace' client/src/pages/Dashboard.tsx"
           }
         },
@@ -625,9 +635,9 @@ const DATA = {
           "id": "dash-section-nav-match",
           "label": "Section nav: Match",
           "kind": "button",
-          "description": "Jump pill for the Match section. (Locate command matches all four section pills.)",
+          "description": "Jump pill for the Match section. (Locate command matches all five section pills.)",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:127",
+            "path": "client/src/pages/Dashboard.tsx:128",
             "grep": "grep -n -F -- 'dash-section-nav-${id.replace' client/src/pages/Dashboard.tsx"
           }
         },
@@ -635,9 +645,9 @@ const DATA = {
           "id": "dash-section-nav-trends",
           "label": "Section nav: Trends",
           "kind": "button",
-          "description": "Jump pill for the Trends section. (Locate command matches all four section pills.)",
+          "description": "Jump pill for the Trends section. (Locate command matches all five section pills.)",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:127",
+            "path": "client/src/pages/Dashboard.tsx:128",
             "grep": "grep -n -F -- 'dash-section-nav-${id.replace' client/src/pages/Dashboard.tsx"
           }
         },
@@ -645,9 +655,9 @@ const DATA = {
           "id": "dash-section-nav-career",
           "label": "Section nav: Career",
           "kind": "button",
-          "description": "Jump pill for the Career section. (Locate command matches all four section pills.)",
+          "description": "Jump pill for the Career section. (Locate command matches all five section pills.)",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:127",
+            "path": "client/src/pages/Dashboard.tsx:128",
             "grep": "grep -n -F -- 'dash-section-nav-${id.replace' client/src/pages/Dashboard.tsx"
           }
         },
@@ -657,7 +667,7 @@ const DATA = {
           "kind": "header",
           "description": "Section header titled 'Match' with subtitle 'Prep with the advisor, then log the result.', introducing the Prematch advisor and LogMatch form below.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:149",
+            "path": "client/src/pages/Dashboard.tsx:150",
             "grep": "grep -n -F -- 'sub=\"Prep with the advisor, then log the result.\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -667,7 +677,7 @@ const DATA = {
           "kind": "link",
           "description": "Link in the Match section header that opens the sensitivity-study page (/sens) in a new tab, keeping the dashboard in place.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:159",
+            "path": "client/src/pages/Dashboard.tsx:160",
             "grep": "grep -n -F -- 'Log sens stats' client/src/pages/Dashboard.tsx"
           }
         },
@@ -677,7 +687,7 @@ const DATA = {
           "kind": "section",
           "description": "Embeds the Prematch advisor component, which lets the user prep (map/mode selection, LLM pre-match advice) before logging a result.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:162",
+            "path": "client/src/pages/Dashboard.tsx:163",
             "grep": "grep -n -F -- '<Prematch />' client/src/pages/Dashboard.tsx"
           }
         },
@@ -687,7 +697,7 @@ const DATA = {
           "kind": "section",
           "description": "Embeds the LogMatch component, the form used to record the result (hero, map, win/loss, etc.) of the just-played match.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:163",
+            "path": "client/src/pages/Dashboard.tsx:164",
             "grep": "grep -n -F -- '<LogMatch />' client/src/pages/Dashboard.tsx"
           }
         },
@@ -697,7 +707,7 @@ const DATA = {
           "kind": "section",
           "description": "Embeds KillerFrequencyCard (Who Kills Me) \u2014 field registry Phase 1's read surface for match_deaths. Gated on the 'deaths' field via FieldConfigContext; renders nothing at all if that field is off. Added 2026-09-23.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:169",
+            "path": "client/src/pages/Dashboard.tsx:170",
             "grep": "grep -n -F -- 'dash-killer-frequency-section' client/src/pages/Dashboard.tsx"
           }
         }
@@ -5530,6 +5540,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 
