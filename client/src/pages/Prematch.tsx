@@ -36,6 +36,9 @@ interface NextTestResponse {
   justClosed?: { hero: string } | null;
   recommendedRole?: string | null;
   orderedHeroes?: { hero: string; role: string; credited: number; target: number; playedMinutes?: number; targetMinutes?: number; daysSinceLastPlayed: number | null; cold: boolean }[];
+  // Every hero in the phase, all roles (Quickplay included). Drives the
+  // card's always-on Support | DPS columns.
+  heroes?: { hero: string; role: string; credited: number; target: number; playedMinutes?: number; targetMinutes?: number; daysSinceLastPlayed: number | null; completed: boolean }[];
 }
 
 // DPI stage-test HUD state — the dashboard reads this live to show the
@@ -1518,37 +1521,45 @@ export default function Prematch() {
                     Stay on <b className="hero-name">{nextTest.block.hero}</b> — {Math.floor(nextTest.block.openMinutes)} minutes played
                     <span className="text-[var(--faint-2)]"> · queue {nextTest.block.role}</span>
                   </p>
+                ) : nextTest.justClosed ? (
+                  <p className="text-xs text-[var(--ink)]" data-inspect-id="prematch-next-test-just-closed">
+                    Block done on <b className="hero-name">{nextTest.justClosed.hero}</b> — switch to <b className="hero-name">{nextTest.orderedHeroes?.[0]?.hero}</b>
+                  </p>
                 ) : (
-                  <div data-inspect-id="prematch-next-test-list">
-                    {/* nextTest.justClosed (added 2026-09-27) tells the two
-                        causes of block===null apart: a block that just
-                        closed (say so plainly) vs. nothing played yet this
-                        phase (stay neutral — there's no "block" to call
-                        done). */}
-                    <p className="text-xs text-[var(--ink)] mb-1.5" data-inspect-id="prematch-next-test-just-closed">
-                      {nextTest.justClosed ? (
-                        <>Block done on <b className="hero-name">{nextTest.justClosed.hero}</b> — switch to <b className="hero-name">{nextTest.orderedHeroes?.[0]?.hero}</b></>
-                      ) : (
-                        <>Queue <b>{nextTest.recommendedRole}</b> → {nextTest.orderedHeroes?.map(h => h.hero).join(', ')}</>
-                      )}
-                    </p>
-                    <div className="flex flex-col gap-0.5">
-                      {nextTest.orderedHeroes?.map(h => (
-                        <div key={h.hero} className="flex items-center justify-start gap-1.5 text-[11px] text-[var(--faint-2)]" data-inspect-id="prematch-next-test-hero-row">
-                          <span className="hero-name truncate">{h.hero}</span>
-                          {/* Minutes played / planned for a block-based set
-                              (2026-09-28); games for a legacy one. */}
-                          <span className="num-display">
-                            {h.targetMinutes != null ? `${h.playedMinutes ?? 0}/${h.targetMinutes} min` : `${h.credited}/${h.target}`}
-                          </span>
-                          {h.cold && (
-                            <span className="text-[9px] font-bold uppercase tracking-wide text-blue-500" title={`${h.daysSinceLastPlayed} days since last played`}>
-                              cold
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
+                  <p className="text-xs text-[var(--ink)]" data-inspect-id="prematch-next-test-just-closed">
+                    Queue <b>{nextTest.recommendedRole}</b> → <b className="hero-name">{nextTest.orderedHeroes?.[0]?.hero}</b>
+                  </p>
+                )}
+                {/* Always on (2026-09-30): DPS left, Support right, whatever
+                    the line above says. Same order as lib/nextTest.ts —
+                    cold first, then least-progressed, then longest unplayed. */}
+                {!!nextTest.heroes?.some(h => !h.completed) && (
+                  <div className="grid grid-cols-2 gap-x-4 mt-1.5" data-inspect-id="prematch-next-test-list">
+                    {(['DPS', 'Support'] as const).map(role => (
+                      <div key={role} className="flex flex-col gap-0.5 min-w-0">
+                        <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">{role}</div>
+                        {nextTest.heroes!
+                          .filter(h => h.role === role && !h.completed)
+                          .map(h => ({ ...h, cold: h.daysSinceLastPlayed != null && h.daysSinceLastPlayed >= 7 }))
+                          .sort((a, b) => Number(b.cold) - Number(a.cold) || a.credited - b.credited
+                            || (b.daysSinceLastPlayed ?? Infinity) - (a.daysSinceLastPlayed ?? Infinity))
+                          .map(h => (
+                            <div key={h.hero} className="flex items-center justify-start gap-1.5 text-[11px] text-[var(--faint-2)]" data-inspect-id="prematch-next-test-hero-row">
+                              <span className="hero-name truncate">{h.hero}</span>
+                              {h.cold && (
+                                <span className="text-[9px] font-bold uppercase tracking-wide text-blue-500" title={`${h.daysSinceLastPlayed} days since last played`}>
+                                  cold
+                                </span>
+                              )}
+                              {/* Minutes played / planned for a block-based set
+                                  (2026-09-28); games for a legacy one. */}
+                              <span className="num-display ml-auto whitespace-nowrap">
+                                {h.targetMinutes != null ? `${h.playedMinutes ?? 0}/${h.targetMinutes} min` : `${h.credited}/${h.target}`}
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                    ))}
                   </div>
                 )}
                 {!!nextTest.finishedHeroes?.length && !nextTest.allFinished && (

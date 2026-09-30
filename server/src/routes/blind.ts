@@ -684,12 +684,14 @@ router.get('/next', (req: Request, res: Response) => {
   // has nothing to recommend, and showing a role/hero list here would imply
   // otherwise. Same shared rule the write path uses, so this can never
   // disagree with what actually gets credited.
+  // The roster still comes back (2026-09-30) so the card's two role columns
+  // stay on screen; the card itself says Quickplay doesn't count.
+  const phase = currentPhaseKey(db);
   if (!isStudyQueueMode(queueMode)) {
-    res.json({ isQuickplay: true });
+    res.json({ isQuickplay: true, heroes: phase ? heroProgressForPhase(db, phase) : [] });
     return;
   }
 
-  const phase = currentPhaseKey(db);
   if (!phase) {
     res.json({
       isQuickplay: false, phase: null, heroes: [], projection: { ratePerDay: 0, projectedDays: null },
