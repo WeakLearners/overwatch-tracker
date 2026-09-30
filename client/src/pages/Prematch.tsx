@@ -123,6 +123,21 @@ interface PrematchData {
   bestByGameType: HeroRow | null;
 }
 
+// Time left as H:MM on narrow odometer drums: one hour drum (two past 9h), a colon,
+// two minute drums. Under an hour the hour drum reads 0. Right-aligned in its
+// column, so the minute drums of every clock line up.
+function ClockOdometer({ minutes, size, dataInspectId }: { minutes: number; size: number; dataInspectId: string }) {
+  const m = Math.max(0, Math.round(minutes));
+  const h = Math.floor(m / 60);
+  return (
+    <div className="flex items-center justify-end" data-inspect-id={dataInspectId} aria-label={`${h}:${String(m % 60).padStart(2, '0')} left`}>
+      <Odometer value={h} size={size} digits={h >= 10 ? 2 : 1} narrow />
+      <span className="num-display text-[var(--faint-2)] leading-none px-0.5" style={{ fontSize: Math.round(size * 0.7) }} aria-hidden>:</span>
+      <Odometer value={m % 60} size={size} digits={2} narrow />
+    </div>
+  );
+}
+
 export default function Prematch() {
   // Shared, single-instance match state (queue mode, map, advisor) lives here
   // and is consumed by the Log Match section too.
@@ -1414,29 +1429,33 @@ export default function Prematch() {
               backlog and a full-width button to it. */}
           <div className="flex-1 grid grid-cols-2 gap-4 mt-2.5">
           {bt ? (
-            // Drums at size 30 so a three-digit counter (65px) and its label
-            // still fit half the card (~150px). Every counter pads to three drums so the ones
-            // digits line up down the column.
-            <div className="grid grid-cols-[auto_auto] justify-end items-center gap-x-2 gap-y-1.5 content-start">
-              <Odometer value={btTestLeft} size={30} digits={3} dataInspectId="prematch-dpi-matches-left-odometer" />
-              <div className="leading-tight min-w-0">
-                {/* Same caps treatment as the app's other small stat labels. */}
-                <div className="text-[11px] uppercase tracking-wider text-[var(--muted)]">{btChunk ? 'min left' : 'matches left'}</div>
-                <div className="text-[11px] text-[var(--faint-2)]">in this test</div>
+            // Compact (2026-09-30): one row per counter, its two-line label
+            // beside it. Narrow drums at size 28 (17px
+            // wide, 22px digit); an H:MM clock is ~63px. Right-aligned, so the
+            // minute drums line up down the column.
+            <div className="grid grid-cols-[auto_auto] justify-end items-center gap-x-1.5 gap-y-1.5 content-start">
+              {btChunk
+                ? <ClockOdometer minutes={btTestLeft} size={28} dataInspectId="prematch-dpi-matches-left-odometer" />
+                : <Odometer value={btTestLeft} size={28} digits={3} narrow dataInspectId="prematch-dpi-matches-left-odometer" />}
+              <div className="min-w-0 whitespace-nowrap translate-y-[3px]">
+                <div className="text-[10px] leading-[9px] uppercase tracking-wider text-[var(--muted)]">{btChunk ? 'left' : 'matches left'}</div>
+                <div className="text-[10px] leading-[9px] text-[var(--faint-2)]">in this test</div>
               </div>
-              <Odometer value={btGamesLeft} size={30} digits={3} dataInspectId="prematch-dpi-games-left-odometer" />
-              <div className="leading-tight min-w-0">
-                <div className="text-[11px] uppercase tracking-wider text-[var(--muted)]">{btChunk ? 'min left' : 'games left'}</div>
-                <div className="text-[11px] text-[var(--faint-2)]">in stage <b className="font-bold">{bt.cur_stage}</b></div>
+              {btChunk
+                ? <ClockOdometer minutes={btGamesLeft} size={28} dataInspectId="prematch-dpi-games-left-odometer" />
+                : <Odometer value={btGamesLeft} size={28} digits={3} narrow dataInspectId="prematch-dpi-games-left-odometer" />}
+              <div className="min-w-0 whitespace-nowrap translate-y-[3px]">
+                <div className="text-[10px] leading-[9px] uppercase tracking-wider text-[var(--muted)]">{btChunk ? 'left' : 'games left'}</div>
+                <div className="text-[10px] leading-[9px] text-[var(--faint-2)]">in stage <b className="font-bold">{bt.cur_stage}</b></div>
               </div>
               {/* The open 60-minute block. Chunked sets only; a legacy set
                   counts games and has no blocks. */}
               {btChunk && (
                 <>
-                  <Odometer value={Math.max(0, Math.ceil(60 - btChunk.openMinutes))} size={30} digits={2} padTo={3} dataInspectId="prematch-dpi-block-left-odometer" />
-                  <div className="leading-tight min-w-0">
-                    <div className="text-[11px] uppercase tracking-wider text-[var(--muted)]">min left</div>
-                    <div className="text-[11px] text-[var(--faint-2)]">in this block</div>
+                  <ClockOdometer minutes={Math.max(0, Math.ceil(60 - btChunk.openMinutes))} size={28} dataInspectId="prematch-dpi-block-left-odometer" />
+                  <div className="min-w-0 whitespace-nowrap translate-y-[3px]">
+                    <div className="text-[10px] leading-[9px] uppercase tracking-wider text-[var(--muted)]">left</div>
+                    <div className="text-[10px] leading-[9px] text-[var(--faint-2)]">in this block</div>
                   </div>
                 </>
               )}
@@ -1452,16 +1471,20 @@ export default function Prematch() {
 
             {/* Aim backlog: the count, then a full-width button to the Sens
                 page, which opens at the top like any other arrival. */}
-            <div className="flex flex-col items-center gap-2 min-w-0 pl-4 border-l border-ow-border/40">
-              <div className="flex items-center gap-2">
-                <Odometer value={backlogCount} size={40} digits={1} warn={backlogCount >= BACKLOG_WARN} dataInspectId="prematch-backlog-odometer" />
-                <span className="text-[11px] uppercase tracking-wider text-[var(--muted)]">in backlog</span>
+            {/* The backlog count (label under it), centred, then the button pinned to the
+                bottom so its edge lines up with the left column's last clock. */}
+            <div className="flex flex-col justify-between gap-2 min-w-0 pl-4 border-l border-ow-border/40">
+              <div className="flex flex-col items-center gap-0.5">
+                <Odometer value={backlogCount} size={40} digits={1} narrow warn={backlogCount >= BACKLOG_WARN} dataInspectId="prematch-backlog-odometer" />
+                <span className="text-[10px] leading-none uppercase tracking-wider text-[var(--muted)] whitespace-nowrap">in backlog</span>
               </div>
               <Link
                 to="/sens"
-                // Styled as a selected game mode tile (ModeComparisonCard):
-                // 2px border, bottom-lit fill in the accent, the hover lift.
-                className="relative block w-full text-center rounded-lg border-2 is-selected mode-fill mode-tile px-2 py-2 text-sm font-bold whitespace-nowrap transition-all duration-200 hover:-translate-x-1 hover:-translate-y-1"
+                // The accent's lit fill (.is-selected.mode-fill) with a thin
+                // 1px border instead of the mode tile's 2px one. The extra 1px
+                // padding keeps the button's size.
+                className="relative block w-full text-center rounded border is-selected mode-fill px-[9px] py-[7px] text-sm font-bold whitespace-nowrap cursor-pointer active:scale-[0.98] hover:brightness-110 transition-all"
+                style={{ '--sel': ACCENT_SEL } as React.CSSProperties}
                 data-inspect-id="prematch-backlog-go-link"
               >
                 <span className="lit-text">Go to backlog →</span>

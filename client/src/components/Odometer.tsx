@@ -5,12 +5,15 @@
 
 const DUR = 240; // roll duration (ms)
 const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+// `narrow`: a tall, tight drum. Less side padding, a bigger digit.
+const NARROW_W = 0.62;
+const NARROW_FONT = 0.8;
 
-function Drum({ digit, size, warn }: { digit: number; size: number; warn?: boolean }) {
+function Drum({ digit, size, warn, narrow }: { digit: number; size: number; warn?: boolean; narrow?: boolean }) {
   return (
     <div
       className={`relative overflow-hidden rounded-lg bg-ow-card select-none ${warn ? 'odo-warn' : ''}`}
-      style={{ width: Math.round(size * 0.72), height: size }}
+      style={{ width: Math.round(size * (narrow ? NARROW_W : 0.72)), height: size }}
     >
       <div
         style={{
@@ -20,7 +23,7 @@ function Drum({ digit, size, warn }: { digit: number; size: number; warn?: boole
         }}
       >
         {DIGITS.map(n => (
-          <div key={n} className="grid place-items-center num-display text-[var(--ink)]" style={{ height: size, fontSize: Math.round(size * 0.62) }}>{n}</div>
+          <div key={n} className="grid place-items-center num-display text-[var(--ink)]" style={{ height: size, fontSize: Math.round(size * (narrow ? NARROW_FONT : 0.62)) }}>{n}</div>
         ))}
       </div>
     </div>
@@ -31,16 +34,16 @@ function Drum({ digit, size, warn }: { digit: number; size: number; warn?: boole
 // same width as a longer one and its digits line up under theirs.
 // `warn` lights the drums gold (.odo-warn in index.css): a heads-up that the
 // value is nearing its limit. The glow is a shadow, so it takes no layout space.
-export default function Odometer({ value, size = 46, digits = 2, padTo = 0, warn = false, dataInspectId = 'odometer-display' }: { value: number; size?: number; digits?: number; padTo?: number; warn?: boolean; dataInspectId?: string }) {
+export default function Odometer({ value, size = 46, digits = 2, padTo = 0, warn = false, narrow = false, dataInspectId = 'odometer-display' }: { value: number; size?: number; digits?: number; padTo?: number; warn?: boolean; narrow?: boolean; dataInspectId?: string }) {
   const max = 10 ** digits - 1;
   const v = Math.max(0, Math.min(max, Math.round(value)));
   const places = Array.from({ length: digits }, (_, i) => 10 ** (digits - 1 - i));
   return (
     <div className="flex gap-0" data-inspect-id={dataInspectId}>
       {Array.from({ length: Math.max(0, padTo - digits) }, (_, i) => (
-        <div key={`pad-${i}`} aria-hidden="true" style={{ width: Math.round(size * 0.72), height: size }} />
+        <div key={`pad-${i}`} aria-hidden="true" style={{ width: Math.round(size * (narrow ? NARROW_W : 0.72)), height: size }} />
       ))}
-      {places.map(pl => <Drum key={pl} digit={Math.floor(v / pl) % 10} size={size} warn={warn} />)}
+      {places.map(pl => <Drum key={pl} digit={Math.floor(v / pl) % 10} size={size} warn={warn} narrow={narrow} />)}
     </div>
   );
 }
