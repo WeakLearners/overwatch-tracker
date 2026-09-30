@@ -4,7 +4,6 @@ import { useMatch } from '../contexts/MatchContext';
 import { useDeathBuffer } from '../contexts/DeathBufferContext';
 import { revalidateRec } from '../contexts/AdvisorContext';
 import EmptyState from '../components/EmptyState';
-import ModeWatermark from '../components/ModeWatermark';
 import RegistryField from '../components/RegistryField';
 import LeaverSliver from '../components/LeaverSliver';
 import { buildRosterEditPayload } from '../lib/matchEditRoster';
@@ -537,7 +536,7 @@ interface BlindSetSummary {
 export default function LogMatch() {
   // Map + queue mode are shared with the Pre-Match section via context; this
   // section only owns date/time/hero/win plus the death tags.
-  const { queueMode, setQueueMode, map, setMap, mapType, sens, testRole, pendingHeroes, setPendingHeroes, setPickedHeroes, notifyMatchLogged, playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, lobbyLow, lobbyHigh, account } = useMatch();
+  const { queueMode, map, setMap, mapType, sens, testRole, pendingHeroes, setPendingHeroes, setPickedHeroes, notifyMatchLogged, playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, lobbyLow, lobbyHigh, account } = useMatch();
   const { deathBuffer, removeDeathFromBuffer, toggleDeathUlt, clearDeathBuffer } = useDeathBuffer();
   const { data: dpiState } = useApi<DpiTestState>('/api/blind/state');
   const { isFieldEnabled, fields } = useFieldConfig();
@@ -1118,43 +1117,27 @@ export default function LogMatch() {
             </div>
           </div>
           <form onSubmit={submit} className="space-y-4" data-inspect-id="logmatch-match-details-form">
-            <div>
-              <label className="block text-xs text-[var(--muted)] mb-1.5">
-                Mode <span className="text-[var(--faint-2)]">— recording this match as</span>
-              </label>
-              <div className="grid grid-cols-3 gap-2" data-inspect-id="logmatch-mode-toggle">
-                {QUEUE_MODES.map(m => {
-                  const active = queueMode === m.value;
-                  const c = QUEUE_MODE_COLORS[m.value];
-                  return (
-                    <button
-                      key={m.value}
-                      type="button"
-                      onClick={() => setQueueMode(m.value)}
-                      // .is-selected supplies the fill and the bottom-lit edge;
-                      // --sel tells it which hue to do it in. The flat c.card
-                      // fill and the hand-written border are gone, since the
-                      // shared class now owns both.
-                      style={active ? ({ '--sel': QUEUE_MODE_SEL_RGB[m.value] } as React.CSSProperties) : undefined}
-                      className={`relative overflow-hidden py-2 rounded-lg border-2 text-xs font-semibold leading-tight transition-all ${
-                        active ? `is-selected mode-fill ${c.accent}` : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)]'
-                      }`}
-                    >
-                      {/* V5/V6 digits carry more side-bearing than QP's letters,
-                          so they read looser at the same tracking — tighten them
-                          to visually match QP. */}
-                      <ModeWatermark
-                        mode={m.value}
-                        variant="selector"
-                        style={m.value === 'qp_role' ? undefined : { letterSpacing: '-0.13em' }}
-                        lit={active}
-                      />
-                      <div className={`relative z-10 font-display italic pr-0.5 ${active ? 'lit-text lit-strong' : ''}`}>{MODE_COMPACT[m.value].top}</div>
-                      <div className={`relative z-10 text-[10px] font-normal opacity-80 ${active ? 'lit-text lit-strong' : ''}`}>{MODE_COMPACT[m.value].bot}</div>
-                    </button>
-                  );
-                })}
-              </div>
+            {/* The queue is chosen once, on the mode tiles at the top (game step
+                0), and the Match Log does not re-ask it (design-language
+                section 7). This line only says what will be recorded, in that
+                queue's own wash; "change" scrolls back to the tiles. */}
+            <div className="flex items-center gap-2" data-inspect-id="logmatch-mode-toggle">
+              <span className="text-xs text-[var(--muted)]">Recording as</span>
+              <span
+                style={{ '--sel': QUEUE_MODE_SEL_RGB[queueMode] } as React.CSSProperties}
+                className={`is-selected mode-fill border-2 rounded-lg px-3 py-1 text-xs font-semibold leading-tight ${QUEUE_MODE_COLORS[queueMode].accent}`}
+                data-inspect-id="logmatch-recording-as-chip"
+              >
+                <span className="lit-text lit-strong">{QUEUE_MODES.find(m => m.value === queueMode)?.label ?? queueMode}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => document.getElementById('sec-mode')?.scrollIntoView({ behavior: 'smooth' })}
+                className="text-[11px] text-[var(--faint)] hover:text-ow-accent underline underline-offset-2 transition-colors"
+                data-inspect-id="logmatch-mode-change-link"
+              >
+                change
+              </button>
             </div>
 
             <div className="grid grid-cols-3 gap-3">

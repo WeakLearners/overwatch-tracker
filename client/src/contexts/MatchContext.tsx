@@ -170,9 +170,10 @@ interface MatchContextValue {
   // highlight its picker rows, so there is one copy of the pick order.
   pickedHeroes: string[];
   setPickedHeroes: (h: string[]) => void;
-  // Optional narrowing of the map picker: the up-to-3 maps Map Voting is
-  // comparing. Empty means "every map". Written by Pre-Match's Map Voting,
-  // read by the Log Match map picker.
+  // The up-to-3 maps offered on the vote screen (the Map card's chips). Empty
+  // means none picked. Written by Pre-Match's Map card. The Pre-Match map
+  // dropdown narrows itself from its own local copy; the Log Match form shows
+  // the map read-only and no longer reads this.
   mapCandidates: string[];
   setMapCandidates: (m: string[]) => void;
   // Bumped each time a match is logged, so sections can reset (e.g. Map Voting).

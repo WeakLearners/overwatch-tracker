@@ -138,8 +138,6 @@ export default function Dashboard() {
             <ModeComparisonCard data={modeComparison} />
           </div>
         )}
-
-        <RecentMatchesCard trends={trends} tilt={tilt} />
       </div>
 
       <div id="sec-match" className="mt-8 border-t border-ow-border pt-6 reveal scroll-mt-32" style={{ '--reveal-delay': '120ms' } as React.CSSProperties}>
@@ -158,6 +156,11 @@ export default function Dashboard() {
         </PageHeader>
         <div className="contents" data-inspect-id="dash-prematch-section"><Prematch /></div>
         <div className="contents" data-inspect-id="dash-logmatch-section"><LogMatch /></div>
+        {/* Recent matches is history, so it sits after the log form with the
+            other history (flow spec 2026-09-29): picking the queue flows
+            straight into the map, and the chart updates where you look at it
+            after logging. The "Mode" jump target stays on the tiles. */}
+        <div className="mt-6"><RecentMatchesCard trends={trends} tilt={tilt} /></div>
       </div>
 
       <TrendsSection />
