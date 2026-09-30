@@ -1092,11 +1092,15 @@ export default function Prematch() {
         )}
       </div>
 
-      <div className="flex flex-col sm:flex-row items-stretch gap-4">
+      {/* Step 5 row, on the same three-column grid as step 1 so the edges and
+          gaps line up: Select Your Hero spans two columns, the Experiment
+          column one. With the sens study off there is no Experiment column
+          and Select Your Hero takes all three. */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 items-stretch gap-4">
         {/* Select Your Hero — game step 5, the tracker's hero input. Advice sits
             above it (the card above) and the Experiment column beside it. Its
             picks feed the Match Log's hero slots through MatchContext. */}
-        <div className="card flex-1 min-w-0" data-inspect-id="prematch-hero-select-card">
+        <div className={`card min-w-0 ${sensStudyOn ? 'lg:col-span-2' : 'lg:col-span-3'}`} data-inspect-id="prematch-hero-select-card">
         <div className="mb-3">
           <h3 className="text-sm card-title" data-inspect-id="prematch-select-your-hero-header">Select Your Hero</h3>
           <p className="text-xs text-[var(--faint)] mt-0.5">By role · min 2 games · tap hero to pre-fill log</p>
@@ -1197,11 +1201,11 @@ export default function Prematch() {
                             {clickIndex + 1}
                           </span>
                         )}
-                        <span ref={litArrow?.ref} style={litArrow?.style} className={`text-[16.94px] font-bold ${showNums ? '' : 'invisible'} ${litArrow ? litArrow.cls : h.win_rate >= 50 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>{h.win_rate >= 50 ? '↑' : '↓'}</span>
+                        <span ref={litArrow?.ref} style={litArrow?.style} className={`text-[15px] font-bold ${showNums ? '' : 'invisible'} ${litArrow ? litArrow.cls : h.win_rate >= 50 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>{h.win_rate >= 50 ? '↑' : '↓'}</span>
                         <span
                           ref={litName?.ref}
                           style={litName?.style}
-                          className={`flex-1 translate-y-[2px] text-[14.52px] hero-name transition-colors ${litName ? litName.cls : isClicked ? 'lit-text lit-strong' : 'text-[var(--muted)]'}`}
+                          className={`flex-1 min-w-0 truncate whitespace-nowrap translate-y-[2px] text-[13px] hero-name transition-colors ${litName ? litName.cls : isClicked ? 'lit-text lit-strong' : 'text-[var(--muted)]'}`}
                         >
                           {isDfHero ? withDfBadge(withHeroCount(h.hero, heroCounts), dfMap, h.hero) : withHeroCount(h.hero, heroCounts)}
                           {sensTag && (
@@ -1250,29 +1254,28 @@ export default function Prematch() {
                             >
                               <span
                                 aria-hidden="true"
-                                className={`absolute inset-x-0 top-0 ${isClicked ? 'bottom-[2px]' : 'bottom-[1px]'} flex items-center justify-start pl-[10%] num-display italic font-black leading-none tracking-[-0.07em] text-[4.2rem] translate-x-[-0.3em] translate-y-[0.007em] whitespace-nowrap ${isClicked ? 'opacity-[0.225]' : 'opacity-15'}`}
+                                className={`absolute inset-x-0 top-0 ${isClicked ? 'bottom-[2px]' : 'bottom-[1px]'} flex items-center justify-center num-display italic font-black leading-none tracking-[-0.07em] text-[4.2rem] translate-x-[0.15em] translate-y-[0.007em] whitespace-nowrap ${isClicked ? 'opacity-[0.225]' : 'opacity-15'}`}
                                 style={isClicked ? undefined : { color: `rgb(${hue})` }}
                                 data-inspect-id="prematch-hero-picker-stage-badge"
                               >
                                 {isClicked ? (
-                                  // Left-aligned like the rank plot's tier names,
-                                  // then brought back 10% of the card's width
-                                  // (2026-09-28). Its left edge is therefore
-                                  // 10% of the card minus 0.3em (0.3 x 4.2rem =
-                                  // 1.26rem); --lit-x subtracts that.
+                                  // Centred (2026-09-30). The span is the card's
+                                  // full width with the text centred in it, so
+                                  // its left edge is the card's left edge, the
+                                  // same origin as the fill. --lit-x is then the
+                                  // fill's end, less the parent's 0.15em nudge.
                                   <span
-                                    className="lit-text lit-strong lit-fill pr-[0.1em]"
-                                    style={{ '--lit-x': 'calc((var(--fill) - 0.1) * (100cqw + 24px) + 7px + 1.26rem)' } as React.CSSProperties}
+                                    className="flex-1 text-center lit-text lit-strong lit-fill"
+                                    style={{ '--lit-x': 'calc(var(--fill) * (100cqw + 24px) - 0.15em)' } as React.CSSProperties}
                                   >{label}</span>
                                 ) : label}
                               </span>
                               <span
                                 className={`absolute inset-y-0 left-0 transition-opacity ${isClicked ? '' : 'opacity-0 group-hover:opacity-100'}`}
                                 style={{
-                                  width: `calc(${done * 100}% + ${done > 0 ? 14 : 0}px)`,
-                                  // Depletion end keeps the 20deg slant (/);
-                                  // +14px lets a full block reach the corner.
-                                  clipPath: 'polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%)',
+                                  // Straight vertical end (2026-09-30; was a
+                                  // 20deg slant).
+                                  width: `${done * 100}%`,
                                   // A gradient, not the tiles' inset box-shadow:
                                   // a blurred shadow also bleeds up the left and
                                   // slanted edges; this only climbs from the bottom.
@@ -1303,8 +1306,8 @@ export default function Prematch() {
                             change the column's width — "0%" and "100%" occupy
                             the same box, so the row's layout doesn't slide
                             from row to row. */}
-                        <span ref={litWr?.ref} style={litWr?.style} className={`shrink-0 w-12 translate-y-[2px] text-right text-[14.52px] hero-name ${showNums ? '' : 'invisible'} ${litWr ? litWr.cls : h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
-                        <span ref={litGames?.ref} style={litGames?.style} className={`translate-y-[2px] text-[14.52px] hero-name w-9 text-right ${showNums ? '' : 'invisible'} ${litGames ? litGames.cls : 'text-[var(--faint)]'}`}>{h.games}g</span>
+                        <span ref={litWr?.ref} style={litWr?.style} className={`shrink-0 w-12 translate-y-[2px] text-right text-[13px] hero-name ${showNums ? '' : 'invisible'} ${litWr ? litWr.cls : h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
+                        <span ref={litGames?.ref} style={litGames?.style} className={`shrink-0 translate-y-[2px] text-[13px] hero-name w-11 text-right ${showNums ? '' : 'invisible'} ${litGames ? litGames.cls : 'text-[var(--faint)]'}`}>{h.games}g</span>
                       </div>
                       );
                     })}
@@ -1331,7 +1334,7 @@ export default function Prematch() {
             select. Mounted only while the sens-study category is on; with it
             off there is nothing to run and nothing to show. */}
         {sensStudyOn && (
-          <div className="sm:w-72 shrink-0 flex flex-col gap-4" data-inspect-id="prematch-experiment-card">
+          <div className="min-w-0 flex flex-col gap-4" data-inspect-id="prematch-experiment-card">
         {/* DPI stage-test HUD — a dropdown picks which "In Testing" hero you're
             about to play (several can be active at once, but the mouse can
             only sit on one DPI at a time), then shows that hero's current
@@ -1374,44 +1377,40 @@ export default function Prematch() {
               <span className="text-[10px] hero-name text-[var(--faint-2)] truncate">{bt!.hero ?? 'ad-hoc'}</span>
             </div>
           )}
+          {/* Two columns (2026-09-30). Left: minutes left in the whole test,
+              the current stage and the open 60-minute block. Right: the aim
+              backlog and a full-width button to it. */}
+          <div className="flex-1 grid grid-cols-2 gap-4 mt-2.5">
           {bt ? (
-            // Three odometer rows at size 32 (down from the default 46) so
-            // the readouts stay legible while the card stays compact.
-            <div className="flex-1 grid grid-cols-[auto_auto] items-center gap-x-3 gap-y-0.5 content-start mt-2.5">
-              <Odometer value={btTestLeft} size={32} digits={3} dataInspectId="prematch-dpi-matches-left-odometer" />
-              <div className="leading-tight">
+            // Drums at size 30 so a three-digit counter (65px) and its label
+            // still fit half the card (~150px). Every counter pads to three drums so the ones
+            // digits line up down the column.
+            <div className="grid grid-cols-[auto_auto] justify-end items-center gap-x-2 gap-y-1.5 content-start">
+              <Odometer value={btTestLeft} size={30} digits={3} dataInspectId="prematch-dpi-matches-left-odometer" />
+              <div className="leading-tight min-w-0">
                 {/* Same caps treatment as the app's other small stat labels. */}
-                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">{btChunk ? 'minutes left' : 'matches left'}</div>
-                <div className="text-[10px] text-[var(--faint-2)]">in this test</div>
+                <div className="text-[11px] uppercase tracking-wider text-[var(--muted)]">{btChunk ? 'min left' : 'matches left'}</div>
+                <div className="text-[11px] text-[var(--faint-2)]">in this test</div>
               </div>
-              <Odometer value={btGamesLeft} size={32} digits={3} dataInspectId="prematch-dpi-games-left-odometer" />
-              <div className="leading-tight">
-                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">{btChunk ? 'minutes left' : 'games left'}</div>
-                <div className="text-[10px] text-[var(--faint-2)]">in stage <b className="font-bold">{bt.cur_stage}</b></div>
+              <Odometer value={btGamesLeft} size={30} digits={3} dataInspectId="prematch-dpi-games-left-odometer" />
+              <div className="leading-tight min-w-0">
+                <div className="text-[11px] uppercase tracking-wider text-[var(--muted)]">{btChunk ? 'min left' : 'games left'}</div>
+                <div className="text-[11px] text-[var(--faint-2)]">in stage <b className="font-bold">{bt.cur_stage}</b></div>
               </div>
-              {/* Backlog counter shares this grid's column tracks (rather than
-                  being its own grid) so its drum is guaranteed to land in the
-                  same x position as the two above — a separate grid re-centers
-                  independently and drifts whenever the label text width differs. */}
-              {/* padTo={3}: two invisible spacer drums, so its one digit sits
-                  under the ones digit of the three-digit counters above. */}
-              <Odometer value={backlogCount} size={32} digits={1} padTo={3} warn={backlogCount >= BACKLOG_WARN} dataInspectId="prematch-backlog-odometer" />
-              <div className="leading-tight">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">backlog</span>
-                  {/* Opens the Sens page at the top, like any other arrival. */}
-                  <Link
-                    to="/sens"
-                    className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-lg bg-gradient-to-r from-ow-accent to-ow-accentLight text-white shadow-md shadow-ow-accent/30 hover:brightness-110 active:brightness-95 transition-all whitespace-nowrap"
-                    data-inspect-id="prematch-backlog-go-link"
-                  >
-                    Go →
-                  </Link>
-                </div>
-              </div>
+              {/* The open 60-minute block. Chunked sets only; a legacy set
+                  counts games and has no blocks. */}
+              {btChunk && (
+                <>
+                  <Odometer value={Math.max(0, Math.ceil(60 - btChunk.openMinutes))} size={30} digits={2} padTo={3} dataInspectId="prematch-dpi-block-left-odometer" />
+                  <div className="leading-tight min-w-0">
+                    <div className="text-[11px] uppercase tracking-wider text-[var(--muted)]">min left</div>
+                    <div className="text-[11px] text-[var(--faint-2)]">in this block</div>
+                  </div>
+                </>
+              )}
             </div>
           ) : (
-            <div className="flex-1 grid justify-items-center content-start text-center px-2" data-inspect-id="prematch-dpi-idle-banner">
+            <div className="grid justify-items-center content-start text-center px-2" data-inspect-id="prematch-dpi-idle-banner">
               <div>
                 <div className="text-xs text-[var(--faint)]">No DPI test running</div>
                 <div className="text-[10px] text-[var(--faint-2)] mt-1">Start one on the Sens page →</div>
@@ -1419,27 +1418,28 @@ export default function Prematch() {
             </div>
           )}
 
-          {/* Idle state has no sibling drum row to align with, so the backlog
-              counter gets its own simple centered row here instead. */}
-          {btActives.length === 0 && (
-            <div className="flex items-center justify-center gap-3 pt-3 mt-2">
-              <Odometer value={backlogCount} digits={1} warn={backlogCount >= BACKLOG_WARN} />
-              <div className="leading-tight">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">backlog</span>
-                  <Link
-                    to="/sens"
-                    className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-lg bg-gradient-to-r from-ow-accent to-ow-accentLight text-white shadow-md shadow-ow-accent/30 hover:brightness-110 active:brightness-95 transition-all whitespace-nowrap"
-                    data-inspect-id="prematch-backlog-go-link"
-                  >
-                    Go →
-                  </Link>
-                </div>
+            {/* Aim backlog: the count, then a full-width button to the Sens
+                page, which opens at the top like any other arrival. */}
+            <div className="flex flex-col items-center gap-2 min-w-0 pl-4 border-l border-ow-border/40">
+              <div className="flex items-center gap-2">
+                <Odometer value={backlogCount} size={40} digits={1} warn={backlogCount >= BACKLOG_WARN} dataInspectId="prematch-backlog-odometer" />
+                <span className="text-[11px] uppercase tracking-wider text-[var(--muted)]">in backlog</span>
               </div>
+              <Link
+                to="/sens"
+                // Styled as a selected game mode tile (ModeComparisonCard):
+                // 2px border, bottom-lit fill in the accent, the hover lift.
+                className="relative block w-full text-center rounded-lg border-2 is-selected mode-fill mode-tile px-2 py-2 text-sm font-bold whitespace-nowrap transition-all duration-200 hover:-translate-x-1 hover:-translate-y-1"
+                data-inspect-id="prematch-backlog-go-link"
+              >
+                <span className="lit-text">Go to backlog →</span>
+              </Link>
             </div>
-          )}
-          <p className="mt-3 text-[11px] text-[var(--faint)] leading-snug">
-            Sens test only tracks Competitive games (any role) and Quickplay games played as Support — everything else logs at the frozen fallback sens instead of the active test value.
+          </div>
+          {/* One line (2026-09-30). The full rule: every other game logs at
+              the frozen fallback sens, not the active test value. */}
+          <p className="mt-3 text-[11px] text-[var(--faint)] leading-snug" title="Everything else logs at the frozen fallback sens instead of the active test value.">
+            Counts Comp (any role) and QP Support only.
           </p>
         </div>
 
