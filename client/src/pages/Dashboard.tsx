@@ -35,6 +35,7 @@ export default function Dashboard() {
   // here at all.
 
   const sections = [
+    { id: 'sec-form', label: 'Form & Rank' },
     { id: 'sec-mode', label: 'Mode' },
     { id: 'sec-match', label: 'Match' },
     { id: 'sec-trends', label: 'Trends' },
@@ -133,9 +134,9 @@ export default function Dashboard() {
       </nav>
 
       {/* Form & Rank leads the page (Sean, 2026-09-30): the long view of how
-          play is going comes first. It sits above the "Mode" jump target, so
-          that jump still lands on the tiles. */}
-      <div className="mb-6"><RecentMatchesCard trends={trends} tilt={tilt} /></div>
+          play is going comes first. Its own jump target, first in the nav;
+          "Mode" still lands on the tiles below it. */}
+      <div id="sec-form" className="mb-6 scroll-mt-32"><RecentMatchesCard trends={trends} tilt={tilt} /></div>
 
       <div id="sec-mode" className="scroll-mt-32">
         {modeComparison && (
