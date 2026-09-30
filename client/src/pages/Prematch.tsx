@@ -264,6 +264,7 @@ export default function Prematch() {
   // same "tap up to 3, blocked past that" convention Map Voting uses.
   const clickedHeroes = pickedHeroes;
   const inputRef                = useRef<HTMLInputElement>(null);
+  const advisorSelectRef        = useRef<HTMLSelectElement>(null);
 
   function toggleHeroClick(hero: string) {
     const next = clickedHeroes.includes(hero)
@@ -896,7 +897,7 @@ export default function Prematch() {
                 </div>
               ))}
               <button
-                onClick={() => setSelected([])}
+                onClick={() => { setSelected([]); advisorSelectRef.current?.focus(); }}
                 className="flex-1 min-w-0 flex items-center justify-center px-2 py-1 text-[10px] font-medium bg-ow-border/40 text-[var(--ink-2)] hover:bg-ow-border/70 hover:text-[var(--ink)] transition-colors"
                 style={{ clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)' }}
                 data-inspect-id="prematch-map-voting-clear-button"
@@ -975,7 +976,7 @@ export default function Prematch() {
           <div className="flex items-center justify-between mb-2 min-h-8">
             <div className="flex items-center gap-2">
               <h2 className="text-sm card-title whitespace-nowrap">Hero Advisor</h2>
-              <span className="text-xs text-[var(--faint)] bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">pick a map in Log Match</span>
+              <span className="text-xs text-[var(--faint)] bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">pick a map</span>
             </div>
             {/* Today's matches as win/loss dots, most recent left, oldest
                 right. Moved here 2026-09-24 — first tried on the "Playing
@@ -1010,6 +1011,23 @@ export default function Prematch() {
             </div>
           </div>
 
+          {/* Map picker — game step 1 (map vote), so it sits here at the top of
+              the pre-game flow, not in the after-game Match Log. The value is
+              MatchContext's `map` (tracker-owned state); this is placement only. */}
+          <div className="mb-2">
+            <select
+              ref={advisorSelectRef}
+              value={map}
+              onChange={e => setMap(e.target.value)}
+              className="w-full field px-3 py-2 text-sm"
+              data-inspect-id="prematch-map-select-dropdown"
+            >
+              <option value="">— Select map —</option>
+              {(selected.length > 0 ? [...selected] : Object.keys(MAPS)).sort().map(m => (
+                <option key={m} value={m} className="uppercase">{withMapCount(m, mapCounts)}</option>
+              ))}
+            </select>
+          </div>
           {mapType && <span className={`pill ${TYPE_COLORS[mapType] ?? ''}`} data-inspect-id="prematch-map-type-badge">{mapType}</span>}
 
           {/* Everything below the pinned map selector — same treatment as
