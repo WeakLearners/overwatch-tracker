@@ -259,7 +259,8 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueM
           <button
             type="button"
             onClick={() => toggleQueueMode(match.id, match.queue_mode)}
-            disabled={togglingId === match.id}
+            disabled={togglingId === match.id || match.queue_mode === 'comp_open'}
+            title={match.queue_mode === 'comp_open' ? 'Competitive Open — change it from the full edit drawer' : undefined}
             aria-label={`Match type: ${match.queue_mode === 'qp_role' ? 'Quick Play' : 'Competitive'} — tap to switch`}
             data-inspect-id="logmatch-inline-edit-mode-toggle"
             className={`relative shrink-0 w-9 h-5 rounded-full transition-colors disabled:opacity-50 ${match.queue_mode === 'qp_role' ? 'bg-blue-500' : 'bg-red-500'}`}
@@ -839,6 +840,10 @@ export default function LogMatch() {
 
   const [togglingId, setTogglingId] = useState<number | null>(null);
   async function toggleQueueMode(id: number, current: QueueMode) {
+    // This switch only knows Quick Play <-> Competitive Role. Competitive Open
+    // has no place on it: flipping it would land on qp_role, and flipping back
+    // would land on comp_role, so the Open mode would be lost for good.
+    if (current === 'comp_open') return;
     const newMode: QueueMode = current === 'qp_role' ? 'comp_role' : 'qp_role';
     // Comp -> QP is a correction, not a flip: it rolls back this match's
     // stage-test credit (drops its blind_credits row server-side, see
