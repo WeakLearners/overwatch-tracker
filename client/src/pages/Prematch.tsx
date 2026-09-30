@@ -4,8 +4,7 @@ import { format } from 'date-fns';
 import { useApi, revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
-import LobbyRangeSlider from '../components/LobbyRangeSlider';
-import { MAPS, QUEUE_MODES, ROLE_COLORS, ROLE_SEL_RGB, ROLE_TEXT, ROLE_PILL_CLASS, TYPE_COLORS, HEROES, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, MapVotingRow, QueueMode, Streaks, RANK_TIER_RGB, DEFAULT_LOBBY_SPREAD, ACCOUNTS, rankLabel, rankTier, rankDivision, rankFromParts, clampRank } from '../types';
+import { MAPS, QUEUE_MODES, ROLE_COLORS, ROLE_SEL_RGB, ROLE_TEXT, ROLE_PILL_CLASS, TYPE_COLORS, HEROES, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, MapVotingRow, QueueMode, Streaks, RANK_TIER_RGB, ACCOUNTS, rankLabel, rankTier, rankDivision } from '../types';
 import AdvisorCard from '../components/AdvisorCard';
 import EmptyState from '../components/EmptyState';
 import { useMapDrawer } from '../contexts/MapDrawerContext';
@@ -15,7 +14,6 @@ import { useAdvisor, refreshRec } from '../contexts/AdvisorContext';
 import { Link } from 'react-router-dom';
 import Odometer from '../components/Odometer';
 import { MOUSE_DPI } from '../lib/aim';
-import RankBadge from '../components/RankBadge';
 import { useFieldConfig } from '../contexts/FieldConfigContext';
 import { useDfHeroes, dfHeroSet, withDfBadge } from '../hooks/useDfHeroes';
 
@@ -124,56 +122,12 @@ interface PrematchData {
   bestByGameType: HeroRow | null;
 }
 
-// The band's remembered width. Its position persists too, in MatchContext.
-const TRAY_WIDTH_KEY = 'ow-lobby-tray-width';
-
 export default function Prematch() {
   // Shared, single-instance match state (queue mode, map, advisor) lives here
   // and is consumed by the Log Match section too.
-  const { queueMode, map, setMap, mapType, testRole, setTestRole, setPendingHeroes, matchLoggedSignal, account, setAccount, playerRank, setPlayerRank, lobbyLow, lobbyHigh, setLobbyRange, clearLobbyRange } = useMatch();
+  const { queueMode, map, setMap, mapType, testRole, setTestRole, setPendingHeroes, pickedHeroes, setMapCandidates, matchLoggedSignal, account, setAccount, playerRank } = useMatch();
   const { rec, recLoading, recError } = useAdvisor();
 
-  // The lobby band's width in divisions, remembered across matches. Eleven is
-  // +/-5 around Sean's rank, the spread ~99% of lobbies fall inside — so the
-  // usual match is one drag, not a resize and a drag. The POSITION is never
-  // remembered; that is the per-match observation.
-  const [trayWidth, setTrayWidthState] = useState(() => {
-    const v = Number(localStorage.getItem(TRAY_WIDTH_KEY));
-    return v >= 1 && v <= 2 * 10 + 1 ? v : DEFAULT_LOBBY_SPREAD * 2 + 1;
-  });
-  // Two separate jobs, deliberately separate functions.
-  //
-  // rememberTrayWidth only stores the number. It is what a finished handle
-  // drag reports. Folding these two together is what made the slider fight
-  // itself: dragging an end changed the width, the width setter re-centred the
-  // bar around its old middle, and the bar snapped back under the cursor.
-  const rememberTrayWidth = (w: number) => {
-    setTrayWidthState(w);
-    try { localStorage.setItem(TRAY_WIDTH_KEY, String(w)); } catch { /* ignore */ }
-  };
-  // resizeTray changes the bar's width in place, keeping it centred where it
-  // already sits. Only the header's -/+ buttons do this.
-  const resizeTray = (w: number) => {
-    rememberTrayWidth(w);
-    if (lobbyLow != null && lobbyHigh != null) {
-      const centre = Math.round((lobbyLow + lobbyHigh) / 2);
-      const half = Math.floor((w - 1) / 2);
-      setLobbyRange(centre - half, centre - half + w - 1);
-    }
-  };
-
-  // The rank drum. Quickplay has no rank, so it isn't shown there.
-  // First press seeds at Gold 5 — a visible starting point on the badge, a few
-  // presses from any real rank, and it sticks from then on. Moving the rank
-  // clears any lobby range, because that range was built from the OLD rank and
-  // would otherwise attach itself silently to the new one.
-  const stepRank = (d: number) => {
-    if (playerRank == null) { setPlayerRank(rankFromParts('Gold', 5)); return; }
-    const next = clampRank(playerRank + d);
-    if (next === playerRank) return;
-    setPlayerRank(next);
-    clearLobbyRange();
-  };
   const { data: dpiHud } = useApi<DpiTestHud>('/api/blind/state');
   const btActives = dpiHud?.actives ?? [];
   // Several heroes can be "In Testing" at once, but the mouse can only be set
@@ -206,15 +160,8 @@ export default function Prematch() {
   const backlogCount = pendingData?.total ?? 0;
   // One-digit backlog (max 9, 2026-09-28): gold from 7 up, a warning before it fills.
   const BACKLOG_WARN = 7;
-  const { isCategoryEnabled, isFieldEnabled } = useFieldConfig();
+  const { isCategoryEnabled } = useFieldConfig();
   const sensStudyOn = isCategoryEnabled('sens-study');
-  // Field-registry Phase 2 (2026-09-24) — lobby_low/lobby_high's registry
-  // entry (server/src/lib/fieldRegistry.ts's `lobby_range`). Gated directly
-  // here rather than through RegistryField's kind-dispatch switch:
-  // LobbyRangeSlider takes four of its own state callbacks tied to this
-  // page's local tray-width state, which doesn't fit RegistryField's single
-  // value/onChange contract without widening that contract for one field.
-  const lobbyRangeOn = isFieldEnabled('lobby_range');
   // Fetched unconditionally — the category toggle is a display gate on the
   // card below, not a reason to skip a cheap, side-effect-free GET. Keeping
   // the fetch itself unconditional also means flipping the toggle on shows
@@ -275,6 +222,9 @@ export default function Prematch() {
   const { data: streaksData } = useApi<Streaks>('/api/stats/streaks');
   const { data: byHour } = useApi<{ hour: number; games: number; wins: number; win_rate: number; qp_games: number; qp_win_rate: number | null; comp_games: number; comp_win_rate: number | null }[]>('/api/stats/by-hour');
   const [selected, setSelected] = useState<string[]>([]);
+  // Hand the Map Voting picks to the Log Match map picker, which narrows its
+  // list to them (empty = every map). Cleared if this page goes away.
+  useEffect(() => { setMapCandidates(selected); return () => setMapCandidates([]); }, [selected, setMapCandidates]);
 
   // Last 5 results on each currently-selected voting map, for the win/loss
   // dash strip under each chip. Same treatment as Today's Matches' map
@@ -304,25 +254,21 @@ export default function Prematch() {
 
   const [query, setQuery]       = useState('');
   const [open, setOpen]         = useState(false);
-  // Ordered heroes clicked in "Select Your Hero" this match, kept separately
-  // from the context's `pendingHeroes` — that one is a one-shot signal Log
-  // Match consumes and clears the instant it pre-fills the form, so it can't
-  // double as "what should stay highlighted here." Order matters: index 0 is
-  // the 1st click (Log Match's form.hero/starting hero), 1/2 are the 2nd/3rd
-  // clicks (Log Match's two switch-hero slots) — clicking an already-clicked
-  // hero again toggles it off (and reflows the ones after it up), and a 4th
-  // click while 3 are already picked is a no-op, same "tap up to 3, blocked
-  // past that" convention Map Voting's own toggleMap already uses above.
-  const [clickedHeroes, setClickedHeroes] = useState<string[]>([]);
+  // The ordered picks are NOT kept here. The Log Match form owns its hero
+  // slots and publishes them as `pickedHeroes` (MatchContext); this picker
+  // reads that list to highlight rows and writes a whole new list back through
+  // `setPendingHeroes`, which the form applies. Index 0 is the starting hero,
+  // 1/2 the two switch slots. Clicking a picked hero again toggles it off
+  // (later ones reflow up); a 4th click while 3 are picked is a no-op — the
+  // same "tap up to 3, blocked past that" convention Map Voting uses.
+  const clickedHeroes = pickedHeroes;
   const inputRef                = useRef<HTMLInputElement>(null);
-  const advisorSelectRef        = useRef<HTMLSelectElement>(null);
 
   function toggleHeroClick(hero: string) {
     const next = clickedHeroes.includes(hero)
       ? clickedHeroes.filter(h => h !== hero)
       : clickedHeroes.length < 3 ? [...clickedHeroes, hero] : clickedHeroes;
     if (next === clickedHeroes) return; // blocked (4th click) — no-op, nothing to sync
-    setClickedHeroes(next);
     setPendingHeroes(next);
   }
 
@@ -342,7 +288,6 @@ export default function Prematch() {
     setSelected([]);
     setQuery('');
     setOpen(false);
-    setClickedHeroes([]);
   }, [matchLoggedSignal]);
 
   // Keep focus on the map search whenever the app is idle (no map selected).
@@ -950,7 +895,7 @@ export default function Prematch() {
                 </div>
               ))}
               <button
-                onClick={() => { setSelected([]); advisorSelectRef.current?.focus(); }}
+                onClick={() => setSelected([])}
                 className="flex-1 min-w-0 flex items-center justify-center px-2 py-1 text-[10px] font-medium bg-ow-border/40 text-[var(--ink-2)] hover:bg-ow-border/70 hover:text-[var(--ink)] transition-colors"
                 style={{ clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)' }}
                 data-inspect-id="prematch-map-voting-clear-button"
@@ -1029,7 +974,7 @@ export default function Prematch() {
           <div className="flex items-center justify-between mb-2 min-h-8">
             <div className="flex items-center gap-2">
               <h2 className="text-sm card-title whitespace-nowrap">Hero Advisor</h2>
-              <span className="text-xs text-[var(--faint)] bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">pick a map</span>
+              <span className="text-xs text-[var(--faint)] bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">pick a map in Log Match</span>
             </div>
             {/* Today's matches as win/loss dots, most recent left, oldest
                 right. Moved here 2026-09-24 — first tried on the "Playing
@@ -1064,20 +1009,6 @@ export default function Prematch() {
             </div>
           </div>
 
-          <div className="mb-2">
-            <select
-              ref={advisorSelectRef}
-              value={map}
-              onChange={e => setMap(e.target.value)}
-              className="w-full field px-3 py-2 text-sm"
-              data-inspect-id="prematch-map-select-dropdown"
-            >
-              <option value="">— Select map —</option>
-              {(selected.length > 0 ? [...selected] : Object.keys(MAPS)).sort().map(m => (
-                <option key={m} value={m} className="uppercase">{withMapCount(m, mapCounts)}</option>
-              ))}
-            </select>
-          </div>
           {mapType && <span className={`pill ${TYPE_COLORS[mapType] ?? ''}`} data-inspect-id="prematch-map-type-badge">{mapType}</span>}
 
           {/* Everything below the pinned map selector — same treatment as
@@ -1336,74 +1267,6 @@ export default function Prematch() {
                 ))}
               </div>
             )}
-          </div>
-        )}
-
-        {/* Lobby Rank — captured HERE, at hero select, and not in the Match Log.
-            The lobby's rank spread is only readable on the opening scoreboard.
-            By the time the match ends and gets logged it is gone, and a guess
-            recalled ten minutes later is not an observation. So the reading is
-            taken at the start and carried through the match in MatchContext,
-            surviving a mid-match reload — and surviving the log as well, since
-            the next match is nearly always the same lobby. Adjust it when the
-            lobby changes; "clear" empties it.
-
-            Competitive only — quickplay has no rank, so the section is hidden
-            rather than sitting empty and inviting a guess. */}
-        {queueMode !== 'qp_role' && (
-          <div className="mt-4 pt-4 border-t border-ow-border/40" data-inspect-id="prematch-lobby-rank-section">
-            <div className="flex items-baseline gap-2 mb-3">
-              <h3 className="text-sm card-title" data-inspect-id="prematch-lobby-rank-header">Lobby Rank</h3>
-              <span className="text-xs text-[var(--faint-2)]">read it off the scoreboard now</span>
-            </div>
-
-            {/* The drum sits in this row, beside the track it defines. Your
-                own rank is the origin the lobby range is measured from, so
-                the two belong in one place rather than a screen apart. The
-                drum keeps its own square width; the track takes the rest and
-                is allowed to shrink (min-w-0), so a 21-box row never pushes
-                the drum off the card. */}
-            <div className="flex items-center gap-4" data-inspect-id="prematch-lobby-rank-row">
-              <div className="flex flex-col items-center justify-center gap-1.5 shrink-0" data-inspect-id="prematch-rank-drum">
-                <button
-                  type="button"
-                  onClick={() => stepRank(1)}
-                  data-inspect-id="prematch-rank-drum-up"
-                  aria-label="Rank up one division"
-                  className="w-20 h-6 rounded-md border border-ow-border text-[var(--faint)] hover:text-ow-accent hover:border-ow-accent/60 transition-colors leading-none text-xs"
-                >
-                  ▲
-                </button>
-                <RankBadge rank={playerRank} size="lg" dataInspectId="prematch-rank-drum-badge" />
-                <button
-                  type="button"
-                  onClick={() => stepRank(-1)}
-                  data-inspect-id="prematch-rank-drum-down"
-                  aria-label="Rank down one division"
-                  className="w-20 h-6 rounded-md border border-ow-border text-[var(--faint)] hover:text-ow-accent hover:border-ow-accent/60 transition-colors leading-none text-xs"
-                >
-                  ▼
-                </button>
-              </div>
-              <div className="flex-1 min-w-0">
-                {!lobbyRangeOn ? null : playerRank == null ? (
-                  <p className="text-xs text-[var(--faint-2)]" data-inspect-id="prematch-lobby-rank-needs-rank">
-                    Set your rank on the drum first — the track is built around it.
-                  </p>
-                ) : (
-                  <LobbyRangeSlider
-                    playerRank={playerRank}
-                    low={lobbyLow}
-                    high={lobbyHigh}
-                    width={trayWidth}
-                    onChange={setLobbyRange}
-                    onRememberWidth={rememberTrayWidth}
-                    onResize={resizeTray}
-                    onClear={clearLobbyRange}
-                  />
-                )}
-              </div>
-            </div>
           </div>
         )}
 

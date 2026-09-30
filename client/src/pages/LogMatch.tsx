@@ -7,6 +7,7 @@ import EmptyState from '../components/EmptyState';
 import ModeWatermark from '../components/ModeWatermark';
 import RegistryField from '../components/RegistryField';
 import LeaverSliver from '../components/LeaverSliver';
+import LobbyRankSection from '../components/LobbyRankSection';
 import { buildRosterEditPayload } from '../lib/matchEditRoster';
 import { useApi, revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
@@ -537,7 +538,7 @@ interface BlindSetSummary {
 export default function LogMatch() {
   // Map + queue mode are shared with the Pre-Match section via context; this
   // section only owns date/time/hero/win plus the death tags.
-  const { queueMode, setQueueMode, map, setMap, mapType, sens, testRole, pendingHeroes, setPendingHeroes, notifyMatchLogged, playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, lobbyLow, lobbyHigh, account } = useMatch();
+  const { queueMode, setQueueMode, map, setMap, mapType, sens, testRole, pendingHeroes, setPendingHeroes, setPickedHeroes, mapCandidates, notifyMatchLogged, playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, lobbyLow, lobbyHigh, account } = useMatch();
   const { deathBuffer, removeDeathFromBuffer, toggleDeathUlt, clearDeathBuffer } = useDeathBuffer();
   const { data: dpiState } = useApi<DpiTestState>('/api/blind/state');
   const { isFieldEnabled, fields } = useFieldConfig();
@@ -753,6 +754,12 @@ export default function LogMatch() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map]);
+
+  // Publish the three hero slots, in slot order, so Pre-Match's picker can
+  // highlight them. The form is the single owner of the pick order.
+  useEffect(() => {
+    setPickedHeroes([form.hero, ...switchHeroes].filter(h => !!h));
+  }, [form.hero, switchHeroes, setPickedHeroes]);
 
   // Persist hero selection until it's logged or cleared.
   useEffect(() => {
@@ -1254,15 +1261,26 @@ export default function LogMatch() {
 
             <div>
               <label className="block text-xs text-[var(--muted)] mb-1.5">Map</label>
-              {map ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl font-bold map-name text-[var(--ink)]">{withMapCount(map, mapCounts)}</span>
-                  {mapType && <span data-inspect-id="logmatch-map-type-badge" className={`pill ${TYPE_COLORS[mapType] ?? ''}`}>{mapType}</span>}
-                </div>
-              ) : (
-                <div data-inspect-id="logmatch-map-display" className="text-xs text-[var(--faint)] italic">Pick a map in the Pre-Match section above to log a result.</div>
-              )}
+              {/* The map picker. It lives here, not in Pre-Match, because `map`
+                  is a column of the row this form writes (2026-09-29). The
+                  value is MatchContext's `map`, which the Pre-Match advisor
+                  also reads, so picking here still coaches. Map Voting narrows
+                  the list to its candidates through `mapCandidates`. */}
+              <select
+                value={map}
+                onChange={e => setMap(e.target.value)}
+                className="w-full field px-3 py-2 text-sm"
+                data-inspect-id="logmatch-map-select"
+              >
+                <option value="">— Select map —</option>
+                {(mapCandidates.length > 0 ? [...mapCandidates] : Object.keys(MAPS)).sort().map(m => (
+                  <option key={m} value={m} className="uppercase">{withMapCount(m, mapCounts)}</option>
+                ))}
+              </select>
+              {map && mapType && <span data-inspect-id="logmatch-map-type-badge" className={`pill mt-1.5 ${TYPE_COLORS[mapType] ?? ''}`}>{mapType}</span>}
             </div>
+
+            <LobbyRankSection />
 
             <div>
               <label data-inspect-id="logmatch-result-toggle" className="block text-xs text-[var(--muted)] mb-1.5">Result</label>

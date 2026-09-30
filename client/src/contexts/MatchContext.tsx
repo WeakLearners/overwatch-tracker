@@ -165,6 +165,16 @@ interface MatchContextValue {
   // functions) — see that file's header comment for why.
   pendingHeroes: string[] | null;
   setPendingHeroes: (h: string[] | null) => void;
+  // The heroes currently in the Log Match form's three slots, in slot order.
+  // Owned by the log form (it publishes them); Pre-Match only reads them to
+  // highlight its picker rows, so there is one copy of the pick order.
+  pickedHeroes: string[];
+  setPickedHeroes: (h: string[]) => void;
+  // Optional narrowing of the map picker: the up-to-3 maps Map Voting is
+  // comparing. Empty means "every map". Written by Pre-Match's Map Voting,
+  // read by the Log Match map picker.
+  mapCandidates: string[];
+  setMapCandidates: (m: string[]) => void;
   // Bumped each time a match is logged, so sections can reset (e.g. Map Voting).
   matchLoggedSignal: number;
   // The most recent logged result, used to play the win/loss flash on the
@@ -364,6 +374,8 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const [pendingHeroes, setPendingHeroes] = useState<string[] | null>(null);
+  const [pickedHeroes, setPickedHeroes] = useState<string[]>([]);
+  const [mapCandidates, setMapCandidates] = useState<string[]>([]);
   const [matchLoggedSignal, setMatchLoggedSignal] = useState(0);
   const [lastLog, setLastLog] = useState<{ mode: QueueMode; win: boolean; seq: number } | null>(null);
 
@@ -396,7 +408,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, applyRankFix,
     lobbyLow, lobbyHigh,
     setLobbyRange: setLobbyRangeValues, applyLobbySpread, nudgeLobby, clearLobbyRange,
-    pendingHeroes, setPendingHeroes,
+    pendingHeroes, setPendingHeroes, pickedHeroes, setPickedHeroes, mapCandidates, setMapCandidates,
     matchLoggedSignal,
     lastLog,
     notifyMatchLogged,
@@ -404,7 +416,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     queueMode, setQueueMode, map, setMap, sens, setSens, testRole, setTestRole, mapType,
     account, setAccount, playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, applyRankFix,
     lobbyLow, lobbyHigh, setLobbyRangeValues, applyLobbySpread, nudgeLobby, clearLobbyRange,
-    pendingHeroes, matchLoggedSignal, lastLog, notifyMatchLogged,
+    pendingHeroes, pickedHeroes, mapCandidates, matchLoggedSignal, lastLog, notifyMatchLogged,
   ]);
 
   return (
