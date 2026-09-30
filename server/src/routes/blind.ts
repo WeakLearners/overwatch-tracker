@@ -6,7 +6,7 @@ import {
 } from '../lib/blind';
 import { cm360, eDPI } from '../lib/aim';
 import { computeNextTest, projectPhaseFinish, type HeroTestProgress, type BlockInfo } from '../lib/nextTest';
-import { HEROES_BY_ROLE } from './advisor';
+import { HEROES_BY_ROLE } from '../lib/heroes';
 import { isDfHero } from '../lib/df';
 
 const router = Router();
