@@ -725,7 +725,7 @@ const DATA = {
           "kind": "container",
           "description": "Column to the right of Select Your Hero (below it on phones). Mounted only when isCategoryEnabled('sens-study') is on; with the sens study off nothing renders. Holds the sens-test HUD, the Next test card, and the note explaining which games the sens test counts (moved here from the Match Log form).",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1334",
+            "path": "client/src/pages/Prematch.tsx:1337",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-experiment-card\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -733,9 +733,9 @@ const DATA = {
           "id": "prematch-dpi-hud-card",
           "label": "DPI Test HUD card",
           "kind": "card",
-          "description": "Card (first in the Experiment column since 2026-09-29; no longer a fixed square) showing the current DPI-test hero's DPI value plus minutes-left (whole test), minutes-left (current stage) and backlog odometers. Minutes since 2026-09-28 for a chunked (60-min block) set; a legacy unchunked set still shows matches/games left. Backlog still counts matches; mirrors the active-test state driven from the Sens page.",
+          "description": "Sens Test card at the top of the Experiment column (step-5 row, 1 of 3 grid columns). Header: title and the active sens. Hero picker when several tests run. Body is two columns with a divider: left (right-aligned) = minutes left in this test, in the current stage and in the open 60-minute block; right = aim backlog count and a full-width \"Go to backlog\" button. One-line footnote: counts Comp (any role) and QP Support only (full rule in its title).",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1343",
+            "path": "client/src/pages/Prematch.tsx:1346",
             "grep": "grep -n -F -- 'prematch-dpi-hud-card' client/src/pages/Prematch.tsx"
           }
         },
@@ -745,7 +745,7 @@ const DATA = {
           "kind": "badge",
           "description": "Small badge in the DPI Test HUD header showing the current stage's DPI number for the picked hero.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1349",
+            "path": "client/src/pages/Prematch.tsx:1352",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-dpi-value-badge\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -755,7 +755,7 @@ const DATA = {
           "kind": "select",
           "description": "Dropdown shown when multiple DPI tests are active at once, letting the user choose which hero's DPI/progress the HUD card displays.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1359",
+            "path": "client/src/pages/Prematch.tsx:1362",
             "grep": "grep -n -F -- 'aria-label=\"Hero to show DPI-test progress for\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -763,9 +763,9 @@ const DATA = {
           "id": "prematch-dpi-matches-left-odometer",
           "label": "Matches-left odometer",
           "kind": "stat-tile",
-          "description": "Odometer-style counter: minutes left in the selected test overall, (totalBlocksTarget - closedBlocks) x 60 - openMinutes from GET /api/blind/state chunk, rounded up. Three drums (digits={3}, max 999). Legacy unchunked set: matches left.",
+          "description": "Minutes left in the whole test (all stages) for the tracked hero; games for a legacy unchunked set. Size-30 drums, three digits.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1381",
+            "path": "client/src/pages/Prematch.tsx:1389",
             "grep": "grep -n -F -- 'prematch-dpi-matches-left-odometer' client/src/pages/Prematch.tsx"
           }
         },
@@ -773,29 +773,39 @@ const DATA = {
           "id": "prematch-dpi-games-left-odometer",
           "label": "Games-left-in-stage odometer",
           "kind": "stat-tile",
-          "description": "Odometer-style counter: minutes left in the current stage, (stageBlocksTarget - stageBlocks) x 60 - openMinutes, rounded up; label reads 'in stage N'. Three drums (digits={3}, max 999). Legacy unchunked set: games left before the next stage.",
+          "description": "Minutes left in the current stage (games for a legacy set). Size-30 drums, three digits.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1387",
+            "path": "client/src/pages/Prematch.tsx:1395",
             "grep": "grep -n -F -- 'prematch-dpi-games-left-odometer' client/src/pages/Prematch.tsx"
+          }
+        },
+        {
+          "id": "prematch-dpi-block-left-odometer",
+          "label": "Minutes left in this block",
+          "kind": "display",
+          "description": "Minutes left in the open 60-minute block (60 - openMinutes, rounded up). Chunked sets only; padded to three drums so its ones digit lines up with the counters above.",
+          "locate": {
+            "path": "client/src/pages/Prematch.tsx:1404",
+            "grep": "grep -n -F -- 'dataInspectId=\"prematch-dpi-block-left-odometer\"' client/src/pages/Prematch.tsx"
           }
         },
         {
           "id": "prematch-backlog-odometer",
           "label": "Backlog odometer",
           "kind": "stat-tile",
-          "description": "Odometer-style counter showing how many matches are awaiting stats processing; shown in both the active-test and idle layouts of the DPI card, each labeled just \"backlog\" (no \"in\") with no fine-print subtext below it. One drum since 2026-09-28 (digits={1}, max 9), padded with two invisible spacer drums (padTo={3}) so the digit sits under the ones digit of the three-digit counters above. At BACKLOG_WARN (7) or more the drum turns gold and pulses (.odo-warn in index.css), a warning before it fills.",
+          "description": "Aim-stat backlog count (GET /api/aim/pending), size-40 single drum with \"in backlog\" label; gold from 7 up. Right column of the Sens Test card, shown whether or not a test is running.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1398",
+            "path": "client/src/pages/Prematch.tsx:1425",
             "grep": "grep -n -F -- 'dataInspectId=\"prematch-backlog-odometer\"' client/src/pages/Prematch.tsx"
           }
         },
         {
           "id": "prematch-backlog-go-link",
-          "label": "Backlog 'Go \u2192' link",
+          "label": "Go to backlog button",
           "kind": "link",
-          "description": "Link that navigates to the Sens page so the user can work through the backlog of matches awaiting stats. Opens that page at the top, like any other arrival \u2014 it used to deep-link down to the backlog panel. (duplicated for the active-test and idle-test layouts \u2014 locate command matches both.)",
+          "description": "Full-width button under the backlog count, styled as a selected game-mode tile (rounded, 2px border, is-selected mode-fill in the accent, mode-tile hover lift, lit text). Opens /sens at the top.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1406",
+            "path": "client/src/pages/Prematch.tsx:1433",
             "grep": "grep -n -F -- 'prematch-backlog-go-link' client/src/pages/Prematch.tsx"
           },
           "expectedMatches": 2
@@ -806,7 +816,7 @@ const DATA = {
           "kind": "banner",
           "description": "Placeholder message shown inside the DPI Test HUD card when no DPI stage test is currently active, prompting the user to start one on the Sens page.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1416",
+            "path": "client/src/pages/Prematch.tsx:1415",
             "grep": "grep -n -F -- 'No DPI test running' client/src/pages/Prematch.tsx"
           }
         },
@@ -1181,9 +1191,9 @@ const DATA = {
           "id": "prematch-hero-select-card",
           "label": "Select Your Hero card (step 5, tracker input)",
           "kind": "card",
-          "description": "Game step 5. Its own card holding the hero picker and its empty state; the hero advice (recommended picks, coaching) is the separate card above it (prematch-consolidated-advisor-card, labelled Advice). Picks flow to the Match Log through MatchContext (setPendingHeroes / pickedHeroes).",
+          "description": "Select Your Hero, game step 5. On the page grid: spans 2 of 3 columns beside the Experiment column, all 3 when the sens study is off. Rows show hero @ sens, win rate and games at 13px on one line; stage watermark centred; progress fill with a straight end.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1099",
+            "path": "client/src/pages/Prematch.tsx:1103",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-hero-select-card\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -1193,7 +1203,7 @@ const DATA = {
           "kind": "header",
           "description": "Header of prematch-hero-select-card, with the \"By role \u00b7 min 2 games \u00b7 tap hero to pre-fill log\" line.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1101",
+            "path": "client/src/pages/Prematch.tsx:1105",
             "grep": "grep -n -F -- 'Select Your Hero</h3>' client/src/pages/Prematch.tsx"
           }
         },
@@ -1203,7 +1213,7 @@ const DATA = {
           "kind": "list",
           "description": "Two-column (DPS/Support) list of heroes \u2014 the union of every hero with an active sens test AND every hero belonging to the current DPI/sens testing phase's roster (so already-finished heroes stay visible instead of disappearing the moment their test completes), ranked by win rate on the selected map. Clicking a hero writes an ordered pick list into Log Match's hero slots (via setPendingHeroes); the highlighted rows and order badges READ the form's slots back (MatchContext.pickedHeroes), so the Log Match form is the single owner of the pick order (2026-09-29). This list is lab overlay (win-rate ranking, sens gauge); the plain hero capture is Log Match's own hero dropdowns. clicking an already-picked hero again toggles it off.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1105",
+            "path": "client/src/pages/Prematch.tsx:1109",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-hero-picker-list\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -1213,7 +1223,7 @@ const DATA = {
           "kind": "badge",
           "description": "\u2460/\u2461/\u2462 badge shown on a hero row once it's been clicked, marking its position in the up-to-3 ordered click sequence that fills Log Match's hero slots (1st click \u2192 primary hero, 2nd/3rd \u2192 the two switch-hero slots). Colored via ROLE_PILL_CLASS to match the app's existing DPS/Tank/Support role-color convention rather than a generic accent.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1195",
+            "path": "client/src/pages/Prematch.tsx:1199",
             "grep": "grep -n -F -- 'prematch-hero-picker-order-badge' client/src/pages/Prematch.tsx"
           }
         },
@@ -1221,9 +1231,9 @@ const DATA = {
           "id": "prematch-hero-picker-gauge",
           "label": "Hero picker underglow gauge",
           "kind": "meter",
-          "description": "The gauge is the card's lit bottom edge (2026-09-27): hidden on unselected cards until hover, always shown on selected ones; a 2px edge plus a glow that eases out over ~24px (2026-09-28; was a hard step at 3px, gone by 14px) in the role hue (ROLE_SEL_RGB), drawn as a bottom-up linear-gradient only as far as the hero's open 60-min block has filled (GET /api/blind/state chunk.openMinutes, lib/blind.ts deriveBlockState; legacy unchunked set: games played at this sens). 20deg slanted end via clip-path. Full strength on a selected card (whose own card-wide edge is switched off so the gauge owns it), 50% at rest. The layer extends down over the card's bottom border, 2px selected / 1px at rest (2026-09-28), so the lit edge sits on the border; the watermark takes those 2px back to stay centred. On a selected card the lit hero name and A1 watermark glow only as far as the gauge reaches (.lit-fill, --fill/--lit-x, 2026-09-28); past its end the letters are the unlit colour. Fill = openMinutes/60, left to right (verified 2026-09-28: Juno 51.9 min -> 86%). Lives in a -z-10 layer inside the `isolate` card. Hover title: \"A1 \u00b7 N minutes played\".",
+          "description": "Hero row progress: fills the bottom of the row as far as the open 60-minute block (or legacy games at this sens) has gone, with a straight vertical end (was a 20deg slant until 2026-09-30). Full strength on a tapped row, on hover otherwise.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1249",
+            "path": "client/src/pages/Prematch.tsx:1253",
             "grep": "grep -n -F -- 'prematch-hero-picker-gauge' client/src/pages/Prematch.tsx"
           }
         },
@@ -1231,9 +1241,9 @@ const DATA = {
           "id": "prematch-hero-picker-stage-badge",
           "label": "Hero picker stage/chunk watermark",
           "kind": "badge",
-          "description": "Stage/chunk label (\"A1\"..\"B4\" via lib/blind.ts chunkLabelFor; bare stage number for a legacy set) as an oversized watermark set like Log Match's mode-tile QP/V5/V6 (ModeWatermark \"selector\" variant: 4.2rem num-display italic font-black). Since 2026-09-28 left-aligned (pl-[10%], i.e. 10% in from the card's left edge) then pushed 0.3em left, like the Dashboard rank plot's tier-name watermarks (RecentMatchesCard), so the first glyph bleeds off the edge. At rest: role hue at 15%. Selected: .lit-text.lit-strong at 22.5%.",
+          "description": "Oversized faded stage/chunk label (A1..B4) behind a hero row, centred (ink centre measured within 2px of the row centre; translate-x 0.15em corrects the italic lean). On a tapped row it is lit only as far as the progress fill reaches: the label spans the card width so --lit-x = fill x card width - 0.15em.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1255",
+            "path": "client/src/pages/Prematch.tsx:1259",
             "grep": "grep -n -F -- 'prematch-hero-picker-stage-badge' client/src/pages/Prematch.tsx"
           },
           "expectedMatches": 2
@@ -1244,7 +1254,7 @@ const DATA = {
           "kind": "badge",
           "description": "Shown on a hero row in Select Your Hero when that hero belongs to the current DPI/sens testing phase's roster but has already finished it (no active test, blind_stage_sets completed=true for that phase) \u2014 lets the whole phase roster stay visible instead of dropping a hero the moment its test completes.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1294",
+            "path": "client/src/pages/Prematch.tsx:1297",
             "grep": "grep -n -F -- 'prematch-hero-picker-done-badge' client/src/pages/Prematch.tsx"
           }
         },
@@ -1254,7 +1264,7 @@ const DATA = {
           "kind": "banner",
           "description": "Empty-state message shown when no games have been logged for the current map/filter, prompting the user to pick a map or log a match.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1321",
+            "path": "client/src/pages/Prematch.tsx:1324",
             "grep": "grep -n -F -- 'dataInspectId=\"prematch-empty-state-banner\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -1274,7 +1284,7 @@ const DATA = {
           "kind": "button",
           "description": "One hero row in the Select Your Hero picker. Click toggles it into the match's pick order. Selected and hover states both use the ROLE's colour, not the brand accent \u2014 teal in the DPS column, pink in the Support column \u2014 via --sel set inline on every chip so hover and selection agree. Matches the order badge, which already coloured by role. The hero the Next test card points at (stint hero, else the top recommendation) gets .test-glow, a pulsing role-coloured halo. Styled like Log Match's mode tiles since 2026-09-27: selected = border-2 .is-selected.mode-fill with the name in .lit-text.lit-strong; resting = .hero-pane, the lobby slider's unlit rank-pane look in the role hue (1px border at 35%/15% light/dark + bottom tint), with 1px extra padding so selecting doesn't shift the row; --muted name (was --faint; games --faint, was --faint-2; brightened 2026-09-28) with NO hover brightening (removed 2026-09-27 as jarring). 4px corners both states. Name, win rate and games use the app's standard upright .hero-name face (Chakra Petch; italic dropped 2026-09-28). Win rate/games show this map's numbers once a map is picked and all maps' before that (GET /api/stats/prematch returns all-maps byHero when no map is sent); hidden only for a hero with 0 games. On a selected test card every letter (arrow, name, sens tag, win rate, games) glows only as far as the gauge reaches (.lit-fill); coloured numbers keep their own hue via .lit-hue.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1158",
+            "path": "client/src/pages/Prematch.tsx:1162",
             "grep": "grep -n -F -- 'prematch-hero-picker-button' client/src/pages/Prematch.tsx"
           }
         },
@@ -1284,7 +1294,7 @@ const DATA = {
           "kind": "text",
           "description": "\" @ <sens>\" after a hero's name in Select Your Hero: the sens this hero's test is running at, or (emerald) the best sens its own testing settled on. Shown only when the hero has a sens test.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1215",
+            "path": "client/src/pages/Prematch.tsx:1219",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-hero-picker-sens-tag\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -5490,6 +5500,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 
