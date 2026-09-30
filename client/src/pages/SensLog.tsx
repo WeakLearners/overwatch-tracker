@@ -301,12 +301,14 @@ export default function SensLog() {
 
       {sensStudyOn && nextTest && !nextTest.allFinished && (nextTest.heroes?.length ?? 0) > 0 && (
         <div className="card mb-6" data-inspect-id="sl-phase-overview-card">
-          <h2 className="text-sm card-title mb-1">Phase overview</h2>
-          <p className="text-xs text-[var(--faint)] mb-3">
-            {nextTest.projection?.projectedDays != null
-              ? <>Projected finish in ~{Math.ceil(nextTest.projection.projectedDays)} days at the trailing 14-day pace ({nextTest.projection.ratePerDay.toFixed(1)} games/day) — a projection, not a promise.</>
-              : 'No games credited in the last 14 days — no basis for a finish projection yet.'}
-          </p>
+          <div className="flex items-baseline gap-2 mb-3">
+            <h2 className="text-sm card-title shrink-0">Phase overview</h2>
+            <p className="text-xs text-[var(--faint)] min-w-0">
+              {nextTest.projection?.projectedDays != null
+                ? <>Projected finish in ~{Math.ceil(nextTest.projection.projectedDays)} days at the trailing 14-day pace ({nextTest.projection.ratePerDay.toFixed(1)} games/day) — a projection, not a promise.</>
+                : 'No games credited in the last 14 days — no basis for a finish projection yet.'}
+            </p>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1" data-inspect-id="sl-phase-overview-hero-grid">
             {nextTest.heroes?.map(h => (
               <div key={h.hero} className="flex items-center gap-2 text-xs" data-inspect-id="sl-phase-overview-hero-row">
@@ -336,8 +338,10 @@ export default function SensLog() {
       <BackfillPanel pending={pending} loading={loading} />
 
       <div className="mt-10 pt-8 border-t border-ow-border">
-        <h2 data-inspect-id="sl-header-stage-trials" className="text-sm card-title mb-1">Sens stage trials</h2>
-        <p className="text-xs text-[var(--faint)] mb-4">Mouse DPI is locked at 1600 permanently — set your in-game sens to the value shown, play a batch, switch to the next stage. Log each game in the Match Tracker — it auto-tags to your current stage and queues up above for its combat details. Heroes can be tested in parallel — start as many as you like at once.</p>
+        <div className="flex items-baseline gap-2 mb-4">
+        <h2 data-inspect-id="sl-header-stage-trials" className="text-sm card-title shrink-0">Sens stage trials</h2>
+        <p className="text-xs text-[var(--faint)] min-w-0">Mouse DPI is locked at 1600 permanently — set your in-game sens to the value shown, play a batch, switch to the next stage. Log each game in the Match Tracker — it auto-tags to your current stage and queues up above for its combat details. Heroes can be tested in parallel — start as many as you like at once.</p>
+        </div>
         <PlanCard tabs={PLAN_TABS} state={dpiState} />
         <TestPanel state={dpiState} />
       </div>
@@ -1295,14 +1299,16 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
         <div className="fixed inset-0 z-50 grid place-items-center">
           <div className="fixed inset-0 bg-black/50" onClick={() => setShowAddPhase(false)} />
           <div className="relative card max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto" data-inspect-id="sl-add-phase-modal">
-            <h3 className="text-sm card-title mb-1">Add new phase</h3>
-            <p className="text-xs text-[var(--faint)] mb-4">
+            <div className="flex items-baseline gap-2 mb-4">
+            <h3 className="text-sm card-title shrink-0">Add new phase</h3>
+            <p className="text-xs text-[var(--faint)] min-w-0">
               Build the next phase's plan. Carried-over heroes' ranges are centered using each hero's full logged history (the
               curve fit on the Analysis page) — hover a hero's row for the basis, or the ⚠ badge for heroes with no reliable data
               yet. The bracket only narrows when that history both gives a confident answer and confirms the current range;
               otherwise the row recenters at the same width. Sens values are evenly spread across the stage count from each
               hero's low/high range.
             </p>
+            </div>
 
             <div className="flex items-end gap-4 mb-3">
               <label className="inline-block">
@@ -1626,8 +1632,10 @@ function CreateTestCard() {
 
   return (
     <div className="card max-w-lg" data-inspect-id="sl-create-test-card">
-      <h2 className="text-sm card-title mb-1">Create an ad-hoc sens test set</h2>
-      <p className="text-xs text-[var(--faint)] mb-4">Mouse DPI is locked at 1600 permanently. Pick each stage's in-game sens directly — e.g. levels chosen per hero from the analysis page. Type them into your in-game sens setting in this same order; the current stage's value stays visible on screen the whole test.</p>
+      <div className="flex items-baseline gap-2 mb-4">
+      <h2 className="text-sm card-title shrink-0">Create an ad-hoc sens test set</h2>
+      <p className="text-xs text-[var(--faint)] min-w-0">Mouse DPI is locked at 1600 permanently. Pick each stage's in-game sens directly — e.g. levels chosen per hero from the analysis page. Type them into your in-game sens setting in this same order; the current stage's value stays visible on screen the whole test.</p>
+      </div>
       <div className="grid grid-cols-2 gap-3 mb-3">
         <label className="block">
           <span className="block text-xs text-[var(--muted)] mb-1.5">Mouse DPI (locked)</span>
@@ -1826,8 +1834,10 @@ function BackfillPanel({ pending, loading }: {
 
   return (
     <div>
-      <h2 data-inspect-id="sl-record-combat-header" className="text-sm card-title mb-1">Record combat details</h2>
-      <p className="text-xs text-[var(--faint)] mb-4">Every match awaiting its aim stats. Matches are logged in the Match Tracker; while a stage test is running they arrive here already tagged with that stage's DPI.</p>
+      <div className="flex items-baseline gap-2 mb-4">
+      <h2 data-inspect-id="sl-record-combat-header" className="text-sm card-title shrink-0">Record combat details</h2>
+      <p className="text-xs text-[var(--faint)] min-w-0">Every match awaiting its aim stats. Matches are logged in the Match Tracker; while a stage test is running they arrive here already tagged with that stage's DPI.</p>
+      </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div className="card" data-inspect-id="sl-awaiting-stats-card">
         <div className="flex items-center justify-between mb-4">

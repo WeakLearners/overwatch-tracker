@@ -175,6 +175,9 @@ export default function Prematch() {
   const btTestLeft = btChunk
     ? Math.max(0, Math.ceil((btChunk.totalBlocksTarget - btChunk.closedBlocks) * 60 - btChunk.openMinutes))
     : bt ? Math.max(0, bt.n_stages * bt.batch_size - bt.totalGames) : 0;
+  // A 10+ hour clock needs a second hour drum and overflows its column at 1024px
+  // (~13px at size 28). One smaller size for every clock keeps the minute drums aligned.
+  const clockSize = btChunk && (btGamesLeft >= 600 || btTestLeft >= 600) ? 22 : 28;
   const { data: pendingData } = useApi<{ total: number }>('/api/aim/pending?limit=1');
   const backlogCount = pendingData?.total ?? 0;
   // One-digit backlog (max 9, 2026-09-28): gold from 7 up, a warning before it fills.
@@ -1428,14 +1431,14 @@ export default function Prematch() {
             // minute drums line up down the column.
             <div className="grid grid-cols-[auto_auto] justify-end items-center gap-x-3 gap-y-1.5 content-start">
               {btChunk
-                ? <ClockOdometer minutes={btTestLeft} size={28} dataInspectId="prematch-dpi-matches-left-odometer" />
+                ? <ClockOdometer minutes={btTestLeft} size={clockSize} dataInspectId="prematch-dpi-matches-left-odometer" />
                 : <Odometer value={btTestLeft} size={28} digits={3} narrow dataInspectId="prematch-dpi-matches-left-odometer" />}
               <div className="min-w-0 whitespace-nowrap translate-y-[3px]">
                 <div className="text-[10px] leading-[9px] uppercase tracking-wider text-[var(--muted)]">{btChunk ? 'left' : 'matches left'}</div>
                 <div className="text-[10px] leading-[9px] text-[var(--faint-2)]">in this test</div>
               </div>
               {btChunk
-                ? <ClockOdometer minutes={btGamesLeft} size={28} dataInspectId="prematch-dpi-games-left-odometer" />
+                ? <ClockOdometer minutes={btGamesLeft} size={clockSize} dataInspectId="prematch-dpi-games-left-odometer" />
                 : <Odometer value={btGamesLeft} size={28} digits={3} narrow dataInspectId="prematch-dpi-games-left-odometer" />}
               <div className="min-w-0 whitespace-nowrap translate-y-[3px]">
                 <div className="text-[10px] leading-[9px] uppercase tracking-wider text-[var(--muted)]">{btChunk ? 'left' : 'games left'}</div>
@@ -1445,7 +1448,7 @@ export default function Prematch() {
                   counts games and has no blocks. */}
               {btChunk && (
                 <>
-                  <ClockOdometer minutes={Math.max(0, Math.ceil(60 - btChunk.openMinutes))} size={28} dataInspectId="prematch-dpi-block-left-odometer" />
+                  <ClockOdometer minutes={Math.max(0, Math.ceil(60 - btChunk.openMinutes))} size={clockSize} dataInspectId="prematch-dpi-block-left-odometer" />
                   <div className="min-w-0 whitespace-nowrap translate-y-[3px]">
                     <div className="text-[10px] leading-[9px] uppercase tracking-wider text-[var(--muted)]">left</div>
                     <div className="text-[10px] leading-[9px] text-[var(--faint-2)]">in this block</div>
@@ -1475,9 +1478,10 @@ export default function Prematch() {
                 to="/sens"
                 // The accent's lit fill (.is-selected.mode-fill) with a thin
                 // 1px border instead of the mode tile's 2px one. The extra 1px
-                // padding keeps the button's size.
+                // padding keeps the button's size. boxShadow none drops the
+                // tile's lit bottom edge and glow; the fill stays.
                 className="relative block w-full text-center rounded border is-selected mode-fill px-[9px] py-[7px] text-sm font-bold whitespace-nowrap cursor-pointer active:scale-[0.98] hover:brightness-110 transition-all"
-                style={{ '--sel': ACCENT_SEL } as React.CSSProperties}
+                style={{ '--sel': ACCENT_SEL, boxShadow: 'none' } as React.CSSProperties}
                 data-inspect-id="prematch-backlog-go-link"
               >
                 <span className="lit-text">Go to backlog →</span>

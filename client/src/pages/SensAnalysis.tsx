@@ -253,8 +253,10 @@ function buildCurveLine(fit: CurveFit, steps = 40): { x: number; y: number }[] {
 function Section({ title, hint, children, dataInspectId }: { title: string; hint: string; children: React.ReactNode; dataInspectId?: string }) {
   return (
     <div className="card" data-inspect-id={dataInspectId}>
-      <h2 className="text-sm card-title">{title}</h2>
-      <p className="text-xs text-[var(--faint)] mt-1 mb-4">{hint}</p>
+      <div className="flex items-baseline gap-2 mb-4">
+        <h2 className="text-sm card-title shrink-0">{title}</h2>
+        <p className="text-xs text-[var(--faint)] min-w-0">{hint}</p>
+      </div>
       {children}
     </div>
   );
