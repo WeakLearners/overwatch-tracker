@@ -1155,9 +1155,6 @@ export default function LogMatch() {
                   );
                 })}
               </div>
-              <p className="text-[11px] text-[var(--faint)] mt-1.5 leading-snug">
-                Sens test only tracks Competitive games (any role) and Quickplay games played as Support — everything else logs at the frozen fallback sens instead of the active test value.
-              </p>
             </div>
 
             <div className="grid grid-cols-3 gap-3">

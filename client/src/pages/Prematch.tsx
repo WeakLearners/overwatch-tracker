@@ -983,143 +983,6 @@ export default function Prematch() {
         <LobbyRankSection className="card mb-4" />
       </div>
 
-      {sensStudyOn && (
-        <div className="mb-4 sm:w-72">
-        {/* DPI stage-test HUD — a dropdown picks which "In Testing" hero you're
-            about to play (several can be active at once, but the mouse can
-            only sit on one DPI at a time), then shows that hero's current
-            stage DPI plainly (no hiding) plus two live wheels: minutes left
-            in its whole test and in its current stage (games, for a legacy
-            unchunked set).
-            Drives off the same state the Sens page loop does. Sits where the
-            sens picker used to. */}
-        <div className="card flex flex-col" data-inspect-id="prematch-dpi-hud-card">
-          {/* mb-2 min-h-8 matches Map Voting's/Hero Advisor's header row
-              exactly (both use the same two classes) so this card's title
-              sits at the same vertical position and the row below it starts
-              from the same 40px offset their search-input/select rows do —
-              see the mt-2.5 comment below for how that offset is spent. */}
-          <div className="flex items-center justify-between mb-2 min-h-8 gap-2">
-            <h2 className="text-sm card-title whitespace-nowrap">{bt?.sens != null ? 'Sens Test' : 'DPI Test'}</h2>
-            {bt && (
-              <span className="text-xs num-display text-[var(--ink)] shrink-0" data-inspect-id="prematch-dpi-value-badge">
-                {bt.sens != null ? `${bt.sens.toFixed(2)} sens` : `${bt.dpi} DPI`}
-              </span>
-            )}
-          </div>
-          {btActives.length > 1 && (
-            <select
-              value={bt ? (bt.hero ?? AD_HOC_KEY) : ''}
-              onChange={e => setBtHeroPick(e.target.value)}
-              className="text-[11px] field px-1.5 py-1 mb-1 w-full"
-              aria-label="Hero to show DPI-test progress for"
-              data-inspect-id="prematch-dpi-hero-picker-select"
-            >
-              {btActives.map(a => (
-                <option key={a.set_id} value={a.hero ?? AD_HOC_KEY}>
-                  {(a.hero ?? 'Ad-hoc').toUpperCase()} — {a.sens != null ? `${a.sens.toFixed(2)} sens` : `${a.dpi} DPI`}
-                </option>
-              ))}
-            </select>
-          )}
-          {btActives.length === 1 && (
-            // Fixed h-[23px] + mb-1 makes this row's total height/margin
-            // (27px) match the <select> branch above pixel-for-pixel (its
-            // ~23px field height + mb-1), so the odometer grid below starts
-            // from the same offset regardless of which of the two branches
-            // rendered — needed so the grid's bottom edge (aligned to Map
-            // Voting's best-maps list, see mt-2.5 comment below) doesn't
-            // shift depending on how many DPI tests are active.
-            <div className="h-[23px] flex items-center mb-1">
-              <span className="text-[10px] hero-name text-[var(--faint-2)] truncate">{bt!.hero ?? 'ad-hoc'}</span>
-            </div>
-          )}
-          {bt ? (
-            // Two-point alignment with the Map Voting card's idle best-maps
-            // list (both cards share the same ~178.88px content budget):
-            // top of the hero-picker select == top of Map Voting's search
-            // box (both at 40px from content top: a 32px min-h-8 header row
-            // + 8px margin, identical classes on both cards' header rows),
-            // and bottom of this odometer group == bottom of Map Voting's
-            // 3-row best-maps list (both land at ~177px). Header(40) +
-            // select-or-name-line block(27, see branch above) = 67px used
-            // before this grid; mt-2.5 (10px) + the grid's own 3-row content
-            // (~100px at size=32/gap-y-0.5) lands its bottom at ~177px,
-            // matching Map Voting's list bottom. Odometers stay at 32 (down
-            // from the original 46 default) — shrinking further to buy more
-            // offset would make them hard to read, so this is as close as
-            // the two cards' differing internal content gets without that
-            // tradeoff.
-            <div className="flex-1 grid grid-cols-[auto_auto] items-center gap-x-3 gap-y-0.5 content-start mt-2.5">
-              <Odometer value={btTestLeft} size={32} digits={3} dataInspectId="prematch-dpi-matches-left-odometer" />
-              <div className="leading-tight">
-                {/* text-[10px] uppercase tracking-wider text-[var(--muted)]
-                    matches Hero Advisor's stat-tile labels (Today/Streak/
-                    This hour, prematch-today-stat-tile etc.) exactly, so
-                    this card's counter names read with the same caps
-                    treatment as the app's other small stat labels. */}
-                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">{btChunk ? 'minutes left' : 'matches left'}</div>
-                <div className="text-[10px] text-[var(--faint-2)]">in this test</div>
-              </div>
-              <Odometer value={btGamesLeft} size={32} digits={3} dataInspectId="prematch-dpi-games-left-odometer" />
-              <div className="leading-tight">
-                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">{btChunk ? 'minutes left' : 'games left'}</div>
-                <div className="text-[10px] text-[var(--faint-2)]">in stage <b className="font-bold">{bt.cur_stage}</b></div>
-              </div>
-              {/* Backlog counter shares this grid's column tracks (rather than
-                  being its own grid) so its drum is guaranteed to land in the
-                  same x position as the two above — a separate grid re-centers
-                  independently and drifts whenever the label text width differs. */}
-              {/* padTo={3}: two invisible spacer drums, so its one digit sits
-                  under the ones digit of the three-digit counters above. */}
-              <Odometer value={backlogCount} size={32} digits={1} padTo={3} warn={backlogCount >= BACKLOG_WARN} dataInspectId="prematch-backlog-odometer" />
-              <div className="leading-tight">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">backlog</span>
-                  {/* Opens the Sens page at the top, like any other arrival. */}
-                  <Link
-                    to="/sens"
-                    className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-lg bg-gradient-to-r from-ow-accent to-ow-accentLight text-white shadow-md shadow-ow-accent/30 hover:brightness-110 active:brightness-95 transition-all whitespace-nowrap"
-                    data-inspect-id="prematch-backlog-go-link"
-                  >
-                    Go →
-                  </Link>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex-1 grid justify-items-center content-start text-center px-2" data-inspect-id="prematch-dpi-idle-banner">
-              <div>
-                <div className="text-xs text-[var(--faint)]">No DPI test running</div>
-                <div className="text-[10px] text-[var(--faint-2)] mt-1">Start one on the Sens page →</div>
-              </div>
-            </div>
-          )}
-
-          {/* Idle state has no sibling drum row to align with, so the backlog
-              counter gets its own simple centered row here instead. */}
-          {btActives.length === 0 && (
-            <div className="flex items-center justify-center gap-3 pt-3 mt-2">
-              <Odometer value={backlogCount} digits={1} warn={backlogCount >= BACKLOG_WARN} />
-              <div className="leading-tight">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">backlog</span>
-                  <Link
-                    to="/sens"
-                    className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-lg bg-gradient-to-r from-ow-accent to-ow-accentLight text-white shadow-md shadow-ow-accent/30 hover:brightness-110 active:brightness-95 transition-all whitespace-nowrap"
-                    data-inspect-id="prematch-backlog-go-link"
-                  >
-                    Go →
-                  </Link>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-        </div>
-      )}
-
-
       {/* Consolidated advisor — recommendation + coaching + your heroes in one
           card below the row. When a map is picked these three used to repeat the
           same "what to play" answer across separate cards; here they read as one
@@ -1132,70 +995,9 @@ export default function Prematch() {
                 <>Your Heroes on <button onClick={() => openMap(map)} className="text-ow-accent hover:text-ow-accent/80 transition-colors" data-inspect-id="prematch-your-heroes-map-link">{withMapCount(map, mapCounts)}</button></>
               ) : 'Your Best Heroes Overall'}
             </h2>
-            <p className="text-xs text-[var(--faint)] mt-0.5">By role · min 2 games · tap hero to pre-fill log</p>
           </div>
           <div className="flex flex-col items-end gap-2">
-            {/* Next test — the sens-study round-robin recommender (GET
-                /api/blind/next, lib/nextTest.ts). Gated on the sens-study
-                category since it has nothing to say when that data isn't being
-                collected. Sits top-right of the advisor header, opposite
-                "Your Best Heroes". */}
-            {sensStudyOn && nextTest && (
-              <div className="shrink-0 max-w-[16rem] text-right" data-inspect-id="prematch-next-test-card">
-                <h3 className="text-sm card-title mb-1">Next test</h3>
-                {nextTest.isQuickplay ? (
-                  <p className="text-xs text-[var(--faint)]" data-inspect-id="prematch-next-test-qp">
-                    Quickplay doesn't count toward testing — queue Competitive
-                  </p>
-                ) : nextTest.allFinished ? (
-                  <p className="text-xs text-[var(--faint)]" data-inspect-id="prematch-next-test-finished">
-                    Every hero in this phase is done — next phase needs creating on the Sens page.
-                  </p>
-                ) : nextTest.block ? (
-                  <p className="text-xs text-[var(--ink)]" data-inspect-id="prematch-next-test-block">
-                    Stay on <b className="hero-name">{nextTest.block.hero}</b> — {Math.floor(nextTest.block.openMinutes)} minutes played
-                    <span className="text-[var(--faint-2)]"> · queue {nextTest.block.role}</span>
-                  </p>
-                ) : (
-                  <div data-inspect-id="prematch-next-test-list">
-                    {/* nextTest.justClosed (added 2026-09-27) tells the two
-                        causes of block===null apart: a block that just
-                        closed (say so plainly) vs. nothing played yet this
-                        phase (stay neutral — there's no "block" to call
-                        done). */}
-                    <p className="text-xs text-[var(--ink)] mb-1.5" data-inspect-id="prematch-next-test-just-closed">
-                      {nextTest.justClosed ? (
-                        <>Block done on <b className="hero-name">{nextTest.justClosed.hero}</b> — switch to <b className="hero-name">{nextTest.orderedHeroes?.[0]?.hero}</b></>
-                      ) : (
-                        <>Queue <b>{nextTest.recommendedRole}</b> → {nextTest.orderedHeroes?.map(h => h.hero).join(', ')}</>
-                      )}
-                    </p>
-                    <div className="flex flex-col gap-0.5">
-                      {nextTest.orderedHeroes?.map(h => (
-                        <div key={h.hero} className="flex items-center justify-end gap-1.5 text-[11px] text-[var(--faint-2)]" data-inspect-id="prematch-next-test-hero-row">
-                          <span className="hero-name truncate">{h.hero}</span>
-                          {/* Minutes played / planned for a block-based set
-                              (2026-09-28); games for a legacy one. */}
-                          <span className="num-display">
-                            {h.targetMinutes != null ? `${h.playedMinutes ?? 0}/${h.targetMinutes} min` : `${h.credited}/${h.target}`}
-                          </span>
-                          {h.cold && (
-                            <span className="text-[9px] font-bold uppercase tracking-wide text-blue-500" title={`${h.daysSinceLastPlayed} days since last played`}>
-                              cold
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {!!nextTest.finishedHeroes?.length && !nextTest.allFinished && (
-                  <p className="text-[10px] text-[var(--faint-2)] mt-1.5" data-inspect-id="prematch-next-test-done-heroes">
-                    Done this phase: {nextTest.finishedHeroes.join(', ')}
-                  </p>
-                )}
-              </div>
-            )}
+            <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">Advice</span>
           {map && (
             <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest shrink-0 pt-0.5">
               <span className="text-[var(--faint)]">{queueLabel}</span>
@@ -1299,13 +1101,21 @@ export default function Prematch() {
             )}
           </div>
         )}
+      </div>
 
+      <div className="flex flex-col sm:flex-row items-stretch gap-4">
         {/* Your heroes by role — the full breakdown, and the actual hero-select
             control (tapping a hero pre-fills the Match Log). Styled as its own
             selection panel — bordered, tinted, chip buttons — rather than a
             trailing stats list, so it doesn't get missed after Coaching above it. */}
-        <div className="mt-4 pt-4 border-t border-ow-border/40">
-        <h3 className="text-sm card-title mb-3" data-inspect-id="prematch-select-your-hero-header">Select Your Hero</h3>
+        {/* Select Your Hero — game step 5, the tracker's hero input. Advice sits
+            above it (the card above) and the Experiment column beside it. Its
+            picks feed the Match Log's hero slots through MatchContext. */}
+        <div className="card flex-1 min-w-0" data-inspect-id="prematch-hero-select-card">
+        <div className="mb-3">
+          <h3 className="text-sm card-title" data-inspect-id="prematch-select-your-hero-header">Select Your Hero</h3>
+          <p className="text-xs text-[var(--faint)] mt-0.5">By role · min 2 games · tap hero to pre-fill log</p>
+        </div>
         {showHeroPicker ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" data-inspect-id="prematch-hero-picker-list">
             {(['DPS', 'Support'] as const).map(role => {
@@ -1532,6 +1342,208 @@ export default function Prematch() {
           />
         )}
         </div>
+        {/* Experiment — the sens-study module (blind stages), step 5 beside hero
+            select. Mounted only while the sens-study category is on; with it
+            off there is nothing to run and nothing to show. */}
+        {sensStudyOn && (
+          <div className="sm:w-72 shrink-0 flex flex-col gap-4" data-inspect-id="prematch-experiment-card">
+        {/* DPI stage-test HUD — a dropdown picks which "In Testing" hero you're
+            about to play (several can be active at once, but the mouse can
+            only sit on one DPI at a time), then shows that hero's current
+            stage DPI plainly (no hiding) plus two live wheels: minutes left
+            in its whole test and in its current stage (games, for a legacy
+            unchunked set).
+            Drives off the same state the Sens page loop does. Sits where the
+            sens picker used to. */}
+        <div className="card flex flex-col" data-inspect-id="prematch-dpi-hud-card">
+          {/* mb-2 min-h-8 matches Map Voting's/Hero Advisor's header row
+              exactly (both use the same two classes) so this card's title
+              sits at the same vertical position and the row below it starts
+              from the same 40px offset their search-input/select rows do —
+              see the mt-2.5 comment below for how that offset is spent. */}
+          <div className="flex items-center justify-between mb-2 min-h-8 gap-2">
+            <h2 className="text-sm card-title whitespace-nowrap">{bt?.sens != null ? 'Sens Test' : 'DPI Test'}</h2>
+            {bt && (
+              <span className="text-xs num-display text-[var(--ink)] shrink-0" data-inspect-id="prematch-dpi-value-badge">
+                {bt.sens != null ? `${bt.sens.toFixed(2)} sens` : `${bt.dpi} DPI`}
+              </span>
+            )}
+          </div>
+          {btActives.length > 1 && (
+            <select
+              value={bt ? (bt.hero ?? AD_HOC_KEY) : ''}
+              onChange={e => setBtHeroPick(e.target.value)}
+              className="text-[11px] field px-1.5 py-1 mb-1 w-full"
+              aria-label="Hero to show DPI-test progress for"
+              data-inspect-id="prematch-dpi-hero-picker-select"
+            >
+              {btActives.map(a => (
+                <option key={a.set_id} value={a.hero ?? AD_HOC_KEY}>
+                  {(a.hero ?? 'Ad-hoc').toUpperCase()} — {a.sens != null ? `${a.sens.toFixed(2)} sens` : `${a.dpi} DPI`}
+                </option>
+              ))}
+            </select>
+          )}
+          {btActives.length === 1 && (
+            // Fixed h-[23px] + mb-1 makes this row's total height/margin
+            // (27px) match the <select> branch above pixel-for-pixel (its
+            // ~23px field height + mb-1), so the odometer grid below starts
+            // from the same offset regardless of which of the two branches
+            // rendered — needed so the grid's bottom edge (aligned to Map
+            // Voting's best-maps list, see mt-2.5 comment below) doesn't
+            // shift depending on how many DPI tests are active.
+            <div className="h-[23px] flex items-center mb-1">
+              <span className="text-[10px] hero-name text-[var(--faint-2)] truncate">{bt!.hero ?? 'ad-hoc'}</span>
+            </div>
+          )}
+          {bt ? (
+            // Two-point alignment with the Map Voting card's idle best-maps
+            // list (both cards share the same ~178.88px content budget):
+            // top of the hero-picker select == top of Map Voting's search
+            // box (both at 40px from content top: a 32px min-h-8 header row
+            // + 8px margin, identical classes on both cards' header rows),
+            // and bottom of this odometer group == bottom of Map Voting's
+            // 3-row best-maps list (both land at ~177px). Header(40) +
+            // select-or-name-line block(27, see branch above) = 67px used
+            // before this grid; mt-2.5 (10px) + the grid's own 3-row content
+            // (~100px at size=32/gap-y-0.5) lands its bottom at ~177px,
+            // matching Map Voting's list bottom. Odometers stay at 32 (down
+            // from the original 46 default) — shrinking further to buy more
+            // offset would make them hard to read, so this is as close as
+            // the two cards' differing internal content gets without that
+            // tradeoff.
+            <div className="flex-1 grid grid-cols-[auto_auto] items-center gap-x-3 gap-y-0.5 content-start mt-2.5">
+              <Odometer value={btTestLeft} size={32} digits={3} dataInspectId="prematch-dpi-matches-left-odometer" />
+              <div className="leading-tight">
+                {/* text-[10px] uppercase tracking-wider text-[var(--muted)]
+                    matches Hero Advisor's stat-tile labels (Today/Streak/
+                    This hour, prematch-today-stat-tile etc.) exactly, so
+                    this card's counter names read with the same caps
+                    treatment as the app's other small stat labels. */}
+                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">{btChunk ? 'minutes left' : 'matches left'}</div>
+                <div className="text-[10px] text-[var(--faint-2)]">in this test</div>
+              </div>
+              <Odometer value={btGamesLeft} size={32} digits={3} dataInspectId="prematch-dpi-games-left-odometer" />
+              <div className="leading-tight">
+                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">{btChunk ? 'minutes left' : 'games left'}</div>
+                <div className="text-[10px] text-[var(--faint-2)]">in stage <b className="font-bold">{bt.cur_stage}</b></div>
+              </div>
+              {/* Backlog counter shares this grid's column tracks (rather than
+                  being its own grid) so its drum is guaranteed to land in the
+                  same x position as the two above — a separate grid re-centers
+                  independently and drifts whenever the label text width differs. */}
+              {/* padTo={3}: two invisible spacer drums, so its one digit sits
+                  under the ones digit of the three-digit counters above. */}
+              <Odometer value={backlogCount} size={32} digits={1} padTo={3} warn={backlogCount >= BACKLOG_WARN} dataInspectId="prematch-backlog-odometer" />
+              <div className="leading-tight">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">backlog</span>
+                  {/* Opens the Sens page at the top, like any other arrival. */}
+                  <Link
+                    to="/sens"
+                    className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-lg bg-gradient-to-r from-ow-accent to-ow-accentLight text-white shadow-md shadow-ow-accent/30 hover:brightness-110 active:brightness-95 transition-all whitespace-nowrap"
+                    data-inspect-id="prematch-backlog-go-link"
+                  >
+                    Go →
+                  </Link>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 grid justify-items-center content-start text-center px-2" data-inspect-id="prematch-dpi-idle-banner">
+              <div>
+                <div className="text-xs text-[var(--faint)]">No DPI test running</div>
+                <div className="text-[10px] text-[var(--faint-2)] mt-1">Start one on the Sens page →</div>
+              </div>
+            </div>
+          )}
+
+          {/* Idle state has no sibling drum row to align with, so the backlog
+              counter gets its own simple centered row here instead. */}
+          {btActives.length === 0 && (
+            <div className="flex items-center justify-center gap-3 pt-3 mt-2">
+              <Odometer value={backlogCount} digits={1} warn={backlogCount >= BACKLOG_WARN} />
+              <div className="leading-tight">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">backlog</span>
+                  <Link
+                    to="/sens"
+                    className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-lg bg-gradient-to-r from-ow-accent to-ow-accentLight text-white shadow-md shadow-ow-accent/30 hover:brightness-110 active:brightness-95 transition-all whitespace-nowrap"
+                    data-inspect-id="prematch-backlog-go-link"
+                  >
+                    Go →
+                  </Link>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+            {/* Next test — the sens-study round-robin recommender (GET
+                /api/blind/next, lib/nextTest.ts). The whole column is gated on
+                the sens-study category, since it has nothing to say when that
+                data isn't being collected. Sits under the HUD in the Experiment column. */}
+            {nextTest && (
+              <div className="card text-left" data-inspect-id="prematch-next-test-card">
+                <h3 className="text-sm card-title mb-1">Next test</h3>
+                {nextTest.isQuickplay ? (
+                  <p className="text-xs text-[var(--faint)]" data-inspect-id="prematch-next-test-qp">
+                    Quickplay doesn't count toward testing — queue Competitive
+                  </p>
+                ) : nextTest.allFinished ? (
+                  <p className="text-xs text-[var(--faint)]" data-inspect-id="prematch-next-test-finished">
+                    Every hero in this phase is done — next phase needs creating on the Sens page.
+                  </p>
+                ) : nextTest.block ? (
+                  <p className="text-xs text-[var(--ink)]" data-inspect-id="prematch-next-test-block">
+                    Stay on <b className="hero-name">{nextTest.block.hero}</b> — {Math.floor(nextTest.block.openMinutes)} minutes played
+                    <span className="text-[var(--faint-2)]"> · queue {nextTest.block.role}</span>
+                  </p>
+                ) : (
+                  <div data-inspect-id="prematch-next-test-list">
+                    {/* nextTest.justClosed (added 2026-09-27) tells the two
+                        causes of block===null apart: a block that just
+                        closed (say so plainly) vs. nothing played yet this
+                        phase (stay neutral — there's no "block" to call
+                        done). */}
+                    <p className="text-xs text-[var(--ink)] mb-1.5" data-inspect-id="prematch-next-test-just-closed">
+                      {nextTest.justClosed ? (
+                        <>Block done on <b className="hero-name">{nextTest.justClosed.hero}</b> — switch to <b className="hero-name">{nextTest.orderedHeroes?.[0]?.hero}</b></>
+                      ) : (
+                        <>Queue <b>{nextTest.recommendedRole}</b> → {nextTest.orderedHeroes?.map(h => h.hero).join(', ')}</>
+                      )}
+                    </p>
+                    <div className="flex flex-col gap-0.5">
+                      {nextTest.orderedHeroes?.map(h => (
+                        <div key={h.hero} className="flex items-center justify-start gap-1.5 text-[11px] text-[var(--faint-2)]" data-inspect-id="prematch-next-test-hero-row">
+                          <span className="hero-name truncate">{h.hero}</span>
+                          {/* Minutes played / planned for a block-based set
+                              (2026-09-28); games for a legacy one. */}
+                          <span className="num-display">
+                            {h.targetMinutes != null ? `${h.playedMinutes ?? 0}/${h.targetMinutes} min` : `${h.credited}/${h.target}`}
+                          </span>
+                          {h.cold && (
+                            <span className="text-[9px] font-bold uppercase tracking-wide text-blue-500" title={`${h.daysSinceLastPlayed} days since last played`}>
+                              cold
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {!!nextTest.finishedHeroes?.length && !nextTest.allFinished && (
+                  <p className="text-[10px] text-[var(--faint-2)] mt-1.5" data-inspect-id="prematch-next-test-done-heroes">
+                    Done this phase: {nextTest.finishedHeroes.join(', ')}
+                  </p>
+                )}
+              </div>
+            )}
+            <p className="text-[11px] text-[var(--faint)] leading-snug">
+              Sens test only tracks Competitive games (any role) and Quickplay games played as Support — everything else logs at the frozen fallback sens instead of the active test value.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
