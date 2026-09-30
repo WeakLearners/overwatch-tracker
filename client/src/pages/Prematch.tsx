@@ -1436,7 +1436,7 @@ export default function Prematch() {
             // beside it. Narrow drums at size 28 (17px
             // wide, 22px digit); an H:MM clock is ~63px. Right-aligned, so the
             // minute drums line up down the column.
-            <div className="grid grid-cols-[auto_auto] justify-end items-center gap-x-1.5 gap-y-1.5 content-start">
+            <div className="grid grid-cols-[auto_auto] justify-end items-center gap-x-3 gap-y-1.5 content-start">
               {btChunk
                 ? <ClockOdometer minutes={btTestLeft} size={28} dataInspectId="prematch-dpi-matches-left-odometer" />
                 : <Odometer value={btTestLeft} size={28} digits={3} narrow dataInspectId="prematch-dpi-matches-left-odometer" />}
