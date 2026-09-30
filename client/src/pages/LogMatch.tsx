@@ -7,7 +7,6 @@ import EmptyState from '../components/EmptyState';
 import ModeWatermark from '../components/ModeWatermark';
 import RegistryField from '../components/RegistryField';
 import LeaverSliver from '../components/LeaverSliver';
-import LobbyRankSection from '../components/LobbyRankSection';
 import { buildRosterEditPayload } from '../lib/matchEditRoster';
 import { useApi, revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
@@ -1279,8 +1278,6 @@ export default function LogMatch() {
               </select>
               {map && mapType && <span data-inspect-id="logmatch-map-type-badge" className={`pill mt-1.5 ${TYPE_COLORS[mapType] ?? ''}`}>{mapType}</span>}
             </div>
-
-            <LobbyRankSection />
 
             <div>
               <label data-inspect-id="logmatch-result-toggle" className="block text-xs text-[var(--muted)] mb-1.5">Result</label>

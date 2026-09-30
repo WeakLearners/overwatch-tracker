@@ -1,3 +1,4 @@
+import LobbyRankSection from '../components/LobbyRankSection';
 import SegmentedPills from '../components/SegmentedPills';
 import { useState, useRef, useEffect } from 'react';
 import { format } from 'date-fns';
@@ -1269,6 +1270,12 @@ export default function Prematch() {
             )}
           </div>
         )}
+
+        {/* Lobby Rank — captured HERE, at hero select, and not in the Match Log.
+            See LobbyRankSection for why. The component and its state are
+            tracker-owned (MatchContext); only its placement is here, because
+            this is where the player is when the scoreboard is readable. */}
+        <LobbyRankSection className="mt-4 pt-4 border-t border-ow-border/40" />
 
         {/* Your heroes by role — the full breakdown, and the actual hero-select
             control (tapping a hero pre-fills the Match Log). Styled as its own

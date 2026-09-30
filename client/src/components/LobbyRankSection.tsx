@@ -8,10 +8,11 @@ import { DEFAULT_LOBBY_SPREAD, clampRank, rankFromParts } from '../types';
 // The band's remembered width. Its position persists too, in MatchContext.
 const TRAY_WIDTH_KEY = 'ow-lobby-tray-width';
 
-// Lobby Rank capture — the rank drum and the lobby-range band. Lives in the Log
-// Match form (moved from Pre-Match 2026-09-29, tracker/lab split) because it
-// writes lobby_low/lobby_high, which are match columns. State stays in
-// MatchContext; this component only draws it.
+// Lobby Rank capture — the rank drum and the lobby-range band. Tracker-owned:
+// it writes lobby_low/lobby_high, which are match columns, and its state lives
+// in MatchContext. It is deliberately NOT in the Match Log form: it is read at
+// hero select, from the opening scoreboard, and it is the tracker's centrepiece
+// (Sean, 2026-09-29 — moving it into the form was reverted the same night).
 //
 // The lobby's rank spread is only readable on the opening scoreboard. By the
 // time the match ends and gets logged it is gone, and a guess recalled ten
@@ -22,7 +23,7 @@ const TRAY_WIDTH_KEY = 'ow-lobby-tray-width';
 //
 // Competitive only — quickplay has no rank, so the section is hidden rather
 // than sitting empty and inviting a guess.
-export default function LobbyRankSection() {
+export default function LobbyRankSection({ className = '' }: { className?: string }) {
   const { queueMode, playerRank, setPlayerRank, lobbyLow, lobbyHigh, setLobbyRange, clearLobbyRange } = useMatch();
   const { isFieldEnabled } = useFieldConfig();
   // Field-registry Phase 2 (2026-09-24) — lobby_low/lobby_high's registry
@@ -77,9 +78,9 @@ export default function LobbyRankSection() {
   if (queueMode === 'qp_role') return null;
 
   return (
-    <div data-inspect-id="logmatch-lobby-rank-section">
+    <div className={className} data-inspect-id="lobby-rank-section">
       <div className="flex items-baseline gap-2 mb-3">
-        <h3 className="text-sm card-title" data-inspect-id="logmatch-lobby-rank-header">Lobby Rank</h3>
+        <h3 className="text-sm card-title" data-inspect-id="lobby-rank-header">Lobby Rank</h3>
         <span className="text-xs text-[var(--faint-2)]">read it off the scoreboard now</span>
       </div>
 
@@ -88,22 +89,22 @@ export default function LobbyRankSection() {
           one place rather than a screen apart. The drum keeps its own square
           width; the track takes the rest and is allowed to shrink (min-w-0),
           so a 21-box row never pushes the drum off the card. */}
-      <div className="flex items-center gap-4" data-inspect-id="logmatch-lobby-rank-row">
-        <div className="flex flex-col items-center justify-center gap-1.5 shrink-0" data-inspect-id="logmatch-rank-drum">
+      <div className="flex items-center gap-4" data-inspect-id="lobby-rank-row">
+        <div className="flex flex-col items-center justify-center gap-1.5 shrink-0" data-inspect-id="lobby-rank-drum">
           <button
             type="button"
             onClick={() => stepRank(1)}
-            data-inspect-id="logmatch-rank-drum-up"
+            data-inspect-id="lobby-rank-drum-up"
             aria-label="Rank up one division"
             className="w-20 h-6 rounded-md border border-ow-border text-[var(--faint)] hover:text-ow-accent hover:border-ow-accent/60 transition-colors leading-none text-xs"
           >
             ▲
           </button>
-          <RankBadge rank={playerRank} size="lg" dataInspectId="logmatch-rank-drum-badge" />
+          <RankBadge rank={playerRank} size="lg" dataInspectId="lobby-rank-drum-badge" />
           <button
             type="button"
             onClick={() => stepRank(-1)}
-            data-inspect-id="logmatch-rank-drum-down"
+            data-inspect-id="lobby-rank-drum-down"
             aria-label="Rank down one division"
             className="w-20 h-6 rounded-md border border-ow-border text-[var(--faint)] hover:text-ow-accent hover:border-ow-accent/60 transition-colors leading-none text-xs"
           >
@@ -112,7 +113,7 @@ export default function LobbyRankSection() {
         </div>
         <div className="flex-1 min-w-0">
           {!lobbyRangeOn ? null : playerRank == null ? (
-            <p className="text-xs text-[var(--faint-2)]" data-inspect-id="logmatch-lobby-rank-needs-rank">
+            <p className="text-xs text-[var(--faint-2)]" data-inspect-id="lobby-rank-needs-rank">
               Set your rank on the drum first — the track is built around it.
             </p>
           ) : (
