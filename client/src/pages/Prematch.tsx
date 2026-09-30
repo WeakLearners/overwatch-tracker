@@ -1,11 +1,10 @@
 import LobbyRankSection from '../components/LobbyRankSection';
 import SegmentedPills from '../components/SegmentedPills';
 import { useState, useRef, useEffect } from 'react';
-import { format } from 'date-fns';
 import { useApi, revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
-import { MAPS, QUEUE_MODES, ROLE_COLORS, ROLE_SEL_RGB, ROLE_TEXT, ROLE_PILL_CLASS, TYPE_COLORS, HEROES, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, MapVotingRow, QueueMode, Streaks, RANK_TIER_RGB, ACCOUNTS, rankLabel, rankTier, rankDivision } from '../types';
+import { MAPS, QUEUE_MODES, ROLE_COLORS, ROLE_SEL_RGB, ROLE_TEXT, ROLE_PILL_CLASS, TYPE_COLORS, HEROES, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, MapVotingRow, QueueMode, RANK_TIER_RGB, ACCOUNTS, rankLabel, rankTier, rankDivision } from '../types';
 import AdvisorCard from '../components/AdvisorCard';
 import EmptyState from '../components/EmptyState';
 import { useMapDrawer } from '../contexts/MapDrawerContext';
@@ -217,11 +216,6 @@ export default function Prematch() {
   const { openHero } = useHeroDrawer();
   const { data: votingData } = useApi<MapVotingRow[]>('/api/stats/map-voting');
 
-  // Idle-state filler data for the Map Voting / Hero Advisor cards.
-  const today = format(new Date(), 'yyyy-MM-dd');
-  const { data: todayMatches } = useApi<{ rows: { win: 0 | 1; map: string; hero: string }[] }>(`/api/matches?from=${today}&to=${today}&limit=100`);
-  const { data: streaksData } = useApi<Streaks>('/api/stats/streaks');
-  const { data: byHour } = useApi<{ hour: number; games: number; wins: number; win_rate: number; qp_games: number; qp_win_rate: number | null; comp_games: number; comp_win_rate: number | null }[]>('/api/stats/by-hour');
   const [selected, setSelected] = useState<string[]>([]);
   // Hand the Map Voting picks to the Log Match map picker, which narrows its
   // list to them (empty = every map). Cleared if this page goes away.
@@ -308,13 +302,6 @@ export default function Prematch() {
     .sort((a, b) => b.recent_rate! - a.recent_rate!);
   const bestMaps = rankedMaps.slice(0, 3);
   const worstMaps = rankedMaps.slice(-3).reverse().filter(m => !bestMaps.includes(m));
-
-  // Session & timing snapshot for the idle Hero Advisor card.
-  const todayRows = todayMatches?.rows ?? [];
-  const todayW = todayRows.filter(r => r.win === 1).length;
-  const todayL = todayRows.length - todayW;
-  const curHour = new Date().getHours();
-  const hourRow = (byHour ?? []).find(h => h.hour === curHour);
 
   const results = query.length > 0
     ? ALL_MAPS.filter(m => m.toLowerCase().includes(query.toLowerCase()) && !selected.includes(m))
@@ -574,8 +561,7 @@ export default function Prematch() {
             true centre. Sizing them to their own content would drift the
             centre every time the readout's rank text changed length. */}
         <div className="flex items-stretch gap-2.5 shrink-0">
-          {/* Small group labels, same style as the "Today" label on the
-              Hero Advisor dots. */}
+          {/* Small group labels. */}
           <span className="text-[10px] uppercase tracking-wider text-[var(--faint-2)] self-center shrink-0" data-inspect-id="prematch-account-label">Account</span>
           {identityGroup(
             ACCOUNTS,
@@ -613,8 +599,9 @@ export default function Prematch() {
       </div>
 
       {/* Step 1 row (game sequence, design-language section 7): the Map card
-          (tracker input) first, then the advice that informs it (Map Voting),
-          then Today. No fixed height and no clipping: cards size to their
+          (tracker input) first, then the advice that informs it (Map Voting)
+          and nothing else: the Today card was cut (flow spec, later item A).
+          No fixed height and no clipping: cards size to their
           content, and nothing scrolls inside a card. The sens-test HUD used to
           own this row's height; it now lives with the Experiment column at
           step 5. */}
@@ -632,7 +619,9 @@ export default function Prematch() {
             </div>
           </div>
 
-          {/* Search input */}
+          {/* Search input — hidden once three maps are in, since it can take
+              no more. Clear, at the end of the chip row, brings it back. */}
+          {selected.length < 3 && (
           <div className="relative mb-2">
             <input
               ref={inputRef}
@@ -646,9 +635,8 @@ export default function Prematch() {
                 if (e.key === 'Escape') { setQuery(''); setOpen(false); }
                 if (e.key === 'Enter' && results.length > 0) selectMap(results[0]);
               }}
-              placeholder={selected.length >= 3 ? '3 maps selected' : 'Type a map name…'}
+              placeholder="Type a map name…"
               data-inspect-id="prematch-map-search-input"
-              disabled={selected.length >= 3}
               className="w-full field px-3 py-2 text-sm"
             />
             {open && results.length > 0 && (
@@ -666,6 +654,7 @@ export default function Prematch() {
               </div>
             )}
           </div>
+          )}
 
           {/* Selected chips — all four pills (up to 3 maps + Clear) share
               equal width via flex-1/min-w-0 so they always sum to exactly
@@ -682,10 +671,12 @@ export default function Prematch() {
               {selected.map(m => (
                 <div key={m} className="flex-1 min-w-0 flex flex-col gap-1">
                 <span
-                  className={`w-full min-w-0 flex items-center justify-center gap-1 pl-2 pr-1 py-1 text-[10px] map-name transition-colors ${
-                    m === recommended
-                      ? 'bg-emerald-500/20 text-emerald-700'
-                      : 'bg-ow-accent/15 text-ow-accent'
+                  className={`w-full min-w-0 flex items-center justify-center gap-1 pl-2 pr-1 py-1 text-[11px] map-name transition-colors ${
+                    m === map
+                      ? 'bg-ow-accent text-white'
+                      : m === recommended
+                        ? 'bg-emerald-500/20 text-emerald-700'
+                        : 'bg-ow-accent/15 text-ow-accent'
                   }`}
                   style={{ clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)' }}
                 >
@@ -738,12 +729,12 @@ export default function Prematch() {
 
           {/* The match map. Its choices narrow to the offered maps once any are
               picked. */}
-          <div className="mt-2 mb-2">
+          <div className="mt-3 flex items-center gap-2">
             <select
               ref={advisorSelectRef}
               value={map}
               onChange={e => setMap(e.target.value)}
-              className="w-full field px-3 py-2 text-sm"
+              className="flex-1 min-w-0 field px-3 py-2 text-sm"
               data-inspect-id="prematch-map-select-dropdown"
             >
               <option value="">— Select map —</option>
@@ -751,8 +742,8 @@ export default function Prematch() {
                 <option key={m} value={m} className="uppercase">{withMapCount(m, mapCounts)}</option>
               ))}
             </select>
+            {mapType && <span className={`pill shrink-0 ${TYPE_COLORS[mapType] ?? ''}`} data-inspect-id="prematch-map-type-badge">{mapType}</span>}
           </div>
-          {mapType && <span className={`pill ${TYPE_COLORS[mapType] ?? ''}`} data-inspect-id="prematch-map-type-badge">{mapType}</span>}
         </div>
 
         {/* Map Voting — advice only. The inputs it used to host are in the Map
@@ -802,10 +793,10 @@ export default function Prematch() {
               per "new feature does not equate to new elements" rather than
               keeping two side-by-side recommendations. */}
           {selected.length > 0 && (testPick?.available ? testPick.picks.length > 0 : ranked.length > 0) && (
-            <div className="mt-auto pt-1">
+            <div className="mt-4">
               {testPick?.available && testPick.picks.length > 0 ? (
-                <div className="flex items-start gap-4">
-                  <div className="flex-1 min-w-0">
+                <div className="flex flex-col gap-3">
+                  <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <button onClick={() => setMap(testPick.picks[0].map)} className="text-lg map-name text-emerald-600 hover:text-emerald-700 transition-colors text-left" data-inspect-id="prematch-vote-for-button">
                         {withMapCount(testPick.picks[0].map, mapCounts)}
@@ -818,19 +809,24 @@ export default function Prematch() {
                       {' · '}<b className="font-bold">{testPick.picks[0].games}</b>g played
                     </div>
                   </div>
-                  <div className="text-right space-y-0.5 pt-0.5">
-                    {testPick.picks.slice(1).map(p => (
-                      <div key={`${p.map}|${p.hero}`} className="text-[10px] text-[var(--faint)]">
-                        <span className="map-name">{withMapCount(p.map, mapCounts)}</span> · <span className="hero-name">{p.hero}</span> · <b className="font-bold">{p.win_rate}</b>%
-                      </div>
-                    ))}
-                  </div>
+                  {testPick.picks.length > 1 && (
+                    <div className="grid grid-cols-2 gap-x-4 pt-3 border-t border-ow-border/40">
+                      {testPick.picks.slice(1, 3).map(p => (
+                        <div key={`${p.map}|${p.hero}`} className="min-w-0">
+                          <div className="text-sm map-name text-[var(--ink-2)] truncate">{withMapCount(p.map, mapCounts)}</div>
+                          <div className="text-xs text-[var(--faint)]">
+                            <span className="hero-name">{p.hero}</span> · <b className="font-bold">{p.win_rate}</b>%
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ) : ranked.length === 1 ? (
                 <div className="text-sm text-[var(--muted)]">Select more maps to compare.</div>
               ) : (
-                <div className="flex items-start gap-4">
-                  <div className="flex-1">
+                <div className="flex flex-col gap-3">
+                  <div className="min-w-0">
                     <button onClick={() => openMap(winner)} className="text-lg map-name text-emerald-600 hover:text-emerald-700 transition-colors text-left" data-inspect-id="prematch-vote-for-button">
                       {withMapCount(winner, mapCounts)}
                     </button>
@@ -840,10 +836,13 @@ export default function Prematch() {
                       </div>
                     )}
                   </div>
-                  <div className="text-right space-y-0.5 pt-0.5">
-                    {ranked.slice(1).map(m => (
-                      <div key={m} className="text-[10px] text-[var(--faint)]">
-                        <span className="map-name">{withMapCount(m, mapCounts)}</span>{scoreMap[m] ? <> · <b className="font-bold">{scoreMap[m].blended_score}</b>%</> : ' · no data'}
+                  <div className="grid grid-cols-2 gap-x-4 pt-3 border-t border-ow-border/40">
+                    {ranked.slice(1, 3).map(m => (
+                      <div key={m} className="min-w-0">
+                        <div className="text-sm map-name text-[var(--ink-2)] truncate">{withMapCount(m, mapCounts)}</div>
+                        <div className="text-xs text-[var(--faint)]">
+                          {scoreMap[m] ? <><b className="font-bold">{scoreMap[m].blended_score}</b>% blended</> : 'no data'}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -856,121 +855,6 @@ export default function Prematch() {
               renders, so say why the card is empty. */}
           {selected.length > 0 && !(testPick?.available ? testPick.picks.length > 0 : ranked.length > 0) && (
             <div className="text-xs text-[var(--muted)]" data-inspect-id="prematch-map-voting-no-games">No games on these maps yet — no vote to suggest.</div>
-          )}
-          </div>
-        </div>
-
-        {/* Today — what is left of the old Hero Advisor card once the map
-            picker moved out. Stage 1.5 cuts it (flow spec, later item A). */}
-        <div className="card flex-1 min-w-0 flex flex-col" data-inspect-id="prematch-hero-advisor-card">
-          <div className="flex items-center justify-between mb-2 min-h-8">
-            <h2 className="text-sm card-title whitespace-nowrap">Today</h2>
-            {/* Today's matches as win/loss dots, most recent left, oldest
-                right. Moved here 2026-09-24 — first tried on the "Playing
-                as" strip, then Lobby Rank, which is Competitive-only. This
-                card shows in every mode. Same `today` query as the session
-                snapshot, so "today" means one thing on this page. No
-                scrolling: rows hold 10 dots each, so game 11 starts a
-                second row, and past 20 the dots shrink (no-scroll-in-cards
-                rule). */}
-            <div className="min-w-0 flex items-center gap-2" data-inspect-id="prematch-today-dots-strip">
-              <span className="text-[10px] uppercase tracking-wider text-[var(--faint-2)] shrink-0">Today</span>
-              {todayRows.length === 0 ? (
-                <span className="text-[10px] text-[var(--faint-2)] whitespace-nowrap">no games yet</span>
-              ) : (
-                <div
-                  className="grid items-center gap-1 min-w-0"
-                  style={{ gridTemplateColumns: `repeat(${Math.min(todayRows.length, 10)}, auto)` }}
-                >
-                  {todayRows.map((r, i) => (
-                    <span
-                      key={i}
-                      data-inspect-id="prematch-today-dot"
-                      title={`${r.win ? 'Win' : 'Loss'} — ${r.hero} on ${r.map}`}
-                      aria-label={`${r.win ? 'Win' : 'Loss'}, ${r.hero} on ${r.map}`}
-                      className={`inline-block rounded-full shrink-0 ${
-                        todayRows.length > 40 ? 'w-1 h-1' : todayRows.length > 20 ? 'w-1.5 h-1.5' : 'w-2 h-2'
-                      } ${r.win ? 'bg-emerald-500' : 'bg-rose-500'}`}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Everything below the pinned map selector — same treatment as
-              Map Voting: no scroll region, content must fit the row's
-              fixed height through compression alone. */}
-          <div className="flex-1 min-h-0">
-
-          {/* Idle: session & timing snapshot — how you're doing right now.
-              The panel is deliberately roomier than its content strictly
-              needs: with no map picked yet this card would otherwise be
-              mostly dead space next to Sens Test / Map Voting's packed
-              lists, so the stat tiles get real card treatment (bordered
-              panel, generous padding, bigger numerals) instead of just
-              floating in the middle of the card. */}
-          {!map && (
-            <div className="flex-1 flex flex-col justify-center mt-[0.6604rem] gap-4">
-              {/* True 2-row grid (labels row, values row) instead of three
-                  independently-centered flex columns — that's what keeps all
-                  three labels on one line and all three value blocks on the
-                  next, regardless of the This Hour pills' extra padding
-                  making that value taller than a plain number. Columns stay
-                  content-sized (not stretched to equal width) with
-                  justify-evenly, so spacing is even without forcing the three
-                  categories to occupy equal space. */}
-              <div className="rounded-lg border border-ow-border/40 bg-gradient-to-br from-ow-accent/[0.06] via-ow-accent/[0.02] to-transparent grid grid-cols-[repeat(3,max-content)] justify-evenly items-center gap-x-2 pt-4 pb-6">
-                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] col-start-1 row-start-1 justify-self-center" data-inspect-id="prematch-today-stat-tile">Today</div>
-                <div className="col-start-1 row-start-2 justify-self-center">
-                  {todayRows.length > 0 ? (
-                    <div className="text-[27px] num-display leading-none">
-                      <span className="text-emerald-500">{todayW}</span><span className="text-[var(--muted)]">-</span><span className="text-red-500">{todayL}</span>
-                    </div>
-                  ) : (
-                    <div className="text-sm text-[var(--faint)]">No games</div>
-                  )}
-                </div>
-
-                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] col-start-2 row-start-1 justify-self-center" data-inspect-id="prematch-streak-stat-tile">Streak</div>
-                <div className="col-start-2 row-start-2 justify-self-center">
-                  {streaksData && streaksData.currentStreak > 0 ? (
-                    <div className={`text-[27px] num-display leading-none ${streaksData.currentStreakType === 1 ? 'text-emerald-500' : 'text-red-500'}`}>
-                      {streaksData.currentStreak}{streaksData.currentStreakType === 1 ? 'W' : 'L'}
-                    </div>
-                  ) : (
-                    <div className="text-sm text-[var(--faint)]">—</div>
-                  )}
-                </div>
-
-                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] col-start-3 row-start-1 justify-self-center" data-inspect-id="prematch-this-hour-stat-tile">This hour</div>
-                <div className="col-start-3 row-start-2 justify-self-center">
-                  {hourRow ? (
-                    <div className="flex items-center justify-center w-full">
-                      <div className="relative">
-                        <span
-                          className={`text-[27px] num-display leading-none rounded-lg px-1 py-2 ${hourRow.qp_games > 0 ? 'text-blue-500' : 'text-[var(--faint)]'}`}
-                        >
-                          {hourRow.qp_games > 0 ? `${Math.round(hourRow.qp_win_rate!)}%` : '—'}
-                        </span>
-                        <span className="absolute top-full inset-x-0 -mt-0.5 text-center text-[7px] uppercase tracking-wider text-[var(--faint)] whitespace-nowrap">Quickplay</span>
-                      </div>
-                      <span className="text-[27px] num-display leading-none text-[var(--faint-2)] -mx-0.5">/</span>
-                      <div className="relative">
-                        <span
-                          className={`text-[27px] num-display leading-none rounded-lg px-1 py-2 ${hourRow.comp_games > 0 ? 'text-red-500' : 'text-[var(--faint)]'}`}
-                        >
-                          {hourRow.comp_games > 0 ? `${Math.round(hourRow.comp_win_rate!)}%` : '—'}
-                        </span>
-                        <span className="absolute top-full inset-x-0 -mt-0.5 text-center text-[7px] uppercase tracking-wider text-[var(--faint)] whitespace-nowrap">Competitive</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-sm text-[var(--faint)]">—</div>
-                  )}
-                </div>
-              </div>
-            </div>
           )}
           </div>
         </div>
@@ -1393,11 +1277,7 @@ export default function Prematch() {
             <div className="flex-1 grid grid-cols-[auto_auto] items-center gap-x-3 gap-y-0.5 content-start mt-2.5">
               <Odometer value={btTestLeft} size={32} digits={3} dataInspectId="prematch-dpi-matches-left-odometer" />
               <div className="leading-tight">
-                {/* text-[10px] uppercase tracking-wider text-[var(--muted)]
-                    matches Hero Advisor's stat-tile labels (Today/Streak/
-                    This hour, prematch-today-stat-tile etc.) exactly, so
-                    this card's counter names read with the same caps
-                    treatment as the app's other small stat labels. */}
+                {/* Same caps treatment as the app's other small stat labels. */}
                 <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">{btChunk ? 'minutes left' : 'matches left'}</div>
                 <div className="text-[10px] text-[var(--faint-2)]">in this test</div>
               </div>
