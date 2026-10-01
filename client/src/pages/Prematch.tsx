@@ -141,6 +141,13 @@ function ClockOdometer({ minutes, size, dataInspectId }: { minutes: number; size
   );
 }
 
+interface RoleTimerData {
+  role: string | null; matches: number; since: string | null;
+  recordedMin: number; estimatedMin: number; totalMin: number;
+  thresholdMin: number; reached: boolean; switchTo: string | null;
+}
+const fmtHM = (min: number) => { const t = Math.round(min); return `${Math.floor(t / 60)}h ${String(t % 60).padStart(2, '0')}m`; };
+
 export default function Prematch() {
   // Shared, single-instance match state (queue mode, map, advisor) lives here
   // and is consumed by the Log Match section too.
@@ -148,6 +155,9 @@ export default function Prematch() {
   const { rec, recLoading, recError } = useAdvisor();
 
   const { data: dpiHud } = useApi<DpiTestHud>('/api/blind/state');
+  // Role timer: competitive minutes in the current role run. matchLoggedSignal
+  // is a dep as well as useApi's revalidateAll(), so a logged match always refetches.
+  const { data: roleTimer } = useApi<RoleTimerData>('/api/role-timer', [matchLoggedSignal]);
   const btActives = dpiHud?.actives ?? [];
   // Several heroes can be "In Testing" at once, but the mouse can only be set
   // to one DPI at a time — so the HUD tracks whichever hero you're about to
@@ -677,6 +687,31 @@ export default function Prematch() {
           {playerRank != null && <> — <b className="font-semibold text-[var(--ink-2)]">{rankLabel(playerRank)}</b></>}
         </span>
       </div>
+
+      {/* Role timer: competitive minutes in the current role, a nudge to switch
+          at 4 hours. Recommendation only, never blocks logging. Quick Play is
+          ignored server-side. Fine print sits right of the title on one line. */}
+      {roleTimer && roleTimer.role && (
+        <div className="card !py-2 mb-3 flex items-center gap-3 min-h-[34px]" data-inspect-id="prematch-role-timer-card">
+          <span className="text-xs card-title shrink-0" data-inspect-id="prematch-role-timer-title">Role timer</span>
+          <span className="text-[11px] text-[var(--faint-2)] shrink-0 whitespace-nowrap" data-inspect-id="prematch-role-timer-fineprint">
+            comp only · {roleTimer.matches} matches since {roleTimer.since}
+          </span>
+          <div className="flex-1 min-w-[60px] h-1.5 rounded-full bg-ow-border/50 overflow-hidden" data-inspect-id="prematch-role-timer-bar">
+            <div
+              className="h-full rounded-full"
+              style={{ width: `${Math.min(100, (roleTimer.totalMin / roleTimer.thresholdMin) * 100)}%`, background: `rgb(${ROLE_SEL_RGB[roleTimer.role] ?? '148 163 184'})` }}
+              data-inspect-id="prematch-role-timer-fill"
+            />
+          </div>
+          <span className="text-xs shrink-0 whitespace-nowrap text-[var(--ink-2)]" data-inspect-id="prematch-role-timer-readout">
+            {roleTimer.reached
+              ? <b className="font-semibold">{fmtHM(roleTimer.thresholdMin)} reached — switch to {roleTimer.switchTo}</b>
+              : <><b className="font-semibold">{roleTimer.role}</b> · {fmtHM(roleTimer.totalMin)} of {fmtHM(roleTimer.thresholdMin)}</>}
+            {roleTimer.estimatedMin > 0 && <span className="text-[var(--faint-2)]"> (+{Math.round(roleTimer.estimatedMin)}m est.)</span>}
+          </span>
+        </div>
+      )}
 
       {/* Step 1 row (game sequence, design-language section 7), on the
           page's three-column grid: the Map card spans two columns (the
