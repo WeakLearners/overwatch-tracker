@@ -17,7 +17,7 @@ import configRouter from './routes/config';
 import dfRouter from './routes/df';
 
 const app = express();
-// 3001 = production (launchd com.overwatch.prod, from ~/Code/overwatch-prod).
+// 3001 = production, updated on push (launchd com.overwatch.prod, from ~/Code/overwatch-prod).
 // The dev tree's server runs on 3002 (server "dev" script sets PORT) so editing
 // never touches the port Sean uses day to day.
 const PORT = Number(process.env.PORT) || 3001;
