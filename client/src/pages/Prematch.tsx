@@ -247,6 +247,24 @@ export default function Prematch() {
   // list to them (empty = every map). Cleared if this page goes away.
   useEffect(() => { setMapCandidates(selected); return () => setMapCandidates([]); }, [selected, setMapCandidates]);
 
+  // On a map pick, scroll so Select Your Hero sits 16px below the sticky bars
+  // (header, plus the Jump-to strip on the Dashboard). Skips the first run
+  // (page load / return) and clearing the map. The short delay lets the map's
+  // advice above the card finish loading so the card is measured at rest.
+  const mapScrollReady = useRef(false);
+  useEffect(() => {
+    if (!mapScrollReady.current) { mapScrollReady.current = true; return; }
+    if (!map) return;
+    const t = setTimeout(() => {
+      const el = document.querySelector('[data-inspect-id="prematch-hero-select-card"]');
+      if (!el) return;
+      const bar = document.querySelector('[data-inspect-id="dash-section-nav"]') ?? document.querySelector('header');
+      const offset = (bar?.getBoundingClientRect().bottom ?? 0) + 16;
+      window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - offset, behavior: 'smooth' });
+    }, 350);
+    return () => clearTimeout(t);
+  }, [map]);
+
   // Last 5 results on each currently-selected voting map, for the win/loss
   // dash strip under each chip. Same treatment as Today's Matches' map
   // history, but keyed on map name — no match exists yet to hang it off. The
