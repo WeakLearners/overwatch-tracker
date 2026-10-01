@@ -28,7 +28,7 @@ export const PILL_SIZE = {
 export const NOTCH = 'polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px)';
 
 export default function SegmentedPills<T extends string>({
-  options, value, onPick, sel: selProp, inspectId, idFor, titleFor, labelFor, sizeLabels, size = 'sm', strong = false,
+  options, value, onPick, sel: selProp, inspectId, idFor, titleFor, labelFor, sizeLabels, size = 'sm', strong = false, idleTone = 'text-[var(--faint)]',
 }: {
   options: readonly T[];
   /** null lights nothing (the indicator hides). */
@@ -46,6 +46,8 @@ export default function SegmentedPills<T extends string>({
   size?: keyof typeof PILL_SIZE;
   /** Hotter glow: .fill-strong on the block, .lit-strong on the label. */
   strong?: boolean;
+  /** Text colour of the options that aren't selected. */
+  idleTone?: string;
 }) {
   const sel = selProp ?? ACCENT_SEL;
   const label = labelFor ?? ((v: T) => v);
@@ -81,7 +83,7 @@ export default function SegmentedPills<T extends string>({
           data-inspect-id={idFor(o)}
           style={value === o ? ({ '--sel': sel } as React.CSSProperties) : undefined}
           className={`relative z-10 flex items-center justify-center leading-none transition-colors ${PILL_SIZE[size]} ${
-            value === o ? 'text-[var(--ink)]' : 'text-[var(--faint)] hover:text-[var(--ink)]'
+            value === o ? 'text-[var(--ink)]' : `${idleTone} hover:text-[var(--ink)]`
           }`}
         >
           <SizedLabel sizes={sizes}>

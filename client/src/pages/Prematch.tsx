@@ -601,6 +601,9 @@ export default function Prematch() {
       options={options} value={value} onPick={onPick} sel={sel}
       inspectId={inspectId} idFor={idFor} titleFor={titleFor}
       sizeLabels={IDENTITY_LABELS} size={size}
+      // Values read darker than the faint uppercase labels beside them
+      // ("ACCOUNT", "ROLE"), so a label never looks like one of its options.
+      idleTone="text-[var(--ink-2)]"
     />
   );
 
