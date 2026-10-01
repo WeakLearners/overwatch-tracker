@@ -630,54 +630,19 @@ export default function Prematch() {
           with the same 20px inset, so "Playing as" and that card's title start
           on the same vertical line. Trimming both sides knocked them 8px out
           of alignment. */}
+      {/* Three columns on a 4-2-4 split (Sean, 2026-10-01): who is playing on
+          the left, the role pick in the middle, the role timer on the right.
+          A fixed grid rather than content-sized flex, so each column keeps
+          its place whatever the text inside it says. */}
       <div
-        className="card !py-0 mb-3 flex items-stretch gap-2.5 flex-wrap min-h-[34px]"
+        className="card !py-0 mb-3 grid grid-cols-10 items-stretch gap-4 min-h-[34px]"
         data-inspect-id="prematch-identity-strip"
       >
-        {/* .card-title, the same as every card heading on the page — this
-            strip is a section of the page and its label should read as one.
-            The class already carries uppercase and the widest tracking, so
-            only the size is set here. */}
-        <div className="flex-1 basis-0 min-w-0 flex items-center gap-3 self-center">
-          <span className="text-xs card-title shrink-0">Playing as</span>
-          {/* Role timer: competitive minutes in the current role run, with a nudge
-              to switch at 4 hours. It fills the empty left side of the slip: the
-              side's width is fixed by the centring (flex-1 basis-0, see below), so
-              the bar stretches into whatever room is left without moving the pills.
-              Shown in every queue mode: Open Queue matches count too, even though
-              the role pick is hidden there. Quick Play is ignored server-side.
-              Recommendation only, never blocks logging. */}
-          {roleTimer && roleTimer.role && (
-            <div
-              className="flex-1 min-w-0 flex items-center gap-2 mr-3"
-              title={`Competitive only · ${roleTimer.matches} matches since ${roleTimer.since}. Switch roles at ${fmtHM(roleTimer.thresholdMin)}.`}
-              data-inspect-id="prematch-role-timer-card"
-            >
-              <span className="text-[11px] whitespace-nowrap shrink-0 text-[var(--ink-2)]" data-inspect-id="prematch-role-timer-readout">
-                {roleTimer.reached
-                  ? <b className="font-semibold">{fmtHM(roleTimer.thresholdMin)} — switch to {roleTimer.switchTo}</b>
-                  : <><b className="font-semibold">{roleTimer.role}</b> {fmtHM(roleTimer.totalMin)} / {fmtHM(roleTimer.thresholdMin)}</>}
-                {roleTimer.estimatedMin > 0 && <span className="text-[var(--faint-2)]"> (+{Math.round(roleTimer.estimatedMin)}m est.)</span>}
-              </span>
-              <div className="flex-1 min-w-[40px] h-1.5 rounded-full bg-ow-border/50 overflow-hidden" data-inspect-id="prematch-role-timer-bar">
-                <div
-                  className="h-full rounded-full"
-                  style={{ width: `${Math.min(100, (roleTimer.totalMin / roleTimer.thresholdMin) * 100)}%`, background: `rgb(${ROLE_SEL_RGB[roleTimer.role] ?? '148 163 184'})` }}
-                  data-inspect-id="prematch-role-timer-fill"
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* The two pill groups sit dead centre of the strip. Centring is done
-            by giving the label and the readout `flex-1 basis-0` rather than by
-            margins: equal basis makes the two side items claim equal width
-            whatever they contain, so the middle block lands on the strip's
-            true centre. Sizing them to their own content would drift the
-            centre every time the readout's rank text changed length. */}
-        <div className="flex items-stretch gap-2.5 shrink-0">
-          {/* Small group labels. */}
+        {/* Left (4): label, account pills, then the rank slot the account and
+            role select. .card-title is the same as every card heading on the
+            page; the class carries uppercase and tracking, so only size is set. */}
+        <div className="col-span-4 min-w-0 flex items-stretch gap-2.5">
+          <span className="text-xs card-title shrink-0 self-center">Playing as</span>
           <span className="text-[10px] uppercase tracking-wider text-[var(--faint-2)] self-center shrink-0" data-inspect-id="prematch-account-label">Account</span>
           {identityGroup(
             ACCOUNTS,
@@ -692,10 +657,20 @@ export default function Prematch() {
             a => `prematch-account-${a.toLowerCase()}-button`,
             a => `Play as ${a}`,
           )}
-          {/* Open Queue has one rank per account and no role queue, so the
-              role choice is hidden there. */}
+          {/* Says out loud which of the eight rank slots the pair selects. The
+              drum is far enough down the page that the strip is off screen by
+              the time it is read. */}
+          <span className="text-[11px] text-[var(--faint-2)] ml-auto min-w-0 truncate text-right self-center" data-inspect-id="prematch-identity-rank-readout">
+            rank slot <b className="font-semibold text-[var(--muted)]">{account} · {ladder}</b>
+            {playerRank != null && <> — <b className="font-semibold text-[var(--ink-2)]">{rankLabel(playerRank)}</b></>}
+          </span>
+        </div>
+
+        {/* Middle (2): the role pick. Open Queue has one rank per account and
+            no role queue, so the pick is hidden there, but the column keeps
+            its space so the timer never shifts between queue modes. */}
+        <div className="col-span-2 min-w-0 flex items-stretch justify-center gap-2.5">
           {queueMode !== 'comp_open' && (<>
-          <span className="w-px self-stretch my-1.5 bg-ow-border/70 shrink-0" aria-hidden="true" />
           <span className="text-[10px] uppercase tracking-wider text-[var(--faint-2)] self-center shrink-0" data-inspect-id="prematch-role-label">Role</span>
           {identityGroup(
             ROLE_PICKS,
@@ -709,13 +684,34 @@ export default function Prematch() {
           </>)}
         </div>
 
-        {/* Says out loud which of the eight rank slots the pair selects. The
-            drum is far enough down the page that the strip is off screen by
-            the time it is read. */}
-        <span className="text-[11px] text-[var(--faint-2)] flex-1 basis-0 min-w-0 text-right self-center" data-inspect-id="prematch-identity-rank-readout">
-          rank slot <b className="font-semibold text-[var(--muted)]">{account} · {ladder}</b>
-          {playerRank != null && <> — <b className="font-semibold text-[var(--ink-2)]">{rankLabel(playerRank)}</b></>}
-        </span>
+        {/* Right (4): role timer. Competitive minutes in the current role run,
+            with a nudge to switch at 4 hours. Shown in every queue mode: Open
+            Queue matches count too. Quick Play is ignored server-side.
+            Recommendation only, never blocks logging. */}
+        <div className="col-span-4 min-w-0 flex items-center">
+          {roleTimer && roleTimer.role && (
+            <div
+              className="flex-1 min-w-0 flex items-center gap-2"
+              title={`Competitive only · ${roleTimer.matches} matches since ${roleTimer.since}. Switch roles at ${fmtHM(roleTimer.thresholdMin)}.`}
+              data-inspect-id="prematch-role-timer-card"
+            >
+              <span className="text-[10px] uppercase tracking-wider text-[var(--faint-2)] shrink-0">Role time</span>
+              <div className="flex-1 min-w-[40px] h-1.5 rounded-full bg-ow-border/50 overflow-hidden" data-inspect-id="prematch-role-timer-bar">
+                <div
+                  className="h-full rounded-full"
+                  style={{ width: `${Math.min(100, (roleTimer.totalMin / roleTimer.thresholdMin) * 100)}%`, background: `rgb(${ROLE_SEL_RGB[roleTimer.role] ?? '148 163 184'})` }}
+                  data-inspect-id="prematch-role-timer-fill"
+                />
+              </div>
+              <span className="text-[11px] whitespace-nowrap shrink-0 text-[var(--ink-2)]" data-inspect-id="prematch-role-timer-readout">
+                {roleTimer.reached
+                  ? <b className="font-semibold">{fmtHM(roleTimer.thresholdMin)} — switch to {roleTimer.switchTo}</b>
+                  : <><b className="font-semibold">{roleTimer.role}</b> {fmtHM(roleTimer.totalMin)} / {fmtHM(roleTimer.thresholdMin)}</>}
+                {roleTimer.estimatedMin > 0 && <span className="text-[var(--faint-2)]"> (+{Math.round(roleTimer.estimatedMin)}m est.)</span>}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Step 1 row (game sequence, design-language section 7), on the
