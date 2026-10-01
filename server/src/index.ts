@@ -15,6 +15,7 @@ import customPhasesRouter from './routes/customPhases';
 import ranksRouter from './routes/ranks';
 import configRouter from './routes/config';
 import dfRouter from './routes/df';
+import roleTimerRouter from './routes/roleTimer';
 
 const app = express();
 // 3001 = production, updated on push (launchd com.overwatch.prod, from ~/Code/overwatch-prod).
@@ -40,6 +41,7 @@ app.use('/api/blind', blindRouter);
 app.use('/api/custom-phases', customPhasesRouter);
 app.use('/api/config', configRouter);
 app.use('/api/df', dfRouter);
+app.use('/api/role-timer', roleTimerRouter);
 
 // Serve the production client build (2026-09-26). `client/current` is a
 // symlink, not a real directory — it points at whichever of client/dist-a or
