@@ -501,7 +501,9 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
                 })}
                 </div>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] leading-none text-[var(--faint)] mt-2" data-inspect-id="dash-rank-strip-legend">
-                  {rankSeries.map(s => {
+                  {/* Open ladders stay out of the legend until they have a rank;
+                      four empty "(no data)" entries would only add noise. */}
+                  {rankSeries.filter(s => s.role !== 'Open' || s.steps.length > 0).map(s => {
                     const has = s.steps.length > 0;
                     return (
                       <span key={`rank-legend-${s.account}-${s.role}`} className="inline-flex items-center gap-1">
