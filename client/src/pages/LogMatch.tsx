@@ -1095,16 +1095,10 @@ export default function LogMatch() {
                   setResultDriver(null); setLeaverSide(null);
                   clearDeathBuffer();
                   notifyMatchLogged();
-                  // Wait a paint cycle so the layout has settled from the resets above
-                  // (the Map Voting card collapses once its pills clear) before scrolling —
-                  // scrolling against the pre-reset layout lands short of the map card.
-                  requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                      const mapInput = document.getElementById('map-search') as HTMLInputElement | null;
-                      mapInput?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                      mapInput?.focus({ preventScroll: true });
-                    });
-                  });
+                  // Back to the very top of the page, so the next match starts fresh.
+                  // Map search keeps focus, without letting focus pull the scroll back down.
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                  (document.getElementById('map-search') as HTMLInputElement | null)?.focus({ preventScroll: true });
                 }}
                 disabled={!form.hero && !map && deathBuffer.length === 0}
                 data-inspect-id="logmatch-cancel-match-button"
