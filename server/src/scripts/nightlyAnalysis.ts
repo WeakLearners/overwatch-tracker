@@ -62,7 +62,7 @@ export function stagePointsFor(db: any, setId: number): StagePoint[] {
     JOIN matches m ON m.id = bc.match_id
     LEFT JOIN aim_stats_heroes ash
       ON ash.match_id = bc.match_id AND ash.hero = bc.hero
-    WHERE bc.blind_set_id = :setId AND ${NOT_QP_SQL}
+    WHERE bc.blind_set_id = :setId AND bc.counts_result = 1 AND ${NOT_QP_SQL}
     GROUP BY bs.stage_index, bs.sens, bs.dpi
     ORDER BY bs.stage_index
   `).all({ setId }) as unknown as StagePoint[];
@@ -80,7 +80,7 @@ export function stageSamplesFor(db: any, setId: number, stageIndex: number): num
     JOIN aim_stats_heroes ash
       ON ash.match_id = bc.match_id AND ash.hero = bc.hero
     JOIN matches m ON m.id = bc.match_id
-    WHERE bc.blind_set_id = :setId AND bc.stage_index = :si
+    WHERE bc.blind_set_id = :setId AND bc.stage_index = :si AND bc.counts_result = 1
       AND ash.overall_acc IS NOT NULL AND ${NOT_QP_SQL}
   `).all({ setId, si: stageIndex }) as { acc: number }[]).map(r => r.acc);
 }

@@ -106,7 +106,9 @@ function groupBy<T>(items: T[], key: (t: T) => string | number): Map<string | nu
 // that hero's game would silently never surface here for stats entry, even
 // though blind_credits/games_on_stage already counted it toward its stage.
 // matches.ts's POST handler inserts a blind_credits row for the primary hero
-// too whenever blind_trial is set, so this EXISTS check is a strict
+// too whenever blind_trial is set. A match may now hold several credit rows
+// (one per qualifying hero, 2026-10-01) — EXISTS, not a join, is what keeps
+// each study match listed exactly once. This EXISTS check is a strict
 // superset of the old m.blind_trial = 1 filter, not just an alternative to
 // it. sens IS NOT NULL is not a safe proxy for "in the study" either way:
 // the Match Tracker sends a sens value on every match regardless of queue
@@ -217,6 +219,14 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
     SELECT m.id, ah.hero, mh.sens, m.dpi, m.win, m.date, mh.feel, m.blind_trial, m.queue_mode,
            m.curve_enabled, m.curve_growth_rate, m.curve_midpoint, m.curve_motivity, m.curve_lut,
            ah.overall_acc, ah.crit_acc, ah.extra_acc, ah.duration_min AS hero_duration_min,
+           -- Result share (2026-10-01): this hero played >= 1/3 of the match, so
+           -- it takes the match's win/loss. winRate readouts below count only
+           -- these rows; accuracy and every other metric still use every row.
+           -- Same integer compare as matches_by_hero / lib/credits.ts. A hero
+           -- with no minutes on file counts (unknown play time is not a cameo).
+           CASE WHEN ah.duration_min IS NULL
+                  OR ah.duration_min * 3 >= (SELECT SUM(x.duration_min) FROM aim_stats_heroes x WHERE x.match_id = ah.match_id)
+                THEN 1 ELSE 0 END AS result_share,
            a.hero_stat_label, a.hero_stat_value, m.hero AS primary_hero, a.created_at,
            -- Labelling only (2026-09-24) — carried onto each point object
            -- below so a consumer can see/filter on it later. No fit, filter,
@@ -242,7 +252,7 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
     hero_stat_label: string | null; hero_stat_value: number | null; primary_hero: string;
     damage: number | null; healing: number | null; elims: number | null;
     deaths: number | null; assists: number | null; final_blows: number | null;
-    hero_duration_min: number | null; match_duration_min: number | null;
+    hero_duration_min: number | null; match_duration_min: number | null; result_share: 0 | 1;
     feel: number | null; created_at: string; date: string;
     leaver: 0 | 1 | null; leaver_side: 'mine' | 'theirs' | null;
   }[];
@@ -506,7 +516,7 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
           // stays as a plain readout — never as curve-fit input, never as a
           // ranking or recommendation signal. See METRICS below, where it has
           // been removed from the set that drives metricTrends/findings.
-          winRate: mult100(mean(ps.map(p => p.win))),
+          winRate: mult100(mean(ps.filter(p => p.result_share === 1).map(p => p.win))),
           // Box-plot stats over raw overall accuracy at this scale.
           min: accSorted[0] ?? null,
           q1: quantile(accSorted, 0.25),
@@ -689,7 +699,7 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
     avgOverall: mean(items.map(p => p.overall_acc)),
     avgDelta: mean(items.filter(p => p.delta != null).map(p => p.delta as number)),
     avgFeel: mean(items.filter(p => p.feel != null).map(p => p.feel as number)),
-    winRate: mult100(mean(items.map(p => p.win))),
+    winRate: mult100(mean(items.filter(p => p.result_share === 1).map(p => p.win))),
   });
 
   // MIN_SCALE_N guard applied at roster scope (2026-09-17, Sean's call) — a
@@ -815,7 +825,7 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
           avgHeroStat: mean(ps.filter(p => p.heroStat != null).map(p => p.heroStat as number)),
           nExtra: ps.filter(p => p.extra_acc != null).length,
           avgExtra: mean(ps.filter(p => p.extra_acc != null).map(p => p.extra_acc as number)),
-          winRate: mult100(mean(ps.map(p => p.win))),
+          winRate: mult100(mean(ps.filter(p => p.result_share === 1).map(p => p.win))),
           // Null when no scale clears MIN_SCALE_N — consumers must handle the
           // "no reliable best yet" case rather than render a thin pick.
           bestScaleReliable: bestScale != null,
@@ -988,9 +998,11 @@ router.post('/', (req: Request, res: Response) => {
   } else {
     db.prepare('DELETE FROM aim_stats_heroes WHERE match_id = :match_id').run({ match_id });
   }
-  // Per-hero minutes decide who earns the match's test credit (two-thirds
-  // rule, matches.ts's creditHeroFor). This form is where those minutes
-  // first arrive, so the credit is settled here, in the same transaction.
+  // Per-hero minutes decide who earns what from the match (2026-10-01 rules:
+  // minutes for every hero with >= 1 minute, the game for every hero with
+  // >= 1/3 of the match — lib/credits.ts's creditFlagsFor). This form is
+  // where those minutes first arrive, so the credits are settled here, in
+  // the same transaction (matches.ts's applyPlayTimeCredit).
   applyPlayTimeCredit(db, match_id);
     db.exec('COMMIT');
   } catch (err) {

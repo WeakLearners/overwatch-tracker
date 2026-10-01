@@ -31,9 +31,11 @@ export const stagesOf = (db: ReturnType<typeof getDb>, setId: number) =>
 // distinct from games_on_stage, which only counts toward the current stage.
 // Reads blind_credits (one row per hero actually credited, including
 // mid-match switches into this hero), not matches.blind_set_id — that column
-// only ever reflects the match's slot-1/primary hero.
+// only ever reflects the match's slot-1/primary hero. Counts only rows with
+// counts_result = 1 (hero played >= 1/3 of the match); a minutes-only row
+// (>= 1 minute, under a third) feeds the block clock but is not a game.
 export const totalGamesOf = (db: ReturnType<typeof getDb>, setId: number) =>
-  (db.prepare('SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id').get({ id: setId }) as { n: number }).n;
+  (db.prepare('SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id AND counts_result = 1').get({ id: setId }) as { n: number }).n;
 
 // Games credited toward one specific stage — derived live from blind_credits
 // (same source of truth as totalGamesOf above), not from the stored
@@ -46,12 +48,13 @@ export const totalGamesOf = (db: ReturnType<typeof getDb>, setId: number) =>
 // consistent by construction. The column itself is left in the schema,
 // unused, per this codebase's no-drop-columns convention.
 export const gamesOnStageOf = (db: ReturnType<typeof getDb>, setId: number, stageIndex: number) =>
-  (db.prepare('SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id AND stage_index = :si')
+  (db.prepare('SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id AND stage_index = :si AND counts_result = 1')
     .get({ id: setId, si: stageIndex }) as { n: number }).n;
 
 // ── Block state (added 2026-09-27) ──────────────────────────────────────────
-// Ordered-by-time minutes for every credited match of one set — the hero's
-// own aim_stats_heroes.duration_min per credited match, NULL treated as 0
+// Ordered-by-time minutes for every match that counts minutes toward one set
+// (counts_minutes = 1: the hero played >= 1 minute, whatever its share of
+// the match) — the hero's own aim_stats_heroes.duration_min, NULL treated as 0
 // (lib/blind.ts's deriveBlockState already does this; a missing reading is
 // 2 of 1,181 historical rows). Optionally restricted to one physical
 // stage_index. Feeds deriveBlockState for both the whole-set schedule clock
@@ -68,7 +71,7 @@ function creditedDurationsFor(db: ReturnType<typeof getDb>, setId: number, stage
     FROM blind_credits bc
     JOIN matches m ON m.id = bc.match_id
     LEFT JOIN aim_stats_heroes ah ON ah.match_id = bc.match_id AND ah.hero = bc.hero
-    WHERE bc.blind_set_id = :sid ${stageIndex != null ? 'AND bc.stage_index = :si' : ''}
+    WHERE bc.blind_set_id = :sid AND bc.counts_minutes = 1 ${stageIndex != null ? 'AND bc.stage_index = :si' : ''}
     ORDER BY m.created_at ASC, m.id ASC
   `).all(stageIndex != null ? { sid: setId, si: stageIndex } : { sid: setId }) as { duration_min: number | null }[];
   return rows.map(r => r.duration_min);
@@ -510,7 +513,7 @@ router.get('/sets/:id', (req: Request, res: Response) => {
       SELECT mh.feel FROM blind_credits bc
       JOIN match_heroes mh ON mh.match_id = bc.match_id AND mh.hero = bc.hero
       JOIN matches m ON m.id = bc.match_id
-      WHERE bc.blind_set_id = :sid AND bc.stage_index = :si AND ${NOT_QP_SQL}
+      WHERE bc.blind_set_id = :sid AND bc.stage_index = :si AND bc.counts_result = 1 AND ${NOT_QP_SQL}
     `).all({ sid: set.id, si: st.stage_index }) as { feel: number | null }[];
     const feels = trials.map(t => t.feel).filter((f): f is number => f != null);
     const feelMean = feels.length ? feels.reduce((a, b) => a + b, 0) / feels.length : null;
@@ -531,7 +534,7 @@ router.get('/sets/:id', (req: Request, res: Response) => {
       JOIN matches m ON m.id = bc.match_id
       LEFT JOIN aim_stats_heroes ah ON ah.match_id = bc.match_id AND ah.hero = bc.hero
       LEFT JOIN aim_stats a ON a.match_id = bc.match_id
-      WHERE bc.blind_set_id = :sid AND bc.stage_index = :si AND ${NOT_QP_SQL}
+      WHERE bc.blind_set_id = :sid AND bc.stage_index = :si AND bc.counts_result = 1 AND ${NOT_QP_SQL}
     `).all({ sid: set.id, si: st.stage_index }) as {
       win: number; overall_acc: number | null; elims: number | null; damage: number | null; duration_min: number | null;
     }[];
@@ -562,7 +565,7 @@ router.get('/sets/:id', (req: Request, res: Response) => {
         SUM(CASE WHEN (SELECT COUNT(*) FROM match_heroes mh2 WHERE mh2.match_id = bc.match_id) > 1 THEN 1 ELSE 0 END) AS switchedOut
       FROM blind_credits bc
       JOIN matches m ON m.id = bc.match_id
-      WHERE bc.blind_set_id = :sid AND bc.stage_index = :si AND ${NOT_QP_SQL}
+      WHERE bc.blind_set_id = :sid AND bc.stage_index = :si AND bc.counts_result = 1 AND ${NOT_QP_SQL}
     `).get({ sid: set.id, si: st.stage_index }) as { total: number; switchedOut: number | null };
     const switchedOut = switchInfo.switchedOut ?? 0;
     const switchedOutRate = switchInfo.total > 0 ? Math.round((switchedOut / switchInfo.total) * 1000) / 10 : null;
@@ -668,7 +671,7 @@ function heroProgressForPhase(db: ReturnType<typeof getDb>, phase: string): Hero
 function currentBlock(db: ReturnType<typeof getDb>): BlockInfo | null {
   const row = db.prepare(`
     SELECT m.hero, bc.blind_set_id FROM matches m
-    JOIN blind_credits bc ON bc.match_id = m.id AND bc.hero = m.hero
+    JOIN blind_credits bc ON bc.match_id = m.id AND bc.hero = m.hero AND bc.counts_minutes = 1
     ORDER BY m.created_at DESC, m.id DESC
     LIMIT 1
   `).get() as { hero: string; blind_set_id: number } | undefined;
@@ -722,7 +725,7 @@ router.get('/next', (req: Request, res: Response) => {
     .all({ phase }) as { id: number }[];
   const gamesInWindow = setIds.length ? (db.prepare(`
     SELECT COUNT(*) n FROM blind_credits bc JOIN matches m ON m.id = bc.match_id
-    WHERE bc.blind_set_id IN (${setIds.map(() => '?').join(',')})
+    WHERE bc.blind_set_id IN (${setIds.map(() => '?').join(',')}) AND bc.counts_result = 1
       AND m.created_at >= datetime('now', '-${PROJECTION_WINDOW_DAYS} days')
   `).get(...setIds.map(s => s.id)) as { n: number }).n : 0;
   const remaining = heroes.reduce((sum, h) => sum + Math.max(0, h.target - h.credited), 0);

@@ -595,8 +595,8 @@ function initSchema(db: DatabaseSync) {
 
   // matches_by_hero: one row per (match, hero played) — the hero-attribution
   // view every by-hero stats query reads from instead of `matches` directly,
-  // so a match with a mid-match switch counts toward every hero it touched —
-  // except a hero on for 20% of the match or less (cameo rule, below).
+  // so a match with a mid-match switch counts toward every hero that played
+  // at least one third of it (share rule, below).
   // Recreated on every start (cheap) rather than migrated, so it always
   // reflects whatever columns `matches` currently has. sens comes from
   // match_heroes (per hero), not matches (primary hero only) — see the sens
@@ -609,14 +609,15 @@ function initSchema(db: DatabaseSync) {
            m.rel_pos, m.stage_index, m.revealed, m.feel, m.team_rating, m.notes, mh.slot
     FROM matches m JOIN match_heroes mh ON mh.match_id = m.id
     LEFT JOIN aim_stats_heroes ash ON ash.match_id = m.id AND ash.hero = mh.hero
-    -- Cameo rule (2026-09-24): a hero played 20% of the match or less takes
-    -- no share of its win/loss. Swapping off a hero a minute in says nothing
-    -- about that hero. Only applies when this hero's minutes are on file.
-    -- A match with no minutes, or a hero with no minutes entered, keeps its
-    -- row: unknown play time is not evidence of a cameo. Integer compare
-    -- (minutes * 5 > total), same reason as creditHeroFor in matches.ts.
+    -- Share rule (2026-10-01, replaces the 2026-09-24 20% cameo rule): every
+    -- hero that played at least one third of the match takes the match's
+    -- win/loss; a hero on for less takes none. Only applies when this hero's
+    -- minutes are on file. A match with no minutes, or a hero with no minutes
+    -- entered, keeps its row: unknown play time is not evidence of a cameo.
+    -- Integer compare (minutes * 3 >= total), same reason as creditFlagsFor
+    -- in lib/credits.ts — the two must stay textually the same rule.
     WHERE ash.duration_min IS NULL
-       OR ash.duration_min * 5 > (
+       OR ash.duration_min * 3 >= (
          SELECT SUM(a2.duration_min) FROM aim_stats_heroes a2 WHERE a2.match_id = m.id
        )
   `);
@@ -681,6 +682,23 @@ function initSchema(db: DatabaseSync) {
     );
     CREATE INDEX IF NOT EXISTS idx_blind_credits_set ON blind_credits(blind_set_id);
   `);
+  // counts_result / counts_minutes (2026-10-01): the two things a credit row can
+  // mean. counts_result = the match's win/loss is one game on this hero's set
+  // (hero played >= 1/3 of the match); counts_minutes = this hero's minutes
+  // feed its set's 60-minute block clock (hero played >= 1 minute). A row can
+  // be either or both. Existing rows are both: they were each a full credit
+  // (game AND minutes) under the old rule. Every reader that counts GAMES
+  // (games on a stage, win%, accuracy per stage) must filter counts_result = 1;
+  // only the block clock reads counts_minutes. lib/credits.ts owns the rule.
+  {
+    const bcCols = db.prepare(`PRAGMA table_info(blind_credits)`).all() as { name: string }[];
+    if (!bcCols.find(c => c.name === 'counts_result')) {
+      db.exec(`ALTER TABLE blind_credits ADD COLUMN counts_result INTEGER NOT NULL DEFAULT 1`);
+    }
+    if (!bcCols.find(c => c.name === 'counts_minutes')) {
+      db.exec(`ALTER TABLE blind_credits ADD COLUMN counts_minutes INTEGER NOT NULL DEFAULT 1`);
+    }
+  }
   // Backfill slot-1 credits for every match logged before this table existed,
   // so existing sets' totalGames/games_on_stage counts don't shift under
   // them the moment this ships — same 1:1 primary-hero attribution as today.

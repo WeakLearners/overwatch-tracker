@@ -75,7 +75,7 @@ function creditedDurationsForSet(db: ReturnType<typeof getDb>, setId: number, st
     FROM blind_credits bc
     JOIN matches m ON m.id = bc.match_id
     LEFT JOIN aim_stats_heroes ah ON ah.match_id = bc.match_id AND ah.hero = bc.hero
-    WHERE bc.blind_set_id = :sid ${stageIndex != null ? 'AND bc.stage_index = :si' : ''}
+    WHERE bc.blind_set_id = :sid AND bc.counts_minutes = 1 ${stageIndex != null ? 'AND bc.stage_index = :si' : ''}
     ORDER BY m.created_at ASC, m.id ASC
   `).all(stageIndex != null ? { sid: setId, si: stageIndex } : { sid: setId }) as { duration_min: number | null }[];
   return rows.map(r => r.duration_min);
@@ -103,11 +103,11 @@ export function computeStageStatus(db: ReturnType<typeof getDb>, set: ActiveSetR
 
   if (!chunked) {
     const totalGames = (db.prepare(
-      `SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id`
+      `SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id AND counts_result = 1`
     ).get({ id: set.id }) as { n: number }).n;
     const curRel = set.cur_rel;
     const gamesOnStage = (db.prepare(
-      `SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id AND stage_index = :si`
+      `SELECT COUNT(*) n FROM blind_credits WHERE blind_set_id = :id AND stage_index = :si AND counts_result = 1`
     ).get({ id: set.id, si: curRel }) as { n: number }).n;
     const completed = totalGames >= set.batch_size * n_stages;
     const dueToAdvance = !completed && gamesOnStage >= set.batch_size;
