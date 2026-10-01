@@ -151,7 +151,7 @@ const fmtHM = (min: number) => { const t = Math.round(min); return `${Math.floor
 export default function Prematch() {
   // Shared, single-instance match state (queue mode, map, advisor) lives here
   // and is consumed by the Log Match section too.
-  const { queueMode, map, setMap, mapType, testRole, setTestRole, setPendingHeroes, pickedHeroes, setMapCandidates, matchLoggedSignal, account, setAccount, playerRank, ladder } = useMatch();
+  const { queueMode, map, setMap, mapType, testRole, setTestRole, setPendingHeroes, pickedHeroes, setMapCandidates, matchLoggedSignal, account, setAccount, playerRank } = useMatch();
   const { rec, recLoading, recError } = useAdvisor();
 
   const { data: dpiHud } = useApi<DpiTestHud>('/api/blind/state');
@@ -603,6 +603,13 @@ export default function Prematch() {
     />
   );
 
+  // A text box the same size as a pill's label (12px, line-height 1), centred
+  // in the strip the same way. Smaller text inside rests on its baseline, so
+  // every label in the Playing As slip sits on the pills' line.
+  const onLine = (children: React.ReactNode) => (
+    <span className="self-center shrink-0 whitespace-nowrap text-xs leading-none">{children}</span>
+  );
+
   return (
     <div>
 
@@ -633,7 +640,15 @@ export default function Prematch() {
       {/* Three columns on a 4-2-4 split (Sean, 2026-10-01): who is playing on
           the left, the role pick in the middle, the role timer on the right.
           A fixed grid rather than content-sized flex, so each column keeps
-          its place whatever the text inside it says. */}
+          its place whatever the text inside it says.
+
+          Every piece of text rests on one shared baseline. The pills centre
+          12px, line-height-1 text in the strip's full height. Each label is
+          wrapped in onLine(), a box of that same size, centred the same way;
+          smaller text inside it sits on the box's baseline, so a 10px label
+          and a 12px pill letter rest on the same line. The timer bar is an
+          inline-block in the same kind of box, so its bottom edge sits on
+          that line too. */}
       <div
         className="card !py-0 mb-3 grid grid-cols-10 items-stretch gap-4 min-h-[34px]"
         data-inspect-id="prematch-identity-strip"
@@ -642,8 +657,8 @@ export default function Prematch() {
             role select. .card-title is the same as every card heading on the
             page; the class carries uppercase and tracking, so only size is set. */}
         <div className="col-span-4 min-w-0 flex items-stretch gap-2.5">
-          <span className="text-xs card-title shrink-0 self-center">Playing as</span>
-          <span className="text-[10px] uppercase tracking-wider text-[var(--faint-2)] self-center shrink-0" data-inspect-id="prematch-account-label">Account</span>
+          {onLine(<span className="card-title">Playing as</span>)}
+          {onLine(<span className="text-[10px] uppercase tracking-wider text-[var(--faint-2)]" data-inspect-id="prematch-account-label">Account</span>)}
           {identityGroup(
             ACCOUNTS,
             account,
@@ -657,13 +672,6 @@ export default function Prematch() {
             a => `prematch-account-${a.toLowerCase()}-button`,
             a => `Play as ${a}`,
           )}
-          {/* Says out loud which of the eight rank slots the pair selects. The
-              drum is far enough down the page that the strip is off screen by
-              the time it is read. */}
-          <span className="text-[11px] text-[var(--faint-2)] ml-auto min-w-0 truncate text-right self-center" data-inspect-id="prematch-identity-rank-readout">
-            rank slot <b className="font-semibold text-[var(--muted)]">{account} · {ladder}</b>
-            {playerRank != null && <> — <b className="font-semibold text-[var(--ink-2)]">{rankLabel(playerRank)}</b></>}
-          </span>
         </div>
 
         {/* Middle (2): the role pick. Open Queue has one rank per account and
@@ -671,7 +679,7 @@ export default function Prematch() {
             its space so the timer never shifts between queue modes. */}
         <div className="col-span-2 min-w-0 flex items-stretch justify-center gap-2.5">
           {queueMode !== 'comp_open' && (<>
-          <span className="text-[10px] uppercase tracking-wider text-[var(--faint-2)] self-center shrink-0" data-inspect-id="prematch-role-label">Role</span>
+          {onLine(<span className="text-[10px] uppercase tracking-wider text-[var(--faint-2)]" data-inspect-id="prematch-role-label">Role</span>)}
           {identityGroup(
             ROLE_PICKS,
             testRole,
@@ -688,27 +696,29 @@ export default function Prematch() {
             with a nudge to switch at 4 hours. Shown in every queue mode: Open
             Queue matches count too. Quick Play is ignored server-side.
             Recommendation only, never blocks logging. */}
-        <div className="col-span-4 min-w-0 flex items-center">
+        <div className="col-span-4 min-w-0 flex items-stretch">
           {roleTimer && roleTimer.role && (
             <div
-              className="flex-1 min-w-0 flex items-center gap-2"
+              className="flex-1 min-w-0 flex items-stretch gap-2.5"
               title={`Competitive only · ${roleTimer.matches} matches since ${roleTimer.since}. Switch roles at ${fmtHM(roleTimer.thresholdMin)}.`}
               data-inspect-id="prematch-role-timer-card"
             >
-              <span className="text-[10px] uppercase tracking-wider text-[var(--faint-2)] shrink-0">Role time</span>
-              <div className="flex-1 min-w-[40px] h-1.5 rounded-full bg-ow-border/50 overflow-hidden" data-inspect-id="prematch-role-timer-bar">
-                <div
-                  className="h-full rounded-full"
-                  style={{ width: `${Math.min(100, (roleTimer.totalMin / roleTimer.thresholdMin) * 100)}%`, background: `rgb(${ROLE_SEL_RGB[roleTimer.role] ?? '148 163 184'})` }}
-                  data-inspect-id="prematch-role-timer-fill"
-                />
-              </div>
-              <span className="text-[11px] whitespace-nowrap shrink-0 text-[var(--ink-2)]" data-inspect-id="prematch-role-timer-readout">
+              {onLine(<span className="text-[10px] uppercase tracking-wider text-[var(--faint-2)]">Role time</span>)}
+              <span className="self-center flex-1 min-w-[40px] text-xs leading-none">
+                <span className="inline-block align-baseline w-full h-1.5 rounded-full bg-ow-border/50 overflow-hidden" data-inspect-id="prematch-role-timer-bar">
+                  <span
+                    className="block h-full rounded-full"
+                    style={{ width: `${Math.min(100, (roleTimer.totalMin / roleTimer.thresholdMin) * 100)}%`, background: `rgb(${ROLE_SEL_RGB[roleTimer.role] ?? '148 163 184'})` }}
+                    data-inspect-id="prematch-role-timer-fill"
+                  />
+                </span>
+              </span>
+              {onLine(<span className="text-[11px] text-[var(--ink-2)]" data-inspect-id="prematch-role-timer-readout">
                 {roleTimer.reached
                   ? <b className="font-semibold">{fmtHM(roleTimer.thresholdMin)} — switch to {roleTimer.switchTo}</b>
                   : <><b className="font-semibold">{roleTimer.role}</b> {fmtHM(roleTimer.totalMin)} / {fmtHM(roleTimer.thresholdMin)}</>}
                 {roleTimer.estimatedMin > 0 && <span className="text-[var(--faint-2)]"> (+{Math.round(roleTimer.estimatedMin)}m est.)</span>}
-              </span>
+              </span>)}
             </div>
           )}
         </div>
