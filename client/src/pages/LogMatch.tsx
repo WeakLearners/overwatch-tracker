@@ -955,7 +955,7 @@ export default function LogMatch() {
       }, 1650);
       // Focus the (now reset) Map Voting search once the reset has landed, so
       // the next match's prep is one keystroke away. preventScroll keeps the
-      // page on the Match header.
+      // page at the top.
       setTimeout(() => {
         (document.getElementById('map-search') as HTMLInputElement | null)?.focus({ preventScroll: true });
       }, 700);
