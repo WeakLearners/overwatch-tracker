@@ -13,6 +13,7 @@ import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { useDfHeroes, dfSensForHeroName, withDfBadge } from '../hooks/useDfHeroes';
 import { format } from 'date-fns';
 import { useFieldConfig } from '../contexts/FieldConfigContext';
+import { StatFields, emptyStats, statsBody, statsTouched, statsValid, type StatFieldsT } from '../components/AimStatsFields';
 import type { RankOutcomeValue, RankOutcomeChange } from '../components/RankOutcomeControl';
 
 // Shared by the two rank-outcome buttons so they cannot drift apart.
@@ -667,6 +668,31 @@ export default function LogMatch() {
   // the same hero twice in the switch dropdowns shouldn't double its slider).
   const playedHeroes = [...new Set([form.hero, ...switchHeroes].filter((h): h is string => !!h))];
 
+  // "Add aim stats now" fold-out. Shown only for a match the server will put
+  // in the Awaiting Stats backlog — the same test matches.ts applies when it
+  // credits slot 1: not Quick Play, not a Designated Fallback hero, and an
+  // active test set (hero-tagged, else the hero-less ad-hoc one) covering it.
+  // Closed or left blank = today's behaviour: the match waits in the backlog.
+  const showAimFold = !!form.hero && !isQP && dfSensForHeroName(form.hero, dfMap) == null
+    && (dpiState?.actives ?? []).some(a => a.hero === form.hero || a.hero === null);
+  const [aimOpen, setAimOpen] = useState(false);
+  const [aimStats, setAimStats] = useState<StatFieldsT>(emptyStats([]));
+  // One stat row per hero played, in slot order. Rebuilt when the roster
+  // changes, keeping whatever was already typed for a hero still on it.
+  const playedKey = playedHeroes.join('|');
+  useEffect(() => {
+    setAimStats(prev => ({
+      ...prev,
+      heroAcc: playedHeroes.map(h => prev.heroAcc.find(x => x.hero === h) ?? emptyStats([{ hero: h }]).heroAcc[0]),
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playedKey]);
+  const aimHasSupport = playedHeroes.some(h => HEROES[h] === 'Support');
+  // Send stats only when the section is available, open, and actually filled;
+  // a touched-but-incomplete form blocks the submit rather than half-saving.
+  const aimFilled = showAimFold && aimOpen && statsTouched(aimStats);
+  const aimIncomplete = aimFilled && !statsValid(aimStats);
+
   // The date field defaults to the current day but stays editable for backfill.
   // Once the user manually picks a date we stop auto-advancing it so their choice
   // sticks; a successful log clears this back to "follow the clock".
@@ -866,7 +892,7 @@ export default function LogMatch() {
   // sees no slider at all — this form must not then also refuse to let
   // them submit a match over an answer it never showed them.
   const feelsAnswered = !isFieldEnabled('feel') || (playedHeroes.length > 0 && playedHeroes.every(feelAnswered));
-  const valid = form.hero && map && form.win !== '' && form.date && displaySens != null && rankAnswered && feelsAnswered;
+  const valid = form.hero && map && form.win !== '' && form.date && displaySens != null && rankAnswered && feelsAnswered && !aimIncomplete;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -917,6 +943,10 @@ export default function LogMatch() {
           // fact about the match regardless of whether the queue has a ladder.
           account,
           notes: form.notes.trim() || null,
+          // Saved in the same server transaction as the match, which then
+          // never enters the backlog. Omitted entirely when the fold-out is
+          // closed or blank.
+          ...(aimFilled ? { aim_stats: (({ match_id: _unused, ...rest }) => rest)(statsBody(0, aimStats)) } : {}),
         }),
       });
       if (!res.ok) throw new Error('Failed');
@@ -941,6 +971,8 @@ export default function LogMatch() {
       timeTouched.current = false;
       setForm(f => ({ ...f, hero: '', win: '', notes: '', date: datePart, time: format(new Date(), 'HH:mm') }));
       setSwitchHeroes(['', '']);
+      setAimOpen(false);
+      setAimStats(emptyStats([]));
       // Clear the carried-over match intent: the Hero Advisor map selector and
       // its dependent advisor reset so nothing lingers from the logged match.
       setMap('');
@@ -1357,6 +1389,38 @@ export default function LogMatch() {
                   if (pr != null) setPlayerRank(pr);
                 }}
               />
+            )}
+
+            {showAimFold && (
+              <div className="rounded-lg border border-ow-border bg-ow-darker" data-inspect-id="logmatch-aim-stats-fold">
+                <button
+                  type="button"
+                  onClick={() => setAimOpen(o => !o)}
+                  aria-expanded={aimOpen}
+                  data-inspect-id="logmatch-aim-stats-toggle"
+                  className="w-full flex items-baseline justify-between gap-2 px-3 py-2 text-left"
+                >
+                  <span className="text-xs text-[var(--ink)] font-semibold">Add aim stats now <span className="text-[var(--faint-2)] font-normal">(optional)</span></span>
+                  <span className="text-[10px] text-[var(--faint-2)] shrink-0">{aimOpen ? 'hide' : 'skip = awaiting stats'}</span>
+                </button>
+                {aimOpen && (
+                  <div className="border-t border-ow-border px-3 py-3 space-y-4" data-inspect-id="logmatch-aim-stats-body">
+                    <StatFields
+                      idPrefix="logmatch-aim"
+                      s={aimStats}
+                      upd={(k, v) => setAimStats(st => ({ ...st, [k]: v }))}
+                      updHeroAcc={(i, k, v) => setAimStats(st => ({ ...st, heroAcc: st.heroAcc.map((h, hi) => hi === i ? { ...h, [k]: v } : h) }))}
+                      showHealing={aimHasSupport}
+                      heroSens={Object.fromEntries(playedHeroes.map(h => [h, String(displaySensForHero(h) ?? '')]))}
+                    />
+                    {aimIncomplete && (
+                      <p data-inspect-id="logmatch-aim-stats-hint" className="text-[10px] text-ow-accent">
+                        Needs a duration for every hero and the first hero's accuracy. Clear the fields to send this match to Awaiting Stats instead.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
 
             <button
