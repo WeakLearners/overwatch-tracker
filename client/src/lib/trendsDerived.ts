@@ -72,6 +72,7 @@ export function computeTrendsDerived(trends: TrendPoint[] | null) {
       // than leaning on truthiness, the same trap the old run-grouping hit.
       const compW = comp.filter(g => g.win === 1).length;
       const compL = comp.length - compW;
+      const placements = comp.filter(g => g.placement === 1).length;
       const qpW = qp.filter(g => g.win === 1).length;
       const qpL = qp.length - qpW;
       // Where the ladder stood when the day ended. Matches arrive already
@@ -101,7 +102,7 @@ export function computeTrendsDerived(trends: TrendPoint[] | null) {
       const top = Math.max(open, close);
       const bottom = Math.min(open, close);
       return {
-        date, open, close, compW, compL, qpW, qpL, top, bottom, nOpen, nClose, rank, drums,
+        date, open, close, compW, compL, qpW, qpL, placements, top, bottom, nOpen, nClose, rank, drums,
         volume: games.length,
         // Which way the day went, as hue. Normally that is the competitive
         // running total: close above open means a winning day.

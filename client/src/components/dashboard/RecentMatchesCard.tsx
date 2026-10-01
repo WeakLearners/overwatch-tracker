@@ -324,7 +324,7 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
                       fill="transparent"
                     >
                       <title>
-                        {`${format(parseISO(c.date), 'MMM d')} · ${c.volume} played · comp ${c.compW}W ${c.compL}L${c.qpW + c.qpL > 0 ? ` · qp ${c.qpW}W ${c.qpL}L` : ''} · ${c.open > 0 ? '+' : ''}${c.open} → ${c.close > 0 ? '+' : ''}${c.close} · pace ${paceAt(c.nClose) >= 0 ? '+' : ''}${paceAt(c.nClose).toFixed(1)}${(tierMarkByDay.get(c.date) ?? []).map(m => ` · [${drumLabel(m.account, m.role)}] ${m.up ? 'promoted' : 'demoted'} ${rankLabel(m.prev)} → ${rankLabel(m.rank)}`).join('')}`}
+                        {`${format(parseISO(c.date), 'MMM d')} · ${c.volume} played · comp ${c.compW}W ${c.compL}L${c.qpW + c.qpL > 0 ? ` · qp ${c.qpW}W ${c.qpL}L` : ''}${c.placements > 0 ? ` · ${c.placements} placement` : ''} · ${c.open > 0 ? '+' : ''}${c.open} → ${c.close > 0 ? '+' : ''}${c.close} · pace ${paceAt(c.nClose) >= 0 ? '+' : ''}${paceAt(c.nClose).toFixed(1)}${(tierMarkByDay.get(c.date) ?? []).map(m => ` · [${drumLabel(m.account, m.role)}] ${m.up ? 'promoted' : 'demoted'} ${rankLabel(m.prev)} → ${rankLabel(m.rank)}`).join('')}`}
                       </title>
                     </rect>
                   ))}

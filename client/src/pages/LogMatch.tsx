@@ -522,7 +522,7 @@ interface BlindSetSummary {
 export default function LogMatch() {
   // Map + queue mode are shared with the Pre-Match section via context; this
   // section only owns date/time/hero/win plus the death tags.
-  const { queueMode, map, setMap, mapType, sens, testRole, pendingHeroes, setPendingHeroes, setPickedHeroes, notifyMatchLogged, playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, lobbyLow, lobbyHigh, account } = useMatch();
+  const { queueMode, map, setMap, mapType, sens, testRole, pendingHeroes, setPendingHeroes, setPickedHeroes, notifyMatchLogged, playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, lobbyLow, lobbyHigh, placement, account } = useMatch();
   const { deathBuffer, removeDeathFromBuffer, toggleDeathUlt, clearDeathBuffer } = useDeathBuffer();
   const { data: dpiState } = useApi<DpiTestState>('/api/blind/state');
   const { isFieldEnabled, fields } = useFieldConfig();
@@ -883,7 +883,9 @@ export default function LogMatch() {
   // The rank answer is required on a ranked match that has a rank to move.
   // With no rank set there is nothing to choose between, so it does not gate
   // — the row says to go set one instead of trapping the form.
-  const rankAnswered = isQP || !isFieldEnabled('player_rank') || playerRank == null || rankOutcome != null;
+  // Placements show no rank to move from, so nothing is asked or written.
+  const isPlacement = placement && !isQP;
+  const rankAnswered = isQP || isPlacement || !isFieldEnabled('player_rank') || playerRank == null || rankOutcome != null;
   // Every hero actually played needs an explicit feel answer — an untouched
   // slider must not reach the database at all (see FEEL_MID note above).
   // Bypassed the same way rankAnswered bypasses on QP above: RegistryField
@@ -931,14 +933,17 @@ export default function LogMatch() {
           result_driver: resultDriver,
           leaver: leaverSide !== null,
           leaver_side: leaverSide,
-          player_rank: isQP ? null : playerRank,
+          // Placement matches write no rank at all: the drum still holds last
+          // season's rank, and writing it would draw a fake climb.
+          player_rank: isQP || isPlacement ? null : playerRank,
           // Where the ladder stood going in. Carried from the rank the last
           // match on this account+role ended at, so the row records the move
           // itself rather than leaving the chart to infer one by comparing
           // against whichever earlier row it can find.
-          player_rank_start: isQP ? null : rankAtLastLog,
-          lobby_low: isQP ? null : lobbyLow,
-          lobby_high: isQP ? null : lobbyHigh,
+          player_rank_start: isQP || isPlacement ? null : rankAtLastLog,
+          lobby_low: isQP || isPlacement ? null : lobbyLow,
+          lobby_high: isQP || isPlacement ? null : lobbyHigh,
+          placement: isPlacement,
           // Unlike rank, the account isn't gated on isQP — who played is a
           // fact about the match regardless of whether the queue has a ladder.
           account,
@@ -955,7 +960,9 @@ export default function LogMatch() {
       setStatus('success');
       // This match's finishing rank is the next one's starting rank. Written
       // only after the save succeeds — a failed POST must not move the ladder.
-      if (!isQP) commitRankAtLastLog(playerRank);
+      // After a placement game the ladder has no known rank yet, so the next
+      // match must not start from last season's.
+      if (!isQP) commitRankAtLastLog(isPlacement ? null : playerRank);
       setRankOutcome(null);
       clearDeathBuffer();
       setFeelByHero({});
@@ -1379,7 +1386,7 @@ export default function LogMatch() {
                 The badge is the live server rank, so pressing a button here
                 moves the Pre-Match badge too: rank is one row in
                 player_ranks, not a copy per page. Hidden on quickplay. */}
-            {!isQP && isFieldEnabled('player_rank') && (
+            {!isQP && !isPlacement && isFieldEnabled('player_rank') && (
               <RegistryField
                 field={registryField('player_rank')!}
                 value={{ playerRank, rankAtLastLog, rankOutcome, win: form.win, account, testRole } as RankOutcomeValue}

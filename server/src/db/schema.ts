@@ -472,6 +472,15 @@ function initSchema(db: DatabaseSync) {
     }
   }
 
+  // placement: 1 when the match was a placement game. The game shows no rank
+  // and no lobby range during placements, so those rows carry null for
+  // player_rank / player_rank_start / lobby_low / lobby_high rather than a
+  // stale last-season rank. Nullable, no default: null = not flagged. Added
+  // 2026-10-01; no backfill (past placements were never marked).
+  if (!cols.find(c => c.name === 'placement')) {
+    db.exec(`ALTER TABLE matches ADD COLUMN placement INTEGER`);
+  }
+
   // account: which of Sean's four accounts played this match — 'Pinx' |
   // 'Jinx' | 'Winx' | 'Linx'. See ACCOUNTS in client/src/types/index.ts for
   // the canonical list; the two must stay in step. Overwatch ranks each

@@ -55,6 +55,11 @@ const lobbyKeyFor = (a: Account, r: RankRole) => `${LOBBY_KEY}:${a}:${r}`;
 // match's player_rank_start, so a row can say "went in at Gold 1, came out at
 // Gold 2" on its own instead of the chart inferring it by comparing two rows.
 // Per account+role, same as the rank drum, because each ladder moves alone.
+const PLACEMENT_KEY = 'ow-placement';
+const placementKeyFor = (a: Account, r: RankRole) => `${PLACEMENT_KEY}:${a}:${r}`;
+function readPlacement(a: Account, r: RankRole): boolean {
+  try { return localStorage.getItem(placementKeyFor(a, r)) === '1'; } catch { return false; }
+}
 const RANK_AT_LAST_LOG_KEY = 'ow-rank-at-last-log';
 const rankAtLastLogKeyFor = (a: Account, r: RankRole) => `${RANK_AT_LAST_LOG_KEY}:${a}:${r}`;
 
@@ -151,6 +156,10 @@ interface MatchContextValue {
    *  (live rank and/or the ladder's latest end rank) for any account+role. */
   applyRankFix: (a: Account, r: RankRole, rank: number | null, latestEnd: number | null) => void;
   setPlayerRank: (r: number | null) => void;
+  /** This ladder is in placements: the game shows no rank or lobby range, so
+   *  matches log none (and are flagged) instead of a stale last-season rank. */
+  placement: boolean;
+  setPlacement: (on: boolean) => void;
   lobbyLow: number | null;
   lobbyHigh: number | null;
   /** Set both ends at once — what the lobby range slider writes. */
@@ -312,6 +321,18 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   }, [account, testRole, rankSlotKey]);
 
   const [lobbyRange, setLobbyRange] = useState<{ low: number; high: number } | null>(() => readLobby(account, testRole));
+  const [placement, setPlacementState] = useState<boolean>(() => readPlacement(account, testRole));
+  // Turning placements on drops any lobby range: it belongs to the old rank
+  // and the game shows none now. Turning off leaves rank for Sean to set from
+  // the revealed value.
+  const setPlacement = useCallback((on: boolean) => {
+    setPlacementState(on);
+    try {
+      if (on) localStorage.setItem(placementKeyFor(account, testRole), '1');
+      else localStorage.removeItem(placementKeyFor(account, testRole));
+    } catch { /* ignore */ }
+    if (on) setLobbyRange(null);
+  }, [account, testRole]);
 
   // Account and role each swap the whole rank context in one move: the drum's
   // rank and the lobby track both reload from the new slot's storage. Read,
@@ -329,6 +350,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
       setPlayerRankState(readRank(a, testRole));
       setRankAtLastLogState(readRankAtLastLog(a, testRole));
       setLobbyRange(readLobby(a, testRole));
+      setPlacementState(readPlacement(a, testRole));
       return a;
     });
   }, [testRole]);
@@ -339,6 +361,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
       setPlayerRankState(readRank(account, r));
       setRankAtLastLogState(readRankAtLastLog(account, r));
       setLobbyRange(readLobby(account, r));
+      setPlacementState(readPlacement(account, r));
       return r;
     });
   }, [account]);
@@ -407,6 +430,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     mapType,
     account, setAccount,
     playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, applyRankFix,
+    placement, setPlacement,
     lobbyLow, lobbyHigh,
     setLobbyRange: setLobbyRangeValues, applyLobbySpread, nudgeLobby, clearLobbyRange,
     pendingHeroes, setPendingHeroes, pickedHeroes, setPickedHeroes, mapCandidates, setMapCandidates,
@@ -416,7 +440,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   }), [
     queueMode, setQueueMode, map, setMap, sens, setSens, testRole, setTestRole, mapType,
     account, setAccount, playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, applyRankFix,
-    lobbyLow, lobbyHigh, setLobbyRangeValues, applyLobbySpread, nudgeLobby, clearLobbyRange,
+    placement, setPlacement, lobbyLow, lobbyHigh, setLobbyRangeValues, applyLobbySpread, nudgeLobby, clearLobbyRange,
     pendingHeroes, pickedHeroes, mapCandidates, matchLoggedSignal, lastLog, notifyMatchLogged,
   ]);
 

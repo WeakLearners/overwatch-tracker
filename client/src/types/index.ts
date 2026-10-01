@@ -237,6 +237,8 @@ export interface TrendPoint {
    * those matches began at is not recorded anywhere.
    */
   player_rank_start: number | null;
+  /** 1 for a placement game (no rank or lobby range was visible), else null. */
+  placement: number | null;
   /** Role played, e.g. 'Support' | 'DPS' | 'Tank' — Overwatch ranks each role separately. */
   role: string;
   /**

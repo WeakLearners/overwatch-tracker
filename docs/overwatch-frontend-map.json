@@ -3471,6 +3471,26 @@
           }
         },
         {
+          "id": "lobby-rank-placement-toggle",
+          "label": "Placements toggle",
+          "kind": "button",
+          "description": "Marks this account+role ladder as in placements: the game shows no rank or lobby range, so Log Match writes null rank/range and flags the match (matches.placement). Per-ladder, kept in localStorage.",
+          "locate": {
+            "path": "client/src/components/LobbyRankSection.tsx:1",
+            "grep": "grep -n -F -- 'lobby-rank-placement-toggle' client/src/components/LobbyRankSection.tsx"
+          }
+        },
+        {
+          "id": "lobby-rank-placement-note",
+          "label": "Placements note",
+          "kind": "text",
+          "description": "Replaces the lobby range track while Placements is on; says to set the revealed rank on the drum and switch Placements off.",
+          "locate": {
+            "path": "client/src/components/LobbyRankSection.tsx:1",
+            "grep": "grep -n -F -- 'lobby-rank-placement-note' client/src/components/LobbyRankSection.tsx"
+          }
+        },
+        {
           "id": "lobby-rank-row",
           "label": "Lobby Rank \u2014 drum + track row",
           "kind": "container",

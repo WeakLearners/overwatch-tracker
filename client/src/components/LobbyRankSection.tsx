@@ -24,7 +24,7 @@ const TRAY_WIDTH_KEY = 'ow-lobby-tray-width';
 // Competitive only — quickplay has no rank, so the section is hidden rather
 // than sitting empty and inviting a guess.
 export default function LobbyRankSection({ className = '' }: { className?: string }) {
-  const { queueMode, playerRank, setPlayerRank, lobbyLow, lobbyHigh, setLobbyRange, clearLobbyRange } = useMatch();
+  const { queueMode, playerRank, setPlayerRank, lobbyLow, lobbyHigh, setLobbyRange, clearLobbyRange, placement, setPlacement } = useMatch();
   const { isFieldEnabled } = useFieldConfig();
   // Field-registry Phase 2 (2026-09-24) — lobby_low/lobby_high's registry
   // entry (server/src/lib/fieldRegistry.ts's `lobby_range`). Gated directly
@@ -81,7 +81,20 @@ export default function LobbyRankSection({ className = '' }: { className?: strin
     <div className={className} data-inspect-id="lobby-rank-section">
       <div className="flex items-baseline gap-2 mb-3">
         <h3 className="text-sm card-title" data-inspect-id="lobby-rank-header">Lobby Rank</h3>
-        <span className="text-xs text-[var(--faint-2)]">read it off the scoreboard now</span>
+        <span className="text-xs text-[var(--faint-2)]">
+          {placement ? 'placements: no rank or range shown, matches log none' : 'read it off the scoreboard now'}
+        </span>
+        <button
+          type="button"
+          onClick={() => setPlacement(!placement)}
+          aria-pressed={placement}
+          data-inspect-id="lobby-rank-placement-toggle"
+          className={`ml-auto shrink-0 px-2 py-0.5 rounded-md border text-xs transition-colors ${
+            placement ? 'border-ow-accent text-ow-accent bg-ow-accent/10' : 'border-ow-border text-[var(--faint)] hover:text-ow-accent hover:border-ow-accent/60'
+          }`}
+        >
+          Placements
+        </button>
       </div>
 
       {/* The drum sits in this row, beside the track it defines. Your own rank
@@ -112,7 +125,11 @@ export default function LobbyRankSection({ className = '' }: { className?: strin
           </button>
         </div>
         <div className="flex-1 min-w-0">
-          {!lobbyRangeOn ? null : playerRank == null ? (
+          {placement ? (
+            <p className="text-xs text-[var(--faint-2)]" data-inspect-id="lobby-rank-placement-note">
+              In placements. When the game reveals your rank, set it on the drum and switch Placements off.
+            </p>
+          ) : !lobbyRangeOn ? null : playerRank == null ? (
             <p className="text-xs text-[var(--faint-2)]" data-inspect-id="lobby-rank-needs-rank">
               Set your rank on the drum first — the track is built around it.
             </p>

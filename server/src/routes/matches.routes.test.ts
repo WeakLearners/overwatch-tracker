@@ -43,7 +43,7 @@ const credits = (matchId: number) =>
     .map(r => ({ hero: r.hero, blind_set_id: Number(r.blind_set_id), stage_index: Number(r.stage_index) }));
 
 const matchRow = (matchId: number) =>
-  h.db.prepare('SELECT hero, sens, dpi, blind_trial, blind_set_id, stage_index, queue_mode, player_rank, player_rank_start FROM matches WHERE id = ?')
+  h.db.prepare('SELECT hero, sens, dpi, blind_trial, blind_set_id, stage_index, queue_mode, player_rank, player_rank_start, placement FROM matches WHERE id = ?')
     .get(matchId) as any;
 
 const heroSlots = (matchId: number) =>
@@ -233,6 +233,19 @@ describe('POST /api/matches — the rank a match started and ended at', () => {
     assert.equal(r.status, 200);
     assert.equal(matchRow(id).player_rank_start, 16);
     assert.equal(matchRow(other).player_rank_start, 14, 'correcting one row must not disturb another');
+  });
+});
+
+describe('POST /api/matches — placement flag', () => {
+  test('a placement match is flagged and carries no rank or lobby range', async () => {
+    const m = matchRow(await logMatch({ hero: 'Ashe', role: 'DPS', placement: true }));
+    assert.equal(m.placement, 1);
+    assert.equal(m.player_rank, null);
+    assert.equal(m.player_rank_start, null);
+  });
+
+  test('an ordinary match is not flagged', async () => {
+    assert.equal(matchRow(await logMatch({ hero: 'Ashe', role: 'DPS', player_rank: 15 })).placement, null);
   });
 });
 
