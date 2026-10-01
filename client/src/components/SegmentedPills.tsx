@@ -13,6 +13,7 @@ export const ACCENT_SEL = '247 147 30';
 // section nav) — taller strip, larger display-face labels.
 export const PILL_SIZE = {
   sm: 'px-3 text-xs font-semibold tracking-wide',
+  md: 'px-3 text-[13px] font-semibold tracking-wide',
   lg: 'px-4 text-[14.3px] heading-display uppercase tracking-[0.12em]',
 } as const;
 

@@ -595,11 +595,12 @@ export default function Prematch() {
     inspectId: string,
     idFor: (v: T) => string,
     titleFor: (v: T) => string,
+    size: 'sm' | 'md' = 'sm',
   ) => (
     <SegmentedPills
       options={options} value={value} onPick={onPick} sel={sel}
       inspectId={inspectId} idFor={idFor} titleFor={titleFor}
-      sizeLabels={IDENTITY_LABELS}
+      sizeLabels={IDENTITY_LABELS} size={size}
     />
   );
 
@@ -671,6 +672,9 @@ export default function Prematch() {
             'prematch-account-toggle',
             a => `prematch-account-${a.toLowerCase()}-button`,
             a => `Play as ${a}`,
+            // A step up from the role pills (13px vs 12px): the account names
+            // are what Sean reads first in this slip (2026-10-01).
+            'md',
           )}
         </div>
 
