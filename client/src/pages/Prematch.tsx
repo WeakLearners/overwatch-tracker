@@ -248,13 +248,13 @@ export default function Prematch() {
   useEffect(() => { setMapCandidates(selected); return () => setMapCandidates([]); }, [selected, setMapCandidates]);
 
   // On a map pick, scroll so Select Your Hero sits 16px below the sticky bars
-  // (header, plus the Jump-to strip on the Dashboard). Skips the first run
-  // (page load / return) and clearing the map. The short delay lets the map's
+  // (header, plus the Jump-to strip on the Dashboard). Only a real change of map
+  // scrolls: not page load (or dev's double effect run), not clearing. The short delay lets the map's
   // advice above the card finish loading so the card is measured at rest.
-  const mapScrollReady = useRef(false);
+  const lastScrolledMap = useRef(map);
   useEffect(() => {
-    if (!mapScrollReady.current) { mapScrollReady.current = true; return; }
-    if (!map) return;
+    if (map === lastScrolledMap.current) return;
+    lastScrolledMap.current = map; if (!map) return;
     const t = setTimeout(() => {
       const el = document.querySelector('[data-inspect-id$="-hero-select-card"]');
       if (!el) return;
