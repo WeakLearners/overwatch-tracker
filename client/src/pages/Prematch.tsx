@@ -1478,10 +1478,10 @@ export default function Prematch() {
                 to="/sens"
                 // The accent's lit fill (.is-selected.mode-fill) with a thin
                 // 1px border instead of the mode tile's 2px one. The extra 1px
-                // padding keeps the button's size. boxShadow none drops the
-                // tile's lit bottom edge and glow; the fill stays.
+                // padding keeps the button's size. The lit bottom edge and
+                // underglow stay: they are the theme.
                 className="relative block w-full text-center rounded border is-selected mode-fill px-[9px] py-[7px] text-sm font-bold whitespace-nowrap cursor-pointer active:scale-[0.98] hover:brightness-110 transition-all"
-                style={{ '--sel': ACCENT_SEL, boxShadow: 'none' } as React.CSSProperties}
+                style={{ '--sel': ACCENT_SEL } as React.CSSProperties}
                 data-inspect-id="prematch-backlog-go-link"
               >
                 <span className="lit-text">Go to backlog →</span>
