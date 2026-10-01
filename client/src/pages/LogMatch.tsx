@@ -490,21 +490,6 @@ function getDayOfWeek(dateStr: string) {
   return days[new Date(dateStr + 'T12:00:00').getDay()];
 }
 
-// Smooth-scroll so a single element sits centred in the viewport. Map pick is
-// the only caller left — hero pick used to centre Match Details as well, but
-// that auto-scroll was removed 2026-09-10: it moved the page out from under a
-// hero list still being clicked. Falls back to Match Details if the requested
-// id isn't rendered yet.
-// Note: scrollTo is called directly — wrapping it in requestAnimationFrame gets
-// swallowed here, so callers handle any "wait for layout" delay themselves.
-function centerOnElement(id: string) {
-  const el = document.getElementById(id) ?? document.getElementById('match-details');
-  if (!el) return;
-  const rect = el.getBoundingClientRect();
-  const target = rect.top + window.scrollY + rect.height / 2 - window.innerHeight / 2;
-  window.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
-}
-
 const PENDING_KEY = 'ow-pending-match';
 
 // Active stage-test sets, as returned by /api/blind/state — used to show the
@@ -740,17 +725,6 @@ export default function LogMatch() {
     }
   }, [pendingHeroes, setPendingHeroes]);
 
-  // Picking a map brings the next card into a centred view: the hero advice
-  // card. (It centred on Lobby Rank until 2026-09-30, when that card moved
-  // below hero select.) The short delay lets the map's hero list finish
-  // loading so the page is at full height before we measure and centre it.
-  useEffect(() => {
-    if (!map) return;
-    const t = setTimeout(() => centerOnElement('consolidated-advisor'), 350);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map]);
-
   // Publish the three hero slots, in slot order, so Pre-Match's picker can
   // highlight them. The form is the single owner of the pick order.
   useEffect(() => {
@@ -970,12 +944,8 @@ export default function LogMatch() {
       // Clear the carried-over match intent: the Hero Advisor map selector and
       // its dependent advisor reset so nothing lingers from the logged match.
       setMap('');
-      // Land exactly where SensNav's "← Match Tracker" (backlog return) lands:
-      // the Match section header at the top (2026-09-24, Sean). Standalone
-      // /log has no #sec-match, so there it centres the map search instead.
-      const matchHeader = document.getElementById('sec-match');
-      if (matchHeader) matchHeader.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      else document.getElementById('map-search')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Back to the top of the page; the Map search is focused below.
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       // Flash the win/loss overlay on the logged mode's tile (the signal also
       // resets Map Voting), then refresh so its win rate rolls to the new value.
       setTimeout(() => notifyMatchLogged({ mode: loggedMode, win: loggedWin }), 550);

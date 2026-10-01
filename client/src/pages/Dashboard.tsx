@@ -75,6 +75,7 @@ export default function Dashboard() {
     pinnedUntil.current = Date.now() + 1200;
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
     history.replaceState(null, '', `#${id}`);
+    if (id === 'sec-match') (document.getElementById('map-search') as HTMLInputElement | null)?.focus({ preventScroll: true });
   };
   useEffect(() => {
     const observer = new IntersectionObserver(
