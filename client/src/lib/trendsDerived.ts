@@ -243,6 +243,9 @@ export function computeTrendsDerived(trends: TrendPoint[] | null) {
   // columns on one row are decided at log time, by the person who knows, and
   // an edit to that row corrects the mark instead of shifting every mark
   // after it.
+  // The ladder a match belongs to: Open Queue has one combined rank per
+  // account, so its rows never join a role's line or marks, and vice versa.
+  const ladderOf = (g: TrendPoint): string => (g.queue_mode === 'comp_open' ? 'Open' : g.role);
   const tierMarks: TierMark[] = (() => {
     const out: TierMark[] = [];
     for (const g of trends ?? []) {
@@ -255,7 +258,7 @@ export function computeTrendsDerived(trends: TrendPoint[] | null) {
       out.push({
         j, date, up: to > from,
         tier: rankTier(to), from: rankTier(from),
-        rank: to, prev: from, account: g.account, role: g.role,
+        rank: to, prev: from, account: g.account, role: ladderOf(g),
       });
     }
     return out;
@@ -300,7 +303,7 @@ export function computeTrendsDerived(trends: TrendPoint[] | null) {
   //
   // Only DPS and Support are ranked ladders Sean tracks here; Tank is out of
   // scope for this strip by the same brief that scoped the account pills.
-  const RANK_ROLES = ['DPS', 'Support'] as const;
+  const RANK_ROLES = ['DPS', 'Support', 'Open'] as const;
   type RankRole = typeof RANK_ROLES[number];
 
   // Eight hues spread evenly around the wheel, one per account x role, at
@@ -310,10 +313,10 @@ export function computeTrendsDerived(trends: TrendPoint[] | null) {
   // sit roughly opposite each other on the wheel so they never look related.
   const hue = (h: number, l = 0.72) => `oklch(${l} 0.19 ${h})`;
   const RANK_SERIES_COLOR: Record<Account, Record<RankRole, string>> = {
-    Pinx: { DPS: hue(255),  Support: hue(100, 0.86) }, // blue / yellow
-    Jinx: { DPS: hue(340),  Support: hue(145, 0.78) }, // magenta / green
-    Winx: { DPS: hue(60),   Support: hue(295) },       // orange / violet
-    Linx: { DPS: hue(200, 0.78), Support: hue(25, 0.66) }, // cyan / red
+    Pinx: { DPS: hue(255),  Support: hue(100, 0.86), Open: hue(170, 0.8) }, // blue / yellow
+    Jinx: { DPS: hue(340),  Support: hue(145, 0.78), Open: hue(230, 0.62) }, // magenta / green
+    Winx: { DPS: hue(60),   Support: hue(295), Open: hue(315, 0.62) },       // orange / violet
+    Linx: { DPS: hue(200, 0.78), Support: hue(25, 0.66), Open: hue(120, 0.62) }, // cyan / red
   };
 
   type RankStep = { x: number; y: number };
@@ -329,7 +332,7 @@ export function computeTrendsDerived(trends: TrendPoint[] | null) {
   const rankSeries: RankSeries[] = ACCOUNTS.flatMap(account =>
     RANK_ROLES.map((role): RankSeries => {
       const matches = (trends ?? []).filter(
-        g => g.account === account && g.role === role && (g.player_rank_start != null || g.player_rank != null),
+        g => g.account === account && ladderOf(g) === role && (g.player_rank_start != null || g.player_rank != null),
       );
       // Grouped by day so several matches on the same day can be spaced
       // evenly across that day's column instead of stacking on one x.
@@ -377,7 +380,7 @@ export function computeTrendsDerived(trends: TrendPoint[] | null) {
         // lit-text glows use), so the lines read over the lit tier bands.
         color: RANK_SERIES_COLOR[account][role],
         steps,
-        current: lastWithAccount?.account === account && lastWithAccount?.role === role,
+        current: lastWithAccount?.account === account && (lastWithAccount ? ladderOf(lastWithAccount) : null) === role,
       };
     }),
   );

@@ -809,7 +809,7 @@ router.put('/:id/rank-outcome', (req: Request, res: Response) => {
     res.status(400).json({ error: "outcome must be 'promoted', 'demoted' or 'none'" });
     return;
   }
-  const m = db.prepare('SELECT id, account, role, date, time, player_rank, player_rank_start FROM matches WHERE id = :id')
+  const m = db.prepare(`SELECT id, account, CASE WHEN queue_mode = 'comp_open' THEN 'Open' ELSE role END AS role, date, time, player_rank, player_rank_start FROM matches WHERE id = :id`)
     .get({ id: req.params.id }) as { id: number; account: string | null; role: string; date: string; time: string | null; player_rank: number | null; player_rank_start: number | null } | undefined;
   if (!m) { res.status(404).json({ error: 'match not found' }); return; }
   if (m.player_rank_start == null) {
@@ -833,7 +833,7 @@ router.put('/:id/rank-outcome', (req: Request, res: Response) => {
     if (delta !== 0) {
       const later = db.prepare(`
         SELECT id, player_rank, player_rank_start FROM matches
-        WHERE account IS :account AND role = :role AND id != :id
+        WHERE account IS :account AND (CASE WHEN queue_mode = 'comp_open' THEN 'Open' ELSE role END) = :role AND id != :id
           AND (player_rank_start IS NOT NULL OR player_rank IS NOT NULL)
           AND (date, COALESCE(time, ''), id) > (:date, :time, :id)
         ORDER BY date, COALESCE(time, ''), id

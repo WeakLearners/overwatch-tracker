@@ -44,10 +44,14 @@ const ACCOUNT_KEY = 'ow-account';
 // "Linx's support rank" is. The lobby range follows the same key because a
 // lobby is something you are in on one account in one role, and the track it
 // sits on is drawn around that pairing's rank.
-type RankRole = 'DPS' | 'Support';
+// 'Open' is the one combined ladder per account in Open Queue (6v6): it has no
+// roles, so it is its own slot beside the role ones. Role-queue slots are
+// never touched while Open is selected.
+type RankRole = 'DPS' | 'Support' | 'Open';
+const ladderFor = (q: QueueMode, r: 'DPS' | 'Support'): RankRole => (q === 'comp_open' ? 'Open' : r);
 // The two ladders Sean actually plays. Listed so the one-time seed below can
 // walk every account/role slot the browser might still be holding a rank for.
-const RANK_ROLES: readonly RankRole[] = ['DPS', 'Support'];
+const RANK_ROLES: readonly ('DPS' | 'Support')[] = ['DPS', 'Support'];
 const rankKeyFor = (a: Account, r: RankRole) => `${RANK_KEY}:${a}:${r}`;
 const lobbyKeyFor = (a: Account, r: RankRole) => `${LOBBY_KEY}:${a}:${r}`;
 
@@ -156,6 +160,8 @@ interface MatchContextValue {
    *  (live rank and/or the ladder's latest end rank) for any account+role. */
   applyRankFix: (a: Account, r: RankRole, rank: number | null, latestEnd: number | null) => void;
   setPlayerRank: (r: number | null) => void;
+  /** Which rank slot is live per account: a role, or 'Open' in Open Queue. */
+  ladder: 'DPS' | 'Support' | 'Open';
   /** This ladder is in placements: the game shows no rank or lobby range, so
    *  matches log none (and are flagged) instead of a stale last-season rank. */
   placement: boolean;
@@ -199,7 +205,7 @@ interface MatchContextValue {
 const MatchContext = createContext<MatchContextValue | null>(null);
 
 export function MatchProvider({ children }: { children: ReactNode }) {
-  const [queueMode, setQueueMode] = useState<QueueMode>(() => {
+  const [queueMode, setQueueModeState] = useState<QueueMode>(() => {
     const saved = localStorage.getItem(QUEUE_MODE_KEY) as QueueMode | null;
     return saved && QUEUE_MODES.some(q => q.value === saved) ? saved : 'comp_role';
   });
@@ -234,6 +240,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   // the server does not know about is pushed up from whatever the browser was
   // holding. It is still written too, so the drum renders instantly on reload
   // instead of flashing empty while the fetch lands.
+  const ladder: RankRole = ladderFor(queueMode, testRole);
   const [rankMap, setRankMap] = useState<Record<string, number> | null>(null);
   const rankSlotKey = useCallback((a: Account, r: RankRole) => `${a}|${r}`, []);
 
@@ -264,17 +271,17 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     return () => { cancelled = true; };
   }, []);
 
-  const [playerRank, setPlayerRankState] = useState<number | null>(() => readRank(account, testRole));
+  const [playerRank, setPlayerRankState] = useState<number | null>(() => readRank(account, ladder));
   // Once the server's map arrives it wins, for the slot currently selected.
   useEffect(() => {
     if (!rankMap) return;
-    const v = rankMap[rankSlotKey(account, testRole)];
+    const v = rankMap[rankSlotKey(account, ladder)];
     setPlayerRankState(v ?? null);
-  }, [rankMap, account, testRole, rankSlotKey]);
+  }, [rankMap, account, ladder, rankSlotKey]);
 
   const setPlayerRank = useCallback((r: number | null) => {
     setPlayerRankState(r);
-    const key = rankSlotKey(account, testRole);
+    const key = rankSlotKey(account, ladder);
     setRankMap(prev => {
       const next = { ...(prev ?? {}) };
       if (r == null) delete next[key]; else next[key] = r;
@@ -282,33 +289,33 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     });
     // Mirror locally so a reload paints before the fetch returns.
     try {
-      if (r == null) localStorage.removeItem(rankKeyFor(account, testRole));
-      else localStorage.setItem(rankKeyFor(account, testRole), String(r));
+      if (r == null) localStorage.removeItem(rankKeyFor(account, ladder));
+      else localStorage.setItem(rankKeyFor(account, ladder), String(r));
     } catch { /* ignore */ }
     fetch('/api/ranks', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ account, role: testRole, rank: r }),
+      body: JSON.stringify({ account, role: ladder, rank: r }),
     }).catch(() => { /* the local mirror keeps the UI honest until next load */ });
-  }, [account, testRole, rankSlotKey]);
+  }, [account, ladder, rankSlotKey]);
 
   // Where this ladder stood when its last match was logged. Read on mount and
   // on every account/role swap, the same as the drum itself.
-  const [rankAtLastLog, setRankAtLastLogState] = useState<number | null>(() => readRankAtLastLog(account, testRole));
+  const [rankAtLastLog, setRankAtLastLogState] = useState<number | null>(() => readRankAtLastLog(account, ladder));
   // Called by LogMatch after a match saves, with the rank that match ended at.
   // That rank is the next one's starting point.
   const commitRankAtLastLog = useCallback((r: number | null) => {
     setRankAtLastLogState(r);
     try {
-      if (r == null) localStorage.removeItem(rankAtLastLogKeyFor(account, testRole));
-      else localStorage.setItem(rankAtLastLogKeyFor(account, testRole), String(r));
+      if (r == null) localStorage.removeItem(rankAtLastLogKeyFor(account, ladder));
+      else localStorage.setItem(rankAtLastLogKeyFor(account, ladder), String(r));
     } catch { /* ignore */ }
-  }, [account, testRole]);
+  }, [account, ladder]);
 
   // The server already wrote player_ranks; this only brings the in-memory
   // copies (and the localStorage mirrors) in line, for whichever ladder the
   // fix touched — not necessarily the one currently selected.
   const applyRankFix = useCallback((a: Account, r: RankRole, rank: number | null, latestEnd: number | null) => {
-    const current = a === account && r === testRole;
+    const current = a === account && r === ladder;
     if (rank != null) {
       setRankMap(prev => ({ ...(prev ?? {}), [rankSlotKey(a, r)]: rank }));
       try { localStorage.setItem(rankKeyFor(a, r), String(rank)); } catch { /* ignore */ }
@@ -318,21 +325,21 @@ export function MatchProvider({ children }: { children: ReactNode }) {
       try { localStorage.setItem(rankAtLastLogKeyFor(a, r), String(latestEnd)); } catch { /* ignore */ }
       if (current) setRankAtLastLogState(latestEnd);
     }
-  }, [account, testRole, rankSlotKey]);
+  }, [account, ladder, rankSlotKey]);
 
-  const [lobbyRange, setLobbyRange] = useState<{ low: number; high: number } | null>(() => readLobby(account, testRole));
-  const [placement, setPlacementState] = useState<boolean>(() => readPlacement(account, testRole));
+  const [lobbyRange, setLobbyRange] = useState<{ low: number; high: number } | null>(() => readLobby(account, ladder));
+  const [placement, setPlacementState] = useState<boolean>(() => readPlacement(account, ladder));
   // Turning placements on drops any lobby range: it belongs to the old rank
   // and the game shows none now. Turning off leaves rank for Sean to set from
   // the revealed value.
   const setPlacement = useCallback((on: boolean) => {
     setPlacementState(on);
     try {
-      if (on) localStorage.setItem(placementKeyFor(account, testRole), '1');
-      else localStorage.removeItem(placementKeyFor(account, testRole));
+      if (on) localStorage.setItem(placementKeyFor(account, ladder), '1');
+      else localStorage.removeItem(placementKeyFor(account, ladder));
     } catch { /* ignore */ }
     if (on) setLobbyRange(null);
-  }, [account, testRole]);
+  }, [account, ladder]);
 
   // Account and role each swap the whole rank context in one move: the drum's
   // rank and the lobby track both reload from the new slot's storage. Read,
@@ -347,33 +354,51 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     setAccountState(prev => {
       if (prev === a) return prev;
       try { localStorage.setItem(ACCOUNT_KEY, a); } catch { /* ignore */ }
-      setPlayerRankState(readRank(a, testRole));
-      setRankAtLastLogState(readRankAtLastLog(a, testRole));
-      setLobbyRange(readLobby(a, testRole));
-      setPlacementState(readPlacement(a, testRole));
+      setPlayerRankState(readRank(a, ladder));
+      setRankAtLastLogState(readRankAtLastLog(a, ladder));
+      setLobbyRange(readLobby(a, ladder));
+      setPlacementState(readPlacement(a, ladder));
       return a;
     });
-  }, [testRole]);
+  }, [ladder]);
 
   const setTestRole = useCallback((r: 'DPS' | 'Support') => {
     setTestRoleState(prev => {
       if (prev === r) return prev;
+      if (queueMode === 'comp_open') return r; // Open has one slot, no role to swap
       setPlayerRankState(readRank(account, r));
       setRankAtLastLogState(readRankAtLastLog(account, r));
       setLobbyRange(readLobby(account, r));
       setPlacementState(readPlacement(account, r));
       return r;
     });
-  }, [account]);
+  }, [account, queueMode]);
+
+  // Switching between Open and a role queue swaps the whole rank context in
+  // one move, like account and role do: Open's slot and the role slots are
+  // separate, each keeps what it was left at.
+  const setQueueMode = useCallback((q: QueueMode) => {
+    setQueueModeState(prev => {
+      if (prev === q) return prev;
+      const next = ladderFor(q, testRole);
+      if (next !== ladderFor(prev, testRole)) {
+        setPlayerRankState(readRank(account, next));
+        setRankAtLastLogState(readRankAtLastLog(account, next));
+        setLobbyRange(readLobby(account, next));
+        setPlacementState(readPlacement(account, next));
+      }
+      return q;
+    });
+  }, [account, testRole]);
   // Persisted the same way sens is — an effect on the value, not a write
   // buried inside a setState updater. React calls updaters twice in dev, so a
   // write in there runs twice for every one real change.
   useEffect(() => {
     try {
-      if (lobbyRange == null) localStorage.removeItem(lobbyKeyFor(account, testRole));
-      else localStorage.setItem(lobbyKeyFor(account, testRole), JSON.stringify(lobbyRange));
+      if (lobbyRange == null) localStorage.removeItem(lobbyKeyFor(account, ladder));
+      else localStorage.setItem(lobbyKeyFor(account, ladder), JSON.stringify(lobbyRange));
     } catch { /* ignore */ }
-  }, [lobbyRange, account, testRole]);
+  }, [lobbyRange, account, ladder]);
 
   const applyLobbySpread = useCallback((n: number) => {
     if (playerRank == null) return;
@@ -430,7 +455,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     mapType,
     account, setAccount,
     playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, applyRankFix,
-    placement, setPlacement,
+    ladder, placement, setPlacement,
     lobbyLow, lobbyHigh,
     setLobbyRange: setLobbyRangeValues, applyLobbySpread, nudgeLobby, clearLobbyRange,
     pendingHeroes, setPendingHeroes, pickedHeroes, setPickedHeroes, mapCandidates, setMapCandidates,
@@ -440,7 +465,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   }), [
     queueMode, setQueueMode, map, setMap, sens, setSens, testRole, setTestRole, mapType,
     account, setAccount, playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, applyRankFix,
-    placement, setPlacement, lobbyLow, lobbyHigh, setLobbyRangeValues, applyLobbySpread, nudgeLobby, clearLobbyRange,
+    ladder, placement, setPlacement, lobbyLow, lobbyHigh, setLobbyRangeValues, applyLobbySpread, nudgeLobby, clearLobbyRange,
     pendingHeroes, pickedHeroes, mapCandidates, matchLoggedSignal, lastLog, notifyMatchLogged,
   ]);
 

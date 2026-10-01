@@ -432,7 +432,7 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueM
             </div>
           )}
           {rankOutcome !== origOutcome && (
-            <p className="text-[10px] text-[var(--faint)] mt-1">Later games on {match.account ?? 'this account'} {match.role}, and the live rank, shift to match.</p>
+            <p className="text-[10px] text-[var(--faint)] mt-1">Later games on {match.account ?? 'this account'} {match.queue_mode === 'comp_open' ? 'Open' : match.role}, and the live rank, shift to match.</p>
           )}
         </div>
       )}
@@ -522,7 +522,7 @@ interface BlindSetSummary {
 export default function LogMatch() {
   // Map + queue mode are shared with the Pre-Match section via context; this
   // section only owns date/time/hero/win plus the death tags.
-  const { queueMode, map, setMap, mapType, sens, testRole, pendingHeroes, setPendingHeroes, setPickedHeroes, notifyMatchLogged, playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, lobbyLow, lobbyHigh, placement, account } = useMatch();
+  const { queueMode, map, setMap, mapType, sens, testRole, pendingHeroes, setPendingHeroes, setPickedHeroes, notifyMatchLogged, playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, lobbyLow, lobbyHigh, placement, ladder, account } = useMatch();
   const { deathBuffer, removeDeathFromBuffer, toggleDeathUlt, clearDeathBuffer } = useDeathBuffer();
   const { data: dpiState } = useApi<DpiTestState>('/api/blind/state');
   const { isFieldEnabled, fields } = useFieldConfig();
@@ -654,7 +654,7 @@ export default function LogMatch() {
   // Competitive, where the dropdown is otherwise restricted to heroes under
   // test: a fallback pick you can't log defeats the point of having one.
   const dfHeroForRole = dfMap[testRole]?.hero;
-  const HERO_TEST_LIST = isQP ? HERO_LIST : HERO_LIST.filter(([h, r]) => (testableHeroes.has(h) || h === dfHeroForRole) && r === testRole);
+  const HERO_TEST_LIST = isQP ? HERO_LIST : HERO_LIST.filter(([h, r]) => (testableHeroes.has(h) || h === dfHeroForRole) && (r === testRole || queueMode === 'comp_open'));
   // In QP mode the switch dropdowns offer every hero, so without this a
   // mid-match "switch" could silently re-pick a hero already in another slot
   // — each switch slot excludes whichever hero the *other* slots hold.
@@ -1389,7 +1389,7 @@ export default function LogMatch() {
             {!isQP && !isPlacement && isFieldEnabled('player_rank') && (
               <RegistryField
                 field={registryField('player_rank')!}
-                value={{ playerRank, rankAtLastLog, rankOutcome, win: form.win, account, testRole } as RankOutcomeValue}
+                value={{ playerRank, rankAtLastLog, rankOutcome, win: form.win, account, testRole: ladder } as RankOutcomeValue}
                 onChange={(v) => {
                   const { rankOutcome: ro, playerRank: pr } = v as RankOutcomeChange;
                   setRankOutcome(ro);

@@ -144,7 +144,7 @@ function ClockOdometer({ minutes, size, dataInspectId }: { minutes: number; size
 export default function Prematch() {
   // Shared, single-instance match state (queue mode, map, advisor) lives here
   // and is consumed by the Log Match section too.
-  const { queueMode, map, setMap, mapType, testRole, setTestRole, setPendingHeroes, pickedHeroes, setMapCandidates, matchLoggedSignal, account, setAccount, playerRank } = useMatch();
+  const { queueMode, map, setMap, mapType, testRole, setTestRole, setPendingHeroes, pickedHeroes, setMapCandidates, matchLoggedSignal, account, setAccount, playerRank, ladder } = useMatch();
   const { rec, recLoading, recError } = useAdvisor();
 
   const { data: dpiHud } = useApi<DpiTestHud>('/api/blind/state');
@@ -652,6 +652,9 @@ export default function Prematch() {
             a => `prematch-account-${a.toLowerCase()}-button`,
             a => `Play as ${a}`,
           )}
+          {/* Open Queue has one rank per account and no role queue, so the
+              role choice is hidden there. */}
+          {queueMode !== 'comp_open' && (<>
           <span className="w-px self-stretch my-1.5 bg-ow-border/70 shrink-0" aria-hidden="true" />
           <span className="text-[10px] uppercase tracking-wider text-[var(--faint-2)] self-center shrink-0" data-inspect-id="prematch-role-label">Role</span>
           {identityGroup(
@@ -663,13 +666,14 @@ export default function Prematch() {
             r => `prematch-role-pick-${r.toLowerCase()}-button`,
             r => `Queue as ${r}`,
           )}
+          </>)}
         </div>
 
         {/* Says out loud which of the eight rank slots the pair selects. The
             drum is far enough down the page that the strip is off screen by
             the time it is read. */}
         <span className="text-[11px] text-[var(--faint-2)] flex-1 basis-0 min-w-0 text-right self-center" data-inspect-id="prematch-identity-rank-readout">
-          rank slot <b className="font-semibold text-[var(--muted)]">{account} · {testRole}</b>
+          rank slot <b className="font-semibold text-[var(--muted)]">{account} · {ladder}</b>
           {playerRank != null && <> — <b className="font-semibold text-[var(--ink-2)]">{rankLabel(playerRank)}</b></>}
         </span>
       </div>

@@ -249,6 +249,30 @@ describe('POST /api/matches — placement flag', () => {
   });
 });
 
+describe('Open Queue ladder is separate from the role ladders', () => {
+  test('a rank fix on a role match never shifts an Open match on the same account and role', async () => {
+    const base = { hero: 'Ashe', role: 'DPS', account: 'Jinx', player_rank_start: 15, player_rank: 15 };
+    const first = await logMatch({ ...base, time: '12:00' });
+    const open = await logMatch({ ...base, time: '13:00', queue_mode: 'comp_open' });
+    const later = await logMatch({ ...base, time: '14:00' });
+    const r = await h.put(`/api/matches/${first}/rank-outcome`, { outcome: 'demoted' });
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body.shifted, [later], 'only the role chain moves');
+    assert.equal(matchRow(open).player_rank_start, 15);
+    assert.equal(matchRow(later).player_rank_start, 14);
+  });
+
+  test('a fix on an Open match reports the Open ladder and leaves role matches alone', async () => {
+    const base = { hero: 'Ashe', role: 'DPS', account: 'Jinx', player_rank_start: 20, player_rank: 20 };
+    const role = await logMatch({ ...base, time: '12:00' });
+    const open = await logMatch({ ...base, time: '13:00', queue_mode: 'comp_open' });
+    const r = await h.put(`/api/matches/${open}/rank-outcome`, { outcome: 'promoted' });
+    assert.equal(r.body.role, 'Open');
+    assert.deepEqual(r.body.shifted, []);
+    assert.equal(matchRow(role).player_rank, 20);
+  });
+});
+
 describe('PUT /api/matches/:id — credits follow the edit', () => {
   test('correcting the hero moves the credit to the new hero’s set', async () => {
     const ashe = await makeSet({ hero: 'Ashe', senses: [2.0, 3.0] });

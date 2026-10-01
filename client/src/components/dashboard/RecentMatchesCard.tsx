@@ -390,7 +390,7 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
                         transform: m.up
                           ? `translate(-50%, -100%) translateY(${-1 - outward}px)`
                           : `translate(-50%, ${1 + outward}px)`,
-                        color: m.account && isAccount(m.account) && (m.role === 'DPS' || m.role === 'Support')
+                        color: m.account && isAccount(m.account) && (m.role === 'DPS' || m.role === 'Support' || m.role === 'Open')
                           ? RANK_SERIES_COLOR[m.account][m.role]
                           : 'var(--faint)',
                         // The sign carries a surface-coloured halo, so it stays
