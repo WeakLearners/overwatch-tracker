@@ -677,6 +677,33 @@ export default function Prematch() {
             r => `Queue as ${r}`,
           )}
           </>)}
+          {/* Role timer: competitive minutes in the current role run, with a nudge
+              to switch at 4 hours. Lives in this slip because it is about the role
+              being played. Shown in every queue mode: Open Queue matches count too,
+              even though the role pick above is hidden there. Quick Play is ignored
+              server-side. Recommendation only, never blocks logging. */}
+          {roleTimer && roleTimer.role && (<>
+          <span className="w-px self-stretch my-1.5 bg-ow-border/70 shrink-0" aria-hidden="true" />
+          <div
+            className="flex items-center gap-2 self-center shrink-0"
+            title={`Competitive only · ${roleTimer.matches} matches since ${roleTimer.since}. Switch roles at ${fmtHM(roleTimer.thresholdMin)}.`}
+            data-inspect-id="prematch-role-timer-card"
+          >
+            <div className="w-16 h-1.5 rounded-full bg-ow-border/50 overflow-hidden" data-inspect-id="prematch-role-timer-bar">
+              <div
+                className="h-full rounded-full"
+                style={{ width: `${Math.min(100, (roleTimer.totalMin / roleTimer.thresholdMin) * 100)}%`, background: `rgb(${ROLE_SEL_RGB[roleTimer.role] ?? '148 163 184'})` }}
+                data-inspect-id="prematch-role-timer-fill"
+              />
+            </div>
+            <span className="text-[11px] whitespace-nowrap text-[var(--ink-2)]" data-inspect-id="prematch-role-timer-readout">
+              {roleTimer.reached
+                ? <b className="font-semibold">{fmtHM(roleTimer.thresholdMin)} — switch to {roleTimer.switchTo}</b>
+                : <><b className="font-semibold">{roleTimer.role}</b> {fmtHM(roleTimer.totalMin)} / {fmtHM(roleTimer.thresholdMin)}</>}
+              {roleTimer.estimatedMin > 0 && <span className="text-[var(--faint-2)]"> (+{Math.round(roleTimer.estimatedMin)}m est.)</span>}
+            </span>
+          </div>
+          </>)}
         </div>
 
         {/* Says out loud which of the eight rank slots the pair selects. The
@@ -687,31 +714,6 @@ export default function Prematch() {
           {playerRank != null && <> — <b className="font-semibold text-[var(--ink-2)]">{rankLabel(playerRank)}</b></>}
         </span>
       </div>
-
-      {/* Role timer: competitive minutes in the current role, a nudge to switch
-          at 4 hours. Recommendation only, never blocks logging. Quick Play is
-          ignored server-side. Fine print sits right of the title on one line. */}
-      {roleTimer && roleTimer.role && (
-        <div className="card !py-2 mb-3 flex items-center gap-3 min-h-[34px]" data-inspect-id="prematch-role-timer-card">
-          <span className="text-xs card-title shrink-0" data-inspect-id="prematch-role-timer-title">Role timer</span>
-          <span className="text-[11px] text-[var(--faint-2)] shrink-0 whitespace-nowrap" data-inspect-id="prematch-role-timer-fineprint">
-            comp only · {roleTimer.matches} matches since {roleTimer.since}
-          </span>
-          <div className="flex-1 min-w-[60px] h-1.5 rounded-full bg-ow-border/50 overflow-hidden" data-inspect-id="prematch-role-timer-bar">
-            <div
-              className="h-full rounded-full"
-              style={{ width: `${Math.min(100, (roleTimer.totalMin / roleTimer.thresholdMin) * 100)}%`, background: `rgb(${ROLE_SEL_RGB[roleTimer.role] ?? '148 163 184'})` }}
-              data-inspect-id="prematch-role-timer-fill"
-            />
-          </div>
-          <span className="text-xs shrink-0 whitespace-nowrap text-[var(--ink-2)]" data-inspect-id="prematch-role-timer-readout">
-            {roleTimer.reached
-              ? <b className="font-semibold">{fmtHM(roleTimer.thresholdMin)} reached — switch to {roleTimer.switchTo}</b>
-              : <><b className="font-semibold">{roleTimer.role}</b> · {fmtHM(roleTimer.totalMin)} of {fmtHM(roleTimer.thresholdMin)}</>}
-            {roleTimer.estimatedMin > 0 && <span className="text-[var(--faint-2)]"> (+{Math.round(roleTimer.estimatedMin)}m est.)</span>}
-          </span>
-        </div>
-      )}
 
       {/* Step 1 row (game sequence, design-language section 7), on the
           page's three-column grid: the Map card spans two columns (the
