@@ -256,7 +256,7 @@ export default function Prematch() {
     if (!mapScrollReady.current) { mapScrollReady.current = true; return; }
     if (!map) return;
     const t = setTimeout(() => {
-      const el = document.querySelector('[data-inspect-id="prematch-hero-select-card"]');
+      const el = document.querySelector('[data-inspect-id$="-hero-select-card"]');
       if (!el) return;
       const bar = document.querySelector('[data-inspect-id="dash-section-nav"]') ?? document.querySelector('header');
       const offset = (bar?.getBoundingClientRect().bottom ?? 0) + 16;
