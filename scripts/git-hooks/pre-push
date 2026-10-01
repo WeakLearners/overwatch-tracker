@@ -1,0 +1,17 @@
+#!/bin/sh
+# Production follows PUSH, not commit (2026-10-01).
+#
+# Git has no post-push hook, and pre-push runs BEFORE the push lands. So this
+# hook does no work itself: if the push includes refs/heads/main it starts a
+# detached watcher (scripts/prod-after-push.sh) that waits until origin/main
+# actually moves, then updates ~/Code/overwatch-prod. A rejected or failed push
+# never moves origin, so the watcher times out and production stays put.
+# Always exits 0 and returns instantly: it can never block or slow a push.
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "$remote_ref" = "refs/heads/main" ] && [ "$local_sha" != "0000000000000000000000000000000000000000" ]; then
+    ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+    nohup "$ROOT/scripts/prod-after-push.sh" "$remote_sha" >> "$ROOT/scripts/prod-update.log" 2>&1 &
+    disown 2>/dev/null
+  fi
+done
+exit 0

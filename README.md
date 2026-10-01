@@ -81,7 +81,7 @@ npm run dev
 
 This runs both the backend (port 3001) and frontend (port 5173, Vite) concurrently via npm workspaces.
 
-**Day-to-day use: http://localhost:3001.** The Express server on 3001 serves the API *and* a pre-built copy of the client (see "Production build" below) from the same origin — no separate static server, and no Vite dev overhead (unbundled modules, React StrictMode's dev-only double-render). **Port 5173 (the Vite dev server) is for editing only** — use it while working on the code, not for logging matches day to day.
+**Day-to-day use: http://localhost:3001.** The Express server on 3001 serves the API *and* a pre-built copy of the client (see "Production build" below) from the same origin — no separate static server, and no Vite dev overhead (unbundled modules, React StrictMode's dev-only double-render). **Port 5173 (the Vite dev server, API on 3002) is for editing only; 3001 runs from the separate `~/Code/overwatch-prod` checkout and updates only after a push to `main`** — use it while working on the code, not for logging matches day to day.
 
 ### Production build
 
@@ -91,7 +91,7 @@ This runs both the backend (port 3001) and frontend (port 5173, Vite) concurrent
 git config core.hooksPath scripts/git-hooks   # one-time, per clone
 ```
 
-installs a `post-commit` hook that runs `scripts/build-client.sh` in the background after every commit. The script builds into whichever of the two directories *isn't* currently live, then atomically repoints the `client/current` symlink — a request mid-build never sees a half-written build, and a failed build leaves the previous good one running (logged to `scripts/build-client.log`, never fails the commit). Run it by hand any time with:
+a `pre-push` hook (see `scripts/update-prod.sh`) fast-forwards `~/Code/overwatch-prod` once a push to `main` lands, then runs `scripts/build-client.sh` there and restarts the prod server. The script builds into whichever of the two directories *isn't* currently live, then atomically repoints the `client/current` symlink — a request mid-build never sees a half-written build, and a failed build leaves the previous good one running (logged to `scripts/build-client.log`, never fails the commit). Run it by hand any time with:
 
 ```bash
 ./scripts/build-client.sh

@@ -17,13 +17,15 @@ From the project root:
 npm run dev
 
 # Or run individually:
-node --experimental-sqlite -r tsx/cjs server/src/index.ts   # backend, port 3001
+node --experimental-sqlite -r tsx/cjs server/src/index.ts   # backend (PORT=3002 for dev; 3001 is prod)
 cd client && npx vite                                         # frontend, port 5173
 
 # Production build (client/dist-a or client/dist-b, whichever isn't live),
 # then atomically repoints the client/current symlink that port 3001 serves.
-# Runs automatically after every commit via the post-commit hook (one-time
-# setup: `git config core.hooksPath scripts/git-hooks`); safe to run by hand.
+# Runs in the PROD checkout (~/Code/overwatch-prod) after a push to main: the
+# pre-push hook (core.hooksPath=scripts/git-hooks) starts scripts/prod-after-push.sh,
+# which waits for origin/main to move, then scripts/update-prod.sh fast-forwards
+# prod, builds, and restarts com.overwatch.prod. Commits alone change nothing on 3001.
 ./scripts/build-client.sh
 
 # Rebuild SQLite DB from the Numbers spreadsheet
@@ -127,7 +129,7 @@ npm workspaces monorepo with two packages: `client/` and `server/`. The only int
 
 ### Server (`server/src/`)
 
-Express + TypeScript running on Node's built-in `node:sqlite` (no ORM, no native addons). Port 3001 — the API, **and**, as of 2026-09-26, the production client build: `app.use(express.static(...))` + an SPA-fallback `app.get('*', ...)` serve whatever `client/current` (a symlink) points at. See "Production build" in README.md and `scripts/build-client.sh`.
+Express + TypeScript running on Node's built-in `node:sqlite` (no ORM, no native addons). Port 3001 (production, run from ~/Code/overwatch-prod, same data/overwatch.db by absolute path; the dev tree's API is 3002 behind vite 5173) — the API, **and**, as of 2026-09-26, the production client build: `app.use(express.static(...))` + an SPA-fallback `app.get('*', ...)` serve whatever `client/current` (a symlink) points at. See "Production build" in README.md and `scripts/build-client.sh`.
 
 **`db/schema.ts`** — Singleton `DatabaseSync` connection. Schema is created in-process on first `getDb()` call. New columns are added via `PRAGMA table_info` check + `ALTER TABLE` — there are no migration files. The DB lives at `data/overwatch.db`.
 

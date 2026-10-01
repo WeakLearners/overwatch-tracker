@@ -17,7 +17,10 @@ import configRouter from './routes/config';
 import dfRouter from './routes/df';
 
 const app = express();
-const PORT = 3001;
+// 3001 = production (launchd com.overwatch.prod, from ~/Code/overwatch-prod).
+// The dev tree's server runs on 3002 (server "dev" script sets PORT) so editing
+// never touches the port Sean uses day to day.
+const PORT = Number(process.env.PORT) || 3001;
 
 // Allowed origins come from ALLOWED_ORIGINS (comma-separated) so a tailnet IP
 // doesn't have to live in source. Defaults to localhost only if unset.

@@ -2,7 +2,8 @@
   "name": "server",
   "version": "1.0.0",
   "scripts": {
-    "dev": "tsx watch --experimental-sqlite src/index.ts",
+    "dev": "PORT=3002 tsx watch --experimental-sqlite src/index.ts",
+    "start": "tsx --experimental-sqlite src/index.ts",
     "build": "tsc",
     "test": "tsx --experimental-sqlite --test 'src/**/*.test.ts'"
   },

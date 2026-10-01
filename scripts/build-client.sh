@@ -1,9 +1,9 @@
 #!/bin/bash
 # Builds the production client and atomically points client/current at it.
 #
-# Run automatically by .git/hooks/post-commit (see scripts/git-hooks/
-# post-commit, installed once via `git config core.hooksPath scripts/git-
-# hooks`) after every commit on any branch, and can be run by hand.
+# Run by scripts/update-prod.sh inside the PROD checkout (~/Code/overwatch-prod)
+# after a push to origin/main (2026-10-01; it used to run on every commit in
+# the dev tree). Can be run by hand. Exits 1 if the build fails.
 #
 # WHY BLUE-GREEN, NOT "BUILD INTO client/dist": port 3001 serves whatever
 # client/current points at, live, all the time — that's the whole point of
@@ -23,11 +23,11 @@
 #
 # WHY A FAILED BUILD DOESN'T TOUCH client/current: it must not, or a broken
 # commit would take the always-on app down for however long it takes to fix
-# and re-push. A failed build logs and exits 0 (the post-commit hook that
+# and re-push. A failed build logs and exits 1 (update-prod.sh then rolls prod back; the old post-commit hook that
 # calls this backgrounds it anyway, so the commit itself was never at risk).
 set -uo pipefail
 
-REPO="$HOME/Code/overwatch"
+REPO="$(cd "$(dirname "$0")/.." && pwd)"   # whichever checkout this script lives in (prod: ~/Code/overwatch-prod)
 LOG="$REPO/scripts/build-client.log"
 LOCK="$REPO/scripts/.build-client.lock"
 
@@ -76,4 +76,5 @@ if (cd client && npx tsc && npx vite build --outDir "$NEXT") >> "$LOG" 2>&1; the
   log "build OK for $SHA -> client/current -> $NEXT"
 else
   log "BUILD FAILED for $SHA -- client/current left pointing at the last good build (${CUR_TARGET:-none yet})"
+  exit 1
 fi
