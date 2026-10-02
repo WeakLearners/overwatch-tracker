@@ -23,6 +23,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 // button re-finds it.
 export const INSPECTOR_SLOT_EVENT = 'inspector-slot-changed';
 
+const TOOLS_OPEN_KEY = 'ow-app-tools-open';
+
 export const TOOL = 'relative z-10 px-4 flex items-center justify-center text-base leading-none text-[var(--faint)] hover:text-[var(--ink)] transition-colors';
 
 // Same shell as SegmentedPills (the "Playing as" strip): a gapless row of
@@ -32,6 +34,15 @@ export const TOOL = 'relative z-10 px-4 flex items-center justify-center text-ba
 // header wordmark also goes home, but reads as a logo, not a button).
 export default function AppTools({ home = false }: { home?: boolean }) {
   const { dark, toggle } = useContext(ThemeContext);
+  // The three tools tuck behind one trigger at the right edge (Sean,
+  // 2026-10-02). Remembered per browser; closed unless it was left open.
+  const [open, setOpen] = useState(() => {
+    try { return localStorage.getItem(TOOLS_OPEN_KEY) === '1'; } catch { return false; }
+  });
+  const flip = () => setOpen(o => {
+    try { localStorage.setItem(TOOLS_OPEN_KEY, o ? '0' : '1'); } catch { /* storage blocked: still works this visit */ }
+    return !o;
+  });
   useEffect(() => {
     window.dispatchEvent(new Event(INSPECTOR_SLOT_EVENT));
     return () => { window.dispatchEvent(new Event(INSPECTOR_SLOT_EVENT)); };
@@ -41,12 +52,36 @@ export default function AppTools({ home = false }: { home?: boolean }) {
     // button portals in here, and a labelled ancestor makes inspect mode
     // swallow clicks on that button, so it can't be switched off (hit
     // 2026-09-26 when this wrapper briefly carried "app-tools").
-    <div className="relative grid grid-flow-col auto-cols-fr my-[3px] shrink-0">
+    <div className="relative flex my-[3px] shrink-0">
       {home && <Link to="/" aria-label="Home" title="Back to the Dashboard" data-inspect-id="app-home-link" className={TOOL}>⌂</Link>}
-      <span id="header-inspector-slot" className="contents" />
-      <Link to="/settings" aria-label="Settings" title="Settings" data-inspect-id="app-settings-link" className={TOOL}>⚙</Link>
-      <button type="button" onClick={toggle} aria-label="Toggle theme" title="Toggle theme" data-inspect-id="app-theme-toggle" className={TOOL}>
-        {dark ? '☀' : '☾'}
+      {/* Slides open by animating the column from 0fr to 1fr. Closed, the
+          tools are invisible (so Tab skips them) but stay mounted, because
+          the inspector button portals into the slot below. */}
+      <div
+        id="app-tools-tray"
+        className={`grid transition-[grid-template-columns,opacity,visibility] duration-200 ease-out ${
+          open ? 'grid-cols-[1fr] opacity-100 visible' : 'grid-cols-[0fr] opacity-0 invisible'
+        }`}
+      >
+        <div className="grid grid-flow-col auto-cols-fr min-w-0 overflow-hidden">
+          <span id="header-inspector-slot" className="contents" />
+          <Link to="/settings" aria-label="Settings" title="Settings" data-inspect-id="app-settings-link" className={TOOL}>⚙</Link>
+          <button type="button" onClick={toggle} aria-label="Toggle theme" title="Toggle theme" data-inspect-id="app-theme-toggle" className={TOOL}>
+            {dark ? '☀' : '☾'}
+          </button>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={flip}
+        aria-expanded={open}
+        aria-controls="app-tools-tray"
+        aria-label={open ? 'Hide app tools' : 'Show app tools'}
+        title={open ? 'Hide inspector, settings and theme' : 'Show inspector, settings and theme'}
+        data-inspect-id="app-tools-toggle"
+        className={TOOL}
+      >
+        {open ? '›' : '‹'}
       </button>
     </div>
   );

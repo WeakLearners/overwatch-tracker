@@ -1118,7 +1118,23 @@ export default function LogMatch() {
         <div className="card" data-inspect-id="logmatch-match-details-card">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm card-title">Match Details</h2>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              {/* Game crashed: log the result only. The scoreboard resets on rejoin, so any
+                  stats would cover just the tail of the match; this keeps the win/loss and
+                  context and drops everything scoreboard-shaped. */}
+              <button
+                type="button"
+                onClick={() => setCrashedGame(c => !c)}
+                aria-pressed={crashedGame}
+                title="The game crashed and the scoreboard reset: log the result only, with no hero or stats"
+                data-inspect-id="logmatch-game-crashed-toggle"
+                style={{ '--sel': '247 147 30' } as React.CSSProperties}
+                className={`rounded-lg border-2 px-3 py-1 text-xs font-semibold leading-tight transition-all ${
+                  crashedGame ? 'is-selected text-ow-accent' : 'border-ow-border text-[var(--faint)] hover-sel hover:text-[var(--ink)]'
+                }`}
+              >
+                {crashedGame ? <span className="lit-text">Game crashed</span> : 'Game crashed'}
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -1140,18 +1156,9 @@ export default function LogMatch() {
                 }}
                 disabled={!form.hero && !map && deathBuffer.length === 0 && !crashedGame}
                 data-inspect-id="logmatch-cancel-match-button"
-                className="text-xs text-[var(--faint)] hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--faint)]"
+                className="rounded-lg border-2 border-ow-border px-3 py-1 text-xs font-semibold leading-tight text-[var(--faint)] transition-all hover:text-red-600 hover:border-red-600/50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--faint)] disabled:hover:border-ow-border"
               >
                 Match Cancelled
-              </button>
-              <button
-                type="button"
-                onClick={() => { setForm(f => ({ ...f, hero: '', notes: '' })); setSwitchHeroes(['', '']); setMap(''); setFeelByHero({}); setTeamRating(0); setMatchQuality(null); setResultDriver(null); setLeaverSide(null); }}
-                disabled={!form.hero && !map}
-                data-inspect-id="logmatch-reset-button"
-                className="text-xs text-[var(--faint)] hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--faint)]"
-              >
-                Reset
               </button>
             </div>
           </div>
@@ -1176,22 +1183,6 @@ export default function LogMatch() {
                 data-inspect-id="logmatch-mode-change-link"
               >
                 change
-              </button>
-              {/* Game crashed: log the result only. The scoreboard resets on rejoin, so any
-                  stats would cover just the tail of the match; this keeps the win/loss and
-                  context and drops everything scoreboard-shaped. */}
-              <button
-                type="button"
-                onClick={() => setCrashedGame(c => !c)}
-                aria-pressed={crashedGame}
-                title="The game crashed and the scoreboard reset: log the result only, with no hero or stats"
-                data-inspect-id="logmatch-game-crashed-toggle"
-                style={{ '--sel': '247 147 30' } as React.CSSProperties}
-                className={`ml-auto rounded-lg border-2 px-3 py-1 text-xs font-semibold leading-tight transition-all ${
-                  crashedGame ? 'is-selected text-ow-accent' : 'border-ow-border text-[var(--faint)] hover-sel hover:text-[var(--ink)]'
-                }`}
-              >
-                {crashedGame ? <span className="lit-text">Game crashed</span> : 'Game crashed'}
               </button>
             </div>
 
