@@ -299,8 +299,10 @@ export function computeFieldSplit(
   // db/schema.ts: rows where the field was never captured are excluded from
   // the groups and reported separately as `unasked`, not folded into either
   // side of a split.
-  const whereNull = where ? `${where} AND matches.${column} IS NULL` : `WHERE matches.${column} IS NULL`;
-  const whereValue = where ? `${where} AND matches.${column} IS NOT NULL` : `WHERE matches.${column} IS NOT NULL`;
+  // crashed matches are result-only: every study field is NULL on them by design, which would
+  // inflate `unasked` and they are not part of any field study.
+  const whereNull = where ? `${where} AND matches.crashed = 0 AND matches.${column} IS NULL` : `WHERE matches.crashed = 0 AND matches.${column} IS NULL`;
+  const whereValue = where ? `${where} AND matches.crashed = 0 AND matches.${column} IS NOT NULL` : `WHERE matches.crashed = 0 AND matches.${column} IS NOT NULL`;
 
   const { unasked } = db.prepare(`SELECT COUNT(*) as unasked FROM matches ${whereNull}`)
     .get(params) as { unasked: number };

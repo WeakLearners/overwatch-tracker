@@ -496,6 +496,22 @@ function initSchema(db: DatabaseSync) {
     db.exec(`ALTER TABLE matches ADD COLUMN account TEXT`);
   }
 
+  // crashed: 1 = the game crashed mid-match and Sean rejoined, so the
+  // scoreboard reset and any stats would cover only the tail of the game
+  // (2026-10-02). A crashed row is a RESULT-ONLY record: win/loss plus the
+  // facts that are not scoreboard data (date/time, queue, account, role, map,
+  // rank/lobby). It deliberately has NO match_heroes row, NO blind_credits
+  // row, NO aim_stats, NO deaths — which is what keeps it out of every
+  // by-hero view (matches_by_hero joins match_heroes) and out of the sens
+  // study (credits). Anything that reads `matches` directly for hero- or
+  // stat-shaped questions must also add `crashed = 0`; the rest (overall W/L,
+  // streaks, form chart, map/hour breakdowns, role timer) counts it on purpose.
+  // matches.hero is NOT NULL, so the row carries the CRASHED_HERO placeholder
+  // (lib/crashed.ts) — never a real hero, never credited.
+  if (!cols.find(c => c.name === 'crashed')) {
+    db.exec(`ALTER TABLE matches ADD COLUMN crashed INTEGER NOT NULL DEFAULT 0`);
+  }
+
   // match_deaths: one row per death, FACT only — who killed Sean and whether
   // it was an ult. Replaces the old matches.deaths JSON column's per-death
   // capture (that column stays frozen, untouched, as historical v1/v2/v3
@@ -550,6 +566,7 @@ function initSchema(db: DatabaseSync) {
     INSERT INTO match_heroes (match_id, slot, hero, role)
     SELECT id, 1, hero, role FROM matches
     WHERE id NOT IN (SELECT match_id FROM match_heroes WHERE slot = 1)
+      AND crashed = 0
   `);
 
   // feel: same per-hero split as aim_stats_heroes.duration_min above, for the

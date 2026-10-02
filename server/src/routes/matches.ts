@@ -5,6 +5,7 @@ import { syncSetActive, liveStageIndex, stagesOf } from './blind';
 import { isStudyQueueMode, LOCKED_DPI } from '../lib/blind';
 import { isDfHero, dfSensForHero } from '../lib/df';
 import { creditFlagsFor, type CreditFlags } from '../lib/credits';
+import { CRASHED_HERO, CRASHED_EDITABLE } from '../lib/crashed';
 
 const router = Router();
 
@@ -161,9 +162,37 @@ function findStageForRecredit(
   };
 }
 
+
+// A crashed match is a result-only record (lib/crashed.ts, schema.ts `crashed`
+// column): win/loss plus the facts that are not scoreboard data. Everything
+// scoreboard-shaped from the payload is ignored on purpose, so a stale client
+// cannot smuggle a hero, stats or deaths in. No match_heroes, blind_credits,
+// aim_stats or match_deaths row is written, and no stage test is consulted —
+// that absence IS the exclusion from every by-hero view and the sens study.
+// sens/dpi/feel stay NULL: a guessed sens would read as a real observation.
+function logCrashedMatch(db: ReturnType<typeof getDb>, body: Record<string, any>, res: Response) {
+  const { date, time, day_of_week, hour, role, map, game_type, win, queue_mode, notes, leaver, leaver_side, player_rank, player_rank_start, lobby_low, lobby_high, placement, account } = body;
+  if (!date || !map || !game_type || win === undefined || !['DPS', 'Tank', 'Support'].includes(role)) {
+    res.status(400).json({ error: 'Missing required fields (crashed match needs date, role, map, game_type, win)' });
+    return;
+  }
+  const result = db.prepare(`
+    INSERT INTO matches (date, time, day_of_week, hour, hero, role, map, game_type, win, queue_mode, notes, curve_enabled, leaver, leaver_side, player_rank, player_rank_start, lobby_low, lobby_high, placement, account, crashed)
+    VALUES (:date, :time, :day_of_week, :hour, :hero, :role, :map, :game_type, :win, :queue_mode, :notes, 0, :leaver, :leaver_side, :player_rank, :player_rank_start, :lobby_low, :lobby_high, :placement, :account, 1)
+  `).run({
+    date, time: time ?? null, day_of_week: day_of_week ?? null, hour: hour ?? null, hero: CRASHED_HERO, role, map, game_type,
+    win: win ? 1 : 0, queue_mode: queue_mode ?? 'comp_role', notes: notes?.trim() || null,
+    leaver: leaver ? 1 : null, leaver_side: leaver && (leaver_side === 'mine' || leaver_side === 'theirs') ? leaver_side : null,
+    player_rank: player_rank ?? null, player_rank_start: player_rank_start ?? null,
+    lobby_low: lobby_low ?? null, lobby_high: lobby_high ?? null, placement: placement ? 1 : null, account: account ?? null,
+  });
+  res.json({ id: result.lastInsertRowid as number });
+}
+
 router.post('/', (req: Request, res: Response) => {
   const db = getDb();
-  const { date, time, day_of_week, hour, hero, role, map, game_type, win, queue_mode, sens, feel, team_rating, notes, heroes, curve_enabled, match_deaths, match_quality, result_driver, leaver, leaver_side, player_rank, player_rank_start, lobby_low, lobby_high, placement, account, aim_stats } = req.body;
+  const { date, time, day_of_week, hour, hero, role, map, game_type, win, queue_mode, sens, feel, team_rating, notes, heroes, curve_enabled, match_deaths, match_quality, result_driver, leaver, leaver_side, player_rank, player_rank_start, lobby_low, lobby_high, placement, account, aim_stats, crashed } = req.body;
+  if (crashed === true || crashed === 1) { logCrashedMatch(db, req.body, res); return; }
 
   // leaver_side only ever means something when leaver is actually set — a
   // side with no leaver would be a contradiction on the row. Normalized to
@@ -869,10 +898,14 @@ router.put('/:id/rank-outcome', (req: Request, res: Response) => {
 
 router.put('/:id', (req: Request, res: Response) => {
   const db = getDb();
-  const fields = EDITABLE.filter(k => k in req.body);
-  const heroesProvided = Array.isArray(req.body.heroes);
-  const heroSensProvided = !!(req.body.heroSens && typeof req.body.heroSens === 'object');
-  const deathsProvided = Array.isArray(req.body.match_deaths);
+  // A crashed match stays result-only: scoreboard-shaped edits (hero, sens,
+  // feel, roster, deaths) are ignored, and credits are never recomputed — an
+  // edit must not be able to give it a hero or a stage credit.
+  const isCrashed = !!(db.prepare('SELECT crashed FROM matches WHERE id = :id').get({ id: req.params.id }) as { crashed: number } | undefined)?.crashed;
+  const fields = EDITABLE.filter(k => k in req.body && (!isCrashed || (CRASHED_EDITABLE as readonly string[]).includes(k)));
+  const heroesProvided = !isCrashed && Array.isArray(req.body.heroes);
+  const heroSensProvided = !isCrashed && !!(req.body.heroSens && typeof req.body.heroSens === 'object');
+  const deathsProvided = !isCrashed && Array.isArray(req.body.match_deaths);
   if (fields.length === 0 && !heroesProvided && !heroSensProvided && !deathsProvided) {
     res.status(400).json({ error: 'No editable fields provided' });
     return;
@@ -977,7 +1010,7 @@ router.put('/:id', (req: Request, res: Response) => {
   // Hero/role/queue_mode/roster edits can move this match onto a different
   // active stage-test set (or off one entirely) — recompute its credits so
   // games_on_stage stays accurate rather than reflecting the pre-edit hero.
-  const rosterChanged = fields.includes('hero') || fields.includes('role') || fields.includes('queue_mode') || heroesProvided;
+  const rosterChanged = !isCrashed && (fields.includes('hero') || fields.includes('role') || fields.includes('queue_mode') || heroesProvided);
   if (rosterChanged) {
     db.exec('BEGIN');
     try {

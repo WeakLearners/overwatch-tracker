@@ -179,7 +179,8 @@ export const MIN_SCALE_N = 5;
 export function computeAnalysis(db: ReturnType<typeof getDb>) {
   // Full timeline (incl. matches without stats) drives the session + sens-run
   // derivations; they need the gaps between every match, not just logged ones.
-  const timeline = db.prepare('SELECT id, time, date, sens, dpi FROM matches').all() as unknown as TimelineMatch[];
+  // crashed matches carry no sens and take no part in the sens study (schema.ts `crashed`).
+  const timeline = db.prepare('SELECT id, time, date, sens, dpi FROM matches WHERE crashed = 0').all() as unknown as TimelineMatch[];
   const posById = deriveSessionPosition(timeline);
   const sinceById = deriveSensAdaptation(timeline);
 
@@ -926,9 +927,13 @@ router.post('/', (req: Request, res: Response) => {
     res.status(400).json({ error: 'match_id required' });
     return;
   }
-  const match = db.prepare('SELECT id FROM matches WHERE id = :id').get({ id: match_id });
+  const match = db.prepare('SELECT id, crashed FROM matches WHERE id = :id').get({ id: match_id }) as { id: number; crashed: number } | undefined;
   if (!match) {
     res.status(404).json({ error: 'match not found' });
+    return;
+  }
+  if (match.crashed) {
+    res.status(400).json({ error: 'match crashed: result-only, takes no scoreboard stats' });
     return;
   }
 

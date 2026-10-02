@@ -61,6 +61,8 @@ interface TodayMatchRow {
   account: string | null;
   player_rank: number | null;
   player_rank_start: number | null;
+  /** 1 = the game crashed: a result-only record with no hero or scoreboard stats (server lib/crashed.ts). */
+  crashed?: 0 | 1;
 }
 
 type RankFixOutcome = 'promoted' | 'demoted' | 'none';
@@ -181,6 +183,8 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueM
 
   const heroRole = hero ? HEROES[hero] : '';
   const mapType = map ? TYPE_COLORS[MAPS[map]] : '';
+  // A crashed match is result-only: no hero, no sens, nothing scoreboard-shaped to edit.
+  const crashed = !!match.crashed;
 
   async function save() {
     setStatus('saving');
@@ -271,6 +275,7 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueM
         </div>
       </div>
 
+      {!crashed && (
       <div>
         <label className="block text-xs text-[var(--muted)] mb-1.5">
           Hero <span className="text-[var(--faint-2)]">— 2nd/3rd only if you switched mid-match</span>
@@ -362,6 +367,7 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueM
           })}
         </div>
       </div>
+      )}
 
       <div>
         <label className="block text-xs text-[var(--muted)] mb-1.5">Map</label>
@@ -443,8 +449,7 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueM
           onClick={save}
           disabled={
             status === 'saving' || !hero || !map ||
-            slot1Sens.trim() === '' || !sensValid(slot1Sens) ||
-            extraSens.some(s => !sensValid(s))
+            (!crashed && (slot1Sens.trim() === '' || !sensValid(slot1Sens) || extraSens.some(s => !sensValid(s))))
           }
           data-inspect-id="logmatch-inline-edit-save-button"
           className="btn-primary w-full py-2.5 text-sm"
@@ -574,6 +579,11 @@ export default function LogMatch() {
   // 2nd/3rd hero played this match, if the player switched — optional, both
   // default empty. Result (win/loss) attaches to every non-empty slot.
   const [switchHeroes, setSwitchHeroes] = useState<SwitchHeroes>(['', '']);
+  // "Game crashed": the scoreboard reset on rejoin, so any stats would cover
+  // only the tail of the game. Logs a result-only match (server lib/crashed.ts):
+  // result + context (date/time, queue, account, role, map, rank) and nothing
+  // from the scoreboard. Never persisted — each match decides afresh.
+  const [crashedGame, setCrashedGame] = useState(false);
   const setSwitchHero = (i: 0 | 1) => (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSwitchHeroes(prev => {
       const next: SwitchHeroes = [...prev];
@@ -673,7 +683,7 @@ export default function LogMatch() {
   // credits slot 1: not Quick Play, not a Designated Fallback hero, and an
   // active test set (hero-tagged, else the hero-less ad-hoc one) covering it.
   // Closed or left blank = today's behaviour: the match waits in the backlog.
-  const showAimFold = !!form.hero && !isQP && dfSensForHeroName(form.hero, dfMap) == null
+  const showAimFold = !crashedGame && !!form.hero && !isQP && dfSensForHeroName(form.hero, dfMap) == null
     && (dpiState?.actives ?? []).some(a => a.hero === form.hero || a.hero === null);
   const [aimOpen, setAimOpen] = useState(false);
   const [aimStats, setAimStats] = useState<StatFieldsT>(emptyStats([]));
@@ -893,8 +903,11 @@ export default function LogMatch() {
   // Phase 2 conversion, 2026-09-24), so a user with sens-study turned off
   // sees no slider at all — this form must not then also refuse to let
   // them submit a match over an answer it never showed them.
-  const feelsAnswered = !isFieldEnabled('feel') || (playedHeroes.length > 0 && playedHeroes.every(feelAnswered));
-  const valid = form.hero && map && form.win !== '' && form.date && displaySens != null && rankAnswered && feelsAnswered && !aimIncomplete;
+  const feelsAnswered = crashedGame || !isFieldEnabled('feel') || (playedHeroes.length > 0 && playedHeroes.every(feelAnswered));
+  // A crashed match needs no hero, sens, feel or stats: just the result, the map and the rank answer.
+  const valid = crashedGame
+    ? !!(map && form.win !== '' && form.date && rankAnswered)
+    : form.hero && map && form.win !== '' && form.date && displaySens != null && rankAnswered && feelsAnswered && !aimIncomplete;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -910,10 +923,33 @@ export default function LogMatch() {
       const timePart = timeTouched.current ? form.time : format(new Date(), 'HH:mm');
       const hour = timePart ? parseInt(timePart.split(':')[0]) : null;
       const day_of_week = getDayOfWeek(datePart);
+      // Result-only: context + result, none of the scoreboard fields. Role comes
+      // from the Playing As role pick since there is no hero to read it from.
+      const crashedBody = {
+        crashed: true,
+        date: datePart,
+        time: timePart ? `${datePart}T${timePart}:00` : null,
+        day_of_week,
+        hour,
+        role: testRole,
+        map,
+        game_type: mapType,
+        win: form.win === '1',
+        queue_mode: queueMode,
+        leaver: leaverSide !== null,
+        leaver_side: leaverSide,
+        player_rank: isQP || isPlacement ? null : playerRank,
+        player_rank_start: isQP || isPlacement ? null : rankAtLastLog,
+        lobby_low: isQP || isPlacement ? null : lobbyLow,
+        lobby_high: isQP || isPlacement ? null : lobbyHigh,
+        placement: isPlacement,
+        account,
+        notes: form.notes.trim() || null,
+      };
       const res = await fetch('/api/matches', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: crashedGame ? JSON.stringify(crashedBody) : JSON.stringify({
           date: datePart,
           time: timePart ? `${datePart}T${timePart}:00` : null,
           day_of_week,
@@ -977,6 +1013,7 @@ export default function LogMatch() {
       dateTouched.current = false;
       timeTouched.current = false;
       setForm(f => ({ ...f, hero: '', win: '', notes: '', date: datePart, time: format(new Date(), 'HH:mm') }));
+      setCrashedGame(false);
       setSwitchHeroes(['', '']);
       setAimOpen(false);
       setAimStats(emptyStats([]));
@@ -1014,7 +1051,7 @@ export default function LogMatch() {
           so a growing list never pushes the capture control down the screen
           mid-match. Below lg they stack, history first and picker last, which
           keeps that same "new deaths appear above the picker" reading. */}
-      {isFieldEnabled('deaths') && (
+      {isFieldEnabled('deaths') && !crashedGame && (
       <div id="notable-deaths" className="card mb-6 scroll-mt-24" data-inspect-id="logmatch-deaths-card">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-baseline gap-2 min-w-0">
@@ -1087,6 +1124,7 @@ export default function LogMatch() {
                 onClick={() => {
                   if (deathBuffer.length > 0 && !window.confirm('Cancel this match? Hero, notes, map, feel, and the deaths tracked so far will all be cleared.')) return;
                   setForm(f => ({ ...f, hero: '', win: '', notes: '' }));
+                  setCrashedGame(false);
                   setSwitchHeroes(['', '']);
                   setMap('');
                   setFeelByHero({});
@@ -1100,7 +1138,7 @@ export default function LogMatch() {
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                   (document.getElementById('map-search') as HTMLInputElement | null)?.focus({ preventScroll: true });
                 }}
-                disabled={!form.hero && !map && deathBuffer.length === 0}
+                disabled={!form.hero && !map && deathBuffer.length === 0 && !crashedGame}
                 data-inspect-id="logmatch-cancel-match-button"
                 className="text-xs text-[var(--faint)] hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--faint)]"
               >
@@ -1139,9 +1177,25 @@ export default function LogMatch() {
               >
                 change
               </button>
+              {/* Game crashed: log the result only. The scoreboard resets on rejoin, so any
+                  stats would cover just the tail of the match; this keeps the win/loss and
+                  context and drops everything scoreboard-shaped. */}
+              <button
+                type="button"
+                onClick={() => setCrashedGame(c => !c)}
+                aria-pressed={crashedGame}
+                title="The game crashed and the scoreboard reset: log the result only, with no hero or stats"
+                data-inspect-id="logmatch-game-crashed-toggle"
+                style={{ '--sel': '247 147 30' } as React.CSSProperties}
+                className={`ml-auto rounded-lg border-2 px-3 py-1 text-xs font-semibold leading-tight transition-all ${
+                  crashedGame ? 'is-selected text-ow-accent' : 'border-ow-border text-[var(--faint)] hover-sel hover:text-[var(--ink)]'
+                }`}
+              >
+                {crashedGame ? <span className="lit-text">Game crashed</span> : 'Game crashed'}
+              </button>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className={`grid gap-3 ${crashedGame ? 'grid-cols-2' : 'grid-cols-3'}`}>
               <div>
                 <label className="block text-xs text-[var(--muted)] mb-1.5">Date</label>
                 <input
@@ -1162,6 +1216,7 @@ export default function LogMatch() {
                   className="w-full field px-3 py-2 text-sm"
                 />
               </div>
+              {!crashedGame && (
               <div>
                 <label className="block text-xs text-[var(--muted)] mb-1.5">Sensitivity</label>
                 {/* Read-only — the in-game sens this match will actually be
@@ -1172,8 +1227,16 @@ export default function LogMatch() {
                   {displaySens != null ? displaySens.toFixed(2) : '—'}
                 </div>
               </div>
+              )}
             </div>
 
+            {crashedGame ? (
+              <div className="flex items-center gap-2" data-inspect-id="logmatch-crashed-role-line">
+                <span className="text-xs text-[var(--muted)]">Role</span>
+                <span className={`pill ${ROLE_COLORS[testRole]}`}>{testRole}</span>
+                <span className="text-[11px] text-[var(--faint-2)]">from Playing As. No hero or stats for a crashed game.</span>
+              </div>
+            ) : (
             <div>
               <label className="block text-xs text-[var(--muted)] mb-1.5">
                 Hero <span className="text-[var(--faint-2)]">— 2nd/3rd only if you switched mid-match</span>
@@ -1237,6 +1300,7 @@ export default function LogMatch() {
                 })}
               </div>
             </div>
+            )}
 
             <div>
               <label className="block text-xs text-[var(--muted)] mb-1.5">Map</label>
@@ -1312,7 +1376,7 @@ export default function LogMatch() {
               </div>
             )}
 
-            {isFieldEnabled('feel') && (
+            {isFieldEnabled('feel') && !crashedGame && (
             <div className="space-y-3" data-inspect-id="logmatch-feel-sliders">
               {playedHeroes.map(h => {
                 const heroSens = displaySensForHero(h);
@@ -1341,13 +1405,14 @@ export default function LogMatch() {
             </div>
             )}
 
-            {isFieldEnabled('team_rating') && (
+            {isFieldEnabled('team_rating') && !crashedGame && (
               <div>
                 <label className="block text-xs text-[var(--muted)] mb-1.5">Team <span className="text-[var(--faint-2)]">— how was the team this match?</span></label>
                 <RegistryField field={registryField('team_rating')!} value={teamRating} onChange={(v) => setTeamRating(v as number)} />
               </div>
             )}
 
+            {!crashedGame && (
             <div className="grid grid-cols-2 gap-3">
               {isFieldEnabled('match_quality') && (
                 <div>
@@ -1372,6 +1437,7 @@ export default function LogMatch() {
                 </div>
               )}
             </div>
+            )}
 
             {/* Rank outcome — required, like hero and result.
                 A match that moved the ladder and one that did not are
@@ -1431,7 +1497,7 @@ export default function LogMatch() {
               className="btn-primary w-full py-2.5 text-sm"
               style={{ backgroundImage: 'linear-gradient(to bottom right, rgb(247 147 30 / 0.1), rgb(247 147 30 / 0.04), transparent)' }}
             >
-              {status === 'saving' ? 'Saving…' : status === 'success' ? '✓ Saved' : 'Log Match'}
+              {status === 'saving' ? 'Saving…' : status === 'success' ? '✓ Saved' : crashedGame ? 'Log Crashed Match' : 'Log Match'}
             </button>
             {status === 'error' && <p data-inspect-id="logmatch-save-error-banner" className="text-red-600 text-xs text-center">Failed to save — is the server running?</p>}
           </form>
@@ -1476,11 +1542,12 @@ export default function LogMatch() {
                           return (
                             <div className="flex items-stretch h-6 min-w-0" title={extra.length > 0 ? extra.map(h => h.hero).join(', ') : undefined}>
                               <span
-                                className={`pill hero-name border-2 text-white relative z-10 h-full box-border shadow-[3px_3px_0_rgba(0,0,0,0.7)] w-24 justify-center truncate ${
-                                  ROLE_PILL_CLASS[HEROES[r.hero]] ?? ROLE_PILL_CLASS.Support
+                                className={`pill hero-name border-2 relative z-10 h-full box-border shadow-[3px_3px_0_rgba(0,0,0,0.7)] w-24 justify-center truncate ${
+                                  r.crashed ? 'border-ow-border bg-ow-darker text-[var(--muted)]' : `text-white ${ROLE_PILL_CLASS[HEROES[r.hero]] ?? ROLE_PILL_CLASS.Support}`
                                 }`}
+                                title={r.crashed ? 'Game crashed: result only, no hero or stats' : undefined}
                               >
-                                {r.hero}
+                                {r.crashed ? 'Crashed' : r.hero}
                               </span>
                               {/* Hidden mid-match switch heroes rendered as the actual right-edge
                                   slice of a pill (real chamfered corner, not an invented rectangle)
@@ -1526,7 +1593,7 @@ export default function LogMatch() {
                         data-inspect-id="logmatch-todays-matches-time-sens"
                       >
                         <span className="text-[11px] text-[var(--faint)]">{r.time ? format(new Date(r.time), 'MMM d, h:mm a') : today}</span>
-                        <span className="text-[11px] text-[var(--faint)]">{r.stage_index != null ? <>stage <b className="font-bold">{r.stage_index}</b> · sens <b className="font-bold">{r.sens}</b></> : r.sens != null ? <>sens <b className="font-bold">{r.sens}</b></> : 'no sens'}</span>
+                        <span className="text-[11px] text-[var(--faint)]">{r.crashed ? 'result only' : r.stage_index != null ? <>stage <b className="font-bold">{r.stage_index}</b> · sens <b className="font-bold">{r.sens}</b></> : r.sens != null ? <>sens <b className="font-bold">{r.sens}</b></> : 'no sens'}</span>
                       </div>
                       <div className="relative z-10 flex flex-col items-end shrink-0 self-center mr-1.5 w-[7.5rem]">
                         <span className="text-xs map-name text-[var(--ink)] text-right leading-tight whitespace-normal break-words">{r.map}</span>

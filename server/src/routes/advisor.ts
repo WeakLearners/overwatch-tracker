@@ -36,7 +36,7 @@ function getComfortPool(db: ReturnType<typeof getDb>, role: AdvisorRole, inTesti
   return db.prepare(`
     SELECT hero, role, COUNT(*) games, ROUND(AVG(win)*100, 1) win_rate
     FROM matches
-    WHERE role = ? AND hero IN (${heroPlaceholders})
+    WHERE crashed = 0 AND role = ? AND hero IN (${heroPlaceholders})
     GROUP BY hero, role
     HAVING games >= ${COMFORT_MIN_GAMES}
     ORDER BY games DESC
@@ -51,7 +51,7 @@ function pickPrimary(db: ReturnType<typeof getDb>, map: string, pool: HeroStat[]
   const onMap = db.prepare(`
     SELECT hero, role, COUNT(*) games, ROUND(AVG(win)*100, 1) win_rate
     FROM matches
-    WHERE map = ? AND hero IN (${placeholders})
+    WHERE crashed = 0 AND map = ? AND hero IN (${placeholders})
     GROUP BY hero
     HAVING games >= ${MIN_GAMES_FOR_PICK}
     ORDER BY win_rate DESC, games DESC
@@ -111,7 +111,7 @@ function getStretchCandidates(
       SUM(CASE WHEN map = ? THEN 1 ELSE 0 END) map_games,
       ROUND(AVG(CASE WHEN map = ? THEN win*100.0 END), 1) map_win_rate
     FROM matches
-    WHERE role = ?
+    WHERE crashed = 0 AND role = ?
     GROUP BY hero, role
     ORDER BY map_games DESC, career_games DESC
   `).all(map, map, role) as unknown as StretchCandidate[];
@@ -134,7 +134,7 @@ function getUntestedMetaPool(
   inTesting: Set<string>,
 ): string[] {
   const played = new Set(
-    (db.prepare(`SELECT DISTINCT hero FROM matches WHERE role = ?`)
+    (db.prepare(`SELECT DISTINCT hero FROM matches WHERE crashed = 0 AND role = ?`)
       .all(role) as { hero: string }[]).map(r => r.hero),
   );
   return ALL_HEROES_BY_ROLE([role]).filter(h => !played.has(h) && !exclude.has(h) && inTesting.has(h));

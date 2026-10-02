@@ -250,7 +250,7 @@ export default function Prematch() {
 
   // Data for the Today card.
   const today = format(new Date(), 'yyyy-MM-dd');
-  const { data: todayMatches } = useApi<{ rows: { win: 0 | 1; map: string; hero: string; player_rank: number | null; player_rank_start: number | null; created_at: string; time: string }[] }>(`/api/matches?from=${today}&to=${today}&limit=100`);
+  const { data: todayMatches } = useApi<{ rows: { win: 0 | 1; map: string; hero: string; crashed?: 0 | 1; player_rank: number | null; player_rank_start: number | null; created_at: string; time: string }[] }>(`/api/matches?from=${today}&to=${today}&limit=100`);
   const { data: streaksData } = useApi<Streaks>('/api/stats/streaks');
   const [selected, setSelected] = useState<string[]>([]);
   // Hand the Map Voting picks to the Log Match map picker, which narrows its
@@ -386,6 +386,7 @@ export default function Prematch() {
   const topHero = (() => {
     const tally = new Map<string, { games: number; wins: number }>();
     for (const r of todayRows) {
+      if (r.crashed) continue; // result-only: no hero was played to credit
       const t = tally.get(r.hero) ?? { games: 0, wins: 0 };
       t.games++; t.wins += r.win; tally.set(r.hero, t);
     }
@@ -1029,8 +1030,8 @@ export default function Prematch() {
                       <span
                         key={i}
                         data-inspect-id="prematch-today-dot"
-                        title={`${r.win ? 'Win' : 'Loss'} — ${r.hero} on ${r.map}`}
-                        aria-label={`${r.win ? 'Win' : 'Loss'}, ${r.hero} on ${r.map}`}
+                        title={`${r.win ? 'Win' : 'Loss'} — ${r.crashed ? 'game crashed' : r.hero} on ${r.map}`}
+                        aria-label={`${r.win ? 'Win' : 'Loss'}, ${r.crashed ? 'game crashed' : r.hero} on ${r.map}`}
                         className={`flex-1 ${r.win ? 'bg-emerald-500' : 'bg-red-500'}`}
                       />
                     ))}

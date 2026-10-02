@@ -1349,6 +1349,26 @@
           }
         },
         {
+          "id": "logmatch-game-crashed-toggle",
+          "label": "Game crashed toggle",
+          "kind": "button",
+          "description": "Pill on the right of the Recording as line (2026-10-02). On = the match is logged result-only: hero, sens, feel, team, match quality, result driver, aim-stats fold-out and the Deaths card are hidden and not sent; role comes from Playing As. Server writes crashed=1 with no match_heroes/blind_credits rows, so the match counts in W/L, streaks, Form chart, map/hour and the role timer, but never in any by-hero view or the sens study. Resets after each log.",
+          "locate": {
+            "path": "client/src/pages/LogMatch.tsx:1188",
+            "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-game-crashed-toggle\"' client/src/pages/LogMatch.tsx"
+          }
+        },
+        {
+          "id": "logmatch-crashed-role-line",
+          "label": "Crashed match role line",
+          "kind": "container",
+          "description": "Replaces the Hero row while Game crashed is on: shows the role the match is recorded under (taken from Playing As).",
+          "locate": {
+            "path": "client/src/pages/LogMatch.tsx:1234",
+            "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-crashed-role-line\"' client/src/pages/LogMatch.tsx"
+          }
+        },
+        {
           "id": "logmatch-result-toggle",
           "label": "Result toggle (Win/Loss)",
           "kind": "radio-group",
