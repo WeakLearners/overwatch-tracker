@@ -145,6 +145,7 @@ interface RoleTimerData {
   role: string | null; matches: number; since: string | null;
   recordedMin: number; estimatedMin: number; totalMin: number;
   thresholdMin: number; reached: boolean; switchTo: string | null;
+  held: { role: string; totalMin: number; matches: number } | null;
 }
 const fmtHM = (min: number) => { const t = Math.round(min); return `${Math.floor(t / 60)}h ${String(t % 60).padStart(2, '0')}m`; };
 
@@ -703,6 +704,7 @@ export default function Prematch() {
         {/* Right (4): role timer. Competitive minutes in the current role run,
             with a nudge to switch at 4 hours. Shown in every queue mode: Open
             Queue matches count too. Quick Play is ignored server-side.
+            Detour/reset rules live in server/src/lib/roleTimer.ts.
             Recommendation only, never blocks logging. */}
         <div className="col-span-4 min-w-0 flex items-stretch">
           {roleTimer && roleTimer.role && (
@@ -726,6 +728,7 @@ export default function Prematch() {
                   ? <b className="font-semibold">{fmtHM(roleTimer.thresholdMin)} — switch to {roleTimer.switchTo}</b>
                   : <><b className="font-semibold">{roleTimer.role}</b> {fmtHM(roleTimer.totalMin)} / {fmtHM(roleTimer.thresholdMin)}</>}
                 {roleTimer.estimatedMin > 0 && <span className="text-[var(--faint-2)]"> (+{Math.round(roleTimer.estimatedMin)}m est.)</span>}
+                {roleTimer.held && <span className="text-[var(--faint-2)]"> · {roleTimer.held.role} held at {fmtHM(roleTimer.held.totalMin)}, one more {roleTimer.role} resets it</span>}
               </span>)}
             </div>
           )}

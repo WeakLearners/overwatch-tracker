@@ -4,7 +4,7 @@ import { computeRoleTimer, RoleTimerMatch } from '../lib/roleTimer';
 
 const router = Router();
 
-// Read-only. Competitive matches newest first, each with its summed per-hero
+// Read-only. Competitive matches (all comp modes; the lib keeps role-queue only) newest first, each with its summed per-hero
 // minutes (NULL when Aim Stats hasn't been entered yet), plus the average
 // per-match minutes across every match that has any — the estimate stand-in.
 router.get('/', (_req: Request, res: Response) => {
