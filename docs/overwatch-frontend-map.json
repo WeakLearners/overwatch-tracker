@@ -35,7 +35,7 @@
           "id": "app-settings-link",
           "label": "Settings link",
           "kind": "icon-button",
-          "description": "Gear cell in the app tools group (AppTools), next to the theme toggle, that navigates to /settings \u2014 the field registry's category toggle page. Added 2026-09-23; moved into the Dashboard section nav strip 2026-09-26 (header on other pages).",
+          "description": "Text cell reading \"Settings\" in the app tools tray (AppTools; shows text, not a gear, since 2026-10-02, because the tray trigger is now the gear), next to the theme toggle, that navigates to /settings \u2014 the field registry's category toggle page. Added 2026-09-23; moved into the Dashboard section nav strip 2026-09-26 (header on other pages).",
           "locate": {
             "path": "client/src/components/AppTools.tsx:68",
             "grep": "grep -n -F -- 'data-inspect-id=\"app-settings-link\"' client/src/components/AppTools.tsx"
@@ -45,7 +45,7 @@
           "id": "app-tools-toggle",
           "label": "App tools trigger (show/hide)",
           "kind": "icon-button",
-          "description": "Small chevron at the right edge of the nav strip (and header on other pages). Slides the inspector, settings and theme buttons out to its left, or tucks them away. Open/closed is remembered in localStorage key ow-app-tools-open; default closed. aria-expanded, so keyboard-reachable. Added 2026-10-02.",
+          "description": "Gear button at the right edge of the nav strip (and header on other pages), styled like the other tool buttons (TOOL class); lit (ink colour) while open. Title \"Tools\"; aria-label flips Show tools / Hide tools. Slides the inspector, settings and theme buttons out to its left, or tucks them away. Open/closed is remembered in localStorage key ow-app-tools-open; default closed. aria-expanded, so keyboard-reachable. Added 2026-10-02 as a chevron; became a gear 2026-10-02.",
           "locate": {
             "path": "client/src/components/AppTools.tsx:81",
             "grep": "grep -n -F -- 'data-inspect-id=\"app-tools-toggle\"' client/src/components/AppTools.tsx"

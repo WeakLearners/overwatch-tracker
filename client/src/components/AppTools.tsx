@@ -65,7 +65,7 @@ export default function AppTools({ home = false }: { home?: boolean }) {
       >
         <div className="grid grid-flow-col auto-cols-fr min-w-0 overflow-hidden">
           <span id="header-inspector-slot" className="contents" />
-          <Link to="/settings" aria-label="Settings" title="Settings" data-inspect-id="app-settings-link" className={TOOL}>⚙</Link>
+          <Link to="/settings" aria-label="Settings" title="Settings" data-inspect-id="app-settings-link" className={`${TOOL} !text-xs`}>Settings</Link>
           <button type="button" onClick={toggle} aria-label="Toggle theme" title="Toggle theme" data-inspect-id="app-theme-toggle" className={TOOL}>
             {dark ? '☀' : '☾'}
           </button>
@@ -76,12 +76,12 @@ export default function AppTools({ home = false }: { home?: boolean }) {
         onClick={flip}
         aria-expanded={open}
         aria-controls="app-tools-tray"
-        aria-label={open ? 'Hide app tools' : 'Show app tools'}
-        title={open ? 'Hide inspector, settings and theme' : 'Show inspector, settings and theme'}
+        aria-label={open ? 'Hide tools' : 'Show tools'}
+        title="Tools"
         data-inspect-id="app-tools-toggle"
-        className={TOOL}
+        className={`${TOOL}${open ? ' !text-[var(--ink)]' : ''}`}
       >
-        {open ? '›' : '‹'}
+        ⚙
       </button>
     </div>
   );
