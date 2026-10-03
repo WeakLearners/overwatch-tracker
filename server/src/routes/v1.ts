@@ -143,4 +143,11 @@ router.get('/export/experiments', (_req: Request, res: Response) => {
   res.json({ schema_version: SCHEMA_VERSION, sets, stages, credits });
 });
 
+// Rawaccel curve row (curve_params stays tracker-owned; the lab reads it here).
+// Single row, id 1; null before it was ever saved.
+router.get('/export/curve', (_req: Request, res: Response) => {
+  const curve = getDb().prepare('SELECT * FROM curve_params WHERE id = 1').get() ?? null;
+  res.json({ schema_version: SCHEMA_VERSION, curve });
+});
+
 export default router;

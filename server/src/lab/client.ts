@@ -82,6 +82,7 @@ export function createLabClient(opts: LabClientOptions) {
       all<any>('/export/matches', { since: a.since, limit: a.limit, fields: a.fields?.join(',') }),
     deaths: (a: { since?: number; limit?: number } = {}) => all<any>('/export/deaths', { ...a }),
     aim: (a: { since?: number; limit?: number } = {}) => all<any>('/export/aim', { ...a }),
+    curve: () => get<{ schema_version: string; curve: Record<string, any> | null }>('/export/curve'),
     experiments: () => get<{ schema_version: string; sets: any[]; stages: any[]; credits: any[] }>('/export/experiments'),
   };
 }

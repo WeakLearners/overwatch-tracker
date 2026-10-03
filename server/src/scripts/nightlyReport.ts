@@ -9,27 +9,22 @@
 // stage/batch progress and whether it's due to advance, and any matches
 // today missing an accuracy entry.
 //
-// Deliberately reads the DB directly rather than hitting the HTTP API —
-// this runs from launchd, independent of whether the dev server happens to
-// be up, and getDb() here is the same schema module the server itself uses
-// (same DB_PATH resolution, same migrations already applied by the running
-// server), so there's no drift between what this script sees and what the
-// app sees.
-import dotenv from 'dotenv';
-import path from 'path';
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
-
-import { getDb } from '../db/schema';
+// Reads tracker data ONLY through lab/client.ts (the v1 export API), via an
+// in-memory replica (lab/replica.ts). The tracker must be up when this runs.
+// The Slack webhook comes from lab/config.ts. Split plan B6.
+import type { DatabaseSync } from 'node:sqlite';
+import { createLabClient } from '../lab/client';
+import { buildReplica } from '../lab/replica';
+import { loadLabConfig } from '../lab/config';
 import {
   stagePointsFor, readBracket, describeBracket, stageSamplesFor,
   baselineFor, describeBaseline,
   sweepFindings,
   describeSweep,
 } from './nightlyAnalysis';
-import { computeAnalysis } from '../routes/aim';
+import { computeAnalysis } from '../routes/aimAnalysis';
 import { abbaStageFor, deriveBlockState, CHUNK_BLOCKS, STAGE_BLOCKS } from '../lib/blind';
 
-const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
 // --dry-run prints the assembled report to stdout instead of posting it, so
 // the output can be eyeballed without spending a real message on the channel.
 const DRY_RUN = process.argv.includes('--dry-run');
@@ -69,7 +64,7 @@ export interface StageStatus {
 // this script's query path stays independent of the HTTP layer's helpers.
 // A missing duration_min (2 of 1,181 historical rows) counts as 0 minutes,
 // same as deriveBlockState treats it everywhere else.
-function creditedDurationsForSet(db: ReturnType<typeof getDb>, setId: number, stageIndex?: number): (number | null)[] {
+function creditedDurationsForSet(db: DatabaseSync, setId: number, stageIndex?: number): (number | null)[] {
   const rows = db.prepare(`
     SELECT ah.duration_min AS duration_min
     FROM blind_credits bc
@@ -95,7 +90,7 @@ function creditedDurationsForSet(db: ReturnType<typeof getDb>, setId: number, st
 // block model (2026-09-27). A chunked (ABBA) set reports in 60-minute
 // blocks instead — gamesOnStage/totalGames/batchSize hold block counts, not
 // game counts, for that case; `unit` tells the caller which.
-export function computeStageStatus(db: ReturnType<typeof getDb>, set: ActiveSetRow): StageStatus {
+export function computeStageStatus(db: DatabaseSync, set: ActiveSetRow): StageStatus {
   const { n_stages } = db.prepare(
     `SELECT COUNT(*) n_stages FROM blind_stages WHERE set_id = :id`
   ).get({ id: set.id }) as unknown as StageCountRow;
@@ -130,19 +125,19 @@ export function computeStageStatus(db: ReturnType<typeof getDb>, set: ActiveSetR
   return { hero: set.hero, cur_rel: curRel, n_stages, gamesOnStage, totalGames, batchSize: STAGE_BLOCKS, unit: 'blocks', completed, dueToAdvance };
 }
 
-async function postToSlack(text: string): Promise<void> {
+async function postToSlack(text: string, webhookUrl: string | undefined): Promise<void> {
   if (DRY_RUN) {
     console.log('--- DRY RUN (not posted) ---');
     console.log(text);
     console.log('--- end ---');
     return;
   }
-  if (!SLACK_WEBHOOK_URL) {
+  if (!webhookUrl) {
     console.error('SLACK_WEBHOOK_URL not set in server/.env — cannot post.');
     process.exitCode = 1;
     return;
   }
-  const res = await fetch(SLACK_WEBHOOK_URL, {
+  const res = await fetch(webhookUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text }),
@@ -156,9 +151,11 @@ async function postToSlack(text: string): Promise<void> {
   console.log('Posted to Slack.');
 }
 
-async function main() {
-  const db = getDb();
-  const today = todayLocal();
+// Builds the report text for `today` from any db handle, or null when nothing
+// was logged today (low-noise: no post). Pure of I/O beyond the handle, so the
+// test can run it against the tracker's own file and against a replica and
+// compare. Moved out of main() unchanged (split plan B6).
+export function buildReport(db: DatabaseSync, today: string): string | null {
 
   // 1. Any activity today at all?
   const todaysHeroRows = db.prepare(`
@@ -170,8 +167,7 @@ async function main() {
   `).all({ today }) as unknown as HeroMatchRow[];
 
   if (todaysHeroRows.length === 0) {
-    console.log(`No matches logged for ${today} — skipping Slack post (low-noise).`);
-    return;
+    return null;
   }
 
   const matchIdsToday = [...new Set(todaysHeroRows.map(r => r.match_id))];
@@ -286,7 +282,19 @@ async function main() {
     lines.push(...anomalyLines);
   }
 
-  await postToSlack(lines.join('\n'));
+  return lines.join('\n');
+}
+
+async function main() {
+  const cfg = loadLabConfig();
+  const db = await buildReplica(createLabClient({ baseUrl: cfg.trackerUrl }));
+  const today = todayLocal();
+  const text = buildReport(db, today);
+  if (text === null) {
+    console.log(`No matches logged for ${today} — skipping Slack post (low-noise).`);
+    return;
+  }
+  await postToSlack(text, cfg.slackWebhookUrl);
 }
 
 // Guarded so importing this module (e.g. from a test, to reach

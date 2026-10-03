@@ -118,14 +118,10 @@ export interface FieldEntry {
   appliesTo?: { modes?: QueueMode[]; roles?: Role[] };
   feedsCards: string[];
   defaultOn: boolean;
-  // Optional study tag (added 2026-09-24, prerequisite to Phase 2 — see
-  // modular-tracking-roadmap.md). A field with no `study` tag cannot be
-  // split by GET /api/stats/split — that route's whitelist is exactly "has
-  // a study tag", nothing more. Tagging a field here doesn't change what it
-  // does today; it only makes it eligible for the generic split. A field
-  // left untagged needs a stated reason (e.g. lobby_low/lobby_high below,
-  // deferred as a numeric range rather than a category — see the roadmap).
-  study?: { metrics: ('win_rate' | 'accuracy')[] };
+  // The optional `study` tag (2026-09-24) moved to the lab in split-plan slice 5b:
+  // see lab/studyTags.ts. Which fields can be split is analysis knowledge, not
+  // tracker knowledge. An untagged field needs a stated reason (e.g. lobby_low
+  // below, deferred as a numeric range rather than a category).
 }
 
 export const FIELD_REGISTRY: FieldEntry[] = [
@@ -166,7 +162,6 @@ export const FIELD_REGISTRY: FieldEntry[] = [
     // report the outcome back.
     feedsCards: [],
     defaultOn: true,
-    study: { metrics: ['accuracy'] },
   },
   {
     id: 'notes',
@@ -191,7 +186,6 @@ export const FIELD_REGISTRY: FieldEntry[] = [
     writesTo: { table: 'matches', columns: ['leaver'] },
     feedsCards: ['dash-stat-leavers'],
     defaultOn: true,
-    study: { metrics: ['win_rate', 'accuracy'] },
   },
   {
     id: 'leaver_side',
@@ -201,7 +195,6 @@ export const FIELD_REGISTRY: FieldEntry[] = [
     writesTo: { table: 'matches', columns: ['leaver_side'] },
     feedsCards: ['dash-stat-leavers'],
     defaultOn: true,
-    study: { metrics: ['win_rate', 'accuracy'] },
   },
   {
     id: 'match_quality',
@@ -218,7 +211,6 @@ export const FIELD_REGISTRY: FieldEntry[] = [
     // the 2026-09-24 study-tag pass. Analyzable via GET /api/stats/split?by=match_quality.
     feedsCards: [],
     defaultOn: true,
-    study: { metrics: ['win_rate', 'accuracy'] },
   },
   {
     id: 'result_driver',
@@ -232,7 +224,6 @@ export const FIELD_REGISTRY: FieldEntry[] = [
     // an independent measurement, so that split is fine.
     feedsCards: [],
     defaultOn: true,
-    study: { metrics: ['accuracy'] },
   },
   // Phase 2 group 3 (2026-09-24): player_rank + player_rank_start, one
   // registry entry for the pair — LogMatch.tsx has always written and read

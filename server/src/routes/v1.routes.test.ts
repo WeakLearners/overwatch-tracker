@@ -10,6 +10,7 @@ import {
 } from '../db/fixtures';
 import { SCHEMA_VERSION } from './v1';
 import { createLabClient, SchemaVersionError, ExportHttpError, majorOf } from '../lab/client';
+import { setCurveParams } from '../lib/curveParams';
 
 let h: Harness;
 beforeEach(async () => { h = await startHarness(); });
@@ -114,6 +115,17 @@ describe('GET /api/v1/export/experiments', () => {
     assert.ok('paused_at' in r.body.sets[0]);
     assert.equal(r.body.stages.length, 1);
     assert.equal(r.body.credits.length, 1);
+  });
+});
+
+describe('GET /api/v1/export/curve', () => {
+  test('null before the curve was ever saved, the raw row after', async () => {
+    h.db.prepare('DELETE FROM curve_params').run();
+    assert.equal((await h.get('/api/v1/export/curve')).body.curve, null);
+    setCurveParams(h.db, { smooth: 0.3, input: 12, output: 1.4, lutSteps: 8, lutMaxSpeed: 40, lutPoints: null });
+    const r = await h.get('/api/v1/export/curve');
+    assert.equal(r.body.schema_version, SCHEMA_VERSION);
+    assert.equal(r.body.curve.smooth, 0.3);
   });
 });
 
