@@ -28,6 +28,7 @@ import statsRouter from '../routes/stats';
 import ranksRouter from '../routes/ranks';
 import configRouter from '../routes/config';
 import roleTimerRouter from '../routes/roleTimer';
+import v1Router from '../routes/v1';
 
 export interface ApiResponse<T = any> {
   status: number;
@@ -65,6 +66,7 @@ export async function startHarness(): Promise<Harness> {
   app.use('/api/stats', statsRouter);
   app.use('/api/config', configRouter);
   app.use('/api/role-timer', roleTimerRouter);
+  app.use('/api/v1', v1Router);
 
   const server = http.createServer(app);
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));

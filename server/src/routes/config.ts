@@ -40,7 +40,7 @@ function lockedCategories(db: ReturnType<typeof getDb>): { id: CategoryId; reaso
   return [{ id: 'sens-study', reason: 'locked — a sensitivity study stage is running' }];
 }
 
-function buildConfigPayload(db: ReturnType<typeof getDb>) {
+export function buildConfigPayload(db: ReturnType<typeof getDb>) {
   const enabled = new Set(currentEnabled(db));
   const locked = lockedCategories(db);
   return {
