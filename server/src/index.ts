@@ -17,6 +17,11 @@ import configRouter from './routes/config';
 import dfRouter from './routes/df';
 import roleTimerRouter from './routes/roleTimer';
 import v1Router from './routes/v1';
+import { installExperiments } from './experiments';
+
+// Sensitivity-study controller behind the tracker's ExperimentHooks. Skipped
+// (no-op hooks) when EXPERIMENTS_DISABLED=1.
+installExperiments();
 
 const app = express();
 // 3001 = production, updated on push (launchd com.overwatch.prod, from ~/Code/overwatch-prod).

@@ -29,6 +29,8 @@ import ranksRouter from '../routes/ranks';
 import configRouter from '../routes/config';
 import roleTimerRouter from '../routes/roleTimer';
 import v1Router from '../routes/v1';
+import { installExperiments } from '../experiments';
+import { setExperimentHooks } from '../lib/experimentHooks';
 
 export interface ApiResponse<T = any> {
   status: number;
@@ -50,7 +52,11 @@ export interface Harness {
 // otherwise open the real database. closeDb() in close() clears it again so
 // the next test's getDb(tmp) actually opens its own file instead of handing
 // back the previous test's connection.
-export async function startHarness(): Promise<Harness> {
+// `experiments: false` runs the tracker with the no-op hooks, the way it runs
+// when the study module is absent or disabled. Default is the real controller,
+// which is what every existing suite expects.
+export async function startHarness(opts: { experiments?: boolean } = {}): Promise<Harness> {
+  if (opts.experiments === false) setExperimentHooks(); else installExperiments();
   const tmpPath = path.join(
     os.tmpdir(),
     `overwatch-route-test-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.db`,

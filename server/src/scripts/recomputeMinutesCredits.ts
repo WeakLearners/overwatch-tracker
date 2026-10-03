@@ -23,7 +23,7 @@ import os from 'os';
 import path from 'path';
 import { DatabaseSync } from 'node:sqlite';
 import { DB_PATH, getDb } from '../db/schema';
-import { applyPlayTimeCredit } from '../routes/matches';
+import { applyPlayTimeCredit } from '../experiments';
 import {
   stagesOf, blockStateOf, blockStateOfStage, liveStageIndex, gamesOnStageOf, isSetComplete,
 } from '../routes/blind';

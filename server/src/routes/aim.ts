@@ -6,7 +6,7 @@ import {
 } from '../lib/aim';
 import { getCurveParams, setCurveParams } from '../lib/curveParams';
 import { isStudyQueueMode } from '../lib/blind';
-import { saveAimStatsRows } from './matches';
+import { saveAimStatsRows } from '../lib/aimStatsWrite';
 
 const router = Router();
 
