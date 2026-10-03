@@ -176,14 +176,17 @@ export function isSetComplete(db: ReturnType<typeof getDb>, setId: number): bool
 // would have no way to choose between them. If a newer set has already taken
 // the slot, the old one stays closed.
 export function syncSetActive(db: ReturnType<typeof getDb>, setId: number) {
-  const set = db.prepare('SELECT id, hero, active FROM blind_stage_sets WHERE id = :id')
-    .get({ id: setId }) as { id: number; hero: string | null; active: number } | undefined;
+  const set = db.prepare('SELECT id, hero, active, paused_at FROM blind_stage_sets WHERE id = :id')
+    .get({ id: setId }) as { id: number; hero: string | null; active: number; paused_at: string | null } | undefined;
   if (!set) return;
 
   if (isSetComplete(db, setId)) {
     if (set.active) db.prepare('UPDATE blind_stage_sets SET active = 0 WHERE id = :id').run({ id: setId });
     return;
   }
+  // A paused set (hero removed from the pool) stays closed until the explicit
+  // resume route clears paused_at — a credit edit must not wake it.
+  if (set.paused_at) return;
   if (set.active) return;
 
   const rival = set.hero === null
@@ -222,6 +225,18 @@ router.post('/sets', (req: Request, res: Response) => {
   if (dupe) {
     res.status(409).json({ error: hero ? `${hero} already has an active test running` : 'an ad-hoc test is already active' });
     return;
+  }
+
+  // A paused set (hero removed from the pool) still owns its hero's slot for
+  // that phase: re-adding must resume it, not start a second set beside it.
+  if (hero) {
+    const paused = db.prepare(
+      'SELECT id FROM blind_stage_sets WHERE paused_at IS NOT NULL AND hero = :hero AND phase IS :phase',
+    ).get({ hero, phase }) as { id: number } | undefined;
+    if (paused) {
+      res.status(409).json({ error: `${hero} is paused in this phase; resume set ${paused.id} instead`, pausedSetId: paused.id });
+      return;
+    }
   }
 
   // Designated Fallback (lib/df.ts, schema.ts's df_heroes) is never under
@@ -351,6 +366,45 @@ router.delete('/sets/:id', (req: Request, res: Response) => {
   res.json({ ok: true, deletedMatches });
 });
 
+// ── Pause / resume a set (remove / re-add a hero in the tested pool) ─────────
+// Removal never deletes: stages, credits and matches stay untouched and
+// readable. Pause sets paused_at and active = 0, which every active-only
+// reader (crediting, config lock, advisor, nightly report) already treats as
+// "not under test"; heroProgressForPhase skips paused sets so computeNextTest
+// never ranks them. While paused the hero plays at its normal sens and earns
+// no credit. Resume clears paused_at and re-derives active, so the existing
+// set picks up where it stopped. A finished set has nothing to pause.
+router.post('/sets/:id/pause', (req: Request, res: Response) => {
+  const db = getDb();
+  const set = db.prepare('SELECT id, hero, paused_at FROM blind_stage_sets WHERE id = :id')
+    .get({ id: req.params.id }) as { id: number; hero: string | null; paused_at: string | null } | undefined;
+  if (!set) { res.status(404).json({ error: 'set not found' }); return; }
+  if (isSetComplete(db, set.id)) { res.status(409).json({ error: 'a completed set cannot be paused' }); return; }
+  if (!set.paused_at) {
+    db.prepare("UPDATE blind_stage_sets SET paused_at = datetime('now'), active = 0 WHERE id = :id").run({ id: set.id });
+  }
+  res.json({ ok: true, set_id: set.id, paused: true });
+});
+
+router.post('/sets/:id/resume', (req: Request, res: Response) => {
+  const db = getDb();
+  const set = db.prepare('SELECT id, hero, paused_at FROM blind_stage_sets WHERE id = :id')
+    .get({ id: req.params.id }) as { id: number; hero: string | null; paused_at: string | null } | undefined;
+  if (!set) { res.status(404).json({ error: 'set not found' }); return; }
+  if (!set.paused_at) { res.status(409).json({ error: 'set is not paused' }); return; }
+  if (set.hero && isDfHero(db, set.hero)) {
+    res.status(409).json({ error: `${set.hero} is a Designated Fallback and cannot be under test` });
+    return;
+  }
+  const rival = set.hero === null
+    ? db.prepare('SELECT id FROM blind_stage_sets WHERE active = 1 AND hero IS NULL AND id != :id').get({ id: set.id })
+    : db.prepare('SELECT id FROM blind_stage_sets WHERE active = 1 AND hero = :hero AND id != :id').get({ id: set.id, hero: set.hero });
+  if (rival) { res.status(409).json({ error: 'another active set already owns this hero' }); return; }
+  db.prepare('UPDATE blind_stage_sets SET paused_at = NULL WHERE id = :id').run({ id: set.id });
+  syncSetActive(db, set.id);
+  res.json({ ok: true, set_id: set.id, paused: false });
+});
+
 // ── List sets ────────────────────────────────────────────────────────────────
 // All sets (active or not), each with its hero tag and total games logged —
 // lets the UI show a hero's test as "completed" even after a newer set for a
@@ -358,14 +412,14 @@ router.delete('/sets/:id', (req: Request, res: Response) => {
 router.get('/sets', (_req: Request, res: Response) => {
   const db = getDb();
   const rows = db.prepare(`
-    SELECT id, hero, phase, active, batch_size, created_at, curve_enabled
+    SELECT id, hero, phase, active, paused_at, batch_size, created_at, curve_enabled
     FROM blind_stage_sets ORDER BY id ASC
-  `).all() as { id: number; hero: string | null; phase: string | null; active: number; batch_size: number; created_at: string; curve_enabled: number }[];
+  `).all() as { id: number; hero: string | null; phase: string | null; active: number; paused_at: string | null; batch_size: number; created_at: string; curve_enabled: number }[];
   const sets = rows.map(row => {
     const stages = stagesOf(db, row.id);
     const totalGames = totalGamesOf(db, row.id);
     return {
-      set_id: row.id, hero: row.hero, phase: row.phase, active: !!row.active,
+      set_id: row.id, hero: row.hero, phase: row.phase, active: !!row.active, paused: !!row.paused_at,
       completed: isSetComplete(db, row.id),
       batch_size: row.batch_size, n_stages: stages.length, totalGames, created_at: row.created_at,
       values: stages.map(s => s.sens ?? s.dpi), curveEnabled: !!row.curve_enabled,
@@ -626,7 +680,7 @@ function currentPhaseKey(db: ReturnType<typeof getDb>): string | null {
 // logic doesn't care about the unit, only that credited/target are
 // consistent for a given hero.
 function heroProgressForPhase(db: ReturnType<typeof getDb>, phase: string): HeroTestProgress[] {
-  const rows = db.prepare('SELECT id, hero FROM blind_stage_sets WHERE phase = :phase AND hero IS NOT NULL')
+  const rows = db.prepare('SELECT id, hero FROM blind_stage_sets WHERE phase = :phase AND hero IS NOT NULL AND paused_at IS NULL')
     .all({ phase }) as { id: number; hero: string }[];
   const now = Date.now();
   return rows.map(row => {
@@ -721,7 +775,7 @@ router.get('/next', (req: Request, res: Response) => {
   // query with one more aggregate on top). Trailing 14 days, phase-wide
   // across every hero's set, not just the recommended role.
   const PROJECTION_WINDOW_DAYS = 14;
-  const setIds = db.prepare('SELECT id FROM blind_stage_sets WHERE phase = :phase AND hero IS NOT NULL')
+  const setIds = db.prepare('SELECT id FROM blind_stage_sets WHERE phase = :phase AND hero IS NOT NULL AND paused_at IS NULL')
     .all({ phase }) as { id: number }[];
   const gamesInWindow = setIds.length ? (db.prepare(`
     SELECT COUNT(*) n FROM blind_credits bc JOIN matches m ON m.id = bc.match_id
@@ -737,7 +791,14 @@ router.get('/next', (req: Request, res: Response) => {
   const windowDays = Math.min(PROJECTION_WINDOW_DAYS, Math.max(1, daysRunning));
   const projection = projectPhaseFinish(remaining, gamesInWindow, windowDays);
 
-  res.json({ isQuickplay: false, phase, heroes, projection, justClosed, ...rec });
+  // Heroes removed from the pool (paused sets). With none left in the pool,
+  // computeNextTest reports allFinished — the card must say "empty pool", not
+  // "every hero is done", so the two causes get their own flag.
+  const pausedHeroes = (db.prepare('SELECT hero FROM blind_stage_sets WHERE phase = :phase AND hero IS NOT NULL AND paused_at IS NOT NULL ORDER BY id')
+    .all({ phase }) as { hero: string }[]).map(r => r.hero);
+  const allPaused = heroes.length === 0 && pausedHeroes.length > 0;
+
+  res.json({ isQuickplay: false, phase, heroes, projection, justClosed, pausedHeroes, allPaused, ...rec });
 });
 
 export default router;

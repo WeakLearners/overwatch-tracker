@@ -827,6 +827,13 @@ function initSchema(db: DatabaseSync) {
     // Meaningless outside exactly 2 stages — the code falls back to
     // legacy behavior rather than guessing at an ABBA pattern for 3+.
     ['chunk_size', `ALTER TABLE blind_stage_sets ADD COLUMN chunk_size INTEGER`],
+    // paused_at (2026-10-03): the hero was REMOVED from the tested pool without
+    // deleting anything. A paused set is also active = 0 (so findActiveStage,
+    // the config lock, the advisor and the nightly report all skip it with no
+    // new filter), but unlike a finished set it is never reopened by
+    // syncSetActive, is left out of heroProgressForPhase (so computeNextTest
+    // never ranks it), and can be resumed. Stages and credits stay intact.
+    ['paused_at', `ALTER TABLE blind_stage_sets ADD COLUMN paused_at TEXT`],
   ] as const) {
     if (!setCols.find(c => c.name === col)) db.exec(ddl);
   }

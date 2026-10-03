@@ -25,6 +25,7 @@ import { useDfHeroes, dfHeroSet, withDfBadge } from '../hooks/useDfHeroes';
 interface NextTestResponse {
   isQuickplay: boolean;
   allFinished?: boolean;
+  allPaused?: boolean;
   finishedHeroes?: string[];
   phase?: string | null;
   block?: { hero: string; role: string; openMinutes: number } | null;
@@ -1587,7 +1588,9 @@ export default function Prematch() {
                   </p>
                 ) : nextTest.allFinished ? (
                   <p className="text-xs text-[var(--faint)]" data-inspect-id="prematch-next-test-finished">
-                    Every hero in this phase is done — next phase needs creating on the Sens page.
+                    {nextTest.allPaused
+                      ? 'No heroes in the test pool — add one back on the Sens page.'
+                      : 'Every hero in this phase is done — next phase needs creating on the Sens page.'}
                   </p>
                 ) : nextTest.block ? (
                   <p className="text-xs text-[var(--ink)]" data-inspect-id="prematch-next-test-block">

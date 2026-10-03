@@ -24,6 +24,7 @@ interface NextTestResponse {
   heroes?: { hero: string; role: string; credited: number; target: number; daysSinceLastPlayed: number | null; completed: boolean }[];
   projection?: { ratePerDay: number; projectedDays: number | null };
   allFinished?: boolean;
+  allPaused?: boolean;
 }
 // Mirrors lib/nextTest.ts's COLD_DAYS — a display-only threshold, not a
 // second copy of the recommender's decision logic (that logic stays
@@ -77,7 +78,7 @@ interface DpiTestState {
   actives: DpiTestActive[];
 }
 interface DpiTestSetSummary {
-  set_id: number; hero: string | null; phase: string | null; active: boolean; completed: boolean;
+  set_id: number; hero: string | null; phase: string | null; active: boolean; paused: boolean; completed: boolean;
   batch_size: number; n_stages: number; totalGames: number; created_at: string;
   values: number[];
 }
@@ -189,7 +190,11 @@ export default function SensLog() {
       )}
       {sensStudyOn && nextTest?.allFinished && (
         <div className="card mb-6" data-inspect-id="sl-phase-overview-finished">
-          <p className="text-xs text-[var(--faint)]">Every hero in this phase is done — the next phase needs creating below.</p>
+          <p className="text-xs text-[var(--faint)]">
+            {nextTest.allPaused
+              ? 'No heroes in the test pool — add one back in the Plan card below.'
+              : 'Every hero in this phase is done — the next phase needs creating below.'}
+          </p>
         </div>
       )}
 
@@ -675,7 +680,7 @@ const NARROW_RATIO = 2 / 3;
 // bar. His Phase 5-9 data stays fully intact and still feeds the analysis.
 const RETIRED_HEROES = new Set(['Cassidy', 'Emre', 'Reaper', 'Baptiste']);
 
-type HeroTestStatus = 'none' | 'testing' | 'completed';
+type HeroTestStatus = 'none' | 'testing' | 'completed' | 'paused';
 
 const sameValues = (a: readonly number[], b: readonly number[]) =>
   a.length === b.length && a.every((v, i) => Math.abs(v - b[i]) < 0.001);
@@ -724,6 +729,8 @@ function statusForHero(
     // (matches.ts's delete/sync routes decrement the count but never
     // reactivate the set). Report that honestly as still-in-progress rather
     // than silently reporting "no test" — the set is real, it's just short.
+    // Removed from the pool (paused_at set): data intact, not under test, resumable.
+    if (past.paused) return { status: 'paused', totalGames: past.totalGames, target, setId: past.set_id };
     if (past.totalGames >= target) return { status: 'completed', totalGames: past.totalGames, target, setId: past.set_id };
     return { status: 'testing', totalGames: past.totalGames, target, setId: past.set_id };
   }
@@ -799,6 +806,10 @@ function suggestCenter(oldLow: number, oldHigh: number, ch: CumulativeHero | und
 
 function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestState | null }) {
   const { data } = useApi<{ sets: DpiTestSetSummary[] }>('/api/blind/sets');
+  const { refetch: refetchConfig } = useFieldConfig();
+  // revalidateAll() skips the plain-fetch FieldConfigContext, whose lockedCategories
+  // flips whenever a set opens or closes — refresh it alongside.
+  const revalidateSets = () => { revalidateAll(); void refetchConfig(); };
   const sets = data?.sets ?? [];
   const actives = state?.actives ?? [];
   const [creating, setCreating] = useState<string | null>(null);
@@ -824,6 +835,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
 
   const statuses = new Map(plan.map(h => [h.hero, statusForHero(h.hero, actives, sets, h.gamesPerSlot, valuesOf(h), tabKey)]));
   const [cancelling, setCancelling] = useState(false);
+  const [poolBusy, setPoolBusy] = useState<number | null>(null);
 
   const [showAddPhase, setShowAddPhase] = useState(false);
   const [loadingAddPhase, setLoadingAddPhase] = useState(false);
@@ -927,7 +939,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(setBodyFor(h)),
       });
-      revalidateAll();
+      revalidateSets();
     } finally { setCreating(null); }
   }
 
@@ -945,10 +957,25 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(setBodyFor(h)),
       })));
-      revalidateAll();
+      revalidateSets();
     } finally {
       setCreatingAll(false);
     }
+  }
+
+  // Remove / re-add a hero in the tested pool. Pause never deletes — stages and
+  // credits stay; the hero just stops being credited and ranked until resumed.
+  async function setPoolState(setId: number, action: 'pause' | 'resume') {
+    setPoolBusy(setId);
+    try {
+      const res = await fetch(`/api/blind/sets/${setId}/${action}`, { method: 'POST' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        alert(`${action === 'pause' ? 'Remove' : 'Resume'} failed: ${body.error ?? res.statusText}`);
+        return;
+      }
+      revalidateSets();
+    } finally { setPoolBusy(null); }
   }
 
   async function cancelActiveSet(setId: number, hero: string, games: number) {
@@ -970,7 +997,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
         alert(`Cancel failed: ${body.error ?? res.statusText}`);
         return;
       }
-      revalidateAll();
+      revalidateSets();
     } finally { setCancelling(false); }
   }
 
@@ -1039,7 +1066,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
             <div className="flex flex-col gap-1.5">
               {roles.map(role => {
                 const list = byRole.get(role)!;
-                const nextUp = list.find(h => statuses.get(h.hero)?.status !== 'completed');
+                const nextUp = list.find(h => { const st = statuses.get(h.hero)?.status; return st !== 'completed' && st !== 'paused'; });
                 return (
                   <div key={role} className="flex items-center gap-2 flex-wrap">
                     <span className={`text-[10px] font-semibold text-white px-1.5 py-0.5 rounded shrink-0 ${ROLE_PILL_CLASS[role] ?? ROLE_PILL_CLASS.Support}`}>
@@ -1047,6 +1074,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                     </span>
                     {list.map((h, i) => {
                       const done = statuses.get(h.hero)?.status === 'completed';
+                      const paused = statuses.get(h.hero)?.status === 'paused';
                       const isNext = h.hero === nextUp?.hero;
                       return (
                         <span key={h.hero} className="flex items-center gap-2">
@@ -1054,10 +1082,11 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                           <span
                             className={`text-xs hero-name ${
                               done ? 'line-through text-[var(--faint-2)]'
+                                : paused ? 'italic text-[var(--faint-2)]'
                                 : isNext ? 'text-[var(--ink)] font-semibold'
                                 : 'text-[var(--faint)]'
                             }`}
-                            title={done ? `${h.hero} — block complete` : isNext ? `${h.hero} — next up for ${role}` : h.hero}
+                            title={done ? `${h.hero} — block complete` : paused ? `${h.hero} — removed from the pool` : isNext ? `${h.hero} — next up for ${role}` : h.hero}
                           >
                             {h.hero}
                           </span>
@@ -1089,7 +1118,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
           const s = statuses.get(h.hero)!;
           return (
             <div key={h.hero} className="relative rounded-lg bg-ow-darker border border-ow-border p-2 overflow-hidden">
-              <div className={s.status === 'completed' ? 'opacity-30 pointer-events-none' : ''}>
+              <div className={s.status === 'completed' ? 'opacity-30 pointer-events-none' : s.status === 'paused' ? 'opacity-60' : ''}>
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <span className="text-xs hero-name text-[var(--ink)] truncate">{h.hero}</span>
                   <span className="text-[9px] text-[var(--faint-2)] uppercase shrink-0">{h.archetype}</span>
@@ -1115,7 +1144,17 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                 <div className="h-5 flex items-center" data-inspect-id="sl-plan-status-footer">
                   {s.status === 'testing' && (
                     <div className="flex items-center gap-2 w-full justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wide text-amber-500">{s.totalGames}/{s.target} games</span>
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-amber-500 truncate">{s.totalGames}/{s.target} games</span>
+                      <button
+                        type="button"
+                        onClick={() => s.setId != null && setPoolState(s.setId, 'pause')}
+                        disabled={poolBusy === s.setId || s.setId == null}
+                        data-inspect-id="sl-plan-remove-btn"
+                        title="Take this hero out of the test pool. Nothing is deleted; add it back to resume."
+                        className="text-[10px] text-[var(--faint)] hover:text-[var(--ink)] underline underline-offset-2 disabled:opacity-40 shrink-0 ml-auto"
+                      >
+                        Remove
+                      </button>
                       <button
                         type="button"
                         onClick={() => s.setId != null && cancelActiveSet(s.setId, h.hero, s.totalGames)}
@@ -1124,6 +1163,20 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                         className="text-[10px] text-red-400 hover:text-red-300 underline underline-offset-2 disabled:opacity-40 shrink-0"
                       >
                         Cancel test
+                      </button>
+                    </div>
+                  )}
+                  {s.status === 'paused' && (
+                    <div className="flex items-center gap-2 w-full justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--faint)] truncate">Removed · {s.totalGames}/{s.target}</span>
+                      <button
+                        type="button"
+                        onClick={() => s.setId != null && setPoolState(s.setId, 'resume')}
+                        disabled={poolBusy === s.setId || s.setId == null}
+                        data-inspect-id="sl-plan-resume-btn"
+                        className={`${btnSecondary} px-2 py-0.5 text-[10px] shrink-0`}
+                      >
+                        Add back
                       </button>
                     </div>
                   )}

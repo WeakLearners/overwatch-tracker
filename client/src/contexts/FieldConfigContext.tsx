@@ -70,6 +70,9 @@ interface FieldConfigCtx {
   // Sends the full desired non-core set. Throws with the server's message
   // on a 400/409 refusal so the settings page can show it inline.
   setCategoryEnabled: (id: string, on: boolean) => Promise<void>;
+  // This context is a plain fetch, so revalidateAll() never reaches it. Anything
+  // that opens or closes a sens-study set changes lockedCategories and must call this.
+  refetch: () => Promise<void>;
 }
 
 const EMPTY: ConfigPayload = { enabledCategories: ['core'], lockedCategories: [], categories: [], fields: [] };
@@ -85,6 +88,7 @@ const FieldConfigContext = createContext<FieldConfigCtx>({
   isCategoryLocked: () => undefined,
   isFieldEnabled: () => false,
   setCategoryEnabled: async () => {},
+  refetch: async () => {},
 });
 
 export function FieldConfigProvider({ children }: { children: ReactNode }) {
@@ -128,6 +132,7 @@ export function FieldConfigProvider({ children }: { children: ReactNode }) {
     isCategoryLocked: (id) => config.lockedCategories.find(l => l.id === id),
     isFieldEnabled: (id) => config.fields.find(f => f.id === id)?.enabled ?? false,
     setCategoryEnabled,
+    refetch,
   };
 
   return <FieldConfigContext.Provider value={value}>{children}</FieldConfigContext.Provider>;
