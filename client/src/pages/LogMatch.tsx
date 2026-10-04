@@ -14,6 +14,7 @@ import { useDfHeroes, dfSensForHeroName, withDfBadge } from '../hooks/useDfHeroe
 import { format } from 'date-fns';
 import { useFieldConfig } from '../contexts/FieldConfigContext';
 import { StatFields, emptyStats, statsBody, statsTouched, statsValid, type StatFieldsT } from '../components/AimStatsFields';
+import ScoreInputs, { scoreOrNull } from '../components/ScoreInputs';
 import type { RankOutcomeValue, RankOutcomeChange } from '../components/RankOutcomeControl';
 
 // Shared by the two rank-outcome buttons so they cannot drift apart.
@@ -561,6 +562,9 @@ export default function LogMatch() {
   // team mattered enough to become its own column (schema.ts's `leaver_side`
   // comment).
   const [leaverSide, setLeaverSide] = useState<'mine' | 'theirs' | null>(null);
+  // Final round score, strings so blank stays blank (saves NULL).
+  const [scoreUs, setScoreUs] = useState('');
+  const [scoreThem, setScoreThem] = useState('');
 
   const [form, setForm] = useState<FormState>(() => {
     const n = new Date();
@@ -969,6 +973,8 @@ export default function LogMatch() {
           result_driver: resultDriver,
           leaver: leaverSide !== null,
           leaver_side: leaverSide,
+          score_us: scoreOrNull(scoreUs),
+          score_them: scoreOrNull(scoreThem),
           // Placement matches write no rank at all: the drum still holds last
           // season's rank, and writing it would draw a fake climb.
           player_rank: isQP || isPlacement ? null : playerRank,
@@ -1005,6 +1011,7 @@ export default function LogMatch() {
       setTeamRating(0);
       setMatchQuality(null);
       setResultDriver(null); setLeaverSide(null);
+      setScoreUs(''); setScoreThem('');
       // The lobby range deliberately survives the submit. It is a reading of
       // the ladder you are playing in, not a property of the match just
       // logged, and the next lobby is nearly always the same one. Wiping it
@@ -1147,6 +1154,7 @@ export default function LogMatch() {
                   setTeamRating(0);
                   setMatchQuality(null);
                   setResultDriver(null); setLeaverSide(null);
+                  setScoreUs(''); setScoreThem('');
                   clearDeathBuffer();
                   notifyMatchLogged();
                   // Back to the very top of the page, so the next match starts fresh.
@@ -1353,6 +1361,11 @@ export default function LogMatch() {
                 onToggle={side => setLeaverSide(prev => (prev === side ? null : side))}
                 dataInspectPrefix="logmatch-leaver-side"
               />
+              {!crashedGame && (
+                <div className="mt-2">
+                  <ScoreInputs us={scoreUs} them={scoreThem} onChange={(u, t) => { setScoreUs(u); setScoreThem(t); }} dataInspectPrefix="logmatch" />
+                </div>
+              )}
             </div>
 
             {isFieldEnabled('notes') && (

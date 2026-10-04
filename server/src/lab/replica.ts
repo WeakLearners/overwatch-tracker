@@ -15,7 +15,7 @@ export const TABLES: Record<string, TableSpec> = {
   matches: {
     pk: ['id'],
     cols: ['id', 'time', 'date', 'hero', 'win', 'sens', 'dpi', 'blind_trial', 'queue_mode', 'crashed',
-      'curve_enabled', 'curve_growth_rate', 'curve_midpoint', 'curve_motivity', 'curve_lut', 'leaver', 'leaver_side',
+      'curve_enabled', 'curve_growth_rate', 'curve_midpoint', 'curve_motivity', 'curve_lut', 'leaver', 'leaver_side', 'score_us', 'score_them',
       'created_at',
       // Added in slice 5c for the dashboard readers (aimAnalysis, statsLab, advisor).
       'role', 'map', 'game_type', 'day_of_week', 'hour', 'feel', 'notes', 'blind_set_id', 'stage_index',

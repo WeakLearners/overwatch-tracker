@@ -60,9 +60,13 @@ function logCrashedMatch(db: ReturnType<typeof getDb>, body: Record<string, any>
   res.json({ id: result.lastInsertRowid as number });
 }
 
+// score_us / score_them: null (blank) or an integer 0-10. Anything else is a 400.
+const validScore = (v: unknown) => v == null || (Number.isInteger(v) && (v as number) >= 0 && (v as number) <= 10);
+
 router.post('/', (req: Request, res: Response) => {
   const db = getDb();
-  const { date, time, day_of_week, hour, hero, role, map, game_type, win, queue_mode, sens, feel, team_rating, notes, heroes, curve_enabled, match_deaths, match_quality, result_driver, leaver, leaver_side, player_rank, player_rank_start, lobby_low, lobby_high, placement, account, aim_stats, crashed } = req.body;
+  const { date, time, day_of_week, hour, hero, role, map, game_type, win, queue_mode, sens, feel, team_rating, notes, heroes, curve_enabled, match_deaths, match_quality, result_driver, leaver, leaver_side, player_rank, player_rank_start, lobby_low, lobby_high, placement, account, aim_stats, crashed, score_us, score_them } = req.body;
+  if (!validScore(score_us) || !validScore(score_them)) { res.status(400).json({ error: 'Score must be blank or a whole number from 0 to 10' }); return; }
   if (crashed === true || crashed === 1) { logCrashedMatch(db, req.body, res); return; }
 
   // leaver_side only ever means something when leaver is actually set — a
@@ -178,9 +182,9 @@ router.post('/', (req: Request, res: Response) => {
     const liveLut = finalCurveEnabled ? getCurveParams(db).lutPoints : null;
     const curveLutJson = liveLut ? JSON.stringify(liveLut) : null;
     const result = db.prepare(`
-      INSERT INTO matches (date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, dpi, blind_trial, blind_set_id, stage_index, feel, team_rating, notes, curve_enabled, curve_growth_rate, curve_midpoint, curve_motivity, curve_lut, match_quality, result_driver, leaver, leaver_side, player_rank, player_rank_start, lobby_low, lobby_high, placement, account)
-      VALUES (:date, :time, :day_of_week, :hour, :hero, :role, :map, :game_type, :win, :deaths, :queue_mode, :sens, :dpi, :blind_trial, :blind_set_id, :stage_index, :feel, :team_rating, :notes, :curve_enabled, :curve_growth_rate, :curve_midpoint, :curve_motivity, :curve_lut, :match_quality, :result_driver, :leaver, :leaver_side, :player_rank, :player_rank_start, :lobby_low, :lobby_high, :placement, :account)
-    `).run({ date, time: time ?? null, day_of_week: day_of_week ?? null, hour: hour ?? null, hero, role, map, game_type, win: win ? 1 : 0, deaths: deathsJson, queue_mode: queue_mode ?? 'comp_role', sens: finalSens, dpi: finalDpi, blind_trial: isStudy, blind_set_id: setId, stage_index: stageIdx, feel: feel ?? null, team_rating: team_rating ?? null, notes: notes?.trim() || null, curve_enabled: finalCurveEnabled ? 1 : 0, curve_growth_rate: null, curve_midpoint: null, curve_motivity: null, curve_lut: curveLutJson, match_quality: match_quality ?? null, result_driver: result_driver ?? null, leaver: leaver ? 1 : 0, leaver_side: finalLeaverSide, player_rank: player_rank ?? null, player_rank_start: player_rank_start ?? null, lobby_low: lobby_low ?? null, lobby_high: lobby_high ?? null, placement: placement ? 1 : null, account: account ?? null });
+      INSERT INTO matches (date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, dpi, blind_trial, blind_set_id, stage_index, feel, team_rating, notes, curve_enabled, curve_growth_rate, curve_midpoint, curve_motivity, curve_lut, match_quality, result_driver, leaver, leaver_side, player_rank, player_rank_start, lobby_low, lobby_high, placement, account, score_us, score_them)
+      VALUES (:date, :time, :day_of_week, :hour, :hero, :role, :map, :game_type, :win, :deaths, :queue_mode, :sens, :dpi, :blind_trial, :blind_set_id, :stage_index, :feel, :team_rating, :notes, :curve_enabled, :curve_growth_rate, :curve_midpoint, :curve_motivity, :curve_lut, :match_quality, :result_driver, :leaver, :leaver_side, :player_rank, :player_rank_start, :lobby_low, :lobby_high, :placement, :account, :score_us, :score_them)
+    `).run({ date, time: time ?? null, day_of_week: day_of_week ?? null, hour: hour ?? null, hero, role, map, game_type, win: win ? 1 : 0, deaths: deathsJson, queue_mode: queue_mode ?? 'comp_role', sens: finalSens, dpi: finalDpi, blind_trial: isStudy, blind_set_id: setId, stage_index: stageIdx, feel: feel ?? null, team_rating: team_rating ?? null, notes: notes?.trim() || null, curve_enabled: finalCurveEnabled ? 1 : 0, curve_growth_rate: null, curve_midpoint: null, curve_motivity: null, curve_lut: curveLutJson, match_quality: match_quality ?? null, result_driver: result_driver ?? null, leaver: leaver ? 1 : 0, leaver_side: finalLeaverSide, player_rank: player_rank ?? null, player_rank_start: player_rank_start ?? null, lobby_low: lobby_low ?? null, lobby_high: lobby_high ?? null, placement: placement ? 1 : null, account: account ?? null, score_us: score_us ?? null, score_them: score_them ?? null });
 
     matchId = result.lastInsertRowid as number;
 
@@ -261,7 +265,7 @@ router.post('/', (req: Request, res: Response) => {
 // Partial update of a logged match. Only the columns present in the body are
 // touched, so callers can fix a single field (e.g. the queue mode) without
 // resending the whole record.
-const EDITABLE = ['date', 'time', 'day_of_week', 'hour', 'hero', 'role', 'map', 'game_type', 'win', 'queue_mode', 'sens', 'feel', 'team_rating', 'notes', 'curve_enabled', 'curve_growth_rate', 'curve_midpoint', 'curve_motivity', 'match_quality', 'result_driver', 'leaver', 'leaver_side', 'player_rank', 'player_rank_start', 'lobby_low', 'lobby_high', 'account'] as const;
+const EDITABLE = ['date', 'time', 'day_of_week', 'hour', 'hero', 'role', 'map', 'game_type', 'win', 'queue_mode', 'sens', 'feel', 'team_rating', 'notes', 'curve_enabled', 'curve_growth_rate', 'curve_midpoint', 'curve_motivity', 'match_quality', 'result_driver', 'leaver', 'leaver_side', 'player_rank', 'player_rank_start', 'lobby_low', 'lobby_high', 'account', 'score_us', 'score_them'] as const;
 
 // A single match's full row — added for MatchEditDrawer.tsx's sens/leaver
 // controls, which need fields (leaver, leaver_side, sens, blind_trial) that
@@ -435,6 +439,11 @@ router.put('/:id', (req: Request, res: Response) => {
   const deathsProvided = !isCrashed && Array.isArray(req.body.match_deaths);
   if (fields.length === 0 && !heroesProvided && !heroSensProvided && !deathsProvided) {
     res.status(400).json({ error: 'No editable fields provided' });
+    return;
+  }
+
+  if (!validScore(req.body.score_us) || !validScore(req.body.score_them)) {
+    res.status(400).json({ error: 'Score must be blank or a whole number from 0 to 10' });
     return;
   }
 

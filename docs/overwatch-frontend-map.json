@@ -1939,6 +1939,16 @@
           }
         },
         {
+          "id": "logmatch-score-inputs",
+          "label": "Score (us - them)",
+          "kind": "input",
+          "description": "Added 2026-10-04. Two small number inputs for the final round score, shared ScoreInputs.tsx. Blank saves NULL; whole numbers 0-10 (server 400s otherwise). Writes matches.score_us / score_them via POST /api/matches (Log Match) or PUT /api/matches/:id (drawer, prefilled from GET /api/matches/:id). Hidden for a crashed game.",
+          "locate": {
+            "path": "client/src/pages/LogMatch.tsx",
+            "grep": "grep -n -F -- 'ScoreInputs us=' client/src/pages/LogMatch.tsx"
+          }
+        },
+        {
           "id": "logmatch-leaver-side-option",
           "label": "Leaver side option (mine/theirs)",
           "kind": "button",
@@ -4038,6 +4048,16 @@
           "locate": {
             "path": "client/src/components/MatchEditDrawer.tsx:443",
             "grep": "grep -n -F -- 'dataInspectPrefix=\"matchEditDrawer-leaver-side\"' client/src/components/MatchEditDrawer.tsx"
+          }
+        },
+        {
+          "id": "matchEditDrawer-score-inputs",
+          "label": "Score (us - them)",
+          "kind": "input",
+          "description": "Added 2026-10-04. Two small number inputs for the final round score, shared ScoreInputs.tsx. Blank saves NULL; whole numbers 0-10 (server 400s otherwise). Writes matches.score_us / score_them via POST /api/matches (Log Match) or PUT /api/matches/:id (drawer, prefilled from GET /api/matches/:id). Hidden for a crashed game.",
+          "locate": {
+            "path": "client/src/components/MatchEditDrawer.tsx",
+            "grep": "grep -n -F -- 'ScoreInputs us=' client/src/components/MatchEditDrawer.tsx"
           }
         },
         {

@@ -19,6 +19,7 @@ import {
   QUEUE_MODES, QUEUE_MODE_COLORS, QueueMode, TrendPoint,
 } from '../types';
 import { format, parseISO } from 'date-fns';
+import ScoreInputs, { scoreOrNull } from './ScoreInputs';
 
 // Same "blank means unanswered, don't parse it as 0" convention SensLog.tsx's
 // backfill form uses for sens fields.
@@ -33,6 +34,8 @@ interface FullMatchRow {
   leaver_side: 'mine' | 'theirs' | null;
   sens: number | null;
   blind_trial: 0 | 1 | null;
+  score_us: number | null;
+  score_them: number | null;
 }
 
 const HERO_LIST = Object.entries(HEROES).sort((a, b) => a[0].localeCompare(b[0]));
@@ -105,6 +108,8 @@ function DrawerForm({ match }: { match: TrendPoint }) {
   // save() payload below).
   const [leaverSide, setLeaverSide] = useState<'mine' | 'theirs' | null>(null);
   const [leaverUnknown, setLeaverUnknown] = useState(false);
+  const [scoreUs, setScoreUs] = useState('');
+  const [scoreThem, setScoreThem] = useState('');
   const [rowLoaded, setRowLoaded] = useState(false);
   const mapCounts = useTodayMapCounts();
   const heroCounts = useTodayHeroCounts();
@@ -144,6 +149,8 @@ function DrawerForm({ match }: { match: TrendPoint }) {
         setSlot1OriginalSens(row.sens);
         setLeaverSide(row.leaver_side ?? null);
         setLeaverUnknown(!!row.leaver && row.leaver_side == null);
+        setScoreUs(row.score_us != null ? String(row.score_us) : '');
+        setScoreThem(row.score_them != null ? String(row.score_them) : '');
         setRowLoaded(true);
       })
       .catch(() => { if (!cancelled) setRowLoaded(true); });
@@ -213,6 +220,8 @@ function DrawerForm({ match }: { match: TrendPoint }) {
         // null` works there but the same value would 500 through PUT.
         leaver: leaverUnknown ? 1 : (leaverSide !== null ? 1 : 0),
         leaver_side: leaverUnknown ? null : leaverSide,
+        score_us: scoreOrNull(scoreUs),
+        score_them: scoreOrNull(scoreThem),
       };
       if (extraRosterChanged) {
         // Roster actually changed — full replace, same as before this
@@ -443,6 +452,9 @@ function DrawerForm({ match }: { match: TrendPoint }) {
           dataInspectPrefix="matchEditDrawer-leaver-side"
           gapClass="gap-3"
         />
+        <div className="mt-2">
+          <ScoreInputs us={scoreUs} them={scoreThem} onChange={(u, t) => { setScoreUs(u); setScoreThem(t); }} dataInspectPrefix="matchEditDrawer" />
+        </div>
       </div>
 
       {/* Date */}

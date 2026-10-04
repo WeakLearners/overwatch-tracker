@@ -443,6 +443,19 @@ function initSchema(db: DatabaseSync) {
     db.exec(`ALTER TABLE matches ADD COLUMN leaver_side TEXT`);
   }
 
+  // score_us / score_them: final round score from the end screen (2026-10-04),
+  // typed by hand, integers 0-10. Objective close/stomp signal that does not
+  // depend on match_quality. Additive and nullable: every earlier row stays
+  // NULL (never asked), and a blank entry saves NULL. Push has no rounds, so
+  // it may be blank. Any rate off these columns must divide by rows where
+  // score_us IS NOT NULL AND score_them IS NOT NULL.
+  if (!cols.find(c => c.name === 'score_us')) {
+    db.exec(`ALTER TABLE matches ADD COLUMN score_us INTEGER`);
+  }
+  if (!cols.find(c => c.name === 'score_them')) {
+    db.exec(`ALTER TABLE matches ADD COLUMN score_them INTEGER`);
+  }
+
   // player_rank / lobby_low / lobby_high: competitive rank captured as a
   // single integer on a 1-45 division ladder — Bronze 5 = 1, Gold 5 = 11,
   // Champion 1 = 45. Nine tiers of five divisions, Emerald included (it sits
