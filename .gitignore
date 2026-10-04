@@ -37,3 +37,6 @@ scripts/.build-client.lock
 
 # large binary source files
 *.numbers
+
+# stray Python wheels from analysis runs
+*.whl
