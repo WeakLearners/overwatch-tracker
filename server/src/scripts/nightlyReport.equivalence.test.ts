@@ -10,8 +10,9 @@ import {
   insertBlindSet, insertBlindStage, insertBlindCredit,
 } from '../db/fixtures';
 import { createLabClient } from '../lab/client';
-import { buildReplica } from '../lab/replica';
-import { buildReport } from './nightlyReport';
+import { buildReplica, TABLES } from '../lab/replica';
+import { buildReport, computeStageStatus } from './nightlyReport';
+import { stagePointsFor } from './nightlyAnalysis';
 import { setCurveParams } from '../lib/curveParams';
 
 let h: Harness;
@@ -79,7 +80,7 @@ describe('nightly report: direct database path vs lab client path', () => {
     });
     game({ date: day(2), hero: 'Ana', sens: 2.5, acc: 90, setId: set, stage: 2, queue: 'qp_role' });
     // Active 2-stage set (head-to-head path).
-    const set2 = insertBlindSet(h.db, { hero: 'Ashe', batch_size: 4 });
+    const set2 = insertBlindSet(h.db, { hero: 'Ashe', batch_size: 4, chunk_size: 2 });
     [[1, 3.0], [2, 3.4]].forEach(([si, sens]) => insertBlindStage(h.db, { set_id: set2, stage_index: si, sens }));
     [[1, 44], [2, 38]].forEach(([si, acc]) => { for (let k = 0; k < 4; k++) game({ date: day(3), hero: 'Ashe', sens: 3.0, acc: acc + k, setId: set2, stage: si }); });
     // Today: two heroes, one switch match, one with no accuracy, one crashed.
@@ -98,6 +99,10 @@ describe('nightly report: direct database path vs lab client path', () => {
     assert.match(direct!, /Bracket reads/);
     assert.match(direct!, /\*Ana\* — /, 'sweep must report at least one finding so the comparison covers it');
     assert.match(direct!, /Data gaps/);
+    // Ashe's set is chunked (2 stages, chunk_size 2): this is the line that only
+    // exists if computeStageStatus ran creditedDurationsForSet through the replica.
+    assert.match(direct!, /Ashe: stage \d\/2, \d+\/8 blocks this stage/);
+    assert.match(viaClient!, /Ashe: stage \d\/2, \d+\/8 blocks this stage/);
   });
 
   test('quiet fixture: same "nothing clears the bar" text', async () => {
@@ -113,5 +118,30 @@ describe('nightly report: direct database path vs lab client path', () => {
     const { direct, viaClient } = await both();
     assert.equal(direct, null);
     assert.equal(viaClient, null);
+  });
+});
+
+describe('lab replica contract', () => {
+  test('every column the replica declares exists in the tracker schema', () => {
+    for (const [table, spec] of Object.entries(TABLES)) {
+      const real = (h.db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map(r => r.name);
+      assert.ok(real.length > 0, `tracker has no table ${table}`);
+      for (const c of spec.cols) assert.ok(real.includes(c), `replica declares ${table}.${c}, tracker has no such column`);
+    }
+  });
+
+  test('stage-trial SQL runs on a replica without error (chunked and unchunked sets)', async () => {
+    const chunked = insertBlindSet(h.db, { hero: 'Ana', chunk_size: 2 });
+    const plain = insertBlindSet(h.db, { hero: 'Ashe', batch_size: 3 });
+    [chunked, plain].forEach(sid => [1, 2].forEach(si => insertBlindStage(h.db, { set_id: sid, stage_index: si, sens: 2 + si })));
+    game({ date: day(1), hero: 'Ana', sens: 3, acc: 40, setId: chunked, stage: 1, mins: 35 });
+    game({ date: day(1), hero: 'Ashe', sens: 3, acc: 40, setId: plain, stage: 1 });
+    const replica = await buildReplica(await client());
+    const sets = replica.prepare('SELECT id, hero, phase, batch_size, cur_rel, chunk_size FROM blind_stage_sets WHERE active = 1 ORDER BY id').all() as any[];
+    assert.equal(sets.length, 2);
+    for (const s of sets) {
+      assert.doesNotThrow(() => computeStageStatus(replica, s));
+      assert.doesNotThrow(() => stagePointsFor(replica, s.id));
+    }
   });
 });

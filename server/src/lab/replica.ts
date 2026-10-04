@@ -11,11 +11,12 @@ import type { LabClient } from './client';
 interface TableSpec { cols: string[]; pk: string[] }
 
 // Primary keys mirror the tracker's, so scans and joins resolve the same way.
-const TABLES: Record<string, TableSpec> = {
+export const TABLES: Record<string, TableSpec> = {
   matches: {
     pk: ['id'],
     cols: ['id', 'time', 'date', 'hero', 'win', 'sens', 'dpi', 'blind_trial', 'queue_mode', 'crashed',
-      'curve_enabled', 'curve_growth_rate', 'curve_midpoint', 'curve_motivity', 'curve_lut', 'leaver', 'leaver_side'],
+      'curve_enabled', 'curve_growth_rate', 'curve_midpoint', 'curve_motivity', 'curve_lut', 'leaver', 'leaver_side',
+      'created_at'],
   },
   match_heroes: { pk: ['match_id', 'slot'], cols: ['match_id', 'slot', 'hero', 'sens', 'feel'] },
   aim_stats: {
