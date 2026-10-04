@@ -389,7 +389,7 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueM
               type="button"
               onClick={() => setWin(v as 0 | 1)}
               data-inspect-id={`logmatch-inline-edit-result-${label.toLowerCase()}`}
-              className={`flex-1 py-2.5 rounded-lg border text-sm font-semibold transition-all ${win === v ? cls : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'}`}
+              className={`flex-1 py-2.5 rounded-md border text-sm font-semibold transition-all ${win === v ? cls : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'}`}
             >
               {label}
             </button>
@@ -430,7 +430,7 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueM
                   onClick={() => setRankOutcome(v)}
                   aria-pressed={rankOutcome === v}
                   data-inspect-id={`logmatch-inline-edit-rank-outcome-${v}`}
-                  className={`text-xs font-semibold py-2 rounded-lg border transition-colors ${
+                  className={`text-xs font-semibold py-2 rounded-md border transition-colors ${
                     rankOutcome === v ? 'is-selected text-[var(--ink)]' : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
                   }`}
                 >{rankOutcome === v ? <span className="lit-text">{label}</span> : label}</button>
@@ -460,15 +460,15 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueM
 
         {confirmDelete ? (
           <div className="flex gap-2">
-            <button type="button" onClick={remove} disabled={status === 'saving'} data-inspect-id="logmatch-inline-edit-confirm-delete-button" className="flex-1 py-2 rounded-lg border border-red-500 bg-red-500/15 text-red-600 text-sm font-semibold hover:bg-red-500/25 transition-colors">
+            <button type="button" onClick={remove} disabled={status === 'saving'} data-inspect-id="logmatch-inline-edit-confirm-delete-button" className="flex-1 py-2 rounded-md border border-red-500 bg-red-500/15 text-red-600 text-sm font-semibold hover:bg-red-500/25 transition-colors">
               Confirm delete
             </button>
-            <button type="button" onClick={() => setConfirmDelete(false)} className="flex-1 py-2 rounded-lg border border-ow-border text-[var(--muted)] text-sm hover:text-[var(--ink)] transition-colors">
+            <button type="button" onClick={() => setConfirmDelete(false)} className="flex-1 py-2 rounded-md border border-ow-border text-[var(--muted)] text-sm hover:text-[var(--ink)] transition-colors">
               Cancel
             </button>
           </div>
         ) : (
-          <button type="button" onClick={() => setConfirmDelete(true)} data-inspect-id="logmatch-inline-edit-delete-button" className="w-full py-2 rounded-lg border border-ow-border text-xs text-[var(--faint)] hover:text-red-600 hover:border-red-500/50 transition-colors">
+          <button type="button" onClick={() => setConfirmDelete(true)} data-inspect-id="logmatch-inline-edit-delete-button" className="w-full py-2 rounded-md border border-ow-border text-xs text-[var(--faint)] hover:text-red-600 hover:border-red-500/50 transition-colors">
             Delete this match
           </button>
         )}
@@ -1075,7 +1075,7 @@ export default function LogMatch() {
           {deathBuffer.length === 0 ? null : (
             <div className="space-y-1.5" data-inspect-id="logmatch-death-buffer-list">
               {deathBuffer.map((d, i) => (
-                <div key={i} className="flex items-center justify-between gap-2 py-2 px-3 rounded-lg bg-ow-darker border border-ow-border">
+                <div key={i} className="flex items-center justify-between gap-2 py-2 px-3 chamfer-sm bg-ow-darker border border-ow-border">
                   <div>
                     <span className="text-xs text-[var(--faint-2)] mr-2 font-bold">{i + 1}</span>
                     <span className="text-sm text-[var(--ink)]">{d.killer}</span>
@@ -1129,7 +1129,7 @@ export default function LogMatch() {
                 title="The game crashed and the scoreboard reset: log the result only, with no hero or stats"
                 data-inspect-id="logmatch-game-crashed-toggle"
                 style={{ '--sel': '247 147 30' } as React.CSSProperties}
-                className={`rounded-lg border-2 px-3 py-1 text-xs font-semibold leading-tight transition-all ${
+                className={`rounded-md border-2 px-3 py-1 text-xs font-semibold leading-tight transition-all ${
                   crashedGame ? 'is-selected text-ow-accent' : 'border-ow-border text-[var(--faint)] hover-sel hover:text-[var(--ink)]'
                 }`}
               >
@@ -1156,7 +1156,7 @@ export default function LogMatch() {
                 }}
                 disabled={!form.hero && !map && deathBuffer.length === 0 && !crashedGame}
                 data-inspect-id="logmatch-cancel-match-button"
-                className="rounded-lg border-2 border-ow-border px-3 py-1 text-xs font-semibold leading-tight text-[var(--faint)] transition-all hover:text-red-600 hover:border-red-600/50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--faint)] disabled:hover:border-ow-border"
+                className="rounded-md border-2 border-ow-border px-3 py-1 text-xs font-semibold leading-tight text-[var(--faint)] transition-all hover:text-red-600 hover:border-red-600/50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--faint)] disabled:hover:border-ow-border"
               >
                 Match Cancelled
               </button>
@@ -1171,7 +1171,7 @@ export default function LogMatch() {
               <span className="text-xs text-[var(--muted)]">Recording as</span>
               <span
                 style={{ '--sel': QUEUE_MODE_SEL_RGB[queueMode] } as React.CSSProperties}
-                className={`is-selected mode-fill border-2 rounded-lg px-3 py-1 text-xs font-semibold leading-tight ${QUEUE_MODE_COLORS[queueMode].accent}`}
+                className={`is-selected mode-fill border-2 rounded-md px-3 py-1 text-xs font-semibold leading-tight ${QUEUE_MODE_COLORS[queueMode].accent}`}
                 data-inspect-id="logmatch-recording-as-chip"
               >
                 <span className="lit-text lit-strong">{QUEUE_MODES.find(m => m.value === queueMode)?.label ?? queueMode}</span>
@@ -1328,7 +1328,7 @@ export default function LogMatch() {
                       aria-pressed={selected}
                       data-inspect-id="logmatch-result-option"
                       style={{ '--sel': sel } as React.CSSProperties}
-                      className={`h-[3.25rem] rounded-lg border-2 font-display italic font-black text-xl uppercase tracking-wider transition-all ${
+                      className={`h-[3.25rem] rounded-md border-2 font-display italic font-black text-xl uppercase tracking-wider transition-all ${
                         selected
                           ? `is-selected ${text}`
                           : 'border-ow-border text-[var(--faint)] hover-sel hover:text-[var(--ink)]'
@@ -1450,7 +1450,7 @@ export default function LogMatch() {
             )}
 
             {showAimFold && (
-              <div className="rounded-lg border border-ow-border bg-ow-darker" data-inspect-id="logmatch-aim-stats-fold">
+              <div className="chamfer border border-ow-border bg-ow-darker" data-inspect-id="logmatch-aim-stats-fold">
                 <button
                   type="button"
                   onClick={() => setAimOpen(o => !o)}
@@ -1505,7 +1505,7 @@ export default function LogMatch() {
                   <div
                     key={r.id}
                     data-inspect-id="logmatch-todays-matches-card-row"
-                    className={`relative overflow-hidden rounded-lg transition-all ${expanded ? `${c.accent} ${c.glow} ring-1 ring-inset` : ''}`}
+                    className={`relative overflow-hidden chamfer transition-all ${expanded ? `${c.accent} ${c.glow} ring-1 ring-inset` : ''}`}
                   >
                     {/* Header block gets its own relative/overflow-hidden box so the
                         absolutely-positioned watermark stays clipped to the collapsed
@@ -1514,7 +1514,7 @@ export default function LogMatch() {
                         page. */}
                     <div
                       onClick={() => setExpandedId(expanded ? null : r.id)}
-                      className={`relative overflow-hidden flex items-center gap-3 min-h-16 py-2.5 px-3 rounded-lg cursor-pointer transition-colors hover:brightness-110 ${MODE_WASH_CLASS[r.queue_mode]}`}
+                      className={`relative overflow-hidden flex items-center gap-3 min-h-16 py-2.5 px-3 chamfer cursor-pointer transition-colors hover:brightness-110 ${MODE_WASH_CLASS[r.queue_mode]}`}
                     >
                       {/* Oversized W/L result watermark + right-aligned map name — same
                           treatment as the Logged Today card on the Sens page. Queue mode

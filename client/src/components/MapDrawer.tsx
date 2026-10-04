@@ -14,7 +14,51 @@ interface MapDetail {
 
 function WR({ rate }: { rate: number }) {
   const cls = rate >= 60 ? 'text-emerald-600' : rate >= 50 ? 'text-ow-blue' : rate >= 40 ? 'text-yellow-400' : 'text-red-600';
-  return <span className={`font-bold ${cls}`}>{rate}%</span>;
+  return <span className={`font-bold ${cls}`}>{rate.toFixed(1)}%</span>;
+}
+
+interface MapTableRow { map: string; game_type: string; games: number; wins: number }
+
+// Every map with a game, sorted by games played, n on every row, no ranking
+// language and no best/worst mark (split plan decision 5, replacing the
+// Pre-Match best/worst pills). Same /by-map read as every other map count,
+// with the usual 3-game floor lifted so no map hides. Crashed matches count:
+// they carry a real map and a result. A row opens that map's own drawer.
+function AllMapsTable({ current }: { current: string }) {
+  const { openMap } = useMapDrawer();
+  const { data } = useApi<MapTableRow[]>('/api/stats/by-map?min_games=1');
+  if (!data) return null;
+  const byMap = new Map<string, { games: number; wins: number }>();
+  for (const r of data) {
+    const e = byMap.get(r.map) ?? { games: 0, wins: 0 };
+    e.games += r.games; e.wins += r.wins;
+    byMap.set(r.map, e);
+  }
+  const rows = [...byMap].map(([map, v]) => ({ map, ...v })).sort((a, b) => b.games - a.games || a.map.localeCompare(b.map));
+  if (rows.length === 0) return null;
+  return (
+    <div data-inspect-id="mapDrawer-all-maps-table">
+      <div className="text-xs text-[var(--faint)] uppercase tracking-wider mb-2">All maps</div>
+      <div className="flex items-center gap-2 pb-1 text-[10px] uppercase tracking-wider text-[var(--muted)]">
+        <span className="flex-1">Map</span>
+        <span className="w-14 text-right">Games</span>
+        <span className="w-14 text-right">Win rate</span>
+      </div>
+      <div className="divide-y divide-ow-border/30">
+        {rows.map(r => (
+          <button
+            key={r.map}
+            onClick={() => openMap(r.map)}
+            className="w-full flex items-center gap-2 py-1 text-left hover:bg-ow-darker/60 transition-colors"
+          >
+            <span className={`flex-1 min-w-0 truncate text-xs map-name ${r.map === current ? 'text-ow-accent' : 'text-[var(--ink)]'}`}>{r.map}</span>
+            <span className="w-14 text-right text-xs text-[var(--faint)]">{r.games}</span>
+            <span className="w-14 text-right text-xs text-[var(--ink)]">{(r.wins / r.games * 100).toFixed(1)}%</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function DrawerContent({ map }: { map: string }) {
@@ -37,9 +81,9 @@ function DrawerContent({ map }: { map: string }) {
         <div data-inspect-id="mapDrawer-overall-stat" className="text-xs text-[var(--faint)] uppercase tracking-wider mb-2">Overall</div>
         <div className="flex items-end gap-2">
           <span className={`text-4xl font-black ${data.overall.win_rate >= 50 ? 'text-emerald-600' : 'text-red-600'}`}>
-            {data.overall.win_rate}%
+            {data.overall.win_rate.toFixed(1)}%
           </span>
-          <span className="text-sm text-[var(--faint)] pb-1 font-bold">{data.overall.games}g</span>
+          <span className="text-sm text-[var(--faint)] pb-1 font-bold">{data.overall.games} games</span>
         </div>
         <div className="text-xs text-[var(--faint-2)] mt-0.5"><b className="font-bold">{data.overall.wins}</b>W · <b className="font-bold">{data.overall.losses}</b>L</div>
       </div>
@@ -49,15 +93,15 @@ function DrawerContent({ map }: { map: string }) {
         <div>
           <div data-inspect-id="mapDrawer-trend-stat" className="text-xs text-[var(--faint)] uppercase tracking-wider mb-2">Trend</div>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-[var(--muted)] font-bold">{prev_wr}%</span>
+            <span className="text-sm text-[var(--muted)] font-bold">{prev_wr!.toFixed(1)}%</span>
             <span className="text-[var(--faint-2)]">→</span>
             <WR rate={recent_wr!} />
-            {delta > 0 && <span className="text-xs font-bold text-emerald-600">↑ +{delta}%</span>}
-            {delta < 0 && <span className="text-xs font-bold text-red-600">↓ {delta}%</span>}
+            {delta > 0 && <span className="text-xs font-bold text-emerald-600">↑ +{delta.toFixed(1)} pts</span>}
+            {delta < 0 && <span className="text-xs font-bold text-red-600">↓ {delta.toFixed(1)} pts</span>}
             {delta === 0 && <span className="text-xs text-[var(--faint)]">→ flat</span>}
           </div>
           <div className="text-xs text-[var(--faint-2)] mt-0.5">
-            <b className="font-bold">{recent_games}</b>g last 30d · <b className="font-bold">{prev_games}</b>g prior 90d
+            <b className="font-bold">{recent_games}</b> games last 30d · <b className="font-bold">{prev_games}</b> games prior 90d
           </div>
         </div>
       )}
@@ -79,7 +123,7 @@ function DrawerContent({ map }: { map: string }) {
                   </span>
                   <span className="flex-1 text-xs hero-name text-[var(--ink)]">{withHeroCount(h.hero, heroCounts)}</span>
                   <WR rate={h.win_rate} />
-                  <span className="text-xs text-[var(--faint-2)] w-7 text-right font-bold">{h.games}g</span>
+                  <span className="text-xs text-[var(--faint-2)] shrink-0 text-right font-bold">{h.games} games</span>
                 </div>
               ))}
             </div>
@@ -108,6 +152,8 @@ function DrawerContent({ map }: { map: string }) {
           </div>
         </div>
       )}
+
+      <AllMapsTable current={map} />
     </div>
   );
 }

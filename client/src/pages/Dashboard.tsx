@@ -25,7 +25,7 @@ export default function Dashboard() {
   const mapCounts = useTodayMapCounts();
   const heroCounts = useTodayHeroCounts();
   // Session tilt is map-independent, so a no-arg prematch fetch gives it to us.
-  const { data: prematch } = useApi<{ session: { on_tilt: boolean; tilt_win_rate: number | null; tilt_games: number } | null }>('/api/stats/prematch');
+  const { data: prematch } = useApi<{ session: { on_tilt: boolean; loss_streak: number; tilt_win_rate: number | null; tilt_games: number } | null }>('/api/stats/prematch');
   const tilt = prematch?.session;
 
   // The candle/volume/rank-strip derivation and its JSX now live entirely

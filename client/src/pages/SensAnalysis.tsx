@@ -482,7 +482,7 @@ const heroStatChannelValueOf = (channel: 'crit' | 'extra' | 'heroStat' | null): 
 function MiniCurveChart({ fit, points, label }: { fit: CurveFit | null; points: MiniCurvePt[]; label: string }) {
   if (!fit) {
     return (
-      <div className="border border-ow-border rounded-lg p-2.5" data-inspect-id="sensAnalysis-mini-curve-chart">
+      <div className="border border-ow-border chamfer p-2.5" data-inspect-id="sensAnalysis-mini-curve-chart">
         <div className="text-[11px] font-bold text-[var(--ink)] mb-1 truncate" title={label}>{label}</div>
         <p className="text-[10px] text-[var(--faint-2)]">Needs 3+ reliable scales.</p>
       </div>
@@ -493,7 +493,7 @@ function MiniCurveChart({ fit, points, label }: { fit: CurveFit | null; points: 
   const line = buildCurveLine(fit);
   const r2Class = weak ? 'text-red-600 dark:text-red-400' : fit.r2 >= 0.5 ? 'text-emerald-700 dark:text-emerald-500' : 'text-[var(--faint-2)]';
   return (
-    <div className="border border-ow-border rounded-lg p-2.5" data-inspect-id="sensAnalysis-mini-curve-chart">
+    <div className="border border-ow-border chamfer p-2.5" data-inspect-id="sensAnalysis-mini-curve-chart">
       <div className="flex items-baseline justify-between gap-2 mb-1">
         <span className="text-[11px] font-bold text-[var(--ink)] truncate" title={label}>{label}</span>
         <span className={`text-[10px] font-bold shrink-0 ${r2Class}`}>R²={fit.r2.toFixed(2)}</span>
@@ -1061,7 +1061,7 @@ export default function SensAnalysis() {
         </span>
       </p>
 
-      <p className="text-xs text-[var(--faint)] rounded-lg bg-ow-darker border border-ow-border px-3 py-2" data-inspect-id="sensAnalysis-standard-of-measure-banner">
+      <p className="text-xs text-[var(--faint)] chamfer-sm bg-ow-darker border border-ow-border px-3 py-2" data-inspect-id="sensAnalysis-standard-of-measure-banner">
         <span className="text-[var(--ink)] font-semibold">How scales are shown:</span> every scale on this page is
         shown as <span className="text-[var(--ink)]">in-game sens at {MOUSE_DPI} DPI</span> (eDPI ÷ {MOUSE_DPI}), not
         cm/360 or the raw DPI tested. DPI is what's actually being varied in testing, and your mouse settles back at
@@ -1079,7 +1079,7 @@ export default function SensAnalysis() {
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {activeStudySets.map(s => (
-              <div key={s.set_id} className="rounded-lg bg-ow-darker border border-ow-border p-3" data-inspect-id="sensAnalysis-study-progress-set">
+              <div key={s.set_id} className="chamfer bg-ow-darker border border-ow-border p-3" data-inspect-id="sensAnalysis-study-progress-set">
                 <div className="text-xs hero-name text-[var(--ink)] font-bold">{s.hero ?? 'Roster set'}</div>
                 <div className="text-[11px] text-[var(--faint)] mt-0.5">
                   Stage <b className="text-[var(--ink)]">{s.cur_stage}</b> of <b className="text-[var(--ink)]">{s.n_stages}</b>
@@ -1101,7 +1101,7 @@ export default function SensAnalysis() {
         dataInspectId="sensAnalysis-recommendation-card"
       >
         <div className="flex items-start gap-3 flex-wrap">
-          <span data-inspect-id="sensAnalysis-recommendation-verdict-badge" className={`inline-flex items-center rounded-lg px-2 py-0.5 text-[11px] font-semibold ${recommendation.verdict === 'narrow' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-ow-accent/15 text-ow-accent'}`}>
+          <span data-inspect-id="sensAnalysis-recommendation-verdict-badge" className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${recommendation.verdict === 'narrow' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-ow-accent/15 text-ow-accent'}`}>
             <span data-inspect-id="sensAnalysis-recommendation-badge">{recommendation.verdict === 'narrow' ? 'Narrow focus' : 'Continue testing'}</span>
           </span>
           <p className="text-sm text-[var(--ink)] font-semibold flex-1 min-w-[200px]">{recommendation.headline}</p>
@@ -1170,7 +1170,7 @@ export default function SensAnalysis() {
           dataInspectId="sensAnalysis-peak-sens-by-category-chart sensAnalysis-peak-sens-card"
         >
           <div className="flex items-start gap-3 flex-wrap mb-3">
-            <span data-inspect-id="sensAnalysis-peak-sens-verdict-badge" className={`inline-flex items-center rounded-lg px-2 py-0.5 text-[11px] font-semibold ${spread.verdict === 'scattered' ? 'bg-amber-500/15 text-amber-500' : spread.verdict === 'grouped' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-ow-accent/15 text-ow-accent'}`}>
+            <span data-inspect-id="sensAnalysis-peak-sens-verdict-badge" className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${spread.verdict === 'scattered' ? 'bg-amber-500/15 text-amber-500' : spread.verdict === 'grouped' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-ow-accent/15 text-ow-accent'}`}>
               <span data-inspect-id="sensAnalysis-peak-sens-badge">{spread.verdict === 'scattered' ? 'Split may help' : spread.verdict === 'grouped' ? 'One sens fits all' : 'Not enough data'}</span>
             </span>
             <p className="text-sm text-[var(--ink)] font-semibold flex-1 min-w-[200px]">{spread.headline}</p>
@@ -1292,7 +1292,7 @@ export default function SensAnalysis() {
         <Section title="Cold vs. Warm" hint="First game of a session vs. later ones — is a sens good from the jump, or only once warmed up?" dataInspectId="sensAnalysis-cold-warm-card">
           <div className="grid grid-cols-2 gap-3" data-inspect-id="sensAnalysis-cold-warm-stat-grid sensAnalysis-cold-warm-tiles">
             {coldWarm.map(b => (
-              <div key={b.bucket} className="rounded-lg bg-ow-darker border border-ow-border p-3">
+              <div key={b.bucket} className="chamfer bg-ow-darker border border-ow-border p-3">
                 <div className="text-[11px] text-[var(--faint)] mb-1">{b.bucket}</div>
                 <div className="text-2xl num-display text-[var(--ink)]">{f1(b.avgOverall)}<span className="text-xs text-[var(--faint)] ml-0.5">%</span></div>
                 <div className="text-[11px] text-[var(--faint-2)] mt-1 font-bold">{signed(b.avgDelta)} vs. avg · felt speed {f1(b.avgFeel)}/100 · {b.n} game{b.n === 1 ? '' : 's'}</div>
@@ -1304,7 +1304,7 @@ export default function SensAnalysis() {
         <Section title="Adaptation" hint="Just after a sens change vs. once settled — separates a genuinely worse sens from one you hadn't adjusted to yet." dataInspectId="sensAnalysis-adaptation-card">
           <div className="grid grid-cols-2 gap-3" data-inspect-id="sensAnalysis-adaptation-stat-grid sensAnalysis-adaptation-tiles">
             {adaptation.map(b => (
-              <div key={b.bucket} className="rounded-lg bg-ow-darker border border-ow-border p-3">
+              <div key={b.bucket} className="chamfer bg-ow-darker border border-ow-border p-3">
                 <div className="text-[11px] text-[var(--faint)] mb-1">{b.bucket}</div>
                 <div className="text-2xl num-display text-[var(--ink)]">{f1(b.avgOverall)}<span className="text-xs text-[var(--faint)] ml-0.5">%</span></div>
                 <div className="text-[11px] text-[var(--faint-2)] mt-1 font-bold">{signed(b.avgDelta)} vs. avg · felt speed {f1(b.avgFeel)}/100 · {b.n} game{b.n === 1 ? '' : 's'}</div>
@@ -1410,7 +1410,7 @@ export default function SensAnalysis() {
                   </td>
                   <td className={!h.bestScaleReliable ? 'py-1.5 pr-3 text-[var(--faint)] font-bold' : 'py-1.5 pr-3 font-bold'}>
                     {h.bestScaleEDPI != null
-                      ? <>{(h.bestScaleEDPI / MOUSE_DPI).toFixed(2)} <span className="text-[10px] text-[var(--faint-2)]">(n={h.bestScaleN})</span></>
+                      ? <>{(h.bestScaleEDPI / MOUSE_DPI).toFixed(2)} <span className="text-[10px] text-[var(--faint-2)]">({h.bestScaleN} games)</span></>
                       : <span className="text-[var(--faint-2)]">— <span className="text-[10px]">(no scale with {RELIABLE_N}+ games)</span></span>}
                     {tie.runnerUp && (tie.isNearTie ? (
                       <span
@@ -1487,7 +1487,7 @@ export default function SensAnalysis() {
                   );
                 };
                 return (
-                  <div key={h.hero} className="border border-ow-border rounded-lg p-3" data-inspect-id="sensAnalysis-ability-stat-hero-card">
+                  <div key={h.hero} className="border border-ow-border chamfer p-3" data-inspect-id="sensAnalysis-ability-stat-hero-card">
                     <div className="flex items-baseline justify-between mb-2">
                       <span className="text-xs hero-name text-[var(--ink)]">{withHeroCount(h.hero, heroCounts)}</span>
                       <span className="text-[10px] text-[var(--faint-2)]">{h.n} games</span>
@@ -1638,7 +1638,7 @@ export default function SensAnalysis() {
                           {t.spanDelta != null ? fmtVal(t.spanDelta, t.unit) : '—'}
                         </span>
                         {' '}from {t.sensMin?.toFixed(2)} to {t.sensMax?.toFixed(2)} sens
-                        <span className="text-[var(--faint-2)]"> (R²={t.r2?.toFixed(2)}, n={t.totalN})</span>
+                        <span className="text-[var(--faint-2)]"> (R²={t.r2?.toFixed(2)}, {t.totalN} games)</span>
                       </li>
                     ))}
                   </ul>
@@ -1940,7 +1940,7 @@ export default function SensAnalysis() {
             hint={`Secondary to the fitted curve above (Sean's own correction, 2026-09-17). Every distinct curve setting actually found in this page's data — curve OFF is its own row. ${curveIsConfounded ? `${curveOnVariants.length} different "curve on" settings exist — any curve-on-vs-off read is mixing that many interventions into one label.` : 'Only one setting on record so far.'}`}
             dataInspectId="sensAnalysis-curve-confound"
           >
-            <p className="text-xs text-[var(--faint)] rounded-lg bg-ow-darker border border-ow-border px-3 py-2 mb-3">
+            <p className="text-xs text-[var(--faint)] chamfer-sm bg-ow-darker border border-ow-border px-3 py-2 mb-3">
               {c.lutPoints ? (
                 <>
                   Live lookup table on file: <b className="text-[var(--ink)] num-display">{formatLut(c.lutPoints)}</b>{' '}
@@ -1959,7 +1959,7 @@ export default function SensAnalysis() {
               staircase rather than describe it. Nothing records which table those games actually ran under.
             </p>
             {curveIsConfounded && (
-              <p className="text-xs rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 px-3 py-2 mb-3" data-inspect-id="sensAnalysis-curve-confound-warning">
+              <p className="text-xs chamfer-sm bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 px-3 py-2 mb-3" data-inspect-id="sensAnalysis-curve-confound-warning">
                 <b>{curveOnVariants.length} different "curve on" settings</b> show up in this data — it is NOT one
                 treatment. Any curve-on-vs-off read elsewhere on this page (or in past reports) pools all of them
                 together. Treat curve findings as unresolved until scoped to one specific setting.
@@ -2046,7 +2046,7 @@ export default function SensAnalysis() {
                       <td className="py-1.5 pr-3 text-xs hero-name text-[var(--ink)]">{withHeroCount(c.h.hero, heroCounts)}</td>
                       <td className="py-1.5 pr-3">{c.crit ?? '—'}</td>
                       <td className="py-1.5 pr-3">{c.extra ?? '—'}</td>
-                      <td className="py-1.5 pr-3">{c.sig ? `${c.sig} (n=${c.h.nHeroStat})` : '—'}</td>
+                      <td className="py-1.5 pr-3">{c.sig ? `${c.sig} (${c.h.nHeroStat} games)` : '—'}</td>
                       <td className="py-1.5 font-bold">{c.none ? 'Accuracy only' : 'Accuracy + hero stat'}</td>
                     </tr>
                   ))}

@@ -203,6 +203,13 @@
     pointer-events: none;
   }
 
+  /* The card chamfer for surfaces that are not themselves a .card: banners,
+     tiles, panels, list rows (split plan decision 8, 2026-09-29). Same cut as
+     .card; -sm uses the .field cut for surfaces under about 56px tall.
+     Buttons, chips and inputs stay rounded-md. */
+  .chamfer    { clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px); }
+  .chamfer-sm { clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }
+
   /* Inputs & selects: a recessed well, chamfered to match the panel language. */
   .field {
     @apply text-[var(--ink)] transition-all duration-150;

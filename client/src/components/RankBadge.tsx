@@ -24,7 +24,7 @@ export default function RankBadge({
   const lg = size === 'lg';
   return (
     <div
-      className={`${lg ? 'w-20' : 'w-12'} aspect-square rounded-lg border-2 grid place-content-center text-center select-none ${
+      className={`${lg ? 'w-20' : 'w-12'} aspect-square rounded-md border-2 grid place-content-center text-center select-none ${
         rank == null ? 'border-ow-border' : 'is-selected mode-fill'
       }`}
       data-inspect-id={dataInspectId}

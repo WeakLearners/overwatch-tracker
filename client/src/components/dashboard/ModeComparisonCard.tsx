@@ -44,7 +44,7 @@ function ModeTile({ meta, m, selected, onSelect, openHero, lastLog }: {
       // added here because the tile had none and .is-selected sets a colour,
       // which paints nothing without one.
       style={selected ? ({ '--sel': QUEUE_MODE_SEL_RGB[meta.value] } as React.CSSProperties) : undefined}
-      className={`relative overflow-hidden text-left rounded-lg p-4 border-2 transition-all duration-200 mode-tile hover:-translate-x-1 hover:-translate-y-1 ${selected ? `is-selected mode-fill` : `border-transparent ${c.tileDim}`}`}
+      className={`relative overflow-hidden text-left chamfer p-4 border-2 transition-all duration-200 mode-tile hover:-translate-x-1 hover:-translate-y-1 ${selected ? `is-selected mode-fill` : `border-transparent ${c.tileDim}`}`}
     >
       {/* 10% larger than the other (selector) watermarks — these tiles are bigger.
           Opacity is left at the component default (15%) even when selected —
@@ -93,7 +93,7 @@ function ModeTile({ meta, m, selected, onSelect, openHero, lastLog }: {
             last <b className="font-bold">{m.recent_window}</b>d · <span className="text-emerald-500 font-bold">{m.recent_wins}W</span> <span className="text-red-400 font-bold">{m.recent_games - m.recent_wins}L</span>
           </div>
           <div className="text-[11px] text-[var(--faint)] mt-0.5">
-            <b className="font-bold">{m.win_rate}</b>% all-time · <b className="font-bold">{m.games}</b>g
+            <b className="font-bold">{m.win_rate.toFixed(1)}</b>% all-time · <b className="font-bold">{m.games}</b> games
           </div>
           <div className="mt-3">
             <div className="text-[10px] text-[var(--muted)] uppercase tracking-wider mb-1">Most played</div>
@@ -107,7 +107,7 @@ function ModeTile({ meta, m, selected, onSelect, openHero, lastLog }: {
                   {withHeroCount(m.top_hero.hero, heroCounts)}
                 </span>
                 <span className="text-xs text-[var(--muted)] shrink-0 ml-2 font-bold">
-                  {m.top_hero.win_rate}% · {m.top_hero.games}g
+                  {m.top_hero.win_rate.toFixed(1)}% · {m.top_hero.games} games
                 </span>
               </div>
             ) : (

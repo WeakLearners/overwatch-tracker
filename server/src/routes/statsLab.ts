@@ -5,9 +5,7 @@ import {
   computeQueueSwitchTax,
   computeCritAccuracy,
   computeKillSecure,
-  computeDayHourWindow,
   computeFieldSplit,
-  formatHour,
   PerfFeatureKey,
 } from '../lib/statsInsights';
 import { studyTagFor } from '../lab/studyTags';
@@ -15,8 +13,8 @@ import { withReplica } from '../lab/replicaCache';
 
 // Lab side of the stats routes (split plan slice 5c). The inferential layer:
 // GET /split (field vs win rate / accuracy) and GET /insights (hot hand,
-// performance vs outcome, switch tax, crit and kill-secure splits, best/worst
-// session window), all computed by lib/statsInsights.ts. They read the shared
+// performance vs outcome, switch tax, crit and kill-secure splits)
+// all computed by lib/statsInsights.ts. They read the shared
 // lab replica (lab/replicaCache.ts), never db/schema. routes/stats.ts keeps the
 // descriptive endpoints and composes this router, so URLs do not change.
 const router = Router();
@@ -63,7 +61,6 @@ router.get('/insights', withReplica((_req: Request, res: Response, db) => {
   const queueSwitch = computeQueueSwitchTax(db);
   const critAcc = computeCritAccuracy(db);
   const killSecure = computeKillSecure(db);
-  const dayHour = computeDayHourWindow(db);
 
   // Each factoid is a list of parts rather than one string, so the client can
   // color just the stat numbers (green = the better outcome, red = the worse
@@ -176,20 +173,6 @@ router.get('/insights', withReplica((_req: Request, res: Response, db) => {
         t(', games below win '),
         c(`${killSecure.belowWinRate}%`, aboveIsBetter ? 'bad' : 'good'),
         t(` (${killSecure.aboveGames}/${killSecure.belowGames} games) — probably reflects solo-closing kills when the team isn't there, not a skill signal.`),
-      ],
-    });
-  }
-
-  if (dayHour.reliable && dayHour.best && dayHour.worst) {
-    factoids.push({
-      id: 'day-hour-window',
-      category: 'Session Window',
-      parts: [
-        t(`Your best session window is ${dayHour.best.day_of_week} at ${formatHour(dayHour.best.hour)} — `),
-        c(`${dayHour.best.wr}%`, 'good'),
-        t(` win rate over ${dayHour.best.n} games. Your worst is ${dayHour.worst.day_of_week} at ${formatHour(dayHour.worst.hour)} — `),
-        c(`${dayHour.worst.wr}%`, 'bad'),
-        t(` over ${dayHour.worst.n} games.`),
       ],
     });
   }

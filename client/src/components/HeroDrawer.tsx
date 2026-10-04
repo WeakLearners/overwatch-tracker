@@ -18,7 +18,7 @@ interface HeroDetail {
 
 function WR({ rate }: { rate: number }) {
   const cls = rate >= 60 ? 'text-emerald-600' : rate >= 50 ? 'text-ow-blue' : rate >= 40 ? 'text-yellow-400' : 'text-red-600';
-  return <span data-inspect-id="hero-drawer-wr-badge" className={`font-bold ${cls}`}>{rate}%</span>;
+  return <span data-inspect-id="hero-drawer-wr-badge" className={`font-bold ${cls}`}>{rate.toFixed(1)}%</span>;
 }
 
 function DrawerContent({ hero, role }: { hero: string; role?: string }) {
@@ -41,9 +41,9 @@ function DrawerContent({ hero, role }: { hero: string; role?: string }) {
         <div data-inspect-id="hero-drawer-overall-tile" className="text-xs text-[var(--faint)] uppercase tracking-wider mb-2">Overall</div>
         <div className="flex items-end gap-2">
           <span className={`text-4xl font-black ${data.overall.win_rate >= 50 ? 'text-emerald-600' : 'text-red-600'}`}>
-            {data.overall.win_rate}%
+            {data.overall.win_rate.toFixed(1)}%
           </span>
-          <span className="text-sm text-[var(--faint)] pb-1 font-bold">{data.overall.games}g</span>
+          <span className="text-sm text-[var(--faint)] pb-1 font-bold">{data.overall.games} games</span>
         </div>
         <div className="text-xs text-[var(--faint-2)] mt-0.5"><b className="font-bold">{data.overall.wins}</b>W · <b className="font-bold">{data.overall.losses}</b>L</div>
       </div>
@@ -53,15 +53,15 @@ function DrawerContent({ hero, role }: { hero: string; role?: string }) {
         <div>
           <div data-inspect-id="hero-drawer-trend-section" className="text-xs text-[var(--faint)] uppercase tracking-wider mb-2">Trend</div>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-[var(--muted)] font-bold">{prev_wr}%</span>
+            <span className="text-sm text-[var(--muted)] font-bold">{prev_wr!.toFixed(1)}%</span>
             <span className="text-[var(--faint-2)]">→</span>
             <WR rate={recent_wr!} />
-            {delta > 0 && <span className="text-xs font-bold text-emerald-600">↑ +{delta}%</span>}
-            {delta < 0 && <span className="text-xs font-bold text-red-600">↓ {delta}%</span>}
+            {delta > 0 && <span className="text-xs font-bold text-emerald-600">↑ +{delta.toFixed(1)} pts</span>}
+            {delta < 0 && <span className="text-xs font-bold text-red-600">↓ {delta.toFixed(1)} pts</span>}
             {delta === 0 && <span className="text-xs text-[var(--faint)]">→ flat</span>}
           </div>
           <div className="text-xs text-[var(--faint-2)] mt-0.5">
-            <b className="font-bold">{recent_games}</b>g last 30d · <b className="font-bold">{prev_games}</b>g prior 90d
+            <b className="font-bold">{recent_games}</b> games last 30d · <b className="font-bold">{prev_games}</b> games prior 90d
           </div>
         </div>
       )}
@@ -79,7 +79,7 @@ function DrawerContent({ hero, role }: { hero: string; role?: string }) {
                   <span data-inspect-id="hero-drawer-type-pill-badge" className={`pill ml-1 ${TYPE_COLORS[m.game_type] ?? ''}`}>{m.game_type}</span>
                 </div>
                 <WR rate={m.win_rate} />
-                <span className="text-xs text-[var(--faint-2)] w-7 text-right font-bold">{m.games}g</span>
+                <span className="text-xs text-[var(--faint-2)] shrink-0 text-right font-bold">{m.games} games</span>
               </div>
             ))}
             {data.worstMaps.map(m => (
@@ -90,7 +90,7 @@ function DrawerContent({ hero, role }: { hero: string; role?: string }) {
                   <span className={`pill ml-1 ${TYPE_COLORS[m.game_type] ?? ''}`}>{m.game_type}</span>
                 </div>
                 <WR rate={m.win_rate} />
-                <span className="text-xs text-[var(--faint-2)] w-7 text-right font-bold">{m.games}g</span>
+                <span className="text-xs text-[var(--faint-2)] shrink-0 text-right font-bold">{m.games} games</span>
               </div>
             ))}
           </div>
@@ -108,7 +108,7 @@ function DrawerContent({ hero, role }: { hero: string; role?: string }) {
                 <span className={`pill ${TYPE_COLORS[data.bestType.game_type] ?? ''}`}>{data.bestType.game_type}</span>
                 <div className="ml-auto flex items-center gap-1.5">
                   <WR rate={data.bestType.win_rate} />
-                  <span className="text-xs text-[var(--faint-2)] font-bold">{data.bestType.games}g</span>
+                  <span className="text-xs text-[var(--faint-2)] font-bold">{data.bestType.games} games</span>
                 </div>
               </div>
             )}
@@ -118,7 +118,7 @@ function DrawerContent({ hero, role }: { hero: string; role?: string }) {
                 <span className={`pill ${TYPE_COLORS[data.worstType.game_type] ?? ''}`}>{data.worstType.game_type}</span>
                 <div className="ml-auto flex items-center gap-1.5">
                   <WR rate={data.worstType.win_rate} />
-                  <span className="text-xs text-[var(--faint-2)] font-bold">{data.worstType.games}g</span>
+                  <span className="text-xs text-[var(--faint-2)] font-bold">{data.worstType.games} games</span>
                 </div>
               </div>
             )}

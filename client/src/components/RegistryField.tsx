@@ -122,7 +122,7 @@ export default function RegistryField({ field, value, onChange, placeholder, cla
                 data-inspect-id={`${prefix}-option`}
                 onClick={() => onChange?.(selected ? null : v)}
                 aria-pressed={selected}
-                className={`text-xs font-semibold py-2 rounded-lg border capitalize transition-colors ${
+                className={`text-xs font-semibold py-2 rounded-md border capitalize transition-colors ${
                   selected
                     ? 'is-selected text-[var(--ink)]'
                     : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'

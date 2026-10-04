@@ -25,20 +25,10 @@ import { computeTrendsDerived } from '../../lib/trendsDerived';
 // object or closure at the call site.
 interface RecentMatchesCardProps {
   trends: TrendPoint[] | null;
-  tilt: { on_tilt: boolean; tilt_win_rate: number | null; tilt_games: number } | null | undefined;
+  tilt: { on_tilt: boolean; loss_streak: number; tilt_win_rate: number | null; tilt_games: number } | null | undefined;
 }
 const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: RecentMatchesCardProps) {
   const { last100, last500, winRate, wr100, wr500, wrDelta, CANDLE_DAYS, candles, careerComp, careerEdge, perMatchSd, paceAt, sdAt, CH_W, CH_H, CH_PAD, VOL_H, PLOT_BOTTOM, bandLo, bandHi, lowV, highV, vSpan, slotW, bodyW, volW, slotX, chartY, maxVol, ROOFLINE, volY, FALLOFF, VOL_STOPS, volStopColor, pacePts, bandUpper, bandLower, bandPoly, candleIdxByDate, tierMarks, tierMarkByDay, drumLabel, tierStackIdx, RANK_ROLES, RANK_SERIES_COLOR, rankSeries, rankValuesSeen, rankHasData, rankMinRaw, rankMaxRaw, rankTierLoIdx, rankTierHiIdx, rankLo, rankHi, rankSpan, RANK_H, rankY, rankTierBands, zeroY, lastCandle, lastClose, lastN, lastZ, BLEND_THRESHOLD, SAT_FLOOR, SAT_CEIL, SAT_FULL_AT, GRAD_STOPS, gradStops, UP_COLOR, DOWN_COLOR, UP_SWATCH, DOWN_SWATCH, LEGEND_SWATCH, LEGEND_TITLE, yTicks, labelEvery, dayTicks, dayNets, bestDay, worstDay } = useMemo(() => computeTrendsDerived(trends), [trends]);
-  // Current same-day losing streak. `trends` is ordered by date, time and win
-  // is strictly 0/1 (no draws exist), so a loss is win === 0. Same day-scoped
-  // rule as the server's on_tilt flag, which gates when this is displayed.
-  const lossStreak = useMemo(() => {
-    if (!trends || trends.length === 0) return 0;
-    const day = trends[trends.length - 1].date;
-    let n = 0;
-    for (let i = trends.length - 1; i >= 0 && trends[i].date === day && trends[i].win === 0; i--) n++;
-    return n;
-  }, [trends]);
   return (
         <div className="card reveal" style={{ '--reveal-delay': '60ms' } as React.CSSProperties} data-inspect-id="dash-recent-matches-card">
           <div className="flex items-center justify-between flex-wrap gap-y-1 mb-4">
@@ -661,13 +651,13 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
           </div>
 
           {tilt?.on_tilt && (
-            <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-3 mt-4" data-inspect-id="dash-tilt-warning-banner">
+            <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/30 chamfer px-4 py-3 mt-4" data-inspect-id="dash-tilt-warning-banner">
               <span className="text-amber-600 text-lg shrink-0">⚠</span>
               <div>
-                <div className="text-sm font-semibold text-amber-700">You've lost <b className="font-bold">{Math.max(lossStreak, 2)}</b> in a row today</div>
+                <div className="text-sm font-semibold text-amber-700">You've lost <b className="font-bold">{tilt.loss_streak}</b> in a row today</div>
                 {tilt.tilt_win_rate !== null && tilt.tilt_games >= 10 && (
                   <div className="text-xs text-amber-600/80 mt-0.5">
-                    Historically your win rate in this situation is <b className="font-bold">{tilt.tilt_win_rate}</b>% — a short break often helps.
+                    Historically your win rate in this situation is <b className="font-bold">{tilt.tilt_win_rate.toFixed(1)}</b>% — a short break often helps.
                   </div>
                 )}
               </div>

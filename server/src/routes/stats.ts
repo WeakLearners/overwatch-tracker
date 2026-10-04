@@ -89,9 +89,12 @@ router.get('/by-hero', (req: Request, res: Response) => {
   res.json(rows);
 });
 
+// min_games defaults to 3 (the long-standing floor). The map drawer's full
+// table passes min_games=1 so every map shows, with its n.
 router.get('/by-map', (req: Request, res: Response) => {
   const db = getDb();
   const [where, params] = whereClause(req.query as Record<string, string>);
+  const minGames = Math.max(1, parseInt(String(req.query.min_games ?? '3'), 10) || 3);
   const rows = db.prepare(`
     SELECT
       map, game_type,
@@ -100,9 +103,9 @@ router.get('/by-map', (req: Request, res: Response) => {
       ROUND(AVG(win) * 100, 1) as win_rate
     FROM matches ${where}
     GROUP BY map, game_type
-    HAVING games >= 3
+    HAVING games >= :min_games
     ORDER BY game_type, map
-  `).all(params);
+  `).all({ ...params, min_games: minGames });
   res.json(rows);
 });
 
@@ -154,6 +157,25 @@ router.get('/by-hour', (req: Request, res: Response) => {
       ROUND(AVG(CASE WHEN queue_mode IN ('comp_role', 'comp_open') THEN win END) * 100, 1) as comp_win_rate
     FROM matches ${whereWithHour}
     GROUP BY hour
+    ORDER BY hour
+  `).all(params);
+  res.json(rows);
+});
+
+// Plain day x hour grid (split plan decision 5): every cell that has a game,
+// with its games and win rate. No floor, no ranking. Same filters and same
+// `matches` table as /by-hour and /by-day, so a cell sums back to them.
+router.get('/by-day-hour', (req: Request, res: Response) => {
+  const db = getDb();
+  const [where, params] = whereClause(req.query as Record<string, string>);
+  const w = (where ? where + ' AND' : 'WHERE') + ' hour IS NOT NULL AND day_of_week IS NOT NULL';
+  const rows = db.prepare(`
+    SELECT day_of_week, hour,
+      COUNT(*) as games,
+      SUM(win) as wins,
+      ROUND(AVG(win) * 100, 1) as win_rate
+    FROM matches ${w}
+    GROUP BY day_of_week, hour
     ORDER BY hour
   `).all(params);
   res.json(rows);
@@ -280,6 +302,8 @@ router.get('/prematch', (req: Request, res: Response) => {
     games_today: gamesPlayedToday,
     next_game_pos: nextGamePos,
     on_tilt: onTilt,
+    // Consecutive losses ending today's newest game (todayResults is newest first).
+    loss_streak: (() => { let n = 0; while (n < todayResults.length && todayResults[n].win === 0) n++; return n; })(),
     last3: todayResults.slice(0, 3).map(r => r.win === 1),
     depth_win_rate: depthRow?.win_rate ?? null,
     depth_games: depthRow?.games ?? 0,

@@ -48,7 +48,7 @@ export default function DeathLogger() {
   const mru = [...new Set([...deathBuffer].reverse().map(d => d.killer))];
 
   return (
-    <div data-inspect-id="deathLogger-loggingPopover" className="rounded-xl bg-ow-darker border border-ow-accent/40 overflow-hidden">
+    <div data-inspect-id="deathLogger-loggingPopover" className="chamfer bg-ow-darker border border-ow-accent/40 overflow-hidden">
       <div className="flex items-center justify-between px-2 pt-2 pb-1">
         <span data-inspect-id="deathLogger-popoverTitle" className="text-xs font-semibold text-[var(--ink-2)] uppercase tracking-wide">
           Death <b className="font-bold text-[var(--ink)]">{count + 1}</b> — who got you?

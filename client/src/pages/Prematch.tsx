@@ -346,16 +346,6 @@ export default function Prematch() {
 
   const scoreMap = Object.fromEntries((votingData ?? []).map(r => [r.map, r]));
 
-  // Best & worst maps by win rate over the last 90 days (min games in that
-  // window), for the idle Map Voting card. Ranks on current form, not
-  // all-time rate — the min of 5 is applied to the 90-day window itself, so
-  // a map needs to actually be in current rotation to appear here.
-  const rankedMaps = (votingData ?? [])
-    .filter(m => m.recent_games >= 5 && m.recent_rate !== null)
-    .sort((a, b) => b.recent_rate! - a.recent_rate!);
-  const bestMaps = rankedMaps.slice(0, 3);
-  const worstMaps = rankedMaps.slice(-3).reverse().filter(m => !bestMaps.includes(m));
-
   // Session & timing snapshot for the Today card.
   const todayRows = todayMatches?.rows ?? [];
   const todayW = todayRows.filter(r => r.win === 1).length;
@@ -800,8 +790,10 @@ export default function Prematch() {
             </div>
           </div>
 
-          {/* Three columns. Left: the search and the offered maps. Middle:
-              the vote advice. Right: best and worst maps, always shown. */}
+          {/* Three columns. Left: the search and the offered maps. The vote
+              advice spans the other two. (The best/worst map pills that held
+              the third column were cut 2026-10-04, split plan decision 5;
+              the full map table now lives in the map drawer.) */}
           <div className="flex-1 grid grid-cols-3 gap-4">
           <div className="min-w-0 flex flex-col gap-1.5">
 
@@ -880,7 +872,7 @@ export default function Prematch() {
         {/* Vote advice — the middle third of the Map card (merged
             2026-09-30; it was its own "Map Voting" card). Reads the offered
             maps and says which to vote for. */}
-        <div className="min-w-0 flex flex-col pl-4 border-l border-ow-border/40" data-inspect-id="prematch-map-voting-card">
+        <div className="col-span-2 min-w-0 flex flex-col pl-4 border-l border-ow-border/40" data-inspect-id="prematch-map-voting-card">
 
           <div className="flex-1 min-h-0 flex flex-col">
 
@@ -912,9 +904,9 @@ export default function Prematch() {
                       <span className={`pill shrink-0 ${ROLE_COLORS[testRole]}`}>{testRole}</span>
                     </div>
                     <div className="text-xs text-[var(--faint)] truncate">
-                      <span className="hero-name">{testPick.picks[0].hero}</span> · <b className="font-bold text-emerald-500">{testPick.picks[0].win_rate}</b>%
+                      <span className="hero-name">{testPick.picks[0].hero}</span> · <b className="font-bold text-emerald-500">{testPick.picks[0].win_rate.toFixed(1)}</b>%
                       {testPick.picks[0].sample_size === 'thin' && <span className="text-amber-500"> · thin</span>}
-                      {' · '}<b className="font-bold">{testPick.picks[0].games}</b>g played
+                      {' · '}<b className="font-bold">{testPick.picks[0].games}</b> games played
                     </div>
                   </div>
                   {testPick.picks.length > 1 && (
@@ -922,7 +914,7 @@ export default function Prematch() {
                       {testPick.picks.slice(1, 3).map(p => (
                         <div key={`${p.map}|${p.hero}`} className="min-w-0 flex items-baseline justify-between gap-2 text-xs text-[var(--faint)]">
                           <span className="map-name text-sm text-[var(--ink-2)] truncate">{withMapCount(p.map, mapCounts)}</span>
-                          <span className="shrink-0"><span className="hero-name">{p.hero}</span> · <b className="font-bold">{p.win_rate}</b>%</span>
+                          <span className="shrink-0"><span className="hero-name">{p.hero}</span> · <b className="font-bold">{p.win_rate.toFixed(1)}</b>%</span>
                         </div>
                       ))}
                     </div>
@@ -938,7 +930,7 @@ export default function Prematch() {
                     </button>
                     {scoreMap[winner] && (
                       <div className="text-xs text-[var(--faint)]">
-                        <b className="font-bold">{scoreMap[winner].blended_score}</b>% blended · <b className="font-bold">{scoreMap[winner].total_games}</b>g played
+                        <b className="font-bold">{scoreMap[winner].blended_score}</b>% blended · <b className="font-bold">{scoreMap[winner].total_games}</b> games played
                       </div>
                     )}
                   </div>
@@ -961,36 +953,6 @@ export default function Prematch() {
             <div className="text-xs text-[var(--muted)] mt-2" data-inspect-id="prematch-map-voting-no-games">No games on these maps yet — no vote to suggest.</div>
           )}
           </div>
-        </div>
-
-        {/* Best & worst maps by recent win rate: two rows of three pills,
-            best on top, no labels. Styled as the Playing As lit pill
-            (SegmentedPills.tsx): notched corner (its NOTCH), 2px border,
-            bottom-lit fill, semibold lit text (11px, not 12, so every short
-            name in MAP_SHORT fits a tile at 1024px wide). The hue says which
-            row is which: emerald-500 for best, red-500 for worst, the same
-            colours these rates already used.
-            Always shown; tap one to add it as an offered map. */}
-        <div className="min-w-0 flex flex-col gap-1.5 pl-4 border-l border-ow-border/40" data-inspect-id="prematch-best-worst-maps-list">
-          {rankedMaps.length > 0 && ([
-            { label: 'Best maps', sel: '16 185 129', list: bestMaps },
-            { label: 'Worst maps', sel: '239 68 68', list: worstMaps },
-          ] as const).map(row => (
-            <div key={row.label} className="flex-1 min-w-0 grid grid-cols-3 gap-1.5">
-                {row.list.map(m => (
-                  <button
-                    key={m.map}
-                    onClick={() => selectMap(m.map)}
-                    title={m.map}
-                    className="min-w-0 border-2 is-selected mode-fill flex flex-col items-center justify-center px-0.5 select-none hover:brightness-110 transition"
-                    style={{ '--sel': row.sel, clipPath: NOTCH } as React.CSSProperties}
-                  >
-                    <span className="w-full text-center text-[11px] font-semibold leading-none lit-text truncate">{mapShort(m.map)}</span>
-                    <span className="text-[11px] font-semibold tracking-wide leading-none mt-1 lit-text">{Math.round(m.recent_rate!)}%</span>
-                  </button>
-                ))}
-            </div>
-          ))}
         </div>
           </div>
         </div>
@@ -1021,7 +983,7 @@ export default function Prematch() {
               {/* Six readout tiles in a 3x2, replacing the old This hour tile
                   (hour-of-day win rates were retired as noise). The box keeps
                   the step-1 row at its 191px height at every width. */}
-              <div className="relative overflow-hidden rounded-lg border border-ow-border/40 bg-gradient-to-br from-ow-accent/[0.06] via-ow-accent/[0.02] to-transparent flex-1 grid grid-cols-3 grid-rows-2 pb-1">
+              <div className="relative overflow-hidden chamfer border border-ow-border/40 bg-gradient-to-br from-ow-accent/[0.06] via-ow-accent/[0.02] to-transparent flex-1 grid grid-cols-3 grid-rows-2 pb-1">
                 {/* Today's results as one continuous line along the bottom
                     of the stats box: most recent left, one segment per game,
                     same flat win/loss colours as the map tiles' last-5 line.
@@ -1138,7 +1100,7 @@ export default function Prematch() {
               const delta = rec && !rec.is_new && rec.recent_wr != null && rec.prev_wr != null
                 ? Math.round((rec.recent_wr - rec.prev_wr) * 10) / 10 : null;
               return (
-                <div key={role} className="rounded-lg match-card-bg px-4 py-3">
+                <div key={role} className="chamfer match-card-bg px-4 py-3">
                   <div className="text-[10px] grad-brand font-bold uppercase tracking-widest mb-1">Trending {role}</div>
                   {rec ? (
                     <>
@@ -1184,7 +1146,7 @@ export default function Prematch() {
             stretch pick — a role with no in-testing hero just shows empty
             rather than an error, since the other column may still have one. */}
         {map && (
-          <div id="coaching" className="scroll-mt-24 rounded-lg bg-emerald-500/5 px-4 py-3 mt-3" data-inspect-id="prematch-coaching-section">
+          <div id="coaching" className="scroll-mt-24 chamfer bg-emerald-500/5 px-4 py-3 mt-3" data-inspect-id="prematch-coaching-section">
             <div className="text-[10px] text-emerald-600 uppercase tracking-widest font-semibold mb-2">Coaching</div>
             {recLoading && !rec && <div className="text-xs text-[var(--faint)]">Loading…</div>}
             {recError && <div className="text-xs text-red-600">{recError}</div>}

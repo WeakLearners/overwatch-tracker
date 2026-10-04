@@ -275,7 +275,7 @@ function DrawerForm({ match }: { match: TrendPoint }) {
                 key={m.value}
                 type="button"
                 onClick={() => setForm(f => ({ ...f, queue_mode: m.value }))}
-                className={`py-2 rounded-lg border text-xs font-semibold leading-tight transition-all ${
+                className={`py-2 rounded-md border text-xs font-semibold leading-tight transition-all ${
                   active ? `${c.card} ${c.accent} ${c.glow}` : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)] hover:border-gray-500'
                 }`}
               >
@@ -391,7 +391,7 @@ function DrawerForm({ match }: { match: TrendPoint }) {
             type="button"
             onClick={addHero}
             data-inspect-id="matchEditDrawer-add-hero-button"
-            className="mt-2 w-full py-1.5 rounded-lg border border-dashed border-ow-border text-xs text-[var(--faint)] hover:text-[var(--ink)] hover:border-gray-500 transition-colors"
+            className="mt-2 w-full py-1.5 rounded-md border border-dashed border-ow-border text-xs text-[var(--faint)] hover:text-[var(--ink)] hover:border-gray-500 transition-colors"
           >
             + Add hero
           </button>
@@ -423,7 +423,7 @@ function DrawerForm({ match }: { match: TrendPoint }) {
               key={v}
               type="button"
               onClick={() => setForm(f => ({ ...f, win: v as 0 | 1 }))}
-              className={`flex-1 py-2.5 rounded-lg border text-sm font-semibold transition-all ${
+              className={`flex-1 py-2.5 rounded-md border text-sm font-semibold transition-all ${
                 form.win === v ? cls : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
               }`}
             >
@@ -480,7 +480,7 @@ function DrawerForm({ match }: { match: TrendPoint }) {
               onClick={remove}
               disabled={status === 'saving'}
               data-inspect-id="matchEditDrawer-confirm-delete-button"
-              className="flex-1 py-2 rounded-lg border border-red-500 bg-red-500/15 text-red-600 text-sm font-semibold hover:bg-red-500/25 transition-colors"
+              className="flex-1 py-2 rounded-md border border-red-500 bg-red-500/15 text-red-600 text-sm font-semibold hover:bg-red-500/25 transition-colors"
             >
               Confirm delete
             </button>
@@ -488,7 +488,7 @@ function DrawerForm({ match }: { match: TrendPoint }) {
               type="button"
               onClick={() => setConfirmDelete(false)}
               data-inspect-id="matchEditDrawer-cancel-delete-button"
-              className="flex-1 py-2 rounded-lg border border-ow-border text-[var(--muted)] text-sm hover:text-[var(--ink)] transition-colors"
+              className="flex-1 py-2 rounded-md border border-ow-border text-[var(--muted)] text-sm hover:text-[var(--ink)] transition-colors"
             >
               Cancel
             </button>
@@ -498,7 +498,7 @@ function DrawerForm({ match }: { match: TrendPoint }) {
             type="button"
             onClick={() => setConfirmDelete(true)}
             data-inspect-id="matchEditDrawer-delete-button"
-            className="w-full py-2 rounded-lg border border-ow-border text-xs text-[var(--faint)] hover:text-red-600 hover:border-red-500/50 transition-colors"
+            className="w-full py-2 rounded-md border border-ow-border text-xs text-[var(--faint)] hover:text-red-600 hover:border-red-500/50 transition-colors"
           >
             Delete this match
           </button>

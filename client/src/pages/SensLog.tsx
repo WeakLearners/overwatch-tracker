@@ -133,7 +133,7 @@ const statsFromLogged = (m: LoggedMatch): StatFieldsT => ({
 });
 const field = 'w-full field px-3 py-2 text-sm num-display';
 const compactField = 'w-full field px-2 py-1 text-xs num-display';
-const btnSecondary = 'border border-ow-border rounded-lg text-[var(--ink)] font-semibold hover:border-gray-500 transition-all disabled:opacity-40 disabled:cursor-not-allowed';
+const btnSecondary = 'border border-ow-border rounded-md text-[var(--ink)] font-semibold hover:border-gray-500 transition-all disabled:opacity-40 disabled:cursor-not-allowed';
 
 export default function SensLog() {
   const { data: dpiState } = useApi<DpiTestState>('/api/blind/state');
@@ -470,7 +470,7 @@ const PHASE3_PLAN = [
   },
   {
     hero: 'Tracer', archetype: 'Hitscan', dpis: [1450, 1700], gamesPerSlot: 12,
-    note: 'Backfill the two thin scales (both under n=8) flanking her 1500 accuracy peak before trusting the dip between them.',
+    note: 'Backfill the two thin scales (both under 8 games) flanking her 1500 accuracy peak before trusting the dip between them.',
   },
   {
     hero: 'Pharah', archetype: 'Projectile', dpis: [1500, 1750], gamesPerSlot: 12,
@@ -791,15 +791,15 @@ function suggestCenter(oldLow: number, oldHigh: number, ch: CumulativeHero | und
   if (cf && cf.hasInteriorPeak && cf.inRange && cf.r2 >= FIT_R2_THRESHOLD && cf.optimalSens != null) {
     const agrees = Math.abs(cf.optimalSens - oldCenter) < CONFIRM_THRESHOLD;
     const basis = agrees
-      ? `cumulative fit r²=${cf.r2.toFixed(2)} (n=${cf.totalN}) confirms this range — narrowing`
-      : `cumulative fit r²=${cf.r2.toFixed(2)} (n=${cf.totalN}) points elsewhere — recentering, not narrowing`;
+      ? `cumulative fit r²=${cf.r2.toFixed(2)} (${cf.totalN} games) confirms this range — narrowing`
+      : `cumulative fit r²=${cf.r2.toFixed(2)} (${cf.totalN} games) points elsewhere — recentering, not narrowing`;
     return { center: cf.optimalSens, basis, narrow: agrees, reliable: true };
   }
   // Reliability is the server's call now (MIN_SCALE_N), not a local threshold.
   if (ch?.bestScaleReliable && ch.bestScaleEDPI != null) {
     const bestSens = ch.bestScaleEDPI / MOUSE_DPI;
     const center = (oldCenter + bestSens) / 2;
-    return { center, basis: `nudged toward best-tested point (n=${ch.bestScaleN}) — not narrowing`, narrow: false, reliable: true };
+    return { center, basis: `nudged toward best-tested point (${ch.bestScaleN} games) — not narrowing`, narrow: false, reliable: true };
   }
   return { center: oldCenter, basis: 'no reliable data yet for this hero — holding, not narrowing', narrow: false, reliable: false };
 }
@@ -1058,7 +1058,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
         return (
           <div
             data-inspect-id="sl-plan-fallback-order"
-            className="mb-3 rounded-lg border border-ow-border bg-ow-darker px-3 py-2"
+            className="mb-3 chamfer-sm border border-ow-border bg-ow-darker px-3 py-2"
           >
             <div className="text-[10px] uppercase tracking-wide text-[var(--faint-2)] mb-1.5">
               Banned or taken? Drop to the next name in your role
@@ -1117,7 +1117,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
         {plan.map(h => {
           const s = statuses.get(h.hero)!;
           return (
-            <div key={h.hero} className="relative rounded-lg bg-ow-darker border border-ow-border p-2 overflow-hidden">
+            <div key={h.hero} className="relative chamfer-sm bg-ow-darker border border-ow-border p-2 overflow-hidden">
               <div className={s.status === 'completed' ? 'opacity-30 pointer-events-none' : s.status === 'paused' ? 'opacity-60' : ''}>
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <span className="text-xs hero-name text-[var(--ink)] truncate">{h.hero}</span>
@@ -1572,7 +1572,7 @@ function CreateTestCard() {
                 onClick={() => setCurveEnabled(v)}
                 data-inspect-id={`sl-adhoc-curve-enabled-${v ? 'on' : 'off'}`}
                 aria-pressed={curveEnabled === v}
-                className={`py-2 rounded-lg border-2 text-xs font-semibold transition-all ${
+                className={`py-2 rounded-md border-2 text-xs font-semibold transition-all ${
                   curveEnabled === v
                     ? 'is-selected text-orange-700 dark:text-ow-accent'
                     : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)] bg-ow-darker'
@@ -1764,7 +1764,7 @@ function BackfillPanel({ pending, loading }: {
               {pending.map(m => {
                 const c = QUEUE_MODE_COLORS[m.queue_mode]; const active = m.id === selectedId;
                 return (
-                  <div key={m.id} className={`relative overflow-hidden rounded-lg border ${MODE_WASH_CLASS[m.queue_mode]} transition-all ${active ? `${c.accent} ${c.glow}` : 'border-ow-border hover:border-gray-500'}`}>
+                  <div key={m.id} className={`relative overflow-hidden chamfer border ${MODE_WASH_CLASS[m.queue_mode]} transition-all ${active ? `${c.accent} ${c.glow}` : 'border-ow-border hover:border-gray-500'}`}>
                     {/* Header block (watermark + toggle + collapsed row) gets its own
                         relative/overflow-hidden box so the oversized watermark glyph is
                         clipped to just this block — otherwise, being absolutely positioned
@@ -1862,7 +1862,7 @@ function BackfillPanel({ pending, loading }: {
               {logged.map(m => {
                 const c = QUEUE_MODE_COLORS[m.queue_mode]; const active = m.id === loggedSelectedId;
                 return (
-                  <div key={m.id} className={`relative overflow-hidden rounded-lg transition-all ${active ? `${c.accent} ${c.glow} ring-1 ring-inset` : ''}`}>
+                  <div key={m.id} className={`relative overflow-hidden chamfer transition-all ${active ? `${c.accent} ${c.glow} ring-1 ring-inset` : ''}`}>
                     {/* Header block gets its own relative/overflow-hidden box so the
                         absolutely-positioned watermark stays clipped to the collapsed
                         row instead of re-centering on the whole card once the form
@@ -1871,7 +1871,7 @@ function BackfillPanel({ pending, loading }: {
                         on this one row div, ring-1 ring-inset accent when expanded). */}
                     <div
                       onClick={() => toggleLogged(m)}
-                      className={`relative overflow-hidden flex items-center gap-3 min-h-16 py-2.5 px-3 rounded-lg cursor-pointer transition-colors hover:brightness-110 ${MODE_WASH_CLASS[m.queue_mode]}`}
+                      className={`relative overflow-hidden flex items-center gap-3 min-h-16 py-2.5 px-3 chamfer cursor-pointer transition-colors hover:brightness-110 ${MODE_WASH_CLASS[m.queue_mode]}`}
                     >
                       {/* Oversized W/L watermark, same treatment as ModeWatermark. Sized
                           taller than the row so top and bottom clip on overflow-hidden too.

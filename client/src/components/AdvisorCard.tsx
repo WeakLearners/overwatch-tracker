@@ -21,7 +21,7 @@ export default function AdvisorCard({ map, queueLabel, rec, loading, error, onRe
   return (
     <div
       data-inspect-id="advisorCard-outerCard"
-      className={bare ? '' : 'rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-4 py-3'}
+      className={bare ? '' : 'chamfer border border-emerald-500/30 bg-emerald-500/5 px-4 py-3'}
     >
       {!bare && (
         <div className="flex items-center justify-between mb-2">
@@ -60,7 +60,7 @@ export default function AdvisorCard({ map, queueLabel, rec, loading, error, onRe
             </button>
             {rec.primary_stats && (
               <span data-inspect-id="advisorCard-primaryStatsBadge" className="text-[10px] text-[var(--faint)]">
-                <b className="font-bold">{rec.primary_stats.win_rate}</b>% · <b className="font-bold">{rec.primary_stats.games}</b>g
+                <b className="font-bold">{Number(rec.primary_stats.win_rate).toFixed(1)}</b>% · <b className="font-bold">{rec.primary_stats.games}</b> games
               </span>
             )}
             {rec.stretch && (

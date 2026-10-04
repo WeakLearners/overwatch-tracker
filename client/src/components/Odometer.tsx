@@ -12,7 +12,7 @@ const NARROW_FONT = 0.8;
 function Drum({ digit, size, warn, narrow }: { digit: number; size: number; warn?: boolean; narrow?: boolean }) {
   return (
     <div
-      className={`relative overflow-hidden rounded-lg bg-ow-card select-none ${warn ? 'odo-warn' : ''}`}
+      className={`relative overflow-hidden chamfer-sm bg-ow-card select-none ${warn ? 'odo-warn' : ''}`}
       style={{ width: Math.round(size * (narrow ? NARROW_W : 0.72)), height: size }}
     >
       <div

@@ -39,7 +39,7 @@ export default function RankOutcomeControl({ value, onChange }: {
   return (
     <div
       data-inspect-id="logmatch-rank-outcome"
-      className={`rounded-lg border px-3 py-2.5 flex items-center gap-3 transition-colors ${
+      className={`chamfer-sm border px-3 py-2.5 flex items-center gap-3 transition-colors ${
         rankAnswered ? 'border-ow-border bg-ow-darker' : 'border-ow-accent/50 bg-ow-accent/5'
       }`}
     >
@@ -64,7 +64,7 @@ export default function RankOutcomeControl({ value, onChange }: {
               })}
               aria-pressed={rankOutcome === 'moved'}
               data-inspect-id="logmatch-rank-outcome-move-btn"
-              className={`text-xs font-semibold py-1.5 rounded-lg border transition-colors ${
+              className={`text-xs font-semibold py-1.5 rounded-md border transition-colors ${
                 rankOutcome === 'moved'
                   ? 'is-selected text-[var(--ink)]'
                   : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
@@ -75,7 +75,7 @@ export default function RankOutcomeControl({ value, onChange }: {
               onClick={() => onChange({ rankOutcome: 'none', playerRank: rankBase })}
               aria-pressed={rankOutcome === 'none'}
               data-inspect-id="logmatch-rank-outcome-nochange-btn"
-              className={`text-xs font-semibold py-1.5 rounded-lg border transition-colors ${
+              className={`text-xs font-semibold py-1.5 rounded-md border transition-colors ${
                 rankOutcome === 'none'
                   ? 'is-selected text-[var(--ink)]'
                   : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
