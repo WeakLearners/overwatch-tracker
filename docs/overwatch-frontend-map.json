@@ -329,7 +329,7 @@
           "id": "prematch-backlog-go-link",
           "label": "Go to backlog button",
           "kind": "link",
-          "description": "Full-width button under the backlog count, styled as a selected game-mode tile (rounded, 2px border, is-selected mode-fill in the accent, mode-tile hover lift, lit text). Opens /sens at the top.",
+          "description": "Full-width button under the backlog count, styled as a selected game-mode tile (rounded, 2px border, is-selected mode-fill in the accent, border hover cue, lit text). Opens /sens at the top.",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:1527",
             "grep": "grep -n -F -- 'prematch-backlog-go-link' client/src/pages/Prematch.tsx"
@@ -3826,7 +3826,7 @@
           "kind": "stat-tile",
           "description": "Shows the map's overall win rate percentage, total games played, and win/loss breakdown.",
           "locate": {
-            "path": "client/src/components/MapDrawer.tsx:81",
+            "path": "client/src/components/MapDrawer.tsx:90",
             "grep": "grep -n -F -- 'uppercase tracking-wider mb-2\">Overall</div>' client/src/components/MapDrawer.tsx"
           }
         },
@@ -3836,7 +3836,7 @@
           "kind": "stat-tile",
           "description": "Shows momentum on this map: previous win rate vs. recent win rate with an up/down/flat delta indicator, and the game counts backing each period; only rendered when both periods have data.",
           "locate": {
-            "path": "client/src/components/MapDrawer.tsx:94",
+            "path": "client/src/components/MapDrawer.tsx:103",
             "grep": "grep -n -F -- 'uppercase tracking-wider mb-2\">Trend</div>' client/src/components/MapDrawer.tsx"
           }
         },
@@ -3846,7 +3846,7 @@
           "kind": "list",
           "description": "Per-role (DPS/Tank/Support) list of heroes played on this map, each row showing an up/down win-rate indicator, hero name (with today's play count), win rate percentage, and games played.",
           "locate": {
-            "path": "client/src/components/MapDrawer.tsx:110",
+            "path": "client/src/components/MapDrawer.tsx:119",
             "grep": "grep -n -F -- '(['\"'\"'DPS'\"'\"', '\"'\"'Tank'\"'\"', '\"'\"'Support'\"'\"'] as const).map(role =>' client/src/components/MapDrawer.tsx"
           }
         },
@@ -3856,7 +3856,7 @@
           "kind": "list",
           "description": "Row of small W/L badges for the most recent matches on this map; hovering a badge shows a tooltip with the result and hero played.",
           "locate": {
-            "path": "client/src/components/MapDrawer.tsx:137",
+            "path": "client/src/components/MapDrawer.tsx:146",
             "grep": "grep -n -F -- 'mapDrawer-last5-list' client/src/components/MapDrawer.tsx"
           }
         },
@@ -3866,7 +3866,7 @@
           "kind": "list",
           "description": "Bottom of the map drawer: every map with a game, sorted by games played (ties by name). Columns Map, Games, Win rate (one decimal). No ranking, no best/worst mark, no colour on the rate. Crashed matches count (they carry a map and a result). Reads GET /api/stats/by-map?min_games=1, summed per map. Tapping a row opens that map's own drawer. Replaces the Pre-Match best/worst map tiles (split plan decision 5).",
           "locate": {
-            "path": "client/src/components/MapDrawer.tsx:40",
+            "path": "client/src/components/MapDrawer.tsx:41",
             "grep": "grep -n -F -- 'data-inspect-id=\"mapDrawer-all-maps-table\"' client/src/components/MapDrawer.tsx"
           }
         },
@@ -3876,7 +3876,7 @@
           "kind": "modal",
           "description": "Dimmed full-screen scrim shown behind the map drawer while it is open; clicking anywhere on it calls closeMap to dismiss the drawer.",
           "locate": {
-            "path": "client/src/components/MapDrawer.tsx:171",
+            "path": "client/src/components/MapDrawer.tsx:180",
             "grep": "grep -n -F -- 'bg-black/50 z-40 transition-opacity duration-300' client/src/components/MapDrawer.tsx"
           }
         },
@@ -3886,7 +3886,7 @@
           "kind": "drawer",
           "description": "The sliding right-hand panel that shows map-specific stats (overall win rate, trend, heroes by role, death patterns, last 5 results); slides in/out based on whether a map is active.",
           "locate": {
-            "path": "client/src/components/MapDrawer.tsx:175",
+            "path": "client/src/components/MapDrawer.tsx:184",
             "grep": "grep -n -F -- 'w-96 bg-ow-dark border-l border-ow-border z-50' client/src/components/MapDrawer.tsx"
           }
         },
@@ -3896,7 +3896,7 @@
           "kind": "header",
           "description": "Displays the active map's name (with today's play count appended) as the drawer's title.",
           "locate": {
-            "path": "client/src/components/MapDrawer.tsx:178",
+            "path": "client/src/components/MapDrawer.tsx:187",
             "grep": "grep -n -F -- 'mapDrawer-title' client/src/components/MapDrawer.tsx"
           }
         },
@@ -3906,7 +3906,7 @@
           "kind": "badge",
           "description": "Small colored pill under the map title showing the map's type (e.g. Control, Escort), colored via TYPE_COLORS.",
           "locate": {
-            "path": "client/src/components/MapDrawer.tsx:179",
+            "path": "client/src/components/MapDrawer.tsx:188",
             "grep": "grep -n -F -- 'pill mt-1 ${TYPE_COLORS[mapType] ?? '\"'\"''\"'\"'}' client/src/components/MapDrawer.tsx"
           }
         },
@@ -3916,7 +3916,7 @@
           "kind": "icon-button",
           "description": "The \u00d7 button in the drawer header; clicking it calls closeMap to close the map drawer.",
           "locate": {
-            "path": "client/src/components/MapDrawer.tsx:181",
+            "path": "client/src/components/MapDrawer.tsx:190",
             "grep": "grep -n -F -- 'text-2xl leading-none ml-4' client/src/components/MapDrawer.tsx"
           }
         }
@@ -4682,7 +4682,7 @@
           "kind": "card",
           "description": "Card under the Trends factoids. Title 'Session Window' with the explainer to its right. Shows the record of when games were played, with no ranking.",
           "locate": {
-            "path": "client/src/components/dashboard/SessionWindowCard.tsx:32",
+            "path": "client/src/components/dashboard/SessionWindowCard.tsx:26",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-session-window-card\"' client/src/components/dashboard/SessionWindowCard.tsx"
           }
         },
@@ -4690,9 +4690,9 @@
           "id": "dash-session-window-grid",
           "label": "Day x hour grid",
           "kind": "list",
-          "description": "Rows are the hours that have at least one game, columns are Mon to Sun. Each cell shows its win rate (one decimal, ink) over its games played (small number). A cell with no games shows a dash. No best/worst label, no highlight, no colour, no minimum. The cell tooltip gives games and the W-L split. Crashed matches are counted.",
+          "description": "Rows are the hours with 10 or more games (all days summed), plus one Before and one After fold row for the thin hours at the ends, columns are Mon to Sun. Each cell shows its win rate (one decimal) and its games on one line. A cell under 10 games is grey. A cell with no games shows a dash. No best/worst label, no colour. The cell tooltip gives games and the W-L split. Crashed matches are counted.",
           "locate": {
-            "path": "client/src/components/dashboard/SessionWindowCard.tsx:46",
+            "path": "client/src/components/dashboard/SessionWindowCard.tsx:40",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-session-window-grid\"' client/src/components/dashboard/SessionWindowCard.tsx"
           }
         },
@@ -4702,7 +4702,7 @@
           "kind": "empty-state",
           "description": "Shown when no match has both a day and an hour.",
           "locate": {
-            "path": "client/src/components/dashboard/SessionWindowCard.tsx:41",
+            "path": "client/src/components/dashboard/SessionWindowCard.tsx:35",
             "grep": "grep -n -F -- 'dash-session-window-empty' client/src/components/dashboard/SessionWindowCard.tsx"
           }
         }
@@ -4722,8 +4722,8 @@
           "kind": "radio-group",
           "description": "Three clickable tiles (QP, Comp Role, Comp Open) that double as a queue-mode selector; clicking one sets the active queue mode used by the advisor and match log, shows recent/all-time win rate and most-played hero for that mode, and flashes green/red when a new match is logged under it.",
           "locate": {
-            "path": "client/src/components/dashboard/ModeComparisonCard.tsx:47",
-            "grep": "grep -n -F -- 'mode-tile hover:-translate-x-1 hover:-translate-y-1' client/src/components/dashboard/ModeComparisonCard.tsx"
+            "path": "client/src/components/dashboard/ModeComparisonCard.tsx:41",
+            "grep": "grep -n -F -- 'data-inspect-id=\"dash-mode-tiles\"' client/src/components/dashboard/ModeComparisonCard.tsx"
           }
         },
         {

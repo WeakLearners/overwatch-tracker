@@ -1450,7 +1450,7 @@ export default function LogMatch() {
             )}
 
             {showAimFold && (
-              <div className="chamfer border border-ow-border bg-ow-darker" data-inspect-id="logmatch-aim-stats-fold">
+              <div className="chamfer-sm border border-ow-border bg-ow-darker" data-inspect-id="logmatch-aim-stats-fold">
                 <button
                   type="button"
                   onClick={() => setAimOpen(o => !o)}
@@ -1505,7 +1505,7 @@ export default function LogMatch() {
                   <div
                     key={r.id}
                     data-inspect-id="logmatch-todays-matches-card-row"
-                    className={`relative overflow-hidden chamfer transition-all ${expanded ? `${c.accent} ${c.glow} ring-1 ring-inset` : ''}`}
+                    className={`relative overflow-hidden chamfer transition-all ${expanded ? `${c.accent} ring-1 ring-inset ring-ow-accent/50` : ''}`}
                   >
                     {/* Header block gets its own relative/overflow-hidden box so the
                         absolutely-positioned watermark stays clipped to the collapsed
@@ -1514,7 +1514,7 @@ export default function LogMatch() {
                         page. */}
                     <div
                       onClick={() => setExpandedId(expanded ? null : r.id)}
-                      className={`relative overflow-hidden flex items-center gap-3 min-h-16 py-2.5 px-3 chamfer cursor-pointer transition-colors hover:brightness-110 ${MODE_WASH_CLASS[r.queue_mode]}`}
+                      className={`relative overflow-hidden flex items-center gap-3 min-h-16 py-2.5 px-3 cursor-pointer transition-colors hover:brightness-110 ${MODE_WASH_CLASS[r.queue_mode]}`}
                     >
                       {/* Oversized W/L result watermark + right-aligned map name — same
                           treatment as the Logged Today card on the Sens page. Queue mode

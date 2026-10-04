@@ -79,7 +79,7 @@ function DrawerContent({ hero, role }: { hero: string; role?: string }) {
                   <span data-inspect-id="hero-drawer-type-pill-badge" className={`pill ml-1 ${TYPE_COLORS[m.game_type] ?? ''}`}>{m.game_type}</span>
                 </div>
                 <WR rate={m.win_rate} />
-                <span className="text-xs text-[var(--faint-2)] shrink-0 text-right font-bold">{m.games} games</span>
+                <span className="text-xs text-[var(--faint-2)] w-16 shrink-0 text-right font-bold">{m.games} games</span>
               </div>
             ))}
             {data.worstMaps.map(m => (
@@ -90,7 +90,7 @@ function DrawerContent({ hero, role }: { hero: string; role?: string }) {
                   <span className={`pill ml-1 ${TYPE_COLORS[m.game_type] ?? ''}`}>{m.game_type}</span>
                 </div>
                 <WR rate={m.win_rate} />
-                <span className="text-xs text-[var(--faint-2)] shrink-0 text-right font-bold">{m.games} games</span>
+                <span className="text-xs text-[var(--faint-2)] w-16 shrink-0 text-right font-bold">{m.games} games</span>
               </div>
             ))}
           </div>

@@ -1764,7 +1764,7 @@ function BackfillPanel({ pending, loading }: {
               {pending.map(m => {
                 const c = QUEUE_MODE_COLORS[m.queue_mode]; const active = m.id === selectedId;
                 return (
-                  <div key={m.id} className={`relative overflow-hidden chamfer border ${MODE_WASH_CLASS[m.queue_mode]} transition-all ${active ? `${c.accent} ${c.glow}` : 'border-ow-border hover:border-gray-500'}`}>
+                  <div key={m.id} className={`relative overflow-hidden chamfer border ${MODE_WASH_CLASS[m.queue_mode]} transition-all ${active ? c.accent : 'border-ow-border hover:border-gray-500'}`}>
                     {/* Header block (watermark + toggle + collapsed row) gets its own
                         relative/overflow-hidden box so the oversized watermark glyph is
                         clipped to just this block — otherwise, being absolutely positioned
@@ -1862,7 +1862,7 @@ function BackfillPanel({ pending, loading }: {
               {logged.map(m => {
                 const c = QUEUE_MODE_COLORS[m.queue_mode]; const active = m.id === loggedSelectedId;
                 return (
-                  <div key={m.id} className={`relative overflow-hidden chamfer transition-all ${active ? `${c.accent} ${c.glow} ring-1 ring-inset` : ''}`}>
+                  <div key={m.id} className={`relative overflow-hidden chamfer transition-all ${active ? `${c.accent} ring-1 ring-inset ring-ow-accent/50` : ''}`}>
                     {/* Header block gets its own relative/overflow-hidden box so the
                         absolutely-positioned watermark stays clipped to the collapsed
                         row instead of re-centering on the whole card once the form
@@ -1871,7 +1871,7 @@ function BackfillPanel({ pending, loading }: {
                         on this one row div, ring-1 ring-inset accent when expanded). */}
                     <div
                       onClick={() => toggleLogged(m)}
-                      className={`relative overflow-hidden flex items-center gap-3 min-h-16 py-2.5 px-3 chamfer cursor-pointer transition-colors hover:brightness-110 ${MODE_WASH_CLASS[m.queue_mode]}`}
+                      className={`relative overflow-hidden flex items-center gap-3 min-h-16 py-2.5 px-3 cursor-pointer transition-colors hover:brightness-110 ${MODE_WASH_CLASS[m.queue_mode]}`}
                     >
                       {/* Oversized W/L watermark, same treatment as ModeWatermark. Sized
                           taller than the row so top and bottom clip on overflow-hidden too.

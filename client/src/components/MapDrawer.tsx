@@ -2,6 +2,7 @@ import { useMapDrawer } from '../contexts/MapDrawerContext';
 import { useApi } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
+import { MIN_GAMES } from '../lib/sessionWindow';
 import { MAPS, TYPE_COLORS, ROLE_COLORS } from '../types';
 
 interface HeroRow { hero: string; role: string; games: number; win_rate: number }
@@ -45,17 +46,25 @@ function AllMapsTable({ current }: { current: string }) {
         <span className="w-14 text-right">Win rate</span>
       </div>
       <div className="divide-y divide-ow-border/30">
-        {rows.map(r => (
-          <button
-            key={r.map}
-            onClick={() => openMap(r.map)}
-            className="w-full flex items-center gap-2 py-1 text-left hover:bg-ow-darker/60 transition-colors"
-          >
-            <span className={`flex-1 min-w-0 truncate text-xs map-name ${r.map === current ? 'text-ow-accent' : 'text-[var(--ink)]'}`}>{r.map}</span>
-            <span className="w-14 text-right text-xs text-[var(--faint)]">{r.games}</span>
-            <span className="w-14 text-right text-xs text-[var(--ink)]">{(r.wins / r.games * 100).toFixed(1)}%</span>
-          </button>
-        ))}
+        {rows.map((r, i) => {
+          const thin = r.games < MIN_GAMES;
+          const firstThin = thin && (i === 0 || rows[i - 1].games >= MIN_GAMES);
+          return (
+            <div key={r.map}>
+              {firstThin && (
+                <div className="text-[10px] uppercase tracking-wider text-[var(--muted)] pt-2 border-t border-ow-border">Below 10 games — not yet reliable</div>
+              )}
+              <button
+                onClick={() => openMap(r.map)}
+                className="w-full flex items-center gap-2 py-1 text-left hover:bg-ow-darker/60 transition-colors"
+              >
+                <span className={`flex-1 min-w-0 truncate text-xs map-name ${r.map === current ? 'text-ow-accent' : 'text-[var(--ink)]'}`}>{r.map}</span>
+                <span className="w-14 text-right text-xs text-[var(--faint)]">{r.games}</span>
+                <span className={`w-14 text-right text-xs ${thin ? 'text-[var(--muted)]' : 'text-[var(--ink)]'}`}>{(r.wins / r.games * 100).toFixed(1)}%</span>
+              </button>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -123,7 +132,7 @@ function DrawerContent({ map }: { map: string }) {
                   </span>
                   <span className="flex-1 text-xs hero-name text-[var(--ink)]">{withHeroCount(h.hero, heroCounts)}</span>
                   <WR rate={h.win_rate} />
-                  <span className="text-xs text-[var(--faint-2)] shrink-0 text-right font-bold">{h.games} games</span>
+                  <span className="text-xs text-[var(--faint-2)] w-16 shrink-0 text-right font-bold">{h.games} games</span>
                 </div>
               ))}
             </div>

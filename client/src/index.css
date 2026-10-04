@@ -246,12 +246,6 @@
     54%  { transform: translateY(0);     opacity: 1; }
     100% { transform: translateY(115%);  opacity: 0; }
   }
-  .mode-tile:hover {
-    box-shadow:
-      -1px -1px 0 rgba(255,255,255,0.08),
-      6px 5px 12px -2px var(--hud-glow-1),
-      6px 9px 18px -4px var(--hud-glow-2);
-  }
 
   .mode-flash      { animation: modeFlashFade 1000ms ease-in-out both; }
   .mode-arrow-up   { animation: modeArrowUp 1000ms cubic-bezier(0.22, 1, 0.36, 1) both; }

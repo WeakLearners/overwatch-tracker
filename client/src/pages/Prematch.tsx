@@ -930,7 +930,7 @@ export default function Prematch() {
                     </button>
                     {scoreMap[winner] && (
                       <div className="text-xs text-[var(--faint)]">
-                        <b className="font-bold">{scoreMap[winner].blended_score}</b>% blended · <b className="font-bold">{scoreMap[winner].total_games}</b> games played
+                        <b className="font-bold">{scoreMap[winner].blended_score.toFixed(1)}</b>% blended · <b className="font-bold">{scoreMap[winner].total_games}</b> games played
                       </div>
                     )}
                   </div>
@@ -991,7 +991,7 @@ export default function Prematch() {
                     box's full inner width, split into equal parts, one per
                     game played. With no games it is an empty grey track. */}
                 {(
-                  <div className="absolute inset-x-0 bottom-0 h-[4px] flex bg-ow-border/40" data-inspect-id="prematch-today-dots-strip">
+                  <div className="absolute left-0 right-3.5 bottom-0 h-[4px] flex bg-ow-border/40" data-inspect-id="prematch-today-dots-strip">
                     {todayRows.map((r, i) => (
                       <span
                         key={i}
