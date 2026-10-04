@@ -270,7 +270,10 @@ router.get('/prematch', (req: Request, res: Response) => {
   });
 
   // Session: how many games played today, tilt detection, depth win rate
-  const today = new Date().toISOString().slice(0, 10);
+  // matches.date is the local calendar date (see nightlyReport.ts todayLocal).
+  // UTC rolled "today" over at 8 PM EDT and emptied the session stats mid-evening.
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const todayResults = db.prepare(
     `SELECT win FROM matches WHERE date = ? ORDER BY time DESC`
   ).all(today) as { win: number }[];
