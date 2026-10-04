@@ -938,7 +938,7 @@ export default function Prematch() {
                     {ranked.slice(1, 3).map(m => (
                       <div key={m} className="min-w-0 flex items-baseline justify-between gap-2 text-xs text-[var(--faint)]">
                         <span className="map-name text-sm text-[var(--ink-2)] truncate">{withMapCount(m, mapCounts)}</span>
-                        <span className="shrink-0">{scoreMap[m] ? <><b className="font-bold">{scoreMap[m].blended_score}</b>% blended</> : 'no data'}</span>
+                        <span className="shrink-0">{scoreMap[m] ? <><b className="font-bold">{scoreMap[m].blended_score.toFixed(1)}</b>% blended</> : 'no data'}</span>
                       </div>
                     ))}
                   </div>
