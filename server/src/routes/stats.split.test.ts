@@ -9,12 +9,20 @@
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { startHarness, type Harness } from '../test/httpHarness';
-import { insertMatch, insertAimStatsHero } from '../db/fixtures';
+import { insertMatch, insertAimStats, insertAimStatsHero } from '../db/fixtures';
 
 let h: Harness;
 
 beforeEach(async () => { h = await startHarness(); });
 afterEach(async () => { await h.close(); });
+
+// Real writes (saveAimStatsRows) always create the match-level aim_stats row
+// together with the per-hero rows, and the lab replica is filled from the
+// aim_stats rows (v1 /export/aim nests the hero rows), so fixtures do the same.
+function heroAcc(h: Harness, match_id: number, hero: string, overall_acc: number) {
+  insertAimStats(h.db, { match_id });
+  insertAimStatsHero(h.db, { match_id, hero, overall_acc });
+}
 
 function setField(h: Harness, id: number, col: string, value: string | number | null) {
   h.db.prepare(`UPDATE matches SET ${col} = :value WHERE id = :id`).run({ id, value });
@@ -35,11 +43,11 @@ describe('GET /api/stats/split', () => {
   test('leaver_side: whitelisted field returns groups, win_rate and accuracy both present', async () => {
     const m1 = insertMatch(h.db, { date: '2026-01-01', hero: 'Ashe', role: 'DPS', win: 1 });
     setField(h, m1, 'leaver_side', 'mine');
-    insertAimStatsHero(h.db, { match_id: m1, hero: 'Ashe', overall_acc: 40 });
+    heroAcc(h, m1, 'Ashe', 40);
 
     const m2 = insertMatch(h.db, { date: '2026-01-02', hero: 'Ashe', role: 'DPS', win: 0 });
     setField(h, m2, 'leaver_side', 'theirs');
-    insertAimStatsHero(h.db, { match_id: m2, hero: 'Ashe', overall_acc: 30 });
+    heroAcc(h, m2, 'Ashe', 30);
 
     // No leaver at all on this one — leaver_side stays NULL (never asked).
     const m3 = insertMatch(h.db, { date: '2026-01-03', hero: 'Ashe', role: 'DPS', win: 1 });
@@ -65,7 +73,7 @@ describe('GET /api/stats/split', () => {
   test('result_driver: accuracy-only field — win_rate is null, mean_acc is populated', async () => {
     const m1 = insertMatch(h.db, { date: '2026-01-01', hero: 'Ana', role: 'Support', win: 1 });
     setField(h, m1, 'result_driver', 'me');
-    insertAimStatsHero(h.db, { match_id: m1, hero: 'Ana', overall_acc: 50 });
+    heroAcc(h, m1, 'Ana', 50);
 
     const r = await h.get('/api/stats/split?by=result_driver');
     assert.equal(r.status, 200);

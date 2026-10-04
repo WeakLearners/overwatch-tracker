@@ -8,7 +8,10 @@ import express from 'express';
 import cors from 'cors';
 import matchesRouter from './routes/matches';
 import statsRouter from './routes/stats';
-import advisorRouter from './routes/advisor';
+import advisorRouter, { setAdvisorCacheStore } from './routes/advisor';
+import { sqliteAdvisorCache } from './db/advisorCache';
+import { trackerWriteNotifier } from './lib/trackerEvents';
+import { configureReplicaCache } from './lab/replicaCache';
 import aimRouter from './routes/aim';
 import blindRouter from './routes/blind';
 import customPhasesRouter from './routes/customPhases';
@@ -23,11 +26,18 @@ import { installExperiments } from './experiments';
 // (no-op hooks) when EXPERIMENTS_DISABLED=1.
 installExperiments();
 
+// Advisor LLM cache lives in the tracker database for now (Stage 2 moves it).
+setAdvisorCacheStore(sqliteAdvisorCache);
+
 const app = express();
 // 3001 = production, updated on push (launchd com.overwatch.prod, from ~/Code/overwatch-prod).
 // The dev tree's server runs on 3002 (server "dev" script sets PORT) so editing
 // never touches the port Sean uses day to day.
 const PORT = Number(process.env.PORT) || 3001;
+// The lab's replica reads this same server's /api/v1 over HTTP (lab/replicaCache.ts).
+// Built lazily on the first lab request, so the listen below has happened by then.
+// LAB_TRACKER_URL overrides it (default: this process's own port).
+configureReplicaCache({ baseUrl: process.env.LAB_TRACKER_URL || `http://127.0.0.1:${PORT}` });
 
 // Allowed origins come from ALLOWED_ORIGINS (comma-separated) so a tailnet IP
 // doesn't have to live in source. Defaults to localhost only if unset.
@@ -37,6 +47,9 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173')
   .filter(Boolean);
 app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
+
+// Any write under /api tells the lab its replica is stale (lib/trackerEvents.ts).
+app.use('/api', trackerWriteNotifier);
 
 app.use('/api/matches', matchesRouter);
 app.use('/api/ranks', ranksRouter);

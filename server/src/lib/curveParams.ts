@@ -7,7 +7,7 @@
 // longer describe Sean's live config (he moved to a Look Up Table) — they're
 // kept only as the SHAPE the LUT's points get seeded from (see SensLog.tsx's
 // seedLutPoints). lutSteps/lutMaxSpeed/lutPoints describe the LUT itself.
-import { getDb } from '../db/schema';
+import type { DatabaseSync } from 'node:sqlite';
 
 export const DEFAULT_CURVE_SMOOTH = 0.2;
 export const DEFAULT_CURVE_INPUT = 14; // counts/ms — the threshold speed
@@ -26,7 +26,7 @@ export interface CurveParams {
 // (rather than defaulting to something) — that's the card's "not yet
 // hand-edited, seed me" signal, same as lutSteps/lutMaxSpeed falling back to
 // DEFAULT_LUT_STEPS/DEFAULT_LUT_MAX_SPEED for the seed math itself.
-export function getCurveParams(db: ReturnType<typeof getDb>): CurveParams {
+export function getCurveParams(db: DatabaseSync): CurveParams {
   const row = db.prepare('SELECT smooth, input, output, lut_steps, lut_max_speed, lut_points FROM curve_params WHERE id = 1')
     .get() as { smooth: number; input: number; output: number; lut_steps: number | null; lut_max_speed: number | null; lut_points: string | null } | undefined;
   if (!row) {
@@ -43,7 +43,7 @@ export function getCurveParams(db: ReturnType<typeof getDb>): CurveParams {
   };
 }
 
-export function setCurveParams(db: ReturnType<typeof getDb>, params: CurveParams): void {
+export function setCurveParams(db: DatabaseSync, params: CurveParams): void {
   db.prepare(`
     INSERT INTO curve_params (id, smooth, input, output, lut_steps, lut_max_speed, lut_points)
     VALUES (1, :smooth, :input, :output, :lutSteps, :lutMaxSpeed, :lutPoints)

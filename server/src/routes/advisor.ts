@@ -1,7 +1,26 @@
 import { Router, Request, Response } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
-import { getDb } from '../db/schema';
+import type { DatabaseSync } from 'node:sqlite';
+import { withReplica } from '../lab/replicaCache';
 import { ALL_HEROES_BY_ROLE } from '../lib/heroes';
+
+// Lab side (split plan slice 5c). Hero stats are read from the shared lab
+// replica (lab/replicaCache.ts), never db/schema. The one thing the advisor
+// WRITES is its LLM cache (table advisor_cache). The advisor owns that table,
+// but it still lives in the tracker's database file today, so
+// the store is injected: index.ts calls setAdvisorCacheStore with
+// db/advisorCache.ts. Stage 2 gives the lab its own storage and this seam goes
+// away.
+export interface AdvisorCacheStore {
+  read(map: string, mode: string): { focus_json: string; created_at: string } | null;
+  write(map: string, mode: string, primaryHero: string, stretchHero: string | null, focusJson: string): void;
+}
+let store: AdvisorCacheStore | null = null;
+export function setAdvisorCacheStore(s: AdvisorCacheStore | null): void { store = s; }
+function cacheStore(): AdvisorCacheStore {
+  if (!store) throw new Error('advisor cache store not set (index.ts must call setAdvisorCacheStore)');
+  return store;
+}
 
 const router = Router();
 
@@ -22,14 +41,14 @@ interface HeroStat { hero: string; role: string; games: number; win_rate: number
 // Heroes with a currently-active (in-testing) DPI stage set — every
 // recommendation surface (Prematch hero picker, Log Match dropdowns, and this
 // advisor) is scoped to these so a pick always feeds a running test.
-function getInTestingHeroes(db: ReturnType<typeof getDb>): Set<string> {
+export function getInTestingHeroes(db: DatabaseSync): Set<string> {
   const rows = db.prepare(
     `SELECT DISTINCT hero FROM blind_stage_sets WHERE active = 1 AND hero IS NOT NULL`,
   ).all() as { hero: string }[];
   return new Set(rows.map(r => r.hero));
 }
 
-function getComfortPool(db: ReturnType<typeof getDb>, role: AdvisorRole, inTesting: Set<string>): HeroStat[] {
+export function getComfortPool(db: DatabaseSync, role: AdvisorRole, inTesting: Set<string>): HeroStat[] {
   if (inTesting.size === 0) return [];
   const heroPlaceholders = [...inTesting].map(() => '?').join(',');
   // Comfort = at least COMFORT_MIN_GAMES total games on this hero, regardless of mode.
@@ -43,7 +62,7 @@ function getComfortPool(db: ReturnType<typeof getDb>, role: AdvisorRole, inTesti
   `).all(role, ...inTesting) as unknown as HeroStat[];
 }
 
-function pickPrimary(db: ReturnType<typeof getDb>, map: string, pool: HeroStat[]): HeroStat | null {
+export function pickPrimary(db: DatabaseSync, map: string, pool: HeroStat[]): HeroStat | null {
   if (pool.length === 0) return null;
   const heroNames = pool.map(h => h.hero);
   const placeholders = heroNames.map(() => '?').join(',');
@@ -61,7 +80,7 @@ function pickPrimary(db: ReturnType<typeof getDb>, map: string, pool: HeroStat[]
   return [...pool].sort((a, b) => b.win_rate - a.win_rate)[0];
 }
 
-function getMapContext(db: ReturnType<typeof getDb>, map: string): { games: number; win_rate: number | null; game_type: string | null } {
+export function getMapContext(db: DatabaseSync, map: string): { games: number; win_rate: number | null; game_type: string | null } {
   const row = db.prepare(`
     SELECT COUNT(*) games, ROUND(AVG(win)*100,1) win_rate,
            (SELECT game_type FROM matches WHERE map = ? LIMIT 1) game_type
@@ -96,8 +115,8 @@ interface StretchCandidate {
 // but that aren't already in their comfort pool. Enriched with career stats and
 // this-map stats so the model can rank by the player's REAL performance instead
 // of guessing a generic meta pick (which always collapsed onto Cassidy).
-function getStretchCandidates(
-  db: ReturnType<typeof getDb>,
+export function getStretchCandidates(
+  db: DatabaseSync,
   map: string,
   role: AdvisorRole,
   poolHeroes: Set<string>,
@@ -127,8 +146,8 @@ function getStretchCandidates(
 // general-meta suggestions (no personal stats exist), used only as a fallback
 // when the grounded stretch pool is empty or weak. Picks from here are flagged
 // "untested" so the UI can label them as out-of-data, not from the player's log.
-function getUntestedMetaPool(
-  db: ReturnType<typeof getDb>,
+export function getUntestedMetaPool(
+  db: DatabaseSync,
   role: AdvisorRole,
   exclude: Set<string>,
   inTesting: Set<string>,
@@ -147,11 +166,8 @@ interface CachedPicks { byRole: Record<AdvisorRole, CachedRoleStretch> }
 // Hero stats are recomputed live on every request (cheap, and reflects newly
 // logged matches even on a cache hit). primary_hero/stretch_hero stay
 // informational-only (DPS side) now that focus_json carries both roles' data.
-function readCachedPicks(db: ReturnType<typeof getDb>, map: string, mode: QueueMode): CachedPicks | null {
-  const row = db.prepare(`
-    SELECT focus_json, created_at
-    FROM advisor_cache WHERE map = ? AND queue_mode = ?
-  `).get(map, mode) as any;
+function readCachedPicks(store: AdvisorCacheStore, map: string, mode: QueueMode): CachedPicks | null {
+  const row = store.read(map, mode);
   if (!row) return null;
   const ageMs = Date.now() - new Date(row.created_at + 'Z').getTime();
   if (ageMs > CACHE_TTL_DAYS * 24 * 60 * 60 * 1000) return null;
@@ -162,16 +178,8 @@ function readCachedPicks(db: ReturnType<typeof getDb>, map: string, mode: QueueM
   } catch { return null; }
 }
 
-function writeCache(db: ReturnType<typeof getDb>, map: string, mode: QueueMode, primaryDps: string | null, byRole: Record<AdvisorRole, CachedRoleStretch>) {
-  db.prepare(`
-    INSERT INTO advisor_cache (map, queue_mode, primary_hero, stretch_hero, focus_json, created_at)
-    VALUES (?, ?, ?, ?, ?, datetime('now'))
-    ON CONFLICT(map, queue_mode) DO UPDATE SET
-      primary_hero = excluded.primary_hero,
-      stretch_hero = excluded.stretch_hero,
-      focus_json   = excluded.focus_json,
-      created_at   = excluded.created_at
-  `).run(map, mode, primaryDps ?? '', byRole.DPS.stretch, JSON.stringify({ byRole }));
+function writeCache(store: AdvisorCacheStore, map: string, mode: QueueMode, primaryDps: string | null, byRole: Record<AdvisorRole, CachedRoleStretch>) {
+  store.write(map, mode, primaryDps ?? '', byRole.DPS.stretch, JSON.stringify({ byRole }));
 }
 
 // Only roles with a non-empty stretch pool get stretch fields.
@@ -205,8 +213,7 @@ Queue context:
 - Open queue = 6v6, no role lock, expect double tank.
 - Role queue = 5v5, one tank.`;
 
-router.get('/recommend', async (req: Request, res: Response) => {
-  const db = getDb();
+router.get('/recommend', withReplica(async (req: Request, res: Response, db) => {
   const map = (req.query.map as string | undefined)?.trim();
   const mode = (req.query.queue_mode as QueueMode | undefined) ?? 'comp_role';
   const refresh = req.query.refresh === '1';
@@ -257,7 +264,7 @@ router.get('/recommend', async (req: Request, res: Response) => {
   // surfacing a no-longer-in-testing hero for up to CACHE_TTL_DAYS — drop the
   // whole cached entry (both roles) rather than trust a stale pick.
   if (!refresh) {
-    const cached = readCachedPicks(db, map, mode);
+    const cached = readCachedPicks(cacheStore(), map, mode);
     const stillFresh = cached && ADVISOR_ROLES.every(role => {
       if (!roleInfo[role].primary) return true; // no column to validate
       const s = cached.byRole[role]?.stretch ?? null;
@@ -373,7 +380,7 @@ router.get('/recommend', async (req: Request, res: Response) => {
       byRole[role] = { stretch, stretchUntested: stretch != null && !groundedSet.has(stretch) };
     }
 
-    writeCache(db, map, mode, roleInfo.DPS.primary?.hero ?? null, byRole);
+    writeCache(cacheStore(), map, mode, roleInfo.DPS.primary?.hero ?? null, byRole);
 
     res.json(Object.fromEntries(ADVISOR_ROLES.map(role => [
       role, buildPayload(role, byRole[role].stretch, byRole[role].stretchUntested, false),
@@ -382,7 +389,7 @@ router.get('/recommend', async (req: Request, res: Response) => {
     console.error('[advisor] LLM call failed:', err?.message ?? err);
     res.status(502).json({ error: `Advisor LLM call failed: ${err?.message ?? 'unknown error'}` });
   }
-});
+}));
 
 interface TestPickCombo { map: string; hero: string; games: number; win_rate: number; sample_size: 'strong' | 'thin' }
 
@@ -418,8 +425,7 @@ interface TestPickCombo { map: string; hero: string; games: number; win_rate: nu
 // 'no_phase_heroes' (no hero currently active in testing for this role —
 // e.g. the phase is finished, or none has ever started), 'no_data' (every
 // candidate combo across the active hero pool has zero games logged).
-router.get('/test-pick', (req: Request, res: Response) => {
-  const db = getDb();
+router.get('/test-pick', withReplica((req: Request, res: Response, db) => {
   const roleParam = req.query.role as string | undefined;
   if (!roleParam || !ADVISOR_ROLES.includes(roleParam as AdvisorRole)) {
     res.status(400).json({ error: `role must be one of ${ADVISOR_ROLES.join(', ')}` });
@@ -429,17 +435,24 @@ router.get('/test-pick', (req: Request, res: Response) => {
 
   const mapsParam = (req.query.maps as string | undefined) ?? '';
   const candidateMaps = [...new Set(mapsParam.split(',').map(m => m.trim()).filter(Boolean))].slice(0, 3);
+  res.json(computeTestPick(db, role, candidateMaps));
+}));
+
+export default router;
+
+// The /test-pick body for a role and the candidate maps. Pure over a db handle
+// so a test can run it on the tracker's own database and on a replica.
+export function computeTestPick(db: DatabaseSync, role: AdvisorRole, candidateMaps: string[]) {
   if (candidateMaps.length === 0) {
-    res.json({ role, available: false, reason: 'no_maps_selected', picks: [] });
-    return;
+    return { role, available: false, reason: 'no_maps_selected', picks: [] };
   }
 
   const inTesting = getInTestingHeroes(db);
   const roleHeroes = ALL_HEROES_BY_ROLE([role]).filter(h => inTesting.has(h));
   if (roleHeroes.length === 0) {
-    res.json({ role, available: false, reason: 'no_phase_heroes', picks: [] });
-    return;
+    return { role, available: false, reason: 'no_phase_heroes', picks: [] };
   }
+
   const heroPlaceholders = roleHeroes.map(() => '?').join(',');
   const mapPlaceholders = candidateMaps.map(() => '?').join(',');
 
@@ -465,8 +478,7 @@ router.get('/test-pick', (req: Request, res: Response) => {
   }
 
   if (scored.length === 0) {
-    res.json({ role, available: false, reason: 'no_data', picks: [] });
-    return;
+    return { role, available: false, reason: 'no_data', picks: [] };
   }
 
   scored.sort((a, b) => {
@@ -479,7 +491,5 @@ router.get('/test-pick', (req: Request, res: Response) => {
     return a.hero < b.hero ? -1 : 1;
   });
 
-  res.json({ role, available: true, picks: scored.slice(0, 3) });
-});
-
-export default router;
+  return { role, available: true, picks: scored.slice(0, 3) };
+}

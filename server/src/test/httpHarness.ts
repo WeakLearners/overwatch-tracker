@@ -28,7 +28,10 @@ import statsRouter from '../routes/stats';
 import ranksRouter from '../routes/ranks';
 import configRouter from '../routes/config';
 import roleTimerRouter from '../routes/roleTimer';
+import advisorRouter, { setAdvisorCacheStore, type AdvisorCacheStore } from '../routes/advisor';
 import v1Router from '../routes/v1';
+import { trackerWriteNotifier } from '../lib/trackerEvents';
+import { configureReplicaCache, resetReplicaCache, invalidateReplica } from '../lab/replicaCache';
 import { installExperiments } from '../experiments';
 import { setExperimentHooks } from '../lib/experimentHooks';
 
@@ -43,6 +46,8 @@ export interface Harness {
   post<T = any>(p: string, body?: unknown): Promise<ApiResponse<T>>;
   put<T = any>(p: string, body?: unknown): Promise<ApiResponse<T>>;
   del<T = any>(p: string): Promise<ApiResponse<T>>;
+  /** Origin of the harness server, for tests that build their own lab client. */
+  baseUrl: string;
   close(): Promise<void>;
 }
 
@@ -55,7 +60,13 @@ export interface Harness {
 // `experiments: false` runs the tracker with the no-op hooks, the way it runs
 // when the study module is absent or disabled. Default is the real controller,
 // which is what every existing suite expects.
-export async function startHarness(opts: { experiments?: boolean } = {}): Promise<Harness> {
+//
+// Lab routes read a cached replica of the tracker data (lab/replicaCache.ts).
+// Tests seed through `h.db` directly, which bypasses the write notifier, so by
+// default every h.get drops the cache first and a test always reads fresh data.
+// `freshReads: false` leaves the cache alone, to test invalidation itself. The
+// advisor cache store is an in-memory map unless `advisorStore` is given.
+export async function startHarness(opts: { experiments?: boolean; freshReads?: boolean; advisorStore?: AdvisorCacheStore } = {}): Promise<Harness> {
   if (opts.experiments === false) setExperimentHooks(); else installExperiments();
   const tmpPath = path.join(
     os.tmpdir(),
@@ -65,6 +76,7 @@ export async function startHarness(opts: { experiments?: boolean } = {}): Promis
 
   const app = express();
   app.use(express.json());
+  app.use('/api', trackerWriteNotifier);
   app.use('/api/matches', matchesRouter);
   app.use('/api/ranks', ranksRouter);
   app.use('/api/aim', aimRouter);
@@ -72,6 +84,7 @@ export async function startHarness(opts: { experiments?: boolean } = {}): Promis
   app.use('/api/stats', statsRouter);
   app.use('/api/config', configRouter);
   app.use('/api/role-timer', roleTimerRouter);
+  app.use('/api/advisor', advisorRouter);
   app.use('/api/v1', v1Router);
 
   const server = http.createServer(app);
@@ -79,8 +92,16 @@ export async function startHarness(opts: { experiments?: boolean } = {}): Promis
   const addr = server.address();
   if (!addr || typeof addr === 'string') throw new Error('harness: no port');
   const base = `http://127.0.0.1:${addr.port}`;
+  configureReplicaCache({ baseUrl: base });
+  const memory = new Map<string, { focus_json: string; created_at: string }>();
+  setAdvisorCacheStore(opts.advisorStore ?? {
+    read: (map, mode) => memory.get(`${map}|${mode}`) ?? null,
+    write: (map, mode, _p, _s, focusJson) => { memory.set(`${map}|${mode}`, { focus_json: focusJson, created_at: new Date().toISOString().slice(0, 19).replace('T', ' ') }); },
+  });
+  const fresh = opts.freshReads !== false;
 
   const call = async <T>(method: string, p: string, body?: unknown): Promise<ApiResponse<T>> => {
+    if (fresh) invalidateReplica();
     const res = await fetch(`${base}${p}`, {
       method,
       headers: body === undefined ? {} : { 'content-type': 'application/json' },
@@ -98,6 +119,7 @@ export async function startHarness(opts: { experiments?: boolean } = {}): Promis
 
   return {
     db,
+    baseUrl: base,
     get: (p) => call('GET', p),
     post: (p, body) => call('POST', p, body ?? {}),
     put: (p, body) => call('PUT', p, body ?? {}),
@@ -106,6 +128,8 @@ export async function startHarness(opts: { experiments?: boolean } = {}): Promis
       await new Promise<void>((resolve, reject) =>
         server.close(err => (err ? reject(err) : resolve())));
       closeDb();
+      resetReplicaCache();
+      setAdvisorCacheStore(null);
       for (const f of [tmpPath, `${tmpPath}-wal`, `${tmpPath}-shm`]) {
         if (fs.existsSync(f)) fs.unlinkSync(f);
       }

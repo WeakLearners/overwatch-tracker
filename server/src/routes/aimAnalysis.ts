@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { getDb } from '../db/schema';
+import type { DatabaseSync } from 'node:sqlite';
+import { withReplica } from '../lab/replicaCache';
 import {
   cm360, eDPI, archetypeOf, deriveSessionPosition, deriveSensAdaptation, TimelineMatch, MOUSE_DPI,
   fitQuadraticPeak, fitLinearTrend, CurvePoint,
@@ -15,9 +16,11 @@ const router = Router();
 // The Rawaccel curve params (see matches.ts / curveParams.ts) — editable
 // here, not phase-staged, so a GET is just a read of what's already being
 // written rather than a live/active-set query like /api/blind/state.
-router.get('/curve', (_req: Request, res: Response) => {
-  res.json(getCurveParams(getDb()));
-});
+// The curve is tracker-owned (curve_params, written by PUT /curve in
+// aimIngest.ts); the lab reads it through the replica (GET /api/v1/export/curve).
+router.get('/curve', withReplica((_req: Request, res: Response, db) => {
+  res.json(getCurveParams(db));
+}));
 
 const mean = (xs: number[]): number | null =>
   xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
@@ -64,8 +67,7 @@ function groupBy<T>(items: T[], key: (t: T) => string | number): Map<string | nu
 // the Match Tracker sends a sens value on every match regardless of queue
 // mode, so QP games — which never feed the DPI study — would otherwise pad
 // this backlog too.
-router.get('/pending', (req: Request, res: Response) => {
-  const db = getDb();
+router.get('/pending', withReplica((req: Request, res: Response, db) => {
   const limit = parseInt((req.query.limit as string) ?? '20') || 20;
   const rows = db.prepare(`
     SELECT m.id, m.date, m.time, m.hero, m.role, m.map, m.game_type, m.queue_mode, m.win, m.sens,
@@ -90,7 +92,7 @@ router.get('/pending', (req: Request, res: Response) => {
     WHERE a.match_id IS NULL AND EXISTS (SELECT 1 FROM blind_credits bc WHERE bc.match_id = m.id)
   `).get() as { total: number };
   res.json({ rows, total });
-});
+}));
 
 // Study analysis. Enriches each logged data point with derived fields (cm/360,
 // archetype, cold/warm session position, matches-since-sens-change, and overall
@@ -126,7 +128,7 @@ const LEGACY_SENS_ABSORB = [2.45, 2.47, 2.48, 2.55];
 // once, here; clients decide presentation, not validity.
 export const MIN_SCALE_N = 5;
 
-export function computeAnalysis(db: ReturnType<typeof getDb>) {
+export function computeAnalysis(db: DatabaseSync) {
   // Full timeline (incl. matches without stats) drives the session + sens-run
   // derivations; they need the gaps between every match, not just logged ones.
   // crashed matches carry no sens and take no part in the sens study (schema.ts `crashed`).
@@ -815,16 +817,15 @@ export function computeAnalysis(db: ReturnType<typeof getDb>) {
   };
 }
 
-router.get('/analysis', (_req: Request, res: Response) => {
-  res.json(computeAnalysis(getDb()));
-});
+router.get('/analysis', withReplica((_req: Request, res: Response, db) => {
+  res.json(computeAnalysis(db));
+}));
 
 // Matches already logged with combat stats on a given day — the /sens app's
 // record of what's been entered today, so the backfill form isn't a
 // write-only funnel. Mirrors /pending's per-hero heroes[] shape, plus each
 // hero's saved accuracy (aim_stats_heroes) so an edit form can prefill.
-router.get('/today', (req: Request, res: Response) => {
-  const db = getDb();
+router.get('/today', withReplica((req: Request, res: Response, db) => {
   const date = (req.query.date as string) ?? '';
   const rows = db.prepare(`
     SELECT m.id, m.date, m.time, m.hero, m.role, m.map, m.game_type, m.queue_mode, m.win, m.sens,
@@ -842,11 +843,10 @@ router.get('/today', (req: Request, res: Response) => {
     row.heroAcc = heroAccStmt.all({ id: row.id as number });
   }
   res.json({ rows });
-});
+}));
 
 // Aim stats joined with their match, for the analysis view. Newest first.
-router.get('/', (_req: Request, res: Response) => {
-  const db = getDb();
+router.get('/', withReplica((_req: Request, res: Response, db) => {
   const rows = db.prepare(`
     SELECT m.id, m.date, m.time, m.hero, m.role, m.map, m.game_type, m.queue_mode, m.win, m.sens,
            m.dpi, m.blind_trial, m.blind_set_id, m.stage_index, m.feel, m.notes,
@@ -857,6 +857,6 @@ router.get('/', (_req: Request, res: Response) => {
     ORDER BY m.id DESC
   `).all() as Record<string, unknown>[];
   res.json({ rows });
-});
+}));
 
 export default router;

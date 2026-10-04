@@ -4,7 +4,7 @@
 // Request/Response and are called only by stats.ts's `/insights` route,
 // which is why they were the lowest-risk piece of that file to split out.
 // Covered by server/src/routes/stats.test.ts's "Tier 2" suite.
-import { getDb } from '../db/schema';
+import type { DatabaseSync } from 'node:sqlite';
 
 // ── Hot hand ─────────────────────────────────────────────────────────────────
 // Does winning actually predict winning your next game, beyond what a coin
@@ -14,7 +14,7 @@ import { getDb } from '../db/schema';
 // specific 2-loss pattern for a live nudge; this is the general, all-history
 // version of the same question, reported as a trend rather than a live flag.
 const HOT_HAND_MIN_GAMES = 10;
-export function computeHotHand(db: ReturnType<typeof getDb>) {
+export function computeHotHand(db: DatabaseSync) {
   const row = db.prepare(`
     WITH numbered AS (
       SELECT win, LAG(win,1) OVER (PARTITION BY date ORDER BY time) AS prev1
@@ -83,7 +83,7 @@ export interface PerfOutcomeResult {
   sample_size: number;
 }
 
-export function computePerformanceOutcome(db: ReturnType<typeof getDb>): PerfOutcomeResult {
+export function computePerformanceOutcome(db: DatabaseSync): PerfOutcomeResult {
   const rows = db.prepare(`
     SELECT m.win, a.overall_acc, a.damage, a.elims, a.final_blows, a.duration_min
     FROM aim_stats a JOIN matches m ON m.id = a.match_id
@@ -158,7 +158,7 @@ export function computePerformanceOutcome(db: ReturnType<typeof getDb>): PerfOut
 // mode (qp/comp/open) mid-session, vs. staying in the same mode as the prior
 // same-day game. Session openers (no prior game) are excluded from both sides.
 const QUEUE_SWITCH_MIN_GAMES = 10;
-export function computeQueueSwitchTax(db: ReturnType<typeof getDb>) {
+export function computeQueueSwitchTax(db: DatabaseSync) {
   const row = db.prepare(`
     WITH numbered AS (
       SELECT win, queue_mode, LAG(queue_mode) OVER (PARTITION BY date ORDER BY time) AS prev_mode
@@ -188,7 +188,7 @@ export function computeQueueSwitchTax(db: ReturnType<typeof getDb>) {
 // A standalone check outside the normalized-rate performance features: does
 // crit accuracy above your own average actually correlate with winning?
 const CRIT_ACC_MIN_GAMES = 10;
-export function computeCritAccuracy(db: ReturnType<typeof getDb>) {
+export function computeCritAccuracy(db: DatabaseSync) {
   const rows = db.prepare(`
     SELECT m.win, a.crit_acc FROM aim_stats a JOIN matches m ON m.id = a.match_id
     WHERE a.crit_acc IS NOT NULL
@@ -213,7 +213,7 @@ export function computeCritAccuracy(db: ReturnType<typeof getDb>) {
 // "more closing = better" going in; the ratio is just compared to your own
 // average like the other splits.
 const KILL_SECURE_MIN_GAMES = 10;
-export function computeKillSecure(db: ReturnType<typeof getDb>) {
+export function computeKillSecure(db: DatabaseSync) {
   const rows = db.prepare(`
     SELECT m.win, a.final_blows, a.elims FROM aim_stats a JOIN matches m ON m.id = a.match_id
     WHERE a.elims IS NOT NULL AND a.elims > 0 AND a.final_blows IS NOT NULL
@@ -244,7 +244,7 @@ export function formatHour(h: number): string {
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12} ${period}`;
 }
-export function computeDayHourWindow(db: ReturnType<typeof getDb>) {
+export function computeDayHourWindow(db: DatabaseSync) {
   const rows = db.prepare(`
     SELECT day_of_week, hour, COUNT(*) AS n, ROUND(AVG(win)*100,1) AS wr
     FROM matches WHERE day_of_week IS NOT NULL AND hour IS NOT NULL
@@ -286,7 +286,7 @@ export interface SplitResult {
   groups: SplitGroup[];
 }
 export function computeFieldSplit(
-  db: ReturnType<typeof getDb>,
+  db: DatabaseSync,
   column: string,
   metrics: ('win_rate' | 'accuracy')[],
   where: string,
