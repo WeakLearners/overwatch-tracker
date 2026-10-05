@@ -737,6 +737,13 @@ function statusForHero(
   return { status: 'none', totalGames: 0, target, setId: null };
 }
 
+// Starting bracket for a hero with no prior-phase data, by archetype. These are
+// the Phase 4 best-guess brackets: Soldier: 76 (hitscan), Ana (projectile), and
+// Juno, whose bracket split the difference between the two (hybrid).
+const ARCHETYPE_DEFAULT_RANGE: Record<string, readonly [number, number]> = {
+  Hitscan: [2.50, 2.65], Projectile: [2.20, 2.35], Hybrid: [2.35, 2.50],
+};
+
 // One row of the "+ Add new phase" form — string-valued so number inputs can
 // sit blank/mid-edit without fighting controlled-input parsing.
 // `locked` rows are carried over from the latest phase — their sens range is
@@ -886,7 +893,13 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
   }
 
   // "+ Add hero" on the fallback strip — appends one hero to a custom phase.
-  const [addHeroRow, setAddHeroRow] = useState<NewPhaseRow | null>(null);
+  // Range is either the archetype's default bracket or typed by hand.
+  const [addHeroRow, setAddHeroRowRaw] = useState<NewPhaseRow | null>(null);
+  const [addHeroManual, setAddHeroManual] = useState(false);
+  const setAddHeroRow = (r: NewPhaseRow | null, manual = addHeroManual) => {
+    const d = r && !manual ? ARCHETYPE_DEFAULT_RANGE[r.archetype] : undefined;
+    setAddHeroRowRaw(r && d ? { ...r, low: d[0].toFixed(2), high: d[1].toFixed(2) } : r);
+  };
   async function saveAddedHero() {
     const r = addHeroRow;
     if (!r) return;
@@ -1084,7 +1097,8 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
             <div className="text-[10px] uppercase tracking-wide text-[var(--faint-2)] mb-1.5">
               Banned or taken? Drop to the next name in your role
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex items-start gap-4">
+            <div className="flex flex-col gap-1.5 flex-1 min-w-0">
               {roles.map(role => {
                 const list = byRole.get(role)!;
                 const nextUp = list.find(h => { const st = statuses.get(h.hero)?.status; return st !== 'completed' && st !== 'paused'; });
@@ -1119,7 +1133,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
               })}
             </div>
             {tabKey.startsWith('custom-') && (addHeroRow ? (
-              <div data-inspect-id="sl-plan-add-hero-form" className="grid grid-cols-12 gap-1.5 items-center mt-2">
+              <div data-inspect-id="sl-plan-add-hero-form" className="grid grid-cols-6 gap-1.5 items-center w-80 shrink-0 ml-auto">
                 <select
                   value={addHeroRow.hero} onChange={e => setAddHeroRow({ ...addHeroRow, hero: e.target.value })}
                   className={`${compactField} col-span-3`} aria-label="Hero"
@@ -1127,23 +1141,40 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                   <option value="">Hero</option>
                   {Object.keys(HEROES).filter(n => !RETIRED_HEROES.has(n) && !plan.some(p => p.hero === n)).sort().map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
-                <input placeholder="Archetype" value={addHeroRow.archetype} onChange={e => setAddHeroRow({ ...addHeroRow, archetype: e.target.value })} className={`${compactField} col-span-3`} aria-label="Archetype" />
-                <input type="number" step="0.01" min={0.01} placeholder="Low" value={addHeroRow.low} onChange={e => setAddHeroRow({ ...addHeroRow, low: e.target.value })} className={`${compactField} col-span-2`} aria-label="Low sens" />
-                <input type="number" step="0.01" placeholder="High" value={addHeroRow.high} onChange={e => setAddHeroRow({ ...addHeroRow, high: e.target.value })} className={`${compactField} col-span-2`} aria-label="High sens" />
-                <input type="number" step="1" min="1" value={addHeroRow.gamesPerSlot} onChange={e => setAddHeroRow({ ...addHeroRow, gamesPerSlot: e.target.value })} className={`${compactField} col-span-2`} aria-label="Games per slot" />
-                <input placeholder="Note (optional)" value={addHeroRow.note} onChange={e => setAddHeroRow({ ...addHeroRow, note: e.target.value })} className={`${compactField} col-span-8`} aria-label="Note" />
-                <button type="button" onClick={saveAddedHero} className="btn-primary col-span-2 py-1 text-xs">Add</button>
-                <button type="button" onClick={() => setAddHeroRow(null)} className={`${btnSecondary} col-span-2 py-1 text-xs`}>Cancel</button>
+                <select
+                  value={addHeroRow.archetype} onChange={e => setAddHeroRow({ ...addHeroRow, archetype: e.target.value })}
+                  className={`${compactField} col-span-3`} aria-label="Archetype"
+                >
+                  {Object.keys(ARCHETYPE_DEFAULT_RANGE).map(a => <option key={a} value={a}>{a}</option>)}
+                </select>
+                <select
+                  value={addHeroManual ? 'manual' : 'default'}
+                  onChange={e => { const m = e.target.value === 'manual'; setAddHeroManual(m); setAddHeroRow(addHeroRow, m); }}
+                  className={`${compactField} col-span-2`} aria-label="Sens range source"
+                >
+                  <option value="default">Default</option>
+                  <option value="manual">Manual</option>
+                </select>
+                <input type="number" step="0.01" min={0.01} placeholder="Low" value={addHeroRow.low} disabled={!addHeroManual} onChange={e => setAddHeroRow({ ...addHeroRow, low: e.target.value })} className={`${compactField} col-span-2 disabled:opacity-60`} aria-label="Low sens" />
+                <input type="number" step="0.01" placeholder="High" value={addHeroRow.high} disabled={!addHeroManual} onChange={e => setAddHeroRow({ ...addHeroRow, high: e.target.value })} className={`${compactField} col-span-2 disabled:opacity-60`} aria-label="High sens" />
+                <label className="col-span-3 flex items-center gap-1.5 text-[10px] text-[var(--faint)]" title="Games to play at each sens value before the block moves on">
+                  <input type="number" step="1" min="1" value={addHeroRow.gamesPerSlot} onChange={e => setAddHeroRow({ ...addHeroRow, gamesPerSlot: e.target.value })} className={`${compactField} w-12`} aria-label="Games per sens value" />
+                  games per sens
+                </label>
+                <input placeholder="Note (optional)" value={addHeroRow.note} onChange={e => setAddHeroRow({ ...addHeroRow, note: e.target.value })} className={`${compactField} col-span-3`} aria-label="Note" />
+                <button type="button" onClick={saveAddedHero} className="btn-primary col-span-3 py-1 text-xs">Add</button>
+                <button type="button" onClick={() => setAddHeroRow(null)} className={`${btnSecondary} col-span-3 py-1 text-xs`}>Cancel</button>
               </div>
             ) : (
               <button
-                type="button" onClick={() => setAddHeroRow(blankRow())}
+                type="button" onClick={() => { setAddHeroManual(false); setAddHeroRow({ ...blankRow(), archetype: 'Hitscan' }, false); }}
                 data-inspect-id="sl-plan-add-hero-btn"
-                className="mt-1.5 text-xs text-[var(--faint)] hover:text-[var(--ink-2)] transition-colors"
+                className="ml-auto shrink-0 text-xs text-[var(--faint)] hover:text-[var(--ink-2)] transition-colors"
               >
                 + Add hero
               </button>
             ))}
+            </div>
           </div>
         );
       })()}

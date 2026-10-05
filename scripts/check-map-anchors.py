@@ -11,7 +11,7 @@ DUPLICATE  two entries share an id (the overlay resolves the first and stops).
 
 The id-only check in sync-frontend-map-html.py cannot see line drift, which is how
 190 stale numbers once slipped past a green gate. Run --fix after any UI change,
-before the gate. --fix edits the file by targeted string replacement of each
+before the gate. --fix edits the file by targeted string replacement, inside each entry, of its
 `"path": "file:OLD"` literal (never json.dump, which would reformat the whole map).
 Each corrected number comes from its own grep's first hit, not from a uniform shift.
 """
@@ -61,17 +61,13 @@ def main():
     els, dead, drift, dups = scan(text)
 
     if fix and drift:
-        targets = collections.defaultdict(set)
-        for _, old, new in drift:
-            targets[old].add(new)
-        # An old path string shared by entries that now resolve differently can't be
-        # fixed by string replacement alone; leave those for a hand edit.
-        for old, news in sorted(targets.items()):
-            if len(news) > 1:
-                print('CONFLICT', old, '->', sorted(news), '(edit by hand)')
-                continue
+        # Replace each drifted path inside its own entry only. Two entries can share
+        # one stale path string, and a global replace would move the correct one too.
+        for e, old, new in drift:
+            start = text.index('"id": ' + json.dumps(e['id']))
             needle = '"path": ' + json.dumps(old)
-            text = text.replace(needle, '"path": ' + json.dumps(next(iter(news))))
+            at = text.index(needle, start)
+            text = text[:at] + '"path": ' + json.dumps(new) + text[at + len(needle):]
         with open(MAP, 'w', encoding='utf-8') as f:
             f.write(text)
         els, dead, drift, dups = scan(text)

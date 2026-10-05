@@ -2812,7 +2812,7 @@ const DATA = {
           "kind": "card",
           "description": "Card showing the selected phase's per-hero DPI/sens test plan, with phase tabs (including a trailing \"+ Add new phase\" tab), a description line, and one status tile per hero.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1026",
+            "path": "client/src/pages/SensLog.tsx:1039",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-plan-card\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2822,7 +2822,7 @@ const DATA = {
           "kind": "badge",
           "description": "Shown next to the phase description whenever the selected phase tab has curveEnabled set \u2014 flags that every hero test set in this phase was (or should be) played with Rawaccel acceleration on. Phase 7 is retroactively marked this way.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1058",
+            "path": "client/src/pages/SensLog.tsx:1071",
             "grep": "grep -n -F -- 'sl-plan-curve-enabled-badge' client/src/pages/SensLog.tsx"
           }
         },
@@ -2832,7 +2832,7 @@ const DATA = {
           "kind": "tab",
           "description": "Tab row switching which phase's per-hero test plan is displayed in the plan card. Hardcoded phases (Phase 2-5) come from PLAN_TABS in source; phases created via the \"+ Add new phase\" form are appended after them and persisted to localStorage. The trailing \"+ Add new phase\" button opens sl-add-phase-modal instead of switching tabs.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1036",
+            "path": "client/src/pages/SensLog.tsx:1049",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-plan-tabs\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2842,17 +2842,27 @@ const DATA = {
           "kind": "panel",
           "description": "Sits under the phase description, above the hero grid. Lists the phase's heroes split by role, in plan order \u2014 which IS rank order, most- to least-informative \u2014 so when a hero is banned or picked first, the next name down in the same role is the answer. Finished blocks are struck through; the first unfinished hero per role is bolded as next up. Derived from the plan plus statusForHero, not a separate hardcoded list. Sens proximity is deliberately not the ordering: each hero's bracket is its own, and changing sens between matches has no measurable cost (accuracy p=0.89). On custom phases only (key starts with custom-), a \"+ Add hero\" control at the bottom opens an inline form to append a hero to the end of the phase plan.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1081",
+            "path": "client/src/pages/SensLog.tsx:1094",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-plan-fallback-order\"' client/src/pages/SensLog.tsx"
+          }
+        },
+        {
+          "id": "sl-plan-add-hero-form",
+          "label": "Add-hero form (fallback strip)",
+          "kind": "form",
+          "description": "Right column of the fallback strip, beside the role lists. Hero picker (excludes heroes in the plan and retired ones), archetype dropdown (Hitscan / Projectile / Hybrid), range source (Default = the archetype's Phase 4 best-guess bracket from ARCHETYPE_DEFAULT_RANGE, read-only; Manual = type low/high), games per sens value, note. Sens is spread across the phase's existing stage count.",
+          "locate": {
+            "path": "client/src/pages/SensLog.tsx:1136",
+            "grep": "grep -n -F -- 'data-inspect-id=\"sl-plan-add-hero-form\"' client/src/pages/SensLog.tsx"
           }
         },
         {
           "id": "sl-plan-add-hero-btn",
           "label": "\"+ Add hero\" (fallback strip)",
           "kind": "button",
-          "description": "Custom phases only. Opens an inline form (hero picker excluding heroes already in the plan and retired ones, archetype, low/high sens, games/slot, note); save POSTs /api/custom-phases/:key/heroes, appending to the END of the plan (lowest priority in its role) with sens spread across the phase's existing stage count, then revalidates the strip, hero grid and Create-all button. Hardcoded phases are not editable.",
+          "description": "Custom phases only. Sits right of the role lists in the fallback strip and opens the add-hero form in its place (sl-plan-add-hero-form). Save POSTs /api/custom-phases/:key/heroes, appending to the END of the plan (lowest priority in its role), then revalidates the strip, hero grid and Create-all button. Hardcoded phases are not editable.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1141",
+            "path": "client/src/pages/SensLog.tsx:1171",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-plan-add-hero-btn\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2862,7 +2872,7 @@ const DATA = {
           "kind": "button",
           "description": "Shown above the per-hero plan grid only when at least one hero in the selected phase has no test set yet; creates a test set for every such hero in one click (skips heroes already testing or completed), equivalent to clicking each hero's own Create test set button individually.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1156",
+            "path": "client/src/pages/SensLog.tsx:1187",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-plan-create-all-btn\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2872,7 +2882,7 @@ const DATA = {
           "kind": "list",
           "description": "Grid of per-hero status tiles for the selected phase's plan, each showing target DPI stages, games/slot, and status (not started, testing, or completed).",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1163",
+            "path": "client/src/pages/SensLog.tsx:1194",
             "grep": "grep -n -F -- 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2' client/src/pages/SensLog.tsx"
           }
         },
@@ -2882,7 +2892,7 @@ const DATA = {
           "kind": "button",
           "description": "Starts a new blind DPI stage-trial set for that specific hero using the plan's preset DPIs and games-per-slot via POST /api/blind/sets.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1236",
+            "path": "client/src/pages/SensLog.tsx:1267",
             "grep": "grep -n -F -- 'creating === h.hero ? '\"'\"'Creating\u2026'\"'\"' : '\"'\"'Create test set'\"'\"'' client/src/pages/SensLog.tsx"
           }
         },
@@ -2892,7 +2902,7 @@ const DATA = {
           "kind": "badge",
           "description": "Overlay badge shown when a hero's plan tile is completed (\"Completed\" + games count), stamped over the tile. The in-progress state (games count + Cancel test) now lives in the fixed-height sl-plan-status-footer instead of a separate top badge.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1245",
+            "path": "client/src/pages/SensLog.tsx:1276",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-plan-status-badge\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2902,7 +2912,7 @@ const DATA = {
           "kind": "button",
           "description": "Cancels and deletes the active DPI test set for that hero, prompting for typed confirmation of the game count if games have already been logged.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1209",
+            "path": "client/src/pages/SensLog.tsx:1240",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-plan-cancel-btn\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2912,7 +2922,7 @@ const DATA = {
           "kind": "button",
           "description": "Removes the hero from the tested pool by pausing its set (POST /api/blind/sets/:id/pause). Nothing is deleted; the hero stops earning credit and drops out of Next test until added back.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1199",
+            "path": "client/src/pages/SensLog.tsx:1230",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-plan-remove-btn\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2922,7 +2932,7 @@ const DATA = {
           "kind": "button",
           "description": "Returns a removed hero to the tested pool by resuming its paused set (POST /api/blind/sets/:id/resume). The existing set and its credits continue; no new set is created.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1223",
+            "path": "client/src/pages/SensLog.tsx:1254",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-plan-resume-btn\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2932,7 +2942,7 @@ const DATA = {
           "kind": "button",
           "description": "Trailing tab after the phase tabs. Opens the sl-add-phase-modal popup pre-filled with the latest phase's heroes instead of switching the displayed plan.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1050",
+            "path": "client/src/pages/SensLog.tsx:1063",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-plan-add-phase-tab\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2942,7 +2952,7 @@ const DATA = {
           "kind": "modal",
           "description": "Popup (rendered via a React portal into document.body, since the plan card's clip-path would otherwise clip a nested fixed-position modal) for building the next phase's plan. Opens pre-loaded with every hero from the latest phase, each with its sens range auto-narrowed (2/3 of the old gap around the same midpoint) and shown read-only \u2014 clicking a row's \u00d7 excludes that hero. \"+ Add hero\" appends a blank, fully-editable row for heroes with no prior-phase range to narrow from. Saving appends a new custom phase tab, persisted to localStorage (sl-custom-phases-v1).",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1261",
+            "path": "client/src/pages/SensLog.tsx:1292",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-add-phase-modal\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2952,7 +2962,7 @@ const DATA = {
           "kind": "input",
           "description": "Global stage count for the new phase \u2014 each hero's auto-narrowed (or manually entered) low/high sens range is evenly spread across this many stage values.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1279",
+            "path": "client/src/pages/SensLog.tsx:1310",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-add-phase-stages-input\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2962,7 +2972,7 @@ const DATA = {
           "kind": "button",
           "description": "Sets phaseCurveEnabled=false for the phase about to be created \u2014 every hero set built by this modal shares this one on/off value (in_game_sens-style phase-wide constant), not a per-hero or per-match setting.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1290",
+            "path": "client/src/pages/SensLog.tsx:1321",
             "grep": "grep -n -F -- 'sl-add-phase-curve-enabled-' client/src/pages/SensLog.tsx"
           }
         },
@@ -2972,7 +2982,7 @@ const DATA = {
           "kind": "button",
           "description": "Sets phaseCurveEnabled=true for the phase about to be created. Same button element as sl-add-phase-curve-enabled-off (mapped from [false, true]) \u2014 both ids come from one data-inspect-id template distinguished by the v flag.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1290",
+            "path": "client/src/pages/SensLog.tsx:1321",
             "grep": "grep -n -F -- 'sl-add-phase-curve-enabled-' client/src/pages/SensLog.tsx"
           }
         },
@@ -2982,7 +2992,7 @@ const DATA = {
           "kind": "list",
           "description": "One compact row per hero in the new phase: hero name, archetype, low/high sens (read-only + auto-narrowed for heroes carried over from the latest phase, editable for manually added heroes), games/slot, and an exclude (\u00d7) button. The \"+ Add hero\" row sits at the bottom of this list.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1312",
+            "path": "client/src/pages/SensLog.tsx:1343",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-add-phase-rows\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2992,7 +3002,7 @@ const DATA = {
           "kind": "button",
           "description": "Dashed-border row at the bottom of the hero list; appends a new blank, fully-editable row (no prior-phase data to auto-narrow from).",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1358",
+            "path": "client/src/pages/SensLog.tsx:1389",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-add-phase-add-hero-btn\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -3002,7 +3012,7 @@ const DATA = {
           "kind": "button",
           "description": "Removes that hero's row from the new phase being built \u2014 the mechanism for excluding a latest-phase hero from the next phase.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1346",
+            "path": "client/src/pages/SensLog.tsx:1377",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-add-phase-remove-row-btn\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -3012,7 +3022,7 @@ const DATA = {
           "kind": "button",
           "description": "Closes the add-phase popup without saving.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1366",
+            "path": "client/src/pages/SensLog.tsx:1397",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-add-phase-cancel-btn\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -3022,7 +3032,7 @@ const DATA = {
           "kind": "button",
           "description": "Builds the new phase tab from the form's rows (spreading each hero's low/high sens across the stage count) and saves it to localStorage, then switches the plan card to the new phase.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1367",
+            "path": "client/src/pages/SensLog.tsx:1398",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-add-phase-save-btn\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -3032,7 +3042,7 @@ const DATA = {
           "kind": "button",
           "description": "Fetches and displays the final per-stage results table for a completed DPI test set.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1474",
+            "path": "client/src/pages/SensLog.tsx:1505",
             "grep": "grep -n -F -- 'Load summary' client/src/pages/SensLog.tsx"
           }
         },
@@ -3042,7 +3052,7 @@ const DATA = {
           "kind": "card",
           "description": "Shows the current stage number and target \u2014 an in-game sens for sens-varying sets (\"set your in-game sens to\"), or a mouse DPI for the legacy DPI-varying path (\"set your mouse to\", pre-lock stages only) \u2014 plus remaining progress in the current stage: games left (batch_size - games_on_stage) for a legacy/unchunked set, or closed blocks left (stageBlocksTarget - stageBlocks, 2026-09-27) for a chunked (ABBA) set, since a chunked stage's game count varies with match length. When the active stage's phase has Mouse Acceleration on, an extra subline notes it and points at the Jump-curve params card. One card renders per active set; the panel lays them out in two columns, DPS on the left and Support on the right (hero-less ad-hoc sets default to the DPS column).",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1485",
+            "path": "client/src/pages/SensLog.tsx:1516",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-active-test-card\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -3052,7 +3062,7 @@ const DATA = {
           "kind": "text",
           "description": "Amber 'switch stages' banner shown when needSwitch is true. Text differs by set type: 'Batch complete' for a legacy contiguous set (pairs with the Get next stage button below it), 'Chunk complete' for an ABBA-chunked set (2026-09-23 \u2014 pairs with the auto-switch note instead, no button).",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1508",
+            "path": "client/src/pages/SensLog.tsx:1539",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-switch-banner\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -3062,7 +3072,7 @@ const DATA = {
           "kind": "button",
           "description": "Advances the active DPI test set to its next stage once the current batch's game quota is met, via POST /api/blind/advance. Legacy contiguous sets only (2026-09-23) \u2014 a chunked set alternates automatically and this button doesn't render for one (POST /advance now refuses chunked sets server-side).",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1520",
+            "path": "client/src/pages/SensLog.tsx:1551",
             "grep": "grep -n -F -- 'Get next stage \u2192' client/src/pages/SensLog.tsx"
           }
         },
@@ -3072,7 +3082,7 @@ const DATA = {
           "kind": "text",
           "description": "Shown instead of the advance button on a chunked set when needSwitch is true \u2014 tells Sean there's no button, just change the physical setting and log the next match; it auto-credits to the new stage via lib/blind.ts's abbaStageFor. Added 2026-09-23.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1516",
+            "path": "client/src/pages/SensLog.tsx:1547",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-chunk-autoswitch-note\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -3082,7 +3092,7 @@ const DATA = {
           "kind": "stat-tile",
           "description": "'chunk <A1..B4> \u00b7 N minutes played' \u2014 the current chunk's letter/ordinal label plus minutes into the hero's open (unclosed) 60-minute block (GET /api/blind/state's chunk.label/chunk.openMinutes, lib/blind.ts's BLOCK_MINUTES/deriveBlockState). Converted 2026-09-27 from a game-count position ('x/chunk_size') to minutes, since a block's game count varies with match length. Sits alongside a blocks-left-in-stage figure (stageBlocksTarget - stageBlocks, replacing the old games-left-in-batch number for a chunked set specifically \u2014 a legacy/unchunked set still shows that games-based figure, untouched). Only rendered for a chunked set.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1531",
+            "path": "client/src/pages/SensLog.tsx:1562",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-chunk-progress\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -3092,7 +3102,7 @@ const DATA = {
           "kind": "button",
           "description": "Deletes and restarts the active DPI test set from stage 1, requiring typed confirmation of the game count if games are already logged.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1546",
+            "path": "client/src/pages/SensLog.tsx:1577",
             "grep": "grep -n -F -- 'Restart test from the beginning' client/src/pages/SensLog.tsx"
           }
         },
@@ -3102,7 +3112,7 @@ const DATA = {
           "kind": "card",
           "description": "Form card for manually starting a one-off, hero-less sens stage-trial set outside the phase plan. Mouse DPI is locked at 1600 (sl-locked-dpi-display); each stage's target is an in-game sens value (sl-sens-per-stage-inputs) instead of a DPI value.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1596",
+            "path": "client/src/pages/SensLog.tsx:1627",
             "grep": "grep -n -F -- 'Create an ad-hoc sens test set' client/src/pages/SensLog.tsx"
           }
         },
@@ -3112,7 +3122,7 @@ const DATA = {
           "kind": "input",
           "description": "Number input controlling how many stages the new ad-hoc sens test set will have; resizes the sens-per-stage input list (sl-sens-per-stage-inputs).",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1606",
+            "path": "client/src/pages/SensLog.tsx:1637",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-num-stages-input\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -3122,7 +3132,7 @@ const DATA = {
           "kind": "input",
           "description": "Number input for how many games must be logged per stage before advancing, for the new ad-hoc sens test set.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1609",
+            "path": "client/src/pages/SensLog.tsx:1640",
             "grep": "grep -n -F -- 'Games per stage (samples)' client/src/pages/SensLog.tsx"
           }
         },
@@ -3132,7 +3142,7 @@ const DATA = {
           "kind": "button",
           "description": "Sets curveEnabled=false for the ad-hoc/hero-less test set about to be created via CreateTestCard \u2014 a phase-wide constant for this one set, same pattern as the Add-phase modal toggle.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1620",
+            "path": "client/src/pages/SensLog.tsx:1651",
             "grep": "grep -n -F -- 'sl-adhoc-curve-enabled-' client/src/pages/SensLog.tsx"
           }
         },
@@ -3142,7 +3152,7 @@ const DATA = {
           "kind": "button",
           "description": "Sets curveEnabled=true for the ad-hoc/hero-less test set about to be created. Same button element as sl-adhoc-curve-enabled-off (mapped from [false, true]).",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1620",
+            "path": "client/src/pages/SensLog.tsx:1651",
             "grep": "grep -n -F -- 'sl-adhoc-curve-enabled-' client/src/pages/SensLog.tsx"
           }
         },
@@ -3152,7 +3162,7 @@ const DATA = {
           "kind": "button",
           "description": "Submits the ad-hoc DPI test set form, creating a new hero-less test set via POST /api/blind/sets.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1646",
+            "path": "client/src/pages/SensLog.tsx:1677",
             "grep": "grep -n -F -- 'busy ? '\"'\"'Creating\u2026'\"'\"' : '\"'\"'Create test set'\"'\"'' client/src/pages/SensLog.tsx"
           }
         },
@@ -3162,7 +3172,7 @@ const DATA = {
           "kind": "table",
           "description": "Table of per-stage results (DPI, percent delta, eDPI, equivalent sens at 1600, trial count, feel mean/variance) for a completed DPI test set.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1657",
+            "path": "client/src/pages/SensLog.tsx:1688",
             "grep": "grep -n -F -- 'Sens @1600' client/src/pages/SensLog.tsx"
           }
         },
@@ -3172,7 +3182,7 @@ const DATA = {
           "kind": "header",
           "description": "Section header for the backfill area where combat and aim stats are recorded for matches already logged elsewhere.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1798",
+            "path": "client/src/pages/SensLog.tsx:1829",
             "grep": "grep -n -F -- 'Record combat details' client/src/pages/SensLog.tsx"
           }
         },
@@ -3182,7 +3192,7 @@ const DATA = {
           "kind": "card",
           "description": "Left column of the backfill area: the selectable list of matches still missing their aim/combat stats (sl-awaiting-stats-list). Clicking a match expands it in place to show its combat-stats entry form (sl-inline-stats-form) instead of populating a separate form panel.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1802",
+            "path": "client/src/pages/SensLog.tsx:1833",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-awaiting-stats-card\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -3192,7 +3202,7 @@ const DATA = {
           "kind": "list",
           "description": "Selectable list of matches still missing their aim/combat stats; clicking a match toggles it open, expanding an inline combat-stats form (sl-inline-stats-form) beneath that card. Clicking the already-open match collapses it again. Each card carries an oversized W/L watermark (sl-awaiting-stats-watermark). Queue-mode correction is no longer available here \u2014 it moved to logmatch-todays-matches-mode-toggle on the Log Match page, the app's single place to edit a match.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1810",
+            "path": "client/src/pages/SensLog.tsx:1841",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-awaiting-stats-list\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -3202,7 +3212,7 @@ const DATA = {
           "kind": "decoration",
           "description": "Oversized italic W/L letter painted behind the card at ~15% opacity, same treatment as ModeWatermark (font-display, font-black, italic, tracking-tight) \u2014 green for a win, red for a loss. Right-anchored and translated so it bleeds off the card's right edge, and sized taller than the row so it clips top and bottom too. aria-hidden; purely decorative.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1830",
+            "path": "client/src/pages/SensLog.tsx:1861",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-awaiting-stats-watermark\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -3212,7 +3222,7 @@ const DATA = {
           "kind": "card",
           "description": "Expands beneath a selected Awaiting Stats match card: the shared StatFields inputs (accuracy, hero stat, combat totals, duration), and the Save Stats button (sl-save-stats-btn). Each hero's tested sens is shown read-only inline next to their name inside StatFields (sl-hero-acc-inputs), formatted \"s.ss @ dddd (eDPI eeee)\" \u2014 no separate editable sens input in this form; correcting hero/mode/sens now happens only on logmatch-todays-matches-card on the Log Match page.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1877",
+            "path": "client/src/pages/SensLog.tsx:1908",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-inline-stats-form\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -3222,7 +3232,7 @@ const DATA = {
           "kind": "button",
           "description": "Saves the selected pending match's sensitivity and aim/combat stats via PUT /api/matches/:id and POST /api/aim; disabled until required fields are filled. On success the match drops out of Awaiting Stats and reappears in Logged Today.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1887",
+            "path": "client/src/pages/SensLog.tsx:1918",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-save-stats-btn\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -3232,7 +3242,7 @@ const DATA = {
           "kind": "banner",
           "description": "Inline error message shown when saving a pending match's aim stats fails.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1890",
+            "path": "client/src/pages/SensLog.tsx:1921",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-save-error-banner\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -3242,7 +3252,7 @@ const DATA = {
           "kind": "card",
           "description": "Right column of the backfill area: a running record of every match already saved today (GET /api/aim/today), so combat-stats entry isn't a write-only funnel. Clicking a match expands it in place, prefilled from its saved stats, to review or correct them. Hero/mode correction is no longer available here \u2014 that moved to logmatch-todays-matches-card on the Log Match page.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1900",
+            "path": "client/src/pages/SensLog.tsx:1931",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-logged-today-card\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -3252,7 +3262,7 @@ const DATA = {
           "kind": "list",
           "description": "Selectable list of matches already logged today; clicking a match toggles open an inline, prefilled combat-stats form (sl-logged-today-stats-form) beneath that card. Clicking the already-open match collapses it again. Each card carries the same W/L watermark (sl-logged-today-watermark) treatment as the Awaiting Stats cards. Queue-mode correction is no longer available here \u2014 it moved to logmatch-todays-matches-mode-toggle on the Log Match page.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1908",
+            "path": "client/src/pages/SensLog.tsx:1939",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-logged-today-list\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -3262,7 +3272,7 @@ const DATA = {
           "kind": "decoration",
           "description": "Oversized italic W/L letter painted behind the card at ~15% opacity, identical treatment to sl-awaiting-stats-watermark (font-display, font-black, italic, tracking-tight, right-anchored/bled off the edge, sized to clip top and bottom too). aria-hidden; purely decorative.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1931",
+            "path": "client/src/pages/SensLog.tsx:1962",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-logged-today-watermark\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -3272,7 +3282,7 @@ const DATA = {
           "kind": "indicator",
           "description": "Same win/loss dash treatment as Today's Matches' hero history strip (Log Match page) \u2014 up to 5 colored dashes below a Logged Today row's hero pill, newest leftmost, oldest dash mask-faded on its trailing edge. Backed by GET /api/matches/:id/hero-history.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1965",
+            "path": "client/src/pages/SensLog.tsx:1996",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-logged-today-hero-history\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -3282,7 +3292,7 @@ const DATA = {
           "kind": "label",
           "description": "This row's timestamp and stage/sens readout, absolutely positioned between the hero and map columns with fixed left/right rem offsets off the row card \u2014 same treatment as Today's Matches, holds position regardless of mid-match-switch peek pill width.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1984",
+            "path": "client/src/pages/SensLog.tsx:2015",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-logged-today-time-sens\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -3292,7 +3302,7 @@ const DATA = {
           "kind": "indicator",
           "description": "Same dash treatment as the hero history strip, shown below the map name for the last 5 matches played on that map. Backed by GET /api/matches/:id/map-history.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1993",
+            "path": "client/src/pages/SensLog.tsx:2024",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-logged-today-map-history\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -3302,7 +3312,7 @@ const DATA = {
           "kind": "card",
           "description": "Expands beneath a selected Logged Today match card, prefilled from its saved aim_stats/aim_stats_heroes rows: the shared StatFields inputs and the Save Changes button (sl-logged-today-save-btn) which upserts corrections over the existing row. Each hero's tested sens is shown read-only inline next to their name inside StatFields (sl-hero-acc-inputs), formatted \"s.ss @ dddd (eDPI eeee)\" \u2014 no separate editable sens input in this form; correcting hero/mode/sens now happens only on logmatch-todays-matches-card on the Log Match page.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:2009",
+            "path": "client/src/pages/SensLog.tsx:2040",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-logged-today-stats-form\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -3312,7 +3322,7 @@ const DATA = {
           "kind": "button",
           "description": "Re-saves the selected already-logged match's sensitivity and aim/combat stats via PUT /api/matches/:id and POST /api/aim (upsert), correcting the existing row rather than creating a new one.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:2018",
+            "path": "client/src/pages/SensLog.tsx:2049",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-logged-today-save-btn\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -3322,7 +3332,7 @@ const DATA = {
           "kind": "modal",
           "description": "Confirmation modal shown after saving the last pending match, offering to navigate back to the Match Tracker.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:2035",
+            "path": "client/src/pages/SensLog.tsx:2066",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-caught-up-modal\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -3332,7 +3342,7 @@ const DATA = {
           "kind": "button",
           "description": "Dismisses the \"All caught up\" modal without navigating away.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:2039",
+            "path": "client/src/pages/SensLog.tsx:2070",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-caught-up-stay-btn\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -3342,7 +3352,7 @@ const DATA = {
           "kind": "button",
           "description": "Navigates back to the Match Tracker (root route) from the \"All caught up\" modal.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:2040",
+            "path": "client/src/pages/SensLog.tsx:2071",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-caught-up-leave-btn\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -3372,7 +3382,7 @@ const DATA = {
           "kind": "input",
           "description": "Disabled input showing the permanently locked mouse DPI (1600) for the ad-hoc test-set creator.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1602",
+            "path": "client/src/pages/SensLog.tsx:1633",
             "grep": "grep -n -F -- 'sl-locked-dpi-display' client/src/pages/SensLog.tsx"
           }
         },
@@ -3382,7 +3392,7 @@ const DATA = {
           "kind": "list",
           "description": "One in-game sens input per stage for the ad-hoc DPI test-set creator.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1636",
+            "path": "client/src/pages/SensLog.tsx:1667",
             "grep": "grep -n -F -- 'sl-sens-per-stage-inputs' client/src/pages/SensLog.tsx"
           }
         }
@@ -5810,6 +5820,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 
