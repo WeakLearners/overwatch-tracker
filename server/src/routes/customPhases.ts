@@ -49,6 +49,44 @@ router.patch('/:key', (req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
+// ── Append one hero to the END of a custom phase's plan (plan order is rank
+// order, so the new hero is lowest priority in its role). Rewrites the
+// "N heroes × S stages, G games total." lead of the description to match;
+// any trailing text (e.g. the mouse-accel note) is kept. ────────────────────
+router.post('/:key/heroes', (req: Request, res: Response) => {
+  const h = req.body as { hero?: string; archetype?: string; gamesPerSlot?: number; note?: string; senses?: unknown };
+  const senses = h.senses;
+  if (!h.hero || typeof h.hero !== 'string' || !Array.isArray(senses) || senses.length < 2
+    || !senses.every(v => typeof v === 'number' && Number.isFinite(v) && v > 0)
+    || !(Number.isInteger(h.gamesPerSlot) && (h.gamesPerSlot as number) >= 1)) {
+    res.status(400).json({ error: 'hero, senses (>=2 positive numbers), and gamesPerSlot (integer >= 1) are required' });
+    return;
+  }
+  if (!(senses[0] < senses[senses.length - 1])) {
+    res.status(400).json({ error: 'low sens must be less than high sens' });
+    return;
+  }
+  const db = getDb();
+  const existing = db.prepare('SELECT * FROM custom_phases WHERE key = :key').get({ key: req.params.key }) as unknown as CustomPhaseRow | undefined;
+  if (!existing) {
+    res.status(404).json({ error: 'no custom phase with that key' });
+    return;
+  }
+  const plan = JSON.parse(existing.plan) as Array<{ hero: string; gamesPerSlot: number; senses?: number[]; dpis?: number[] }>;
+  if (plan.some(p => p.hero === h.hero)) {
+    res.status(409).json({ error: 'hero is already in this phase' });
+    return;
+  }
+  plan.push({ hero: h.hero, archetype: h.archetype || 'Unknown', gamesPerSlot: h.gamesPerSlot as number, note: h.note ?? '', senses } as never);
+  const stageCount = (p: { senses?: number[]; dpis?: number[] }) => (p.senses ?? p.dpis ?? []).length;
+  const totalGames = plan.reduce((sum, p) => sum + stageCount(p) * p.gamesPerSlot, 0);
+  const lead = `${plan.length} heroes × ${stageCount(plan[0])} stages, ${totalGames} games total.`;
+  const description = existing.description.replace(/^\d+ heroes × \d+ stages, \d+ games total\./, lead);
+  db.prepare('UPDATE custom_phases SET plan = :plan, description = :description WHERE key = :key')
+    .run({ key: req.params.key, plan: JSON.stringify(plan), description });
+  res.status(201).json({ ok: true, description });
+});
+
 // ── Delete a custom phase (tab/plan definition only — any test sets already
 // created from it stay as-is, same as the old localStorage behavior). ───────
 router.delete('/:key', (req: Request, res: Response) => {

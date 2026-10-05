@@ -885,6 +885,27 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
     }
   }
 
+  // "+ Add hero" on the fallback strip — appends one hero to a custom phase.
+  const [addHeroRow, setAddHeroRow] = useState<NewPhaseRow | null>(null);
+  async function saveAddedHero() {
+    const r = addHeroRow;
+    if (!r) return;
+    const low = parseFloat(r.low), high = parseFloat(r.high);
+    if (!r.hero || !(low > 0) || !(high > low)) { alert('Pick a hero and enter a low sens below the high sens.'); return; }
+    const nStages = plan[0] ? valuesOf(plan[0]).length : 2;
+    const res = await fetch(`/api/custom-phases/${encodeURIComponent(tabKey)}/heroes`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        hero: r.hero, archetype: r.archetype.trim() || 'Unknown',
+        gamesPerSlot: Math.max(1, parseInt(r.gamesPerSlot) || 5), note: r.note.trim(),
+        senses: spreadSens(low, high, Math.max(2, nStages)),
+      }),
+    });
+    if (!res.ok) { alert(((await res.json().catch(() => null)) as { error?: string } | null)?.error ?? 'Could not add hero.'); return; }
+    revalidateAll();
+    setAddHeroRow(null);
+  }
+
   function updateRow(i: number, patch: Partial<NewPhaseRow>) {
     setRows(prev => prev.map((r, ri) => (ri === i ? { ...r, ...patch } : r)));
   }
@@ -1097,6 +1118,32 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                 );
               })}
             </div>
+            {tabKey.startsWith('custom-') && (addHeroRow ? (
+              <div data-inspect-id="sl-plan-add-hero-form" className="grid grid-cols-12 gap-1.5 items-center mt-2">
+                <select
+                  value={addHeroRow.hero} onChange={e => setAddHeroRow({ ...addHeroRow, hero: e.target.value })}
+                  className={`${compactField} col-span-3`} aria-label="Hero"
+                >
+                  <option value="">Hero</option>
+                  {Object.keys(HEROES).filter(n => !RETIRED_HEROES.has(n) && !plan.some(p => p.hero === n)).sort().map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+                <input placeholder="Archetype" value={addHeroRow.archetype} onChange={e => setAddHeroRow({ ...addHeroRow, archetype: e.target.value })} className={`${compactField} col-span-3`} aria-label="Archetype" />
+                <input type="number" step="0.01" min={0.01} placeholder="Low" value={addHeroRow.low} onChange={e => setAddHeroRow({ ...addHeroRow, low: e.target.value })} className={`${compactField} col-span-2`} aria-label="Low sens" />
+                <input type="number" step="0.01" placeholder="High" value={addHeroRow.high} onChange={e => setAddHeroRow({ ...addHeroRow, high: e.target.value })} className={`${compactField} col-span-2`} aria-label="High sens" />
+                <input type="number" step="1" min="1" value={addHeroRow.gamesPerSlot} onChange={e => setAddHeroRow({ ...addHeroRow, gamesPerSlot: e.target.value })} className={`${compactField} col-span-2`} aria-label="Games per slot" />
+                <input placeholder="Note (optional)" value={addHeroRow.note} onChange={e => setAddHeroRow({ ...addHeroRow, note: e.target.value })} className={`${compactField} col-span-8`} aria-label="Note" />
+                <button type="button" onClick={saveAddedHero} className="btn-primary col-span-2 py-1 text-xs">Add</button>
+                <button type="button" onClick={() => setAddHeroRow(null)} className={`${btnSecondary} col-span-2 py-1 text-xs`}>Cancel</button>
+              </div>
+            ) : (
+              <button
+                type="button" onClick={() => setAddHeroRow(blankRow())}
+                data-inspect-id="sl-plan-add-hero-btn"
+                className="mt-1.5 text-xs text-[var(--faint)] hover:text-[var(--ink-2)] transition-colors"
+              >
+                + Add hero
+              </button>
+            ))}
           </div>
         );
       })()}
