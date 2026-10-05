@@ -761,17 +761,24 @@ async function advanceActive(active: DpiTestActive) {
 // Mouse DPI is locked at 1600 from Phase 4 on, so a tile only names the DPI when it differs.
 const PHASE_DPI = 1600;
 
+// The one rule for "this active set is that plan tile's test": same hero, batch
+// size, stage count and exact bracket, plus the exact phase for every phase that
+// is not one of the four legacy untagged ones. statusForHero and TestPanel's
+// orphan check both use it.
+function activeMatchesTile(a: DpiTestActive, hero: string, batchSize: number, values: readonly number[], phaseKey: string): boolean {
+  const scoped = !LEGACY_PHASE_KEYS.has(phaseKey);
+  return a.hero === hero && a.batch_size === batchSize && a.n_stages === values.length
+    && sameValues(a.stages.map(s => s.sens ?? s.dpi), values)
+    && (!scoped || a.phase === phaseKey);
+}
+
 function statusForHero(
   hero: string, actives: DpiTestActive[], sets: DpiTestSetSummary[], batchSize: number, values: readonly number[],
   phaseKey: string,
 ): HeroStatus {
   const nStages = values.length;
   const target = batchSize * nStages;
-  const scoped = !LEGACY_PHASE_KEYS.has(phaseKey);
-  const active = actives.find(a =>
-    a.hero === hero && a.batch_size === batchSize && a.n_stages === nStages
-    && sameValues(a.stages.map(s => s.sens ?? s.dpi), values)
-    && (!scoped || a.phase === phaseKey));
+  const active = actives.find(a => activeMatchesTile(a, hero, batchSize, values, phaseKey));
   if (active) {
     const minutes = active.chunk
       ? { played: Math.floor(active.chunk.closedBlocks * 60 + active.chunk.openMinutes), target: active.chunk.totalBlocksTarget * 60 }
@@ -1505,9 +1512,14 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
 // renders one progress card per active set, alongside an always-available
 // form for starting an ad-hoc one.
 function TestPanel({ state }: { state: DpiTestState | null }) {
-  // Hero-tagged tests live on their tile in the plan grid above. Only an ad-hoc
-  // (hero-less) set has no tile, so it keeps a compact card here.
-  const adHoc = (state?.actives ?? []).filter(a => !a.hero);
+  const { data: customPhasesData } = useApi<{ phases: PlanTab[] }>('/api/custom-phases');
+  // Hero-tagged tests live on their tile in the plan grid above. A set with no
+  // tile in ANY phase tab (hero-less ad-hoc, or a plan that no longer matches)
+  // would be invisible while still collecting credits, so it gets a compact
+  // card here. Held back until the custom phases load, so no card flashes.
+  const adHoc = customPhasesData == null ? [] : (state?.actives ?? []).filter(a =>
+    !a.hero || !([...PLAN_TABS, ...customPhasesData.phases].some(t =>
+      t.plan.some(h => activeMatchesTile(a, h.hero, h.gamesPerSlot, valuesOf(h), t.key)))));
   return (
     <div className="mb-6">
       {adHoc.length > 0 && (
