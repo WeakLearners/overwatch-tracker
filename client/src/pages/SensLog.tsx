@@ -12,6 +12,7 @@ import {
 import { format } from 'date-fns';
 import SensNav from '../components/SensNav';
 import { parseLutString, formatLut } from '../lib/lut';
+import LutPlot from '../components/LutPlot';
 import { useFieldConfig } from '../contexts/FieldConfigContext';
 
 // GET /api/blind/next's shape (see server/src/lib/nextTest.ts) — this page
@@ -234,8 +235,8 @@ interface CurveParams {
 //
 // Each point is two boxes: the speed you are moving the mouse at (counts per
 // millisecond) and what your sensitivity gets multiplied by once you reach it.
-// A table is just that pair, repeated, and Rawaccel draws the staircase
-// between them. So the honest control is the pairs themselves, not a smooth
+// A table is just that pair, repeated, and Rawaccel interpolates linearly
+// between them (accel-lookup.hpp; the plot above the boxes draws exactly that). So the honest control is the pairs themselves, not a smooth
 // curve's parameters that happen to pass near them.
 //
 // Nothing here generates or approximates a table. That matters more than it
@@ -326,6 +327,7 @@ function LutEditor({ data }: { data: CurveParams }) {
   return (
     <div data-inspect-id="sl-lut-editor">
       <p className="text-[10px] uppercase tracking-wide text-[var(--faint-2)] mb-1">speed (counts/ms), multiplier</p>
+      <LutPlot rows={rows} onChange={setRows} />
       <div className="flex flex-wrap gap-1.5 mb-2" data-inspect-id="sl-lut-rows">
         {rows.map((r, i) => (
           <div
