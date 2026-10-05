@@ -778,6 +778,7 @@ function statusForHero(
 ): HeroStatus {
   const nStages = values.length;
   const target = batchSize * nStages;
+  const scoped = !LEGACY_PHASE_KEYS.has(phaseKey);
   const active = actives.find(a => activeMatchesTile(a, hero, batchSize, values, phaseKey));
   if (active) {
     const minutes = active.chunk
