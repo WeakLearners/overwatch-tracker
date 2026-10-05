@@ -1250,7 +1250,9 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                     </span>
                   ))}
                 </div>
-                <p className="text-[10px] text-[var(--faint-2)] text-center mb-1">× <b className="font-bold">{h.gamesPerSlot}</b>/slot</p>
+                {!isMinutesPhase(tabKey) && (
+                  <p className="text-[10px] text-[var(--faint-2)] text-center mb-1">× <b className="font-bold">{h.gamesPerSlot}</b>/slot</p>
+                )}
                 {h.note && (
                   <p className="text-[11px] text-[var(--faint)] truncate mb-1" title={h.note}>{h.note}</p>
                 )}
