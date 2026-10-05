@@ -13,6 +13,9 @@ const TEST_ROLE_KEY = 'ow-test-role';
 // deliberately changes it (the crux of the sens study). Shared here because the
 // input lives in the Pre-Match row while the log form reads it on submit.
 const SENS_KEY = 'ow-last-sens';
+// The map picked for the match in progress. Kept across a page refresh; cleared
+// only when the match is logged or cancelled (both call setMap('')).
+const MATCH_MAP_KEY = 'ow-match-map';
 // deathBuffer (and its localStorage key) moved to DeathBufferContext.tsx,
 // 2026-09-26 — see that file's header comment for why.
 
@@ -213,7 +216,12 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(QUEUE_MODE_KEY, queueMode);
   }, [queueMode]);
 
-  const [map, setMap] = useState('');
+  const [map, setMap] = useState(() => {
+    try { return localStorage.getItem(MATCH_MAP_KEY) ?? ''; } catch { return ''; }
+  });
+  useEffect(() => {
+    try { if (map) localStorage.setItem(MATCH_MAP_KEY, map); else localStorage.removeItem(MATCH_MAP_KEY); } catch { /* ignore */ }
+  }, [map]);
   const [sens, setSens] = useState<string>(() => {
     try { return localStorage.getItem(SENS_KEY) ?? '2.5'; } catch { return '2.5'; }
   });

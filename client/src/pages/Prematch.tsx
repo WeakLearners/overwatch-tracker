@@ -18,6 +18,8 @@ import { MOUSE_DPI } from '../lib/aim';
 import { useFieldConfig } from '../contexts/FieldConfigContext';
 import { useDfHeroes, dfHeroSet, withDfBadge } from '../hooks/useDfHeroes';
 
+const VOTING_PICKS_KEY = 'ow-map-voting-picks';
+
 // GET /api/blind/next's shape — see server/src/lib/nextTest.ts for what each
 // field means (role pick, block lock, cold flag). Fetched fresh whenever
 // queueMode changes (Quickplay gets its own no-list response) and whenever
@@ -254,7 +256,14 @@ export default function Prematch() {
   const today = format(new Date(), 'yyyy-MM-dd');
   const { data: todayMatches } = useApi<{ rows: { win: 0 | 1; map: string; hero: string; crashed?: 0 | 1; player_rank: number | null; player_rank_start: number | null; created_at: string; time: string }[] }>(`/api/matches?from=${today}&to=${today}&limit=100`);
   const { data: streaksData } = useApi<Streaks>('/api/stats/streaks');
-  const [selected, setSelected] = useState<string[]>([]);
+  // Map Voting picks survive a page refresh; they clear only when the match is
+  // logged or cancelled (matchLoggedSignal, below).
+  const [selected, setSelected] = useState<string[]>(() => {
+    try { const v = JSON.parse(localStorage.getItem(VOTING_PICKS_KEY) ?? '[]'); return Array.isArray(v) ? v : []; } catch { return []; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(VOTING_PICKS_KEY, JSON.stringify(selected)); } catch { /* ignore */ }
+  }, [selected]);
   // Hand the Map Voting picks to the Log Match map picker, which narrows its
   // list to them (empty = every map). Cleared if this page goes away.
   useEffect(() => { setMapCandidates(selected); return () => setMapCandidates([]); }, [selected, setMapCandidates]);
@@ -331,10 +340,13 @@ export default function Prematch() {
     if (btActives.some(a => a.hero === last)) setBtHeroPick(last);
   }, [clickedHeroes, btActives]);
 
-  // Reset the voting picks after a match is logged (skips the initial mount).
-  const didMount = useRef(false);
+  // Reset the voting picks after a match is logged or cancelled. Compare against
+  // the signal seen at mount, not a did-mount flag: StrictMode runs effects twice
+  // on mount, and a flag would then wipe the picks restored from storage.
+  const seenSignal = useRef(matchLoggedSignal);
   useEffect(() => {
-    if (!didMount.current) { didMount.current = true; return; }
+    if (seenSignal.current === matchLoggedSignal) return;
+    seenSignal.current = matchLoggedSignal;
     setSelected([]);
     setQuery('');
   }, [matchLoggedSignal]);
