@@ -95,7 +95,7 @@ export default function LutPlot({ rows, onChange }: { rows: Row[]; onChange: (ro
   return (
     <div data-inspect-id="sl-lut-plot">
       <svg
-        ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="w-full h-auto block select-none"
+        ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="w-full h-auto block select-none text-ow-accent"
         style={{ touchAction: 'none' }} role="img" aria-label="Lookup table plot: speed against multiplier"
       >
         {xt.map(v => (
@@ -114,8 +114,8 @@ export default function LutPlot({ rows, onChange }: { rows: Row[]; onChange: (ro
           x={ML} y={MT} width={W - ML - MR} height={H - MT - MB} fill="transparent"
           style={{ cursor: 'crosshair' }} onClick={addAt} data-inspect-id="sl-lut-plot-area"
         />
-        {line && <polyline points={line} fill="none" stroke="#F7931E" strokeWidth={1.5} strokeLinejoin="round" pointerEvents="none" />}
-        {tail && <polyline points={tail} fill="none" stroke="#F7931E" strokeWidth={1.5} strokeDasharray="3 3" opacity={0.7} pointerEvents="none" />}
+        {line && <polyline points={line} fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinejoin="round" pointerEvents="none" />}
+        {tail && <polyline points={tail} fill="none" stroke="currentColor" strokeWidth={1.5} strokeDasharray="3 3" opacity={0.7} pointerEvents="none" />}
         {pts.map(p => (
           <g
             key={p.i} data-inspect-id="sl-lut-plot-point" style={{ cursor: 'grab' }}
@@ -131,7 +131,7 @@ export default function LutPlot({ rows, onChange }: { rows: Row[]; onChange: (ro
             onDoubleClick={() => rows.length > 2 && onChange(rows.filter((_, j) => j !== p.i))}
           >
             <circle cx={px(p.x)} cy={py(p.y)} r={9} fill="transparent" />
-            <circle cx={px(p.x)} cy={py(p.y)} r={active === p.i ? 5 : 4} fill="var(--field-bg)" stroke="#F7931E" strokeWidth={1.5} />
+            <circle cx={px(p.x)} cy={py(p.y)} r={active === p.i ? 5 : 4} fill="var(--field-bg)" stroke="currentColor" strokeWidth={1.5} />
           </g>
         ))}
         {shown && (
