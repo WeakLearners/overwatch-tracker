@@ -1689,27 +1689,24 @@ function CreateTestCard() {
   }
 
   return (
-    <div className="card max-w-lg" data-inspect-id="sl-create-test-card">
-      <div className="flex items-baseline gap-2 mb-4">
-      <h2 className="text-sm card-title shrink-0">Create an ad-hoc sens test set</h2>
-      <p className="text-xs text-[var(--faint)] min-w-0">Mouse DPI is locked at 1600 permanently. Pick each stage's in-game sens directly — e.g. levels chosen per hero from the analysis page. Type them into your in-game sens setting in this same order; the current stage's value stays visible on screen the whole test.</p>
-      </div>
-      <div className="grid grid-cols-2 gap-3 mb-3">
-        <label className="block">
-          <span className="block text-xs text-[var(--muted)] mb-1.5">Mouse DPI (locked)</span>
+    <div className="card" data-inspect-id="sl-create-test-card">
+      <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+        <h2 className="text-sm card-title shrink-0 self-center">Create an ad-hoc sens test set</h2>
+        <label className="block w-24">
+          <span className="block text-xs text-[var(--muted)] mb-1.5">DPI (locked)</span>
           <input type="number" data-inspect-id="sl-locked-dpi-display" className={`${field} opacity-60`} value={1600} disabled />
         </label>
-        <label className="block">
+        <label className="block w-20">
           <span className="block text-xs text-[var(--muted)] mb-1.5"># Stages</span>
           <input type="number" step="1" min="2" data-inspect-id="sl-num-stages-input" className={field} value={senses.length} onChange={e => setSlotCount(e.target.value)} />
         </label>
-        <label className="block col-span-2">
-          <span className="block text-xs text-[var(--muted)] mb-1.5">Games per stage (samples)</span>
+        <label className="block w-28">
+          <span className="block text-xs text-[var(--muted)] mb-1.5">Games per stage</span>
           <input type="number" step="1" min="1" data-inspect-id="sl-games-per-stage-input" className={field} value={batchSize} onChange={e => setBatchSize(e.target.value)} />
         </label>
-        <label className="block col-span-2">
-          <span className="block text-xs text-[var(--muted)] mb-1.5">Mouse Acceleration <span className="text-[var(--faint-2)]">— for this whole test set</span></span>
-          <div className="grid grid-cols-2 gap-2">
+        <div>
+          <span className="block text-xs text-[var(--muted)] mb-1.5">Mouse Acceleration <span className="text-[var(--faint-2)]">— whole test set</span></span>
+          <div className="grid grid-cols-2 gap-2 w-28">
             {([false, true] as const).map(v => (
               <button
                 key={String(v)}
@@ -1727,21 +1724,22 @@ function CreateTestCard() {
               </button>
             ))}
           </div>
-        </label>
-      </div>
-      <div className="mb-4">
-        <span className="block text-xs text-[var(--muted)] mb-1.5">In-game sens per stage</span>
-        <div className="grid grid-cols-3 gap-2" data-inspect-id="sl-sens-per-stage-inputs">
-          {senses.map((s, i) => (
-            <input
-              key={i} type="number" step="0.01" min={0.01} className={field} value={s} placeholder={`Stage ${i + 1}`}
-              onChange={e => setSenses(prev => prev.map((v, vi) => (vi === i ? e.target.value : v)))}
-              aria-label={`Stage ${i + 1} sens`}
-            />
-          ))}
         </div>
+        <div>
+          <span className="block text-xs text-[var(--muted)] mb-1.5">In-game sens per stage</span>
+          <div className="flex flex-wrap gap-2" data-inspect-id="sl-sens-per-stage-inputs">
+            {senses.map((s, i) => (
+              <input
+                key={i} type="number" step="0.01" min={0.01} className={`${field} w-20`} value={s} placeholder={`Stage ${i + 1}`}
+                onChange={e => setSenses(prev => prev.map((v, vi) => (vi === i ? e.target.value : v)))}
+                aria-label={`Stage ${i + 1} sens`}
+              />
+            ))}
+          </div>
+        </div>
+        <button type="button" onClick={createSet} disabled={busy} data-inspect-id="sl-create-adhoc-btn" className="btn-primary ml-auto px-5 py-2.5 text-sm">{busy ? 'Creating…' : 'Create test set'}</button>
       </div>
-      <button type="button" onClick={createSet} disabled={busy} data-inspect-id="sl-create-adhoc-btn" className="btn-primary w-full py-2.5 text-sm">{busy ? 'Creating…' : 'Create test set'}</button>
+      <p className="text-xs text-[var(--faint)] mt-3">Mouse DPI is locked at 1600 permanently. Pick each stage's in-game sens directly — e.g. levels chosen per hero from the analysis page. Type them into your in-game sens setting in this same order; the current stage's value stays visible on screen the whole test.</p>
     </div>
   );
 }

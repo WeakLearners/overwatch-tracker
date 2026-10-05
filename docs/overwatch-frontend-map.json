@@ -2648,7 +2648,7 @@
           "kind": "input",
           "description": "Number input controlling how many stages the new ad-hoc sens test set will have; resizes the sens-per-stage input list (sl-sens-per-stage-inputs).",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1704",
+            "path": "client/src/pages/SensLog.tsx:1701",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-num-stages-input\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2658,8 +2658,8 @@
           "kind": "input",
           "description": "Number input for how many games must be logged per stage before advancing, for the new ad-hoc sens test set.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1707",
-            "grep": "grep -n -F -- 'Games per stage (samples)' client/src/pages/SensLog.tsx"
+            "path": "client/src/pages/SensLog.tsx:1705",
+            "grep": "grep -n -F -- 'data-inspect-id=\"sl-games-per-stage-input\"' client/src/pages/SensLog.tsx"
           }
         },
         {
@@ -2668,7 +2668,7 @@
           "kind": "button",
           "description": "Sets curveEnabled=false for the ad-hoc/hero-less test set about to be created via CreateTestCard \u2014 a phase-wide constant for this one set, same pattern as the Add-phase modal toggle.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1718",
+            "path": "client/src/pages/SensLog.tsx:1715",
             "grep": "grep -n -F -- 'sl-adhoc-curve-enabled-' client/src/pages/SensLog.tsx"
           }
         },
@@ -2678,7 +2678,7 @@
           "kind": "button",
           "description": "Sets curveEnabled=true for the ad-hoc/hero-less test set about to be created. Same button element as sl-adhoc-curve-enabled-off (mapped from [false, true]).",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1718",
+            "path": "client/src/pages/SensLog.tsx:1715",
             "grep": "grep -n -F -- 'sl-adhoc-curve-enabled-' client/src/pages/SensLog.tsx"
           }
         },
@@ -2688,7 +2688,7 @@
           "kind": "button",
           "description": "Submits the ad-hoc DPI test set form, creating a new hero-less test set via POST /api/blind/sets.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1744",
+            "path": "client/src/pages/SensLog.tsx:1740",
             "grep": "grep -n -F -- 'busy ? '\"'\"'Creating\u2026'\"'\"' : '\"'\"'Create test set'\"'\"'' client/src/pages/SensLog.tsx"
           }
         },
@@ -2698,7 +2698,7 @@
           "kind": "table",
           "description": "Table of per-stage results (DPI, percent delta, eDPI, equivalent sens at 1600, trial count, feel mean/variance) for a completed DPI test set.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1755",
+            "path": "client/src/pages/SensLog.tsx:1753",
             "grep": "grep -n -F -- 'Sens @1600' client/src/pages/SensLog.tsx"
           }
         },
@@ -2708,7 +2708,7 @@
           "kind": "header",
           "description": "Section header for the backfill area where combat and aim stats are recorded for matches already logged elsewhere.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1896",
+            "path": "client/src/pages/SensLog.tsx:1894",
             "grep": "grep -n -F -- 'Record combat details' client/src/pages/SensLog.tsx"
           }
         },
@@ -2718,7 +2718,7 @@
           "kind": "card",
           "description": "Left column of the backfill area: the selectable list of matches still missing their aim/combat stats (sl-awaiting-stats-list). Clicking a match expands it in place to show its combat-stats entry form (sl-inline-stats-form) instead of populating a separate form panel.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1900",
+            "path": "client/src/pages/SensLog.tsx:1898",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-awaiting-stats-card\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2728,7 +2728,7 @@
           "kind": "list",
           "description": "Selectable list of matches still missing their aim/combat stats; clicking a match toggles it open, expanding an inline combat-stats form (sl-inline-stats-form) beneath that card. Clicking the already-open match collapses it again. Each card carries an oversized W/L watermark (sl-awaiting-stats-watermark). Queue-mode correction is no longer available here \u2014 it moved to logmatch-todays-matches-mode-toggle on the Log Match page, the app's single place to edit a match.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1908",
+            "path": "client/src/pages/SensLog.tsx:1906",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-awaiting-stats-list\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2738,7 +2738,7 @@
           "kind": "decoration",
           "description": "Oversized italic W/L letter painted behind the card at ~15% opacity, same treatment as ModeWatermark (font-display, font-black, italic, tracking-tight) \u2014 green for a win, red for a loss. Right-anchored and translated so it bleeds off the card's right edge, and sized taller than the row so it clips top and bottom too. aria-hidden; purely decorative.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1928",
+            "path": "client/src/pages/SensLog.tsx:1926",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-awaiting-stats-watermark\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2748,7 +2748,7 @@
           "kind": "card",
           "description": "Expands beneath a selected Awaiting Stats match card: the shared StatFields inputs (accuracy, hero stat, combat totals, duration), and the Save Stats button (sl-save-stats-btn). Each hero's tested sens is shown read-only inline next to their name inside StatFields (sl-hero-acc-inputs), formatted \"s.ss @ dddd (eDPI eeee)\" \u2014 no separate editable sens input in this form; correcting hero/mode/sens now happens only on logmatch-todays-matches-card on the Log Match page.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1975",
+            "path": "client/src/pages/SensLog.tsx:1973",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-inline-stats-form\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2758,7 +2758,7 @@
           "kind": "button",
           "description": "Saves the selected pending match's sensitivity and aim/combat stats via PUT /api/matches/:id and POST /api/aim; disabled until required fields are filled. On success the match drops out of Awaiting Stats and reappears in Logged Today.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1985",
+            "path": "client/src/pages/SensLog.tsx:1983",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-save-stats-btn\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2768,7 +2768,7 @@
           "kind": "banner",
           "description": "Inline error message shown when saving a pending match's aim stats fails.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1988",
+            "path": "client/src/pages/SensLog.tsx:1986",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-save-error-banner\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2778,7 +2778,7 @@
           "kind": "card",
           "description": "Right column of the backfill area: a running record of every match already saved today (GET /api/aim/today), so combat-stats entry isn't a write-only funnel. Clicking a match expands it in place, prefilled from its saved stats, to review or correct them. Hero/mode correction is no longer available here \u2014 that moved to logmatch-todays-matches-card on the Log Match page.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1998",
+            "path": "client/src/pages/SensLog.tsx:1996",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-logged-today-card\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2788,7 +2788,7 @@
           "kind": "list",
           "description": "Selectable list of matches already logged today; clicking a match toggles open an inline, prefilled combat-stats form (sl-logged-today-stats-form) beneath that card. Clicking the already-open match collapses it again. Each card carries the same W/L watermark (sl-logged-today-watermark) treatment as the Awaiting Stats cards. Queue-mode correction is no longer available here \u2014 it moved to logmatch-todays-matches-mode-toggle on the Log Match page.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:2006",
+            "path": "client/src/pages/SensLog.tsx:2004",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-logged-today-list\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2798,7 +2798,7 @@
           "kind": "decoration",
           "description": "Oversized italic W/L letter painted behind the card at ~15% opacity, identical treatment to sl-awaiting-stats-watermark (font-display, font-black, italic, tracking-tight, right-anchored/bled off the edge, sized to clip top and bottom too). aria-hidden; purely decorative.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:2029",
+            "path": "client/src/pages/SensLog.tsx:2027",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-logged-today-watermark\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2808,7 +2808,7 @@
           "kind": "indicator",
           "description": "Same win/loss dash treatment as Today's Matches' hero history strip (Log Match page) \u2014 up to 5 colored dashes below a Logged Today row's hero pill, newest leftmost, oldest dash mask-faded on its trailing edge. Backed by GET /api/matches/:id/hero-history.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:2063",
+            "path": "client/src/pages/SensLog.tsx:2061",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-logged-today-hero-history\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2818,7 +2818,7 @@
           "kind": "label",
           "description": "This row's timestamp and stage/sens readout, absolutely positioned between the hero and map columns with fixed left/right rem offsets off the row card \u2014 same treatment as Today's Matches, holds position regardless of mid-match-switch peek pill width.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:2082",
+            "path": "client/src/pages/SensLog.tsx:2080",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-logged-today-time-sens\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2828,7 +2828,7 @@
           "kind": "indicator",
           "description": "Same dash treatment as the hero history strip, shown below the map name for the last 5 matches played on that map. Backed by GET /api/matches/:id/map-history.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:2091",
+            "path": "client/src/pages/SensLog.tsx:2089",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-logged-today-map-history\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2838,7 +2838,7 @@
           "kind": "card",
           "description": "Expands beneath a selected Logged Today match card, prefilled from its saved aim_stats/aim_stats_heroes rows: the shared StatFields inputs and the Save Changes button (sl-logged-today-save-btn) which upserts corrections over the existing row. Each hero's tested sens is shown read-only inline next to their name inside StatFields (sl-hero-acc-inputs), formatted \"s.ss @ dddd (eDPI eeee)\" \u2014 no separate editable sens input in this form; correcting hero/mode/sens now happens only on logmatch-todays-matches-card on the Log Match page.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:2107",
+            "path": "client/src/pages/SensLog.tsx:2105",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-logged-today-stats-form\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2848,7 +2848,7 @@
           "kind": "button",
           "description": "Re-saves the selected already-logged match's sensitivity and aim/combat stats via PUT /api/matches/:id and POST /api/aim (upsert), correcting the existing row rather than creating a new one.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:2116",
+            "path": "client/src/pages/SensLog.tsx:2114",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-logged-today-save-btn\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2858,7 +2858,7 @@
           "kind": "modal",
           "description": "Confirmation modal shown after saving the last pending match, offering to navigate back to the Match Tracker.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:2133",
+            "path": "client/src/pages/SensLog.tsx:2131",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-caught-up-modal\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2868,7 +2868,7 @@
           "kind": "button",
           "description": "Dismisses the \"All caught up\" modal without navigating away.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:2137",
+            "path": "client/src/pages/SensLog.tsx:2135",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-caught-up-stay-btn\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2878,7 +2878,7 @@
           "kind": "button",
           "description": "Navigates back to the Match Tracker (root route) from the \"All caught up\" modal.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:2138",
+            "path": "client/src/pages/SensLog.tsx:2136",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-caught-up-leave-btn\"' client/src/pages/SensLog.tsx"
           }
         },
@@ -2908,7 +2908,7 @@
           "kind": "input",
           "description": "Disabled input showing the permanently locked mouse DPI (1600) for the ad-hoc test-set creator.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1700",
+            "path": "client/src/pages/SensLog.tsx:1697",
             "grep": "grep -n -F -- 'sl-locked-dpi-display' client/src/pages/SensLog.tsx"
           }
         },
@@ -2918,7 +2918,7 @@
           "kind": "list",
           "description": "One in-game sens input per stage for the ad-hoc DPI test-set creator.",
           "locate": {
-            "path": "client/src/pages/SensLog.tsx:1734",
+            "path": "client/src/pages/SensLog.tsx:1730",
             "grep": "grep -n -F -- 'sl-sens-per-stage-inputs' client/src/pages/SensLog.tsx"
           }
         }
