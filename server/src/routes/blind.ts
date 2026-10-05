@@ -412,13 +412,18 @@ router.post('/sets/:id/resume', (req: Request, res: Response) => {
 router.get('/sets', (_req: Request, res: Response) => {
   const db = getDb();
   const rows = db.prepare(`
-    SELECT id, hero, phase, active, paused_at, batch_size, created_at, curve_enabled
+    SELECT id, hero, phase, active, paused_at, batch_size, created_at, curve_enabled, chunk_size
     FROM blind_stage_sets ORDER BY id ASC
-  `).all() as { id: number; hero: string | null; phase: string | null; active: number; paused_at: string | null; batch_size: number; created_at: string; curve_enabled: number }[];
+  `).all() as { id: number; hero: string | null; phase: string | null; active: number; paused_at: string | null; batch_size: number; created_at: string; curve_enabled: number; chunk_size: number | null }[];
   const sets = rows.map(row => {
     const stages = stagesOf(db, row.id);
     const totalGames = totalGamesOf(db, row.id);
+    // A chunked 2-stage set runs on the 60-minute block clock: report minutes
+    // (closed blocks x 60 plus the open block) against 8 blocks per stage.
+    const blocks = row.chunk_size != null && stages.length === 2 ? blockStateOf(db, row.id) : null;
     return {
+      playedMinutes: blocks ? Math.floor(blocks.closedBlocks * 60 + blocks.openMinutes) : null,
+      targetMinutes: blocks ? STAGE_BLOCKS * stages.length * 60 : null,
       set_id: row.id, hero: row.hero, phase: row.phase, active: !!row.active, paused: !!row.paused_at,
       completed: isSetComplete(db, row.id),
       batch_size: row.batch_size, n_stages: stages.length, totalGames, created_at: row.created_at,

@@ -72,7 +72,7 @@ interface DpiTestActive {
   // the current physical stage's own progress in closed blocks (replacing
   // the games-based batch_size/games_on_stage figures above for a chunked
   // set specifically).
-  chunk: { label: string; openMinutes: number; stageBlocks: number; stageBlocksTarget: number } | null;
+  chunk: { label: string; openMinutes: number; stageBlocks: number; stageBlocksTarget: number; closedBlocks: number; totalBlocksTarget: number } | null;
 }
 interface DpiTestState {
   actives: DpiTestActive[];
@@ -81,6 +81,8 @@ interface DpiTestSetSummary {
   set_id: number; hero: string | null; phase: string | null; active: boolean; paused: boolean; completed: boolean;
   batch_size: number; n_stages: number; totalGames: number; created_at: string;
   values: number[];
+  // Minutes-model (chunked) sets only; null/absent for a games-model set.
+  playedMinutes?: number | null; targetMinutes?: number | null;
 }
 interface AnswerStage {
   stage_index: number; dpi: number; sens: number | null; pct_delta: number;
@@ -616,6 +618,27 @@ interface PlanHero {
 }
 interface PlanTab { key: string; label: string; description: string; plan: readonly PlanHero[]; curveEnabled?: boolean }
 
+// Minutes-model cutover. Phases 2-10 counted GAMES per sens and stay that way.
+// Phase 11 (custom-1790013747540, 2026-09-21) was the first ABBA/chunked phase and
+// every phase built after it is too: a block is 60 min on one hero, a stage is 8
+// blocks (480 min), so 2 stages is 960 min per hero. Overflow minutes in a block
+// are dropped, never carried (server lib/blind.ts). The key is `custom-<ms>`, so
+// the cutover is a timestamp compare. gamesPerSlot stays stored on these entries
+// only as the set's batch_size (chunk = batch/4); it is never shown or asked for.
+const MINUTES_CUTOVER_TS = 1790013747540;
+const isMinutesPhase = (key: string) => key.startsWith('custom-') && Number(key.slice(7)) >= MINUTES_CUTOVER_TS;
+const MINUTES_BATCH = 40;
+const STAGE_MINUTES = 8 * 60;
+
+// Minutes phases derive the "N heroes × S stages, M min total." lead from the plan
+// (the stored lead goes stale when a hero is added). Tail text is kept as written.
+function phaseDescription(tab: { key: string; description: string; plan: readonly PlanHero[] }): string {
+  if (!isMinutesPhase(tab.key) || tab.plan.length === 0) return tab.description;
+  const nStages = valuesOf(tab.plan[0]).length;
+  const lead = `${tab.plan.length} heroes × ${nStages} stages, ${tab.plan.length * nStages * STAGE_MINUTES} min total.`;
+  return tab.description.replace(/^\d+ heroes [x×] \d+ stages, \d+ (?:games|min) total\./, lead);
+}
+
 const valuesOf = (h: PlanHero): readonly number[] => h.senses ?? h.dpis ?? [];
 
 // Tab labels are stored as "Phase 2" / "Phase 11" — in PLAN_TABS above and in
@@ -704,10 +727,19 @@ const sameValues = (a: readonly number[], b: readonly number[]) =>
 // was ever created for it (caught 2026-08-26).
 const LEGACY_PHASE_KEYS = new Set(['phase2', 'phase3', 'phase4', 'phase5']);
 
+interface HeroStatus {
+  status: HeroTestStatus; totalGames: number; target: number; setId: number | null;
+  // Set only for a chunked (minutes-model) set; null means the set counts games.
+  minutes: { played: number; target: number } | null;
+}
+// "123/960 min" for a minutes-model set, "12/80 games" for a legacy one.
+const progressLabel = (s: HeroStatus) =>
+  s.minutes ? `${s.minutes.played}/${s.minutes.target} min` : `${s.totalGames}/${s.target} games`;
+
 function statusForHero(
   hero: string, actives: DpiTestActive[], sets: DpiTestSetSummary[], batchSize: number, values: readonly number[],
   phaseKey: string,
-): { status: HeroTestStatus; totalGames: number; target: number; setId: number | null } {
+): HeroStatus {
   const nStages = values.length;
   const target = batchSize * nStages;
   const scoped = !LEGACY_PHASE_KEYS.has(phaseKey);
@@ -716,7 +748,10 @@ function statusForHero(
     && sameValues(a.stages.map(s => s.sens ?? s.dpi), values)
     && (!scoped || a.phase === phaseKey));
   if (active) {
-    return { status: active.completed ? 'completed' : 'testing', totalGames: active.totalGames, target, setId: active.set_id };
+    const minutes = active.chunk
+      ? { played: Math.floor(active.chunk.closedBlocks * 60 + active.chunk.openMinutes), target: active.chunk.totalBlocksTarget * 60 }
+      : null;
+    return { status: active.completed ? 'completed' : 'testing', totalGames: active.totalGames, target, setId: active.set_id, minutes };
   }
   const past = [...sets]
     .filter(s => s.hero === hero && s.batch_size === batchSize && s.n_stages === nStages && sameValues(s.values, values)
@@ -730,11 +765,13 @@ function statusForHero(
     // reactivate the set). Report that honestly as still-in-progress rather
     // than silently reporting "no test" — the set is real, it's just short.
     // Removed from the pool (paused_at set): data intact, not under test, resumable.
-    if (past.paused) return { status: 'paused', totalGames: past.totalGames, target, setId: past.set_id };
-    if (past.totalGames >= target) return { status: 'completed', totalGames: past.totalGames, target, setId: past.set_id };
-    return { status: 'testing', totalGames: past.totalGames, target, setId: past.set_id };
+    const minutes = past.targetMinutes != null ? { played: past.playedMinutes ?? 0, target: past.targetMinutes } : null;
+    if (past.paused) return { status: 'paused', totalGames: past.totalGames, target, setId: past.set_id, minutes };
+    // A minutes-model set is done when the server says so; its game count is not the target.
+    if (minutes ? past.completed : past.totalGames >= target) return { status: 'completed', totalGames: past.totalGames, target, setId: past.set_id, minutes };
+    return { status: 'testing', totalGames: past.totalGames, target, setId: past.set_id, minutes };
   }
-  return { status: 'none', totalGames: 0, target, setId: null };
+  return { status: 'none', totalGames: 0, target, setId: null, minutes: null };
 }
 
 // Starting bracket for a hero with no prior-phase data, by archetype. These are
@@ -758,7 +795,7 @@ interface NewPhaseRow {
   locked: boolean; reliable: boolean; basis: string;
 }
 const blankRow = (): NewPhaseRow => ({
-  hero: '', archetype: '', gamesPerSlot: '5', low: '', high: '', note: '',
+  hero: '', archetype: '', gamesPerSlot: String(MINUTES_BATCH), low: '', high: '', note: '',
   locked: false, reliable: true, basis: 'manually added — no prior-phase data to narrow from',
 });
 
@@ -838,7 +875,8 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
   useEffect(() => {
     if (!userPickedTab.current) setTabKeyRaw(lastBuilt.key);
   }, [lastBuilt.key]);
-  const { plan, description, curveEnabled: tabCurveEnabled } = allTabs.find(t => t.key === tabKey) ?? lastBuilt;
+  const { plan, description: storedDescription, curveEnabled: tabCurveEnabled } = allTabs.find(t => t.key === tabKey) ?? lastBuilt;
+  const description = phaseDescription({ key: tabKey, description: storedDescription, plan });
 
   const statuses = new Map(plan.map(h => [h.hero, statusForHero(h.hero, actives, sets, h.gamesPerSlot, valuesOf(h), tabKey)]));
   const [cancelling, setCancelling] = useState(false);
@@ -910,7 +948,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         hero: r.hero, archetype: r.archetype.trim() || 'Unknown',
-        gamesPerSlot: Math.max(1, parseInt(r.gamesPerSlot) || 5), note: r.note.trim(),
+        note: r.note.trim(),
         senses: spreadSens(low, high, Math.max(2, nStages)),
       }),
     });
@@ -932,16 +970,16 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
     }
     const plan: PlanHero[] = validRows.map(r => ({
       hero: r.hero.trim(), archetype: r.archetype.trim() || 'Unknown',
-      gamesPerSlot: Math.max(1, parseInt(r.gamesPerSlot) || 5),
+      gamesPerSlot: MINUTES_BATCH, // a new phase is minutes-model; see MINUTES_CUTOVER_TS
       note: r.note.trim(),
       senses: spreadSens(parseFloat(r.low), parseFloat(r.high), nStages),
     }));
     const nextNumber = allTabs.length + 2; // PLAN_TABS starts at "Phase 2"
-    const totalGames = plan.reduce((sum, h) => sum + valuesOf(h).length * h.gamesPerSlot, 0);
+    const totalMinutes = plan.reduce((sum, h) => sum + valuesOf(h).length * STAGE_MINUTES, 0);
     const newTab: PlanTab = {
       key: `custom-${Date.now()}`,
       label: `Phase ${nextNumber}`,
-      description: `${plan.length} heroes × ${nStages} stages, ${totalGames} games total.${phaseCurveEnabled ? ' Mouse acceleration ON for this phase.' : ''}`,
+      description: `${plan.length} heroes × ${nStages} stages, ${totalMinutes} min total.${phaseCurveEnabled ? ' Mouse acceleration ON for this phase.' : ''}`,
       plan,
       curveEnabled: phaseCurveEnabled,
     };
@@ -961,8 +999,11 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
   // server-side, so a phase can still be removed deliberately if one is ever
   // created by mistake.
   function setBodyFor(h: PlanHero) {
+    // A minutes-phase set is chunked (ABBA, 4 chunks per stage), which is what puts it
+    // on the 60-minute block clock; without chunk_size it would count games.
+    const chunk = isMinutesPhase(tabKey) && h.senses?.length === 2 ? { chunk_size: h.gamesPerSlot / 4 } : {};
     return h.senses
-      ? { senses: h.senses, batch_size: h.gamesPerSlot, hero: h.hero, phase: tabKey, curve_enabled: !!tabCurveEnabled }
+      ? { senses: h.senses, batch_size: h.gamesPerSlot, hero: h.hero, phase: tabKey, curve_enabled: !!tabCurveEnabled, ...chunk }
       : { in_game_sens: 2.5, batch_size: h.gamesPerSlot, dpis: h.dpis, hero: h.hero, phase: tabKey, curve_enabled: !!tabCurveEnabled };
   }
 
@@ -1157,13 +1198,9 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                 </select>
                 <input type="number" step="0.01" min={0.01} placeholder="Low" value={addHeroRow.low} disabled={!addHeroManual} onChange={e => setAddHeroRow({ ...addHeroRow, low: e.target.value })} className={`${compactField} col-span-2 disabled:opacity-60`} aria-label="Low sens" />
                 <input type="number" step="0.01" placeholder="High" value={addHeroRow.high} disabled={!addHeroManual} onChange={e => setAddHeroRow({ ...addHeroRow, high: e.target.value })} className={`${compactField} col-span-2 disabled:opacity-60`} aria-label="High sens" />
-                <label className="col-span-3 flex items-center gap-1.5 text-[10px] text-[var(--faint)]" title="Games to play at each sens value before the block moves on">
-                  <input type="number" step="1" min="1" value={addHeroRow.gamesPerSlot} onChange={e => setAddHeroRow({ ...addHeroRow, gamesPerSlot: e.target.value })} className={`${compactField} w-12`} aria-label="Games per sens value" />
-                  games per sens
-                </label>
-                <input placeholder="Note (optional)" value={addHeroRow.note} onChange={e => setAddHeroRow({ ...addHeroRow, note: e.target.value })} className={`${compactField} col-span-3`} aria-label="Note" />
-                <button type="button" onClick={saveAddedHero} className="btn-primary col-span-3 py-1 text-xs">Add</button>
-                <button type="button" onClick={() => setAddHeroRow(null)} className={`${btnSecondary} col-span-3 py-1 text-xs`}>Cancel</button>
+                <input placeholder="Note (optional)" value={addHeroRow.note} onChange={e => setAddHeroRow({ ...addHeroRow, note: e.target.value })} className={`${compactField} col-span-2`} aria-label="Note" />
+                <button type="button" onClick={saveAddedHero} className="btn-primary col-span-2 py-1 text-xs">Add</button>
+                <button type="button" onClick={() => setAddHeroRow(null)} className={`${btnSecondary} col-span-2 py-1 text-xs`}>Cancel</button>
               </div>
             ) : (
               <button
@@ -1191,96 +1228,84 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
           </button>
         );
       })()}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2" data-inspect-id="sl-plan-hero-grid">
+      {/* One compact row per hero: name, then the sens values being tested (the
+          lead element), then status + actions on the right. The plan note is a
+          tooltip on the row so it stays out of the way. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5" data-inspect-id="sl-plan-hero-grid">
         {plan.map(h => {
           const s = statuses.get(h.hero)!;
+          const progress = progressLabel(s);
           return (
-            <div key={h.hero} className="relative chamfer-sm bg-ow-darker border border-ow-border p-2 overflow-hidden">
-              <div className={s.status === 'completed' ? 'opacity-30 pointer-events-none' : s.status === 'paused' ? 'opacity-60' : ''}>
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <span className="text-xs hero-name text-[var(--ink)] truncate">{h.hero}</span>
-                  <span className="text-[9px] text-[var(--faint-2)] uppercase shrink-0">{h.archetype}</span>
-                </div>
-                {/* The sens values being tested are the whole point of the card —
-                    lead with them, large and centered, rather than burying them
-                    under the hero name as just another detail line. */}
-                <div className="flex items-center justify-center gap-1 mb-0.5">
+            <div key={h.hero} title={h.note || undefined} className="chamfer-sm bg-ow-darker border border-ow-border px-2 py-1 flex items-center gap-3 min-w-0">
+              <div className={`flex items-center gap-3 min-w-0 ${s.status === 'completed' ? 'opacity-40' : s.status === 'paused' ? 'opacity-60' : ''}`}>
+                <span className="w-24 shrink-0 min-w-0 truncate">
+                  <span className="text-xs hero-name text-[var(--ink)]">{h.hero}</span>
+                  <span className="ml-1 text-[9px] text-[var(--faint-2)] uppercase">{h.archetype.slice(0, 4)}</span>
+                </span>
+                <span className="flex items-center gap-1 shrink-0">
                   {valuesOf(h).map((v, i) => (
                     <span key={v} className="flex items-center gap-1">
                       {i > 0 && <span className="text-[var(--faint-2)] text-xs">/</span>}
-                      <span className="text-lg num-display font-bold text-[var(--ink)]">{h.senses ? v.toFixed(2) : v}</span>
+                      <span className="text-sm num-display font-bold text-[var(--ink)]">{h.senses ? v.toFixed(2) : v}</span>
                     </span>
                   ))}
-                </div>
-                <p className="text-[10px] text-[var(--faint-2)] text-center mb-1">× <b className="font-bold">{h.gamesPerSlot}</b>/slot</p>
-                {h.note && (
-                  <p className="text-[11px] text-[var(--faint)] truncate mb-1" title={h.note}>{h.note}</p>
-                )}
-                {/* Single fixed-height footer, its content switching by status — replaces the old
-                    top-badge + bottom-button pair (each separately reserved via `invisible`), which
-                    doubled the empty space every card carried regardless of which state it was in. */}
-                <div className="h-5 flex items-center" data-inspect-id="sl-plan-status-footer">
-                  {s.status === 'testing' && (
-                    <div className="flex items-center gap-2 w-full justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wide text-amber-500 truncate">{s.totalGames}/{s.target} games</span>
-                      <button
-                        type="button"
-                        onClick={() => s.setId != null && setPoolState(s.setId, 'pause')}
-                        disabled={poolBusy === s.setId || s.setId == null}
-                        data-inspect-id="sl-plan-remove-btn"
-                        title="Take this hero out of the test pool. Nothing is deleted; add it back to resume."
-                        className="text-[10px] text-[var(--faint)] hover:text-[var(--ink)] underline underline-offset-2 disabled:opacity-40 shrink-0 ml-auto"
-                      >
-                        Remove
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => s.setId != null && cancelActiveSet(s.setId, h.hero, s.totalGames)}
-                        disabled={cancelling || s.setId == null}
-                        data-inspect-id="sl-plan-cancel-btn"
-                        className="text-[10px] text-red-400 hover:text-red-300 underline underline-offset-2 disabled:opacity-40 shrink-0"
-                      >
-                        Cancel test
-                      </button>
-                    </div>
-                  )}
-                  {s.status === 'paused' && (
-                    <div className="flex items-center gap-2 w-full justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--faint)] truncate">Removed · {s.totalGames}/{s.target}</span>
-                      <button
-                        type="button"
-                        onClick={() => s.setId != null && setPoolState(s.setId, 'resume')}
-                        disabled={poolBusy === s.setId || s.setId == null}
-                        data-inspect-id="sl-plan-resume-btn"
-                        className={`${btnSecondary} px-2 py-0.5 text-[10px] shrink-0`}
-                      >
-                        Add back
-                      </button>
-                    </div>
-                  )}
-                  {s.status === 'none' && (
-                    <button
-                      type="button" onClick={() => createSetForHero(h)} disabled={creating === h.hero}
-                      data-inspect-id="sl-plan-create-btn"
-                      className={`${btnSecondary} w-full py-1 text-xs`}
-                    >
-                      {creating === h.hero ? 'Creating…' : 'Create test set'}
-                    </button>
-                  )}
-                </div>
+                </span>
               </div>
-
-              {s.status === 'completed' && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 bg-ow-card/40 backdrop-blur-[1px]">
-                  <span
-                    data-inspect-id="sl-plan-status-badge"
-                    className="heading-display text-2xl leading-none text-center drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)] text-emerald-500"
+              <div className="h-6 ml-auto flex items-center gap-2 shrink-0" data-inspect-id="sl-plan-status-footer">
+                {s.status === 'testing' && (
+                  <>
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-amber-500">{progress}</span>
+                    <button
+                      type="button"
+                      onClick={() => s.setId != null && setPoolState(s.setId, 'pause')}
+                      disabled={poolBusy === s.setId || s.setId == null}
+                      data-inspect-id="sl-plan-remove-btn"
+                      title="Take this hero out of the test pool. Nothing is deleted; add it back to resume."
+                      className="text-[10px] text-[var(--faint)] hover:text-[var(--ink)] underline underline-offset-2 disabled:opacity-40"
+                    >
+                      Remove
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => s.setId != null && cancelActiveSet(s.setId, h.hero, s.totalGames)}
+                      disabled={cancelling || s.setId == null}
+                      data-inspect-id="sl-plan-cancel-btn"
+                      className="text-[10px] text-red-400 hover:text-red-300 underline underline-offset-2 disabled:opacity-40"
+                    >
+                      Cancel test
+                    </button>
+                  </>
+                )}
+                {s.status === 'paused' && (
+                  <>
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--faint)]">Removed · {progress}</span>
+                    <button
+                      type="button"
+                      onClick={() => s.setId != null && setPoolState(s.setId, 'resume')}
+                      disabled={poolBusy === s.setId || s.setId == null}
+                      data-inspect-id="sl-plan-resume-btn"
+                      className={`${btnSecondary} px-2 py-0.5 text-[10px]`}
+                    >
+                      Add back
+                    </button>
+                  </>
+                )}
+                {s.status === 'none' && (
+                  <button
+                    type="button" onClick={() => createSetForHero(h)} disabled={creating === h.hero}
+                    data-inspect-id="sl-plan-create-btn"
+                    className={`${btnSecondary} px-2 py-0.5 text-[10px]`}
                   >
-                    Completed
-                  </span>
-                  <span className="text-[10px] font-semibold num-display text-[var(--ink)] drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">{s.totalGames} / {s.target} games</span>
-                </div>
-              )}
+                    {creating === h.hero ? 'Creating…' : 'Create test set'}
+                  </button>
+                )}
+                {s.status === 'completed' && (
+                  <>
+                    <span data-inspect-id="sl-plan-status-badge" className="text-[10px] font-bold uppercase tracking-wide text-emerald-500">Completed</span>
+                    <span className="text-[10px] num-display text-[var(--faint)]">{progress}</span>
+                  </>
+                )}
+              </div>
             </div>
           );
         })}
@@ -1338,7 +1363,6 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
               <span className="col-span-3">Archetype</span>
               <span className="col-span-2">Low sens</span>
               <span className="col-span-2">High sens</span>
-              <span className="col-span-1">Games</span>
             </div>
             <div className="space-y-1 mb-2" data-inspect-id="sl-add-phase-rows">
               {rows.map((r, i) => {
@@ -1367,10 +1391,6 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                       type="number" step="0.01" placeholder="High" value={r.high} onChange={e => updateRow(i, { high: e.target.value })}
                       disabled={r.locked}
                       className={`${compactField} col-span-2 ${r.locked ? 'opacity-60 cursor-not-allowed' : ''}`} aria-label={`Row ${i + 1} high sens`}
-                    />
-                    <input
-                      type="number" step="1" min="1" value={r.gamesPerSlot} onChange={e => updateRow(i, { gamesPerSlot: e.target.value })}
-                      className={`${compactField} col-span-1`} aria-label={`Row ${i + 1} games per slot`}
                     />
                     <button
                       type="button" onClick={() => setRows(prev => prev.filter((_, ri) => ri !== i))}
