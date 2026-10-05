@@ -29,6 +29,7 @@ export const CRIT_SLOT_LABEL: Record<string, { label: string; aria: string }> = 
   Pharah: { label: 'Direct Hit %', aria: 'direct hit accuracy' },
   Zenyatta: { label: 'Charged Volley %', aria: 'charged volley accuracy' },
   Baptiste: { label: 'Healing %(+)', aria: 'healing accuracy' },
+  Mizuki: { label: 'Binding Chain %', aria: 'binding chain accuracy' },
 };
 
 // Per-hero label for the optional 4th accuracy field (absent = this hero uses
