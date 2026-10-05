@@ -165,9 +165,9 @@ export default function SensLog() {
       {/* Phase overview (or its all-done note) and the Rawaccel table share one row at lg+:
           overview takes the rest, the LUT card a fixed 26rem. Whichever one is absent, the
           other is the only grid child and takes the whole row, so no empty column is left. */}
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_26rem] gap-6 mb-6 items-start" data-inspect-id="sl-overview-lut-row">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_26rem] gap-6 mb-6" data-inspect-id="sl-overview-lut-row">
       {sensStudyOn && nextTest && !nextTest.allFinished && (nextTest.heroes?.length ?? 0) > 0 && (
-        <div className="card" data-inspect-id="sl-phase-overview-card">
+        <div className="card h-full" data-inspect-id="sl-phase-overview-card">
           <div className="flex items-baseline gap-2 mb-3">
             <h2 className="text-sm card-title shrink-0">Phase overview</h2>
             <p className="text-xs text-[var(--faint)] min-w-0">
@@ -195,7 +195,7 @@ export default function SensLog() {
         </div>
       )}
       {sensStudyOn && nextTest?.allFinished && (
-        <div className="card" data-inspect-id="sl-phase-overview-finished">
+        <div className="card h-full" data-inspect-id="sl-phase-overview-finished">
           <p className="text-xs text-[var(--faint)]">
             {nextTest.allPaused
               ? 'No heroes in the test pool — add one back in the Plan card below.'
@@ -434,18 +434,15 @@ function CurveParamsCard() {
   const { data } = useApi<CurveParams>('/api/aim/curve');
   if (!data) return null;
   return (
-    <div className="card" data-inspect-id="sl-curve-params-card">
-      <div className="flex items-start justify-between mb-1">
+    <div className="card h-full" data-inspect-id="sl-curve-params-card">
+      {/* Every match logged while a table is saved records exactly these points, so a retune
+          shows as its own row in the analysis; with no table saved only "accel on" is recorded. */}
+      <div className="flex items-start justify-between mb-3">
         <h2 className="text-sm card-title">Rawaccel lookup table</h2>
         {data.lutPoints
           ? <span data-inspect-id="sl-lut-on-file-badge" className="text-[10px] text-[var(--faint-2)]">{data.lutPoints.length} points on file</span>
           : <span data-inspect-id="sl-lut-missing-badge" className="text-[10px] text-amber-600 dark:text-amber-400">no table on file</span>}
       </div>
-      <p className="text-xs text-[var(--faint)] mb-3">
-        The points Rawaccel is actually running: at each mouse speed, what your sens gets multiplied by. Every match
-        you log while a table is saved records exactly these, so a retune shows up in the analysis as its own row
-        instead of blending into the old one. With no table saved, a match records only that acceleration was on.
-      </p>
       <LutEditor data={data} />
     </div>
   );
