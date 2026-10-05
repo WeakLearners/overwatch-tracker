@@ -1228,84 +1228,97 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
           </button>
         );
       })()}
-      {/* One compact row per hero: name, then the sens values being tested (the
-          lead element), then status + actions on the right. The plan note is a
-          tooltip on the row so it stays out of the way. */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5" data-inspect-id="sl-plan-hero-grid">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2" data-inspect-id="sl-plan-hero-grid">
         {plan.map(h => {
           const s = statuses.get(h.hero)!;
           const progress = progressLabel(s);
           return (
-            <div key={h.hero} title={h.note || undefined} className="chamfer-sm bg-ow-darker border border-ow-border px-2 py-1 flex items-center gap-3 min-w-0">
-              <div className={`flex items-center gap-3 min-w-0 ${s.status === 'completed' ? 'opacity-40' : s.status === 'paused' ? 'opacity-60' : ''}`}>
-                <span className="w-24 shrink-0 min-w-0 truncate">
-                  <span className="text-xs hero-name text-[var(--ink)]">{h.hero}</span>
-                  <span className="ml-1 text-[9px] text-[var(--faint-2)] uppercase">{h.archetype.slice(0, 4)}</span>
-                </span>
-                <span className="flex items-center gap-1 shrink-0">
+            <div key={h.hero} className="relative chamfer-sm bg-ow-darker border border-ow-border p-2 overflow-hidden">
+              <div className={s.status === 'completed' ? 'opacity-30 pointer-events-none' : s.status === 'paused' ? 'opacity-60' : ''}>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span className="text-xs hero-name text-[var(--ink)] truncate">{h.hero}</span>
+                  <span className="text-[9px] text-[var(--faint-2)] uppercase shrink-0">{h.archetype}</span>
+                </div>
+                {/* The sens values being tested are the whole point of the card —
+                    lead with them, large and centered, rather than burying them
+                    under the hero name as just another detail line. */}
+                <div className="flex items-center justify-center gap-1 mb-0.5">
                   {valuesOf(h).map((v, i) => (
                     <span key={v} className="flex items-center gap-1">
                       {i > 0 && <span className="text-[var(--faint-2)] text-xs">/</span>}
-                      <span className="text-sm num-display font-bold text-[var(--ink)]">{h.senses ? v.toFixed(2) : v}</span>
+                      <span className="text-lg num-display font-bold text-[var(--ink)]">{h.senses ? v.toFixed(2) : v}</span>
                     </span>
                   ))}
-                </span>
+                </div>
+                <p className="text-[10px] text-[var(--faint-2)] text-center mb-1">× <b className="font-bold">{h.gamesPerSlot}</b>/slot</p>
+                {h.note && (
+                  <p className="text-[11px] text-[var(--faint)] truncate mb-1" title={h.note}>{h.note}</p>
+                )}
+                {/* Single fixed-height footer, its content switching by status — replaces the old
+                    top-badge + bottom-button pair (each separately reserved via `invisible`), which
+                    doubled the empty space every card carried regardless of which state it was in. */}
+                <div className="h-5 flex items-center" data-inspect-id="sl-plan-status-footer">
+                  {s.status === 'testing' && (
+                    <div className="flex items-center gap-2 w-full justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-amber-500 truncate">{progress}</span>
+                      <button
+                        type="button"
+                        onClick={() => s.setId != null && setPoolState(s.setId, 'pause')}
+                        disabled={poolBusy === s.setId || s.setId == null}
+                        data-inspect-id="sl-plan-remove-btn"
+                        title="Take this hero out of the test pool. Nothing is deleted; add it back to resume."
+                        className="text-[10px] text-[var(--faint)] hover:text-[var(--ink)] underline underline-offset-2 disabled:opacity-40 shrink-0 ml-auto"
+                      >
+                        Remove
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => s.setId != null && cancelActiveSet(s.setId, h.hero, s.totalGames)}
+                        disabled={cancelling || s.setId == null}
+                        data-inspect-id="sl-plan-cancel-btn"
+                        className="text-[10px] text-red-400 hover:text-red-300 underline underline-offset-2 disabled:opacity-40 shrink-0"
+                      >
+                        Cancel test
+                      </button>
+                    </div>
+                  )}
+                  {s.status === 'paused' && (
+                    <div className="flex items-center gap-2 w-full justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--faint)] truncate">Removed · {progress}</span>
+                      <button
+                        type="button"
+                        onClick={() => s.setId != null && setPoolState(s.setId, 'resume')}
+                        disabled={poolBusy === s.setId || s.setId == null}
+                        data-inspect-id="sl-plan-resume-btn"
+                        className={`${btnSecondary} px-2 py-0.5 text-[10px] shrink-0`}
+                      >
+                        Add back
+                      </button>
+                    </div>
+                  )}
+                  {s.status === 'none' && (
+                    <button
+                      type="button" onClick={() => createSetForHero(h)} disabled={creating === h.hero}
+                      data-inspect-id="sl-plan-create-btn"
+                      className={`${btnSecondary} w-full py-1 text-xs`}
+                    >
+                      {creating === h.hero ? 'Creating…' : 'Create test set'}
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="h-6 ml-auto flex items-center gap-2 shrink-0" data-inspect-id="sl-plan-status-footer">
-                {s.status === 'testing' && (
-                  <>
-                    <span className="text-[10px] font-bold uppercase tracking-wide text-amber-500">{progress}</span>
-                    <button
-                      type="button"
-                      onClick={() => s.setId != null && setPoolState(s.setId, 'pause')}
-                      disabled={poolBusy === s.setId || s.setId == null}
-                      data-inspect-id="sl-plan-remove-btn"
-                      title="Take this hero out of the test pool. Nothing is deleted; add it back to resume."
-                      className="text-[10px] text-[var(--faint)] hover:text-[var(--ink)] underline underline-offset-2 disabled:opacity-40"
-                    >
-                      Remove
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => s.setId != null && cancelActiveSet(s.setId, h.hero, s.totalGames)}
-                      disabled={cancelling || s.setId == null}
-                      data-inspect-id="sl-plan-cancel-btn"
-                      className="text-[10px] text-red-400 hover:text-red-300 underline underline-offset-2 disabled:opacity-40"
-                    >
-                      Cancel test
-                    </button>
-                  </>
-                )}
-                {s.status === 'paused' && (
-                  <>
-                    <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--faint)]">Removed · {progress}</span>
-                    <button
-                      type="button"
-                      onClick={() => s.setId != null && setPoolState(s.setId, 'resume')}
-                      disabled={poolBusy === s.setId || s.setId == null}
-                      data-inspect-id="sl-plan-resume-btn"
-                      className={`${btnSecondary} px-2 py-0.5 text-[10px]`}
-                    >
-                      Add back
-                    </button>
-                  </>
-                )}
-                {s.status === 'none' && (
-                  <button
-                    type="button" onClick={() => createSetForHero(h)} disabled={creating === h.hero}
-                    data-inspect-id="sl-plan-create-btn"
-                    className={`${btnSecondary} px-2 py-0.5 text-[10px]`}
+
+              {s.status === 'completed' && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 bg-ow-card/40 backdrop-blur-[1px]">
+                  <span
+                    data-inspect-id="sl-plan-status-badge"
+                    className="heading-display text-2xl leading-none text-center drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)] text-emerald-500"
                   >
-                    {creating === h.hero ? 'Creating…' : 'Create test set'}
-                  </button>
-                )}
-                {s.status === 'completed' && (
-                  <>
-                    <span data-inspect-id="sl-plan-status-badge" className="text-[10px] font-bold uppercase tracking-wide text-emerald-500">Completed</span>
-                    <span className="text-[10px] num-display text-[var(--faint)]">{progress}</span>
-                  </>
-                )}
-              </div>
+                    Completed
+                  </span>
+                  <span className="text-[10px] font-semibold num-display text-[var(--ink)] drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">{progress}</span>
+                </div>
+              )}
             </div>
           );
         })}
@@ -1439,15 +1452,15 @@ function TestPanel({ state }: { state: DpiTestState | null }) {
   const supportActives = actives.filter(a => a.hero && HEROES[a.hero] === 'Support');
   return (
     <div className="mb-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="space-y-2">
           {dpsActives.map(active => <ActiveTestCard key={active.set_id} active={active} />)}
         </div>
-        <div className="space-y-6">
+        <div className="space-y-2">
           {supportActives.map(active => <ActiveTestCard key={active.set_id} active={active} />)}
         </div>
       </div>
-      <div className="mt-6">
+      <div className="mt-3">
         <CreateTestCard />
       </div>
     </div>
@@ -1519,7 +1532,7 @@ function ActiveTestCard({ active }: { active: DpiTestActive }) {
   // lands, but this covers the brief window before that update is visible.
   if (active.completed) {
     return (
-      <div className="card max-w-lg">
+      <div className="card">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm card-title">{title} — complete</h2>
           <button type="button" onClick={loadSummary} data-inspect-id="sl-load-summary-btn" className={`${btnSecondary} py-1.5 px-3 text-xs`}>Load summary</button>
@@ -1530,72 +1543,61 @@ function ActiveTestCard({ active }: { active: DpiTestActive }) {
   }
 
   const gamesLeft = active.batch_size - active.games_on_stage;
+  const blocksLeft = active.chunk ? active.chunk.stageBlocksTarget - active.chunk.stageBlocks : 0;
 
+  // One compact card per test: hero + stage, the sens to set (the lead), the
+  // block/chunk progress, and restart, instead of two tall centered cards.
   return (
-    <div className="max-w-lg space-y-3">
-      <div className="card text-center" data-inspect-id="sl-active-test-card">
-        {active.sens != null ? (
-          <>
-            <div className="text-xs text-[var(--faint)] mb-1">
-              {active.hero && <><span className="name-caps">{active.hero}</span>{' — '}</>}Stage <b className="font-bold">{active.cur_stage}</b> of <b className="font-bold">{active.n_stages}</b> — set your in-game sens to
-            </div>
-            <div className="text-5xl heading-display text-[var(--ink)] my-2 num-display">{active.sens.toFixed(2)}</div>
-            <div className="text-xs text-[var(--faint)]">sens, mouse DPI locked <b className="num-display">{active.dpi}</b></div>
-            {active.curveEnabled && (
-              <div className="text-[10px] text-[var(--faint-2)] mt-1">mouse acceleration on — Jump curve, see the card above</div>
-            )}
-          </>
-        ) : (
-          <>
-            <div className="text-xs text-[var(--faint)] mb-1">
-              {active.hero && <><span className="name-caps">{active.hero}</span>{' — '}</>}Stage <b className="font-bold">{active.cur_stage}</b> of <b className="font-bold">{active.n_stages}</b> — set your mouse to
-            </div>
-            <div className="text-5xl heading-display text-[var(--ink)] my-2 num-display">{active.dpi ?? '—'}</div>
-            <div className="text-xs text-[var(--faint)]">DPI, in-game sens <b className="num-display">{active.in_game_sens.toFixed(2)}</b></div>
-          </>
-        )}
-        {active.needSwitch ? (
-          <>
-            <div className="text-xs text-amber-500 font-semibold mt-4 mb-1" data-inspect-id="sl-switch-banner">
-              {active.chunk ? 'Chunk complete — switch stages' : 'Batch complete — switch stages'}
-            </div>
-            {active.chunk ? (
-              // Chunked sets alternate automatically (see lib/blind.ts's
-              // abbaStageFor) — there is nothing to click. Change the
-              // physical setting shown above, then just log the next
-              // match; it auto-credits to the new stage.
-              <p className="text-[11px] text-[var(--faint-2)] mt-2" data-inspect-id="sl-chunk-autoswitch-note">
-                No button to press — set your sens/DPI to the value above, then log your next match as usual.
-              </p>
+    <div className="card !p-3" data-inspect-id="sl-active-test-card">
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="text-xs text-[var(--faint)] truncate">
+            {active.hero && <><span className="name-caps">{active.hero}</span>{' — '}</>}Stage <b className="font-bold">{active.cur_stage}</b> of <b className="font-bold">{active.n_stages}</b>
+            {active.curveEnabled && <span className="text-[var(--faint-2)]"> · accel on</span>}
+          </div>
+          <div className="flex items-baseline gap-2">
+            {active.sens != null ? (
+              <>
+                <span className="text-3xl heading-display text-[var(--ink)] num-display">{active.sens.toFixed(2)}</span>
+                <span className="text-[11px] text-[var(--faint)]">sens · DPI <b className="num-display">{active.dpi}</b></span>
+              </>
             ) : (
-              <button type="button" onClick={advance} disabled={busy} data-inspect-id="sl-advance-stage-btn" className={`${btnSecondary} w-full py-2 text-sm mt-2`}>Get next stage →</button>
+              <>
+                <span className="text-3xl heading-display text-[var(--ink)] num-display">{active.dpi ?? '—'}</span>
+                <span className="text-[11px] text-[var(--faint)]">DPI · sens <b className="num-display">{active.in_game_sens.toFixed(2)}</b></span>
+              </>
             )}
-          </>
-        ) : active.chunk ? (
-          <>
-            {/* A chunked (ABBA) set reports progress in 60-minute blocks now
-                (2026-09-27), not games — the number of games left to hit
-                the next switch varies with how long each match runs, so a
-                games-based figure would be misleading here. */}
-            <div className="text-2xl heading-display text-[var(--ink)] mt-4">{active.chunk.stageBlocksTarget - active.chunk.stageBlocks}</div>
-            <div className="text-xs text-[var(--faint)]">block{(active.chunk.stageBlocksTarget - active.chunk.stageBlocks) === 1 ? '' : 's'} left in this stage (of <b className="font-bold">{active.chunk.stageBlocksTarget}</b>)</div>
-            <div className="text-[11px] text-[var(--faint-2)] mt-1" data-inspect-id="sl-chunk-progress">
-              chunk <b className="font-bold">{active.chunk.label}</b> · <b className="num-display">{Math.floor(active.chunk.openMinutes)}</b> minutes played
-            </div>
-            <p className="text-[11px] text-[var(--faint-2)] mt-3">Log each game in the <b>Match Tracker</b> — it auto-tags to this stage and lands in the queue above for its combat details.</p>
-          </>
-        ) : (
-          <>
-            <div className="text-2xl heading-display text-[var(--ink)] mt-4">{gamesLeft}</div>
-            <div className="text-xs text-[var(--faint)]">game{gamesLeft === 1 ? '' : 's'} left in this batch (of <b className="font-bold">{active.batch_size}</b>)</div>
-            <p className="text-[11px] text-[var(--faint-2)] mt-3">Log each game in the <b>Match Tracker</b> — it auto-tags to this stage and lands in the queue above for its combat details.</p>
-          </>
-        )}
+          </div>
+        </div>
+        <button type="button" onClick={restart} disabled={busy} data-inspect-id="sl-restart-test-btn" className="shrink-0 text-[11px] text-[var(--faint-2)] hover:text-red-400" title="Restart test from the beginning">↺ Restart</button>
       </div>
-
-      <div className="card">
-        <button type="button" onClick={restart} disabled={busy} data-inspect-id="sl-restart-test-btn" className="w-full text-xs text-[var(--faint-2)] hover:text-red-400 py-1.5">↺ Restart test from the beginning</button>
-      </div>
+      {active.needSwitch ? (
+        <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-amber-500 font-semibold" data-inspect-id="sl-switch-banner">
+            {active.chunk ? 'Chunk complete — switch stages' : 'Batch complete — switch stages'}
+          </span>
+          {active.chunk ? (
+            // Chunked sets alternate automatically (see lib/blind.ts's
+            // abbaStageFor) — nothing to click. Change the physical setting,
+            // then log the next match; it auto-credits to the new stage.
+            <span className="text-[11px] text-[var(--faint-2)]" data-inspect-id="sl-chunk-autoswitch-note">
+              No button — set the value above, then log your next match.
+            </span>
+          ) : (
+            <button type="button" onClick={advance} disabled={busy} data-inspect-id="sl-advance-stage-btn" className={`${btnSecondary} py-1 px-3 text-xs`}>Get next stage →</button>
+          )}
+        </div>
+      ) : active.chunk ? (
+        // A chunked (ABBA) set reports progress in 60-minute blocks (2026-09-27), not games.
+        <div className="mt-1.5 text-[11px] text-[var(--faint-2)]" data-inspect-id="sl-chunk-progress">
+          <b className="num-display text-[var(--ink)]">{blocksLeft}</b> block{blocksLeft === 1 ? '' : 's'} left in this stage (of {active.chunk.stageBlocksTarget})
+          {' · '}chunk <b className="font-bold">{active.chunk.label}</b> · <b className="num-display">{Math.floor(active.chunk.openMinutes)}</b> min played
+        </div>
+      ) : (
+        <div className="mt-1.5 text-[11px] text-[var(--faint-2)]">
+          <b className="num-display text-[var(--ink)]">{gamesLeft}</b> game{gamesLeft === 1 ? '' : 's'} left in this batch (of {active.batch_size})
+        </div>
+      )}
     </div>
   );
 }
