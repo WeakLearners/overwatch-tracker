@@ -21,8 +21,8 @@ import { useFieldConfig } from '../contexts/FieldConfigContext';
 interface NextTestResponse {
   isQuickplay: boolean;
   phase: string | null;
-  heroes?: { hero: string; role: string; credited: number; target: number; daysSinceLastPlayed: number | null; completed: boolean }[];
-  projection?: { ratePerDay: number; projectedDays: number | null };
+  heroes?: { hero: string; role: string; credited: number; target: number; playedMinutes?: number; targetMinutes?: number; daysSinceLastPlayed: number | null; completed: boolean }[];
+  projection?: { unit?: 'min' | 'games'; ratePerDay: number; projectedDays: number | null };
   allFinished?: boolean;
   allPaused?: boolean;
 }
@@ -162,17 +162,21 @@ export default function SensLog() {
         <p className="text-sm text-[var(--faint)] mt-1">Enter each match's combat details here after the game. DPI stage trials are driven from the panel below and land in the same queue.</p>
       </div>
 
+      {/* Phase overview (or its all-done note) and the Rawaccel table share one row at lg+:
+          overview takes the rest, the LUT card a fixed 26rem. Whichever one is absent, the
+          other is the only grid child and takes the whole row, so no empty column is left. */}
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_26rem] gap-6 mb-6 items-start" data-inspect-id="sl-overview-lut-row">
       {sensStudyOn && nextTest && !nextTest.allFinished && (nextTest.heroes?.length ?? 0) > 0 && (
-        <div className="card mb-6" data-inspect-id="sl-phase-overview-card">
+        <div className="card" data-inspect-id="sl-phase-overview-card">
           <div className="flex items-baseline gap-2 mb-3">
             <h2 className="text-sm card-title shrink-0">Phase overview</h2>
             <p className="text-xs text-[var(--faint)] min-w-0">
               {nextTest.projection?.projectedDays != null
-                ? <>Projected finish in ~{Math.ceil(nextTest.projection.projectedDays)} days at the trailing 14-day pace ({nextTest.projection.ratePerDay.toFixed(1)} games/day) — a projection, not a promise.</>
-                : 'No games credited in the last 14 days — no basis for a finish projection yet.'}
+                ? <>Projected finish in ~{Math.ceil(nextTest.projection.projectedDays)} days at the trailing 14-day pace ({nextTest.projection.ratePerDay.toFixed(nextTest.projection.unit === 'min' ? 0 : 1)} {nextTest.projection.unit === 'min' ? 'min' : 'games'}/day) — a projection, not a promise.</>
+                : `No ${nextTest.projection?.unit === 'min' ? 'minutes' : 'games'} credited in the last 14 days — no basis for a finish projection yet.`}
             </p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1" data-inspect-id="sl-phase-overview-hero-grid">
+          <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-x-6 gap-y-1" data-inspect-id="sl-phase-overview-hero-grid">
             {nextTest.heroes?.map(h => (
               <div key={h.hero} className="flex items-center gap-2 text-xs" data-inspect-id="sl-phase-overview-hero-row">
                 <span className="hero-name flex-1 truncate">{h.hero}</span>
@@ -183,7 +187,7 @@ export default function SensLog() {
                   <span className="text-[9px] font-bold uppercase tracking-wide text-blue-500">cold</span>
                 )}
                 <span className={`num-display ${h.completed ? 'text-emerald-700 dark:text-emerald-400' : ''}`}>
-                  {h.completed ? 'Done' : `${h.credited}/${h.target}`}
+                  {h.completed ? 'Done' : h.targetMinutes != null ? `${h.playedMinutes ?? 0}/${h.targetMinutes} min` : `${h.credited}/${h.target}`}
                 </span>
               </div>
             ))}
@@ -191,7 +195,7 @@ export default function SensLog() {
         </div>
       )}
       {sensStudyOn && nextTest?.allFinished && (
-        <div className="card mb-6" data-inspect-id="sl-phase-overview-finished">
+        <div className="card" data-inspect-id="sl-phase-overview-finished">
           <p className="text-xs text-[var(--faint)]">
             {nextTest.allPaused
               ? 'No heroes in the test pool — add one back in the Plan card below.'
@@ -201,6 +205,7 @@ export default function SensLog() {
       )}
 
       <CurveParamsCard />
+      </div>
 
       <BackfillPanel pending={pending} loading={loading} />
 
@@ -429,7 +434,7 @@ function CurveParamsCard() {
   const { data } = useApi<CurveParams>('/api/aim/curve');
   if (!data) return null;
   return (
-    <div className="card mb-6" data-inspect-id="sl-curve-params-card">
+    <div className="card" data-inspect-id="sl-curve-params-card">
       <div className="flex items-start justify-between mb-1">
         <h2 className="text-sm card-title">Rawaccel lookup table</h2>
         {data.lutPoints

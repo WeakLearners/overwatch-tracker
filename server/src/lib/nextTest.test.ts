@@ -3,7 +3,7 @@
 // HeroTestProgress/BlockInfo from real tables).
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeNextTest, projectPhaseFinish, COLD_DAYS, type HeroTestProgress } from './nextTest';
+import { computeNextTest, projectPhaseFinish, projectionBasis, COLD_DAYS, type HeroTestProgress } from './nextTest';
 
 function hero(overrides: Partial<HeroTestProgress> & { hero: string; role: string }): HeroTestProgress {
   return { credited: 0, target: 80, daysSinceLastPlayed: null, completed: false, ...overrides };
@@ -177,5 +177,36 @@ describe('projectPhaseFinish', () => {
   test('nothing remaining projects to 0 days at a positive rate', () => {
     const p = projectPhaseFinish(0, 10, 14);
     assert.equal(p.projectedDays, 0);
+  });
+
+  test('defaults to games and carries a minutes unit through', () => {
+    assert.equal(projectPhaseFinish(10, 5, 5).unit, 'games');
+    const p = projectPhaseFinish(1800, 630, 14, 'min'); // 45 min/day, 1800 left -> 40 days
+    assert.equal(p.unit, 'min');
+    assert.equal(p.ratePerDay, 45);
+    assert.equal(p.projectedDays, 40);
+  });
+});
+
+describe('projectionBasis', () => {
+  test('an all-chunked phase counts remaining minutes', () => {
+    const b = projectionBasis([
+      hero({ hero: 'A', role: 'DPS', credited: 1, target: 16, playedMinutes: 100, targetMinutes: 960 }),
+      hero({ hero: 'B', role: 'DPS', credited: 0, target: 16, playedMinutes: 0, targetMinutes: 960 }),
+    ]);
+    assert.deepEqual(b, { unit: 'min', remaining: 860 + 960 });
+  });
+
+  test('a played overshoot never makes remaining negative', () => {
+    const b = projectionBasis([hero({ hero: 'A', role: 'DPS', target: 16, playedMinutes: 1000, targetMinutes: 960 })]);
+    assert.equal(b.remaining, 0);
+  });
+
+  test('a legacy or mixed phase keeps counting games', () => {
+    const b = projectionBasis([
+      hero({ hero: 'A', role: 'DPS', credited: 30, target: 80 }),
+      hero({ hero: 'B', role: 'DPS', credited: 1, target: 16, playedMinutes: 100, targetMinutes: 960 }),
+    ]);
+    assert.deepEqual(b, { unit: 'games', remaining: 50 + 15 });
   });
 });

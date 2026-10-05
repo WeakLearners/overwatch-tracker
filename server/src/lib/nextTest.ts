@@ -88,6 +88,8 @@ export interface NextTestRecommendation {
 }
 
 export interface PhaseProjection {
+  // 'min' for a phase whose sets all run on the 60-minute block clock, else 'games'.
+  unit: 'min' | 'games';
   ratePerDay: number;
   projectedDays: number | null; // null when the trailing rate is 0 — no basis to project from
 }
@@ -96,9 +98,20 @@ export interface PhaseProjection {
 // credited games "in the last N days," not "so far this week") — it's a
 // projection, not a scoreboard, and this endpoint's caller labels it as one
 // explicitly rather than presenting it as a promise.
-export function projectPhaseFinish(remaining: number, gamesInWindow: number, windowDays: number): PhaseProjection {
-  const ratePerDay = windowDays > 0 ? gamesInWindow / windowDays : 0;
-  return { ratePerDay, projectedDays: ratePerDay > 0 ? remaining / ratePerDay : null };
+export function projectPhaseFinish(remaining: number, inWindow: number, windowDays: number, unit: 'min' | 'games' = 'games'): PhaseProjection {
+  const ratePerDay = windowDays > 0 ? inWindow / windowDays : 0;
+  return { unit, ratePerDay, projectedDays: ratePerDay > 0 ? remaining / ratePerDay : null };
+}
+
+// What the projection counts. A phase is in minutes only when every hero's set is
+// chunked (has targetMinutes); a legacy or mixed phase keeps counting games, so the
+// remaining figure and the trailing-rate figure always share one unit.
+export function projectionBasis(heroes: HeroTestProgress[]): { unit: 'min' | 'games'; remaining: number } {
+  const minutes = heroes.length > 0 && heroes.every(h => h.targetMinutes != null);
+  const remaining = heroes.reduce((sum, h) => sum + (minutes
+    ? Math.max(0, (h.targetMinutes ?? 0) - (h.playedMinutes ?? 0))
+    : Math.max(0, h.target - h.credited)), 0);
+  return { unit: minutes ? 'min' : 'games', remaining };
 }
 
 export function computeNextTest(

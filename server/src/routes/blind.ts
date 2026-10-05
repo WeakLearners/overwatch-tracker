@@ -5,7 +5,7 @@ import {
   chunkLabelFor, deriveBlockState, CHUNK_BLOCKS, STAGE_BLOCKS, type BlockState,
 } from '../lib/blind';
 import { cm360, eDPI } from '../lib/aim';
-import { computeNextTest, projectPhaseFinish, type HeroTestProgress, type BlockInfo } from '../lib/nextTest';
+import { computeNextTest, projectPhaseFinish, projectionBasis, type HeroTestProgress, type BlockInfo } from '../lib/nextTest';
 import { HEROES_BY_ROLE } from '../lib/heroes';
 import { isDfHero } from '../lib/df';
 
@@ -756,7 +756,7 @@ router.get('/next', (req: Request, res: Response) => {
 
   if (!phase) {
     res.json({
-      isQuickplay: false, phase: null, heroes: [], projection: { ratePerDay: 0, projectedDays: null },
+      isQuickplay: false, phase: null, heroes: [], projection: { unit: 'games', ratePerDay: 0, projectedDays: null },
       allFinished: true, finishedHeroes: [], block: null, justClosed: null, recommendedRole: null, orderedHeroes: [],
     });
     return;
@@ -782,19 +782,29 @@ router.get('/next', (req: Request, res: Response) => {
   const PROJECTION_WINDOW_DAYS = 14;
   const setIds = db.prepare('SELECT id FROM blind_stage_sets WHERE phase = :phase AND hero IS NOT NULL AND paused_at IS NULL')
     .all({ phase }) as { id: number }[];
-  const gamesInWindow = setIds.length ? (db.prepare(`
-    SELECT COUNT(*) n FROM blind_credits bc JOIN matches m ON m.id = bc.match_id
-    WHERE bc.blind_set_id IN (${setIds.map(() => '?').join(',')}) AND bc.counts_result = 1
-      AND m.created_at >= datetime('now', '-${PROJECTION_WINDOW_DAYS} days')
-  `).get(...setIds.map(s => s.id)) as { n: number }).n : 0;
-  const remaining = heroes.reduce((sum, h) => sum + Math.max(0, h.target - h.credited), 0);
+  const basis = projectionBasis(heroes);
+  // Minutes phase: the hero's own credited minutes in the window (raw, so a block's
+  // dropped overflow minutes still count toward pace). Games phase: credited games.
+  const inWindow = !setIds.length ? 0 : basis.unit === 'min'
+    ? (db.prepare(`
+        SELECT COALESCE(SUM(ah.duration_min), 0) n FROM blind_credits bc
+        JOIN matches m ON m.id = bc.match_id
+        LEFT JOIN aim_stats_heroes ah ON ah.match_id = bc.match_id AND ah.hero = bc.hero
+        WHERE bc.blind_set_id IN (${setIds.map(() => '?').join(',')}) AND bc.counts_minutes = 1
+          AND m.created_at >= datetime('now', '-${PROJECTION_WINDOW_DAYS} days')
+      `).get(...setIds.map(s => s.id)) as { n: number }).n
+    : (db.prepare(`
+        SELECT COUNT(*) n FROM blind_credits bc JOIN matches m ON m.id = bc.match_id
+        WHERE bc.blind_set_id IN (${setIds.map(() => '?').join(',')}) AND bc.counts_result = 1
+          AND m.created_at >= datetime('now', '-${PROJECTION_WINDOW_DAYS} days')
+      `).get(...setIds.map(s => s.id)) as { n: number }).n;
   // Divide by the days the phase has actually run, capped at the window.
   // A 2-day-old phase divided by 14 read 18 games as 1.3/day (~484 days).
   const phaseStart = db.prepare('SELECT MIN(created_at) s FROM blind_stage_sets WHERE phase = :phase')
     .get({ phase }) as { s: string | null };
   const daysRunning = phaseStart.s ? (Date.now() - new Date(phaseStart.s + 'Z').getTime()) / 86_400_000 : PROJECTION_WINDOW_DAYS;
   const windowDays = Math.min(PROJECTION_WINDOW_DAYS, Math.max(1, daysRunning));
-  const projection = projectPhaseFinish(remaining, gamesInWindow, windowDays);
+  const projection = projectPhaseFinish(basis.remaining, inWindow, windowDays, basis.unit);
 
   // Heroes removed from the pool (paused sets). With none left in the pool,
   // computeNextTest reports allFinished — the card must say "empty pool", not
