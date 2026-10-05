@@ -498,6 +498,21 @@ function getDayOfWeek(dateStr: string) {
 }
 
 const PENDING_KEY = 'ow-pending-match';
+// The match in progress, saved so a page refresh does not lose it. Holds every
+// field Log Match owns except date/time (they follow the clock) and the rank
+// answer (reset by the result effect on mount). Cleared only on Log Match or
+// Match Cancelled, which reset these fields and so write an empty draft.
+// Kept under the old PENDING_KEY, which held only { hero } before.
+interface MatchDraft {
+  hero?: string; win?: '' | '0' | '1'; notes?: string; switchHeroes?: [string, string];
+  crashedGame?: boolean; feelByHero?: Record<string, number>; teamRating?: number;
+  matchQuality?: 'stomp' | 'close' | null; resultDriver?: 'me' | 'team' | null;
+  leaverSide?: 'mine' | 'theirs' | null; scoreUs?: string; scoreThem?: string;
+  aimOpen?: boolean; aimStats?: unknown;
+}
+const readDraft = (): MatchDraft => {
+  try { const v = JSON.parse(localStorage.getItem(PENDING_KEY) ?? '{}'); return v && typeof v === 'object' ? v : {}; } catch { return {}; }
+};
 
 // Active stage-test sets, as returned by /api/blind/state — used to show the
 // in-game sens this match will actually be tagged with, not the stale frozen
@@ -544,16 +559,16 @@ export default function LogMatch() {
   // below is a DISPLAY position only, so the slider thumb has somewhere to
   // rest before it's touched, and must never be read to decide what gets
   // saved. feelAnswered/feelValueFor are the only things submit() may read.
-  const [feelByHero, setFeelByHero] = useState<Record<string, number>>({});
+  const [feelByHero, setFeelByHero] = useState<Record<string, number>>(() => readDraft().feelByHero ?? {});
   const feelFor = (h: string) => feelByHero[h] ?? FEEL_MID;
   const feelAnswered = (h: string) => Object.prototype.hasOwnProperty.call(feelByHero, h);
   const feelValueFor = (h: string): number | null => feelAnswered(h) ? feelByHero[h] : null;
   const setFeelFor = (h: string, v: number) => setFeelByHero(prev => ({ ...prev, [h]: v }));
-  const [teamRating, setTeamRating] = useState(0);
+  const [teamRating, setTeamRating] = useState(() => readDraft().teamRating ?? 0);
   // Both start unselected and stay null if untouched — no pre-selection, and
   // clicking the already-selected option deselects it back to null.
-  const [matchQuality, setMatchQuality] = useState<'stomp' | 'close' | null>(null);
-  const [resultDriver, setResultDriver] = useState<'me' | 'team' | null>(null);
+  const [matchQuality, setMatchQuality] = useState<'stomp' | 'close' | null>(() => readDraft().matchQuality ?? null);
+  const [resultDriver, setResultDriver] = useState<'me' | 'team' | null>(() => readDraft().resultDriver ?? null);
   // Did somebody leave this match, and whose team. null means "nobody left" —
   // unlike matchQuality/resultDriver, an untouched control here is a true
   // answer, not a skipped question, so the submit payload derives the old
@@ -561,33 +576,31 @@ export default function LogMatch() {
   // tracking it separately. Was a plain boolean until 2026-09-24, when which
   // team mattered enough to become its own column (schema.ts's `leaver_side`
   // comment).
-  const [leaverSide, setLeaverSide] = useState<'mine' | 'theirs' | null>(null);
+  const [leaverSide, setLeaverSide] = useState<'mine' | 'theirs' | null>(() => readDraft().leaverSide ?? null);
   // Final round score, strings so blank stays blank (saves NULL).
-  const [scoreUs, setScoreUs] = useState('');
-  const [scoreThem, setScoreThem] = useState('');
+  const [scoreUs, setScoreUs] = useState(() => readDraft().scoreUs ?? '');
+  const [scoreThem, setScoreThem] = useState(() => readDraft().scoreThem ?? '');
 
   const [form, setForm] = useState<FormState>(() => {
     const n = new Date();
-    let pending: { hero?: string } = {};
-    try {
-      pending = JSON.parse(localStorage.getItem(PENDING_KEY) ?? '{}');
-    } catch { /* ignore */ }
+    const pending = readDraft();
     return {
       date: format(n, 'yyyy-MM-dd'),
       time: format(n, 'HH:mm'),
       hero: pending.hero ?? '',
-      win: '',
-      notes: '',
+      win: pending.win ?? '',
+      notes: pending.notes ?? '',
     };
   });
   // 2nd/3rd hero played this match, if the player switched — optional, both
   // default empty. Result (win/loss) attaches to every non-empty slot.
-  const [switchHeroes, setSwitchHeroes] = useState<SwitchHeroes>(['', '']);
+  const [switchHeroes, setSwitchHeroes] = useState<SwitchHeroes>(() => readDraft().switchHeroes ?? ['', '']);
   // "Game crashed": the scoreboard reset on rejoin, so any stats would cover
   // only the tail of the game. Logs a result-only match (server lib/crashed.ts):
   // result + context (date/time, queue, account, role, map, rank) and nothing
-  // from the scoreboard. Never persisted — each match decides afresh.
-  const [crashedGame, setCrashedGame] = useState(false);
+  // from the scoreboard. Kept across a refresh like the rest of the draft, and
+  // reset on log/cancel, so each match still decides afresh.
+  const [crashedGame, setCrashedGame] = useState(() => readDraft().crashedGame ?? false);
   const setSwitchHero = (i: 0 | 1) => (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSwitchHeroes(prev => {
       const next: SwitchHeroes = [...prev];
@@ -689,8 +702,8 @@ export default function LogMatch() {
   // Closed or left blank = today's behaviour: the match waits in the backlog.
   const showAimFold = !crashedGame && !!form.hero && !isQP && dfSensForHeroName(form.hero, dfMap) == null
     && (dpiState?.actives ?? []).some(a => a.hero === form.hero || a.hero === null);
-  const [aimOpen, setAimOpen] = useState(false);
-  const [aimStats, setAimStats] = useState<StatFieldsT>(emptyStats([]));
+  const [aimOpen, setAimOpen] = useState(() => readDraft().aimOpen ?? false);
+  const [aimStats, setAimStats] = useState<StatFieldsT>(() => (readDraft().aimStats as StatFieldsT | undefined) ?? emptyStats([]));
   // One stat row per hero played, in slot order. Rebuilt when the roster
   // changes, keeping whatever was already typed for a hero still on it.
   const playedKey = playedHeroes.join('|');
@@ -771,11 +784,20 @@ export default function LogMatch() {
     setPickedHeroes([form.hero, ...switchHeroes].filter(h => !!h));
   }, [form.hero, switchHeroes, setPickedHeroes]);
 
-  // Persist hero selection until it's logged or cleared.
+  // Persist the match in progress until it's logged or cancelled.
   useEffect(() => {
-    if (form.hero) localStorage.setItem(PENDING_KEY, JSON.stringify({ hero: form.hero }));
-    else localStorage.removeItem(PENDING_KEY);
-  }, [form.hero]);
+    const draft: MatchDraft = {
+      hero: form.hero, win: form.win, notes: form.notes, switchHeroes, crashedGame, feelByHero, teamRating,
+      matchQuality, resultDriver, leaverSide, scoreUs, scoreThem, aimOpen, aimStats,
+    };
+    const empty = !form.hero && !form.win && !form.notes && !switchHeroes.some(Boolean) && !crashedGame
+      && Object.keys(feelByHero).length === 0 && !teamRating && !matchQuality && !resultDriver && !leaverSide
+      && !scoreUs && !scoreThem && !aimOpen && !statsTouched(aimStats);
+    try {
+      if (empty) localStorage.removeItem(PENDING_KEY);
+      else localStorage.setItem(PENDING_KEY, JSON.stringify(draft));
+    } catch { /* ignore */ }
+  }, [form.hero, form.win, form.notes, switchHeroes, crashedGame, feelByHero, teamRating, matchQuality, resultDriver, leaverSide, scoreUs, scoreThem, aimOpen, aimStats]);
   const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
 
   // "Today's Matches" reads today's matches straight from the DB — the single
@@ -1155,6 +1177,8 @@ export default function LogMatch() {
                   setMatchQuality(null);
                   setResultDriver(null); setLeaverSide(null);
                   setScoreUs(''); setScoreThem('');
+                  setAimOpen(false);
+                  setAimStats(emptyStats([]));
                   clearDeathBuffer();
                   notifyMatchLogged();
                   // Back to the very top of the page, so the next match starts fresh.
