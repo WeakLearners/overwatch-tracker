@@ -255,12 +255,12 @@ const rowsFromPoints = (pts: [number, number][] | null): LutRow[] =>
 
 const rowsToString = (rows: LutRow[]) => rows.map(r => `${r.x.trim()},${r.y.trim()}`).join('; ');
 
-// Sized to the number, not to the column. A speed tops out around 140 and a
-// multiplier around 1.1, so five characters covers every value either box
-// will ever hold; a full-width field would be mostly empty space. Plain text
+// Fills its table cell; the columns share the card width equally, and a
+// table longer than ~7 points wraps into another band so a cell never gets
+// narrower than its digits (a speed tops out near 140, a multiplier near 1.1). Plain text
 // with a decimal keypad rather than type=number, whose spinner arrows would
 // cost more width than the digits do.
-const lutCell = 'w-[4.5ch] bg-transparent text-xs num-display text-[var(--ink)] text-center outline-none';
+const lutCell = 'w-full min-w-0 py-0.5 bg-transparent text-xs num-display text-[var(--ink)] text-center outline-none';
 
 function LutEditor({ data }: { data: CurveParams }) {
   const [rows, setRows] = useState<LutRow[]>(() => rowsFromPoints(data.lutPoints));
@@ -282,6 +282,9 @@ function LutEditor({ data }: { data: CurveParams }) {
   const parseError = 'error' in parsed ? parsed.error : null;
   const points = 'points' in parsed ? parsed.points : null;
   const dirty = rowsToString(rows) !== rowsToString(rowsFromPoints(data.lutPoints)) || !data.lutPoints;
+
+  const bands = Math.ceil(rows.length / 7);
+  const perBand = Math.ceil(rows.length / bands);
 
   const setCell = (i: number, k: keyof LutRow, v: string) =>
     setRows(rs => rs.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
@@ -328,31 +331,53 @@ function LutEditor({ data }: { data: CurveParams }) {
     <div data-inspect-id="sl-lut-editor">
       <p className="text-[10px] uppercase tracking-wide text-[var(--faint-2)] mb-1">speed (counts/ms), multiplier</p>
       <LutPlot rows={rows} onChange={setRows} />
-      <div className="flex flex-wrap gap-1.5 mb-2" data-inspect-id="sl-lut-rows">
-        {rows.map((r, i) => (
-          <div
-            key={i} data-inspect-id="sl-lut-row"
-            className="inline-flex items-center rounded-md bg-ow-darker border border-ow-border pl-1.5 pr-0.5 py-0.5 focus-within:border-gray-500"
-          >
-            <input
-              value={r.x} onChange={e => setCell(i, 'x', e.target.value)}
-              inputMode="decimal" size={1} aria-label={`Point ${i + 1} speed`}
-              data-inspect-id="sl-lut-row-x" className={lutCell}
-            />
-            <span className="text-[var(--faint-2)] text-xs px-px">,</span>
-            <input
-              value={r.y} onChange={e => setCell(i, 'y', e.target.value)}
-              inputMode="decimal" size={1} aria-label={`Point ${i + 1} multiplier`}
-              data-inspect-id="sl-lut-row-y" className={lutCell}
-            />
-            <button
-              type="button" onClick={() => setRows(rs => rs.filter((_, j) => j !== i))}
-              disabled={rows.length <= 2} title={rows.length <= 2 ? 'A table needs at least 2 points' : 'Remove this point'}
-              data-inspect-id="sl-lut-row-remove-btn"
-              className="text-[var(--faint-2)] hover:text-red-400 disabled:opacity-0 px-1 text-[11px] leading-none"
-            >×</button>
-          </div>
-        ))}
+      {/* Two rows (Speed over Mult), one column per point. A 26rem card fits about 7 columns
+          before a cell is narrower than its own digits, so a longer table wraps into further
+          2-row bands of near-equal width rather than scrolling. The × sits over the corner of
+          the Speed cell on hover so removing costs no extra row of height. */}
+      <div className="mb-2 space-y-1.5" data-inspect-id="sl-lut-rows">
+        {Array.from({ length: bands }, (_, bi) => {
+          const idx = rows.map((_, i) => i).slice(bi * perBand, (bi + 1) * perBand);
+          return (
+            <table key={bi} className="w-full table-fixed border-collapse text-xs">
+              <colgroup><col className="w-10" />{idx.map(i => <col key={i} />)}</colgroup>
+              <tbody>
+                <tr>
+                  <th className="border border-ow-border text-left font-normal text-[10px] text-[var(--faint-2)] px-1 py-0.5">Speed</th>
+                  {idx.map(i => (
+                    <td key={i} className="relative group border border-ow-border bg-ow-darker p-0 focus-within:border-gray-500">
+                      <input
+                        value={rows[i].x} onChange={e => setCell(i, 'x', e.target.value)}
+                        inputMode="decimal" size={1} aria-label={`Point ${i + 1} speed`}
+                        data-inspect-id="sl-lut-row-x" className={lutCell}
+                      />
+                      {rows.length > 2 && (
+                        <button
+                          type="button" onClick={() => setRows(rs => rs.filter((_, j) => j !== i))}
+                          title="Remove this point" aria-label={`Remove point ${i + 1}`}
+                          data-inspect-id="sl-lut-row-remove-btn"
+                          className="absolute right-0 top-0 hidden group-hover:block bg-ow-darker text-[var(--faint-2)] hover:text-red-400 px-0.5 text-[11px] leading-none"
+                        >×</button>
+                      )}
+                    </td>
+                  ))}
+                </tr>
+                <tr>
+                  <th className="border border-ow-border text-left font-normal text-[10px] text-[var(--faint-2)] px-1 py-0.5">Mult</th>
+                  {idx.map(i => (
+                    <td key={i} className="border border-ow-border bg-ow-darker p-0 focus-within:border-gray-500">
+                      <input
+                        value={rows[i].y} onChange={e => setCell(i, 'y', e.target.value)}
+                        inputMode="decimal" size={1} aria-label={`Point ${i + 1} multiplier`}
+                        data-inspect-id="sl-lut-row-y" className={lutCell}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          );
+        })}
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
