@@ -731,10 +731,35 @@ interface HeroStatus {
   status: HeroTestStatus; totalGames: number; target: number; setId: number | null;
   // Set only for a chunked (minutes-model) set; null means the set counts games.
   minutes: { played: number; target: number } | null;
+  // The live set when one is active for this tile (hero + phase + bracket), else null.
+  active: DpiTestActive | null;
 }
 // "123/960 min" for a minutes-model set, "12/80 games" for a legacy one.
 const progressLabel = (s: HeroStatus) =>
   s.minutes ? `${s.minutes.played}/${s.minutes.target} min` : `${s.totalGames}/${s.target} games`;
+
+// Moves a legacy (games-model) set to its next stage. The server refuses to leave a
+// stage short of its batch, so confirm first and send force when that is wanted.
+async function advanceActive(active: DpiTestActive) {
+  const onStage = active.games_on_stage ?? 0;
+  const short = onStage < active.batch_size;
+  if (short && !window.confirm(
+    `Stage ${active.cur_stage} only has ${onStage} of ${active.batch_size} games. ` +
+    `Moving on leaves it short for good — stages never go backwards, so it can't be filled in later.\n\nAdvance anyway?`,
+  )) return;
+  const r = await fetch('/api/blind/advance', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ set_id: active.set_id, ...(short ? { force: true } : {}) }),
+  });
+  if (r.ok) revalidateAll();
+  else {
+    const body = await r.json().catch(() => ({}));
+    alert(`Advance failed: ${body.error ?? r.statusText}`);
+  }
+}
+
+// Mouse DPI is locked at 1600 from Phase 4 on, so a tile only names the DPI when it differs.
+const PHASE_DPI = 1600;
 
 function statusForHero(
   hero: string, actives: DpiTestActive[], sets: DpiTestSetSummary[], batchSize: number, values: readonly number[],
@@ -751,7 +776,7 @@ function statusForHero(
     const minutes = active.chunk
       ? { played: Math.floor(active.chunk.closedBlocks * 60 + active.chunk.openMinutes), target: active.chunk.totalBlocksTarget * 60 }
       : null;
-    return { status: active.completed ? 'completed' : 'testing', totalGames: active.totalGames, target, setId: active.set_id, minutes };
+    return { status: active.completed ? 'completed' : 'testing', totalGames: active.totalGames, target, setId: active.set_id, minutes, active };
   }
   const past = [...sets]
     .filter(s => s.hero === hero && s.batch_size === batchSize && s.n_stages === nStages && sameValues(s.values, values)
@@ -766,12 +791,12 @@ function statusForHero(
     // than silently reporting "no test" — the set is real, it's just short.
     // Removed from the pool (paused_at set): data intact, not under test, resumable.
     const minutes = past.targetMinutes != null ? { played: past.playedMinutes ?? 0, target: past.targetMinutes } : null;
-    if (past.paused) return { status: 'paused', totalGames: past.totalGames, target, setId: past.set_id, minutes };
+    if (past.paused) return { status: 'paused', totalGames: past.totalGames, target, setId: past.set_id, minutes, active: null };
     // A minutes-model set is done when the server says so; its game count is not the target.
-    if (minutes ? past.completed : past.totalGames >= target) return { status: 'completed', totalGames: past.totalGames, target, setId: past.set_id, minutes };
-    return { status: 'testing', totalGames: past.totalGames, target, setId: past.set_id, minutes };
+    if (minutes ? past.completed : past.totalGames >= target) return { status: 'completed', totalGames: past.totalGames, target, setId: past.set_id, minutes, active: null };
+    return { status: 'testing', totalGames: past.totalGames, target, setId: past.set_id, minutes, active: null };
   }
-  return { status: 'none', totalGames: 0, target, setId: null, minutes: null };
+  return { status: 'none', totalGames: 0, target, setId: null, minutes: null, active: null };
 }
 
 // Starting bracket for a hero with no prior-phase data, by archetype. These are
@@ -1243,12 +1268,19 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                     lead with them, large and centered, rather than burying them
                     under the hero name as just another detail line. */}
                 <div className="flex items-center justify-center gap-1 mb-0.5">
-                  {valuesOf(h).map((v, i) => (
-                    <span key={v} className="flex items-center gap-1">
-                      {i > 0 && <span className="text-[var(--faint-2)] text-xs">/</span>}
-                      <span className="text-lg num-display font-bold text-[var(--ink)]">{h.senses ? v.toFixed(2) : v}</span>
-                    </span>
-                  ))}
+                  {valuesOf(h).map((v, i) => {
+                    // The value to set right now (live stage of an active test) is lit.
+                    const live = s.active != null && Math.abs((s.active.sens ?? s.active.dpi ?? -1) - v) < 0.001;
+                    return (
+                      <span key={v} className="flex items-center gap-1">
+                        {i > 0 && <span className="text-[var(--faint-2)] text-xs">/</span>}
+                        <span
+                          data-inspect-id={live ? 'sl-plan-live-sens' : undefined}
+                          className={`text-lg num-display font-bold ${live ? 'text-ow-accent underline underline-offset-4' : s.active ? 'text-[var(--faint)]' : 'text-[var(--ink)]'}`}
+                        >{h.senses ? v.toFixed(2) : v}</span>
+                      </span>
+                    );
+                  })}
                 </div>
                 {!isMinutesPhase(tabKey) && (
                   <p className="text-[10px] text-[var(--faint-2)] text-center mb-1">× <b className="font-bold">{h.gamesPerSlot}</b>/slot</p>
@@ -1259,6 +1291,31 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                 {/* Single fixed-height footer, its content switching by status — replaces the old
                     top-badge + bottom-button pair (each separately reserved via `invisible`), which
                     doubled the empty space every card carried regardless of which state it was in. */}
+                {s.status === 'testing' && s.active && (() => {
+                  const a = s.active;
+                  const blocksLeft = a.chunk ? a.chunk.stageBlocksTarget - a.chunk.stageBlocks : 0;
+                  return (
+                    <div className="text-[10px] text-[var(--faint-2)] text-center mb-1 flex items-center justify-center gap-1.5 flex-wrap" data-inspect-id="sl-plan-live-line">
+                      {a.needSwitch ? (
+                        <>
+                          <span className="text-amber-500 font-semibold" data-inspect-id="sl-switch-banner">
+                            {a.chunk ? 'Chunk done: switch to the lit sens' : 'Batch done: switch stages'}
+                          </span>
+                          {!a.chunk && (
+                            <button type="button" onClick={() => advanceActive(a)} data-inspect-id="sl-advance-stage-btn" className={`${btnSecondary} px-2 py-0.5 text-[10px]`}>Get next stage →</button>
+                          )}
+                        </>
+                      ) : a.chunk ? (
+                        <span data-inspect-id="sl-chunk-progress">
+                          chunk <b className="font-bold">{a.chunk.label}</b> · {blocksLeft} block{blocksLeft === 1 ? '' : 's'} left · {Math.floor(a.chunk.openMinutes)} min
+                        </span>
+                      ) : (
+                        <span>{a.batch_size - a.games_on_stage} game{a.batch_size - a.games_on_stage === 1 ? '' : 's'} left in batch</span>
+                      )}
+                      {a.dpi != null && a.dpi !== PHASE_DPI && <span>· DPI {a.dpi}</span>}
+                    </div>
+                  );
+                })()}
                 <div className="h-5 flex items-center" data-inspect-id="sl-plan-status-footer">
                   {s.status === 'testing' && (
                     <div className="flex items-center gap-2 w-full justify-between">
@@ -1448,23 +1505,17 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
 // renders one progress card per active set, alongside an always-available
 // form for starting an ad-hoc one.
 function TestPanel({ state }: { state: DpiTestState | null }) {
-  const actives = state?.actives ?? [];
-  // Ad-hoc (hero-less) sets have no role to sort by — keep them with DPS.
-  const dpsActives = actives.filter(a => (a.hero ? HEROES[a.hero] : 'DPS') !== 'Support');
-  const supportActives = actives.filter(a => a.hero && HEROES[a.hero] === 'Support');
+  // Hero-tagged tests live on their tile in the plan grid above. Only an ad-hoc
+  // (hero-less) set has no tile, so it keeps a compact card here.
+  const adHoc = (state?.actives ?? []).filter(a => !a.hero);
   return (
     <div className="mb-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="space-y-2">
-          {dpsActives.map(active => <ActiveTestCard key={active.set_id} active={active} />)}
+      {adHoc.length > 0 && (
+        <div className="space-y-2 mb-3">
+          {adHoc.map(active => <ActiveTestCard key={active.set_id} active={active} />)}
         </div>
-        <div className="space-y-2">
-          {supportActives.map(active => <ActiveTestCard key={active.set_id} active={active} />)}
-        </div>
-      </div>
-      <div className="mt-3">
-        <CreateTestCard />
-      </div>
+      )}
+      <CreateTestCard />
     </div>
   );
 }
@@ -1473,30 +1524,9 @@ function ActiveTestCard({ active }: { active: DpiTestActive }) {
   const [busy, setBusy] = useState(false);
   const [answer, setAnswer] = useState<AnswerStage[] | null>(null);
 
-  // The server refuses to leave a stage short of its batch (stage order only
-  // moves forward, so an abandoned stage can never refill). Confirm first and
-  // send force when that's genuinely what's wanted — a scrapped session, a
-  // stage set up wrong — same shape as restart()'s guard below.
   async function advance() {
-    const onStage = active.games_on_stage ?? 0;
-    const short = onStage < active.batch_size;
-    if (short && !window.confirm(
-      `Stage ${active.cur_stage} only has ${onStage} of ${active.batch_size} games. ` +
-      `Moving on leaves it short for good — stages never go backwards, so it can't be filled in later.\n\nAdvance anyway?`,
-    )) return;
-
     setBusy(true);
-    try {
-      const r = await fetch('/api/blind/advance', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ set_id: active.set_id, ...(short ? { force: true } : {}) }),
-      });
-      if (r.ok) revalidateAll();
-      else {
-        const body = await r.json().catch(() => ({}));
-        alert(`Advance failed: ${body.error ?? r.statusText}`);
-      }
-    } finally { setBusy(false); }
+    try { await advanceActive(active); } finally { setBusy(false); }
   }
 
   async function loadSummary() {
