@@ -59,3 +59,15 @@ test('roster-wide ult share is not gated by the per-killer min-n', async () => {
   assert.equal(r.body.overall_ult_share, Math.round((1 / 3) * 1000) / 10);
   assert.ok(r.body.killers.every((k: any) => k.reliable === false));
 });
+
+test('?season= narrows deaths to matches inside that season; an unknown season matches nothing', async () => {
+  const a = insertSoloMatch(h.db, { date: '2026-09-23', hero: 'Ana', role: 'Support', win: 1 }); // 2026 S4
+  const b = insertSoloMatch(h.db, { date: '2026-10-07', hero: 'Ana', role: 'Support', win: 1 }); // 2026 S5
+  insertMatchDeath(h.db, { match_id: a, seq: 1, killer: 'Genji', killer_role: 'DPS' });
+  insertMatchDeath(h.db, { match_id: b, seq: 1, killer: 'Genji', killer_role: 'DPS' });
+  insertMatchDeath(h.db, { match_id: b, seq: 2, killer: 'Tracer', killer_role: 'DPS' });
+  assert.equal((await h.get('/api/stats/killer-frequency')).body.total_deaths, 3);
+  assert.equal((await h.get('/api/stats/killer-frequency?season=2026%20S4')).body.total_deaths, 1);
+  assert.equal((await h.get('/api/stats/killer-frequency?season=2026%20S5')).body.total_deaths, 2);
+  assert.equal((await h.get('/api/stats/killer-frequency?season=nope')).body.total_deaths, 0);
+});

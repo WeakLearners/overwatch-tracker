@@ -264,55 +264,44 @@ export interface Streaks {
   longestLoss: number;
 }
 
-export const HEROES: Record<string, string> = {
-  Ana: 'Support', Ashe: 'DPS', Baptiste: 'Support', Bastion: 'DPS',
-  Brigitte: 'Support', Cassidy: 'DPS', Doomfist: 'Tank', 'D.Va': 'Tank',
-  Echo: 'DPS', Genji: 'DPS', Hanzo: 'DPS', Illari: 'Support',
-  'Junker Queen': 'Tank', Junkrat: 'DPS', Juno: 'Support', Kiriko: 'Support', Lifeweaver: 'Support',
-  'Lúcio': 'Support', Mauga: 'Tank', Mei: 'DPS', Mercy: 'Support',
-  Moira: 'Support', Orisa: 'Tank', Pharah: 'DPS', Ramattra: 'Tank',
-  Reaper: 'DPS', Reinhardt: 'Tank', Roadhog: 'Tank', Sigma: 'Tank',
-  Sojourn: 'DPS', 'Soldier: 76': 'DPS', Sombra: 'DPS', Symmetra: 'DPS',
-  'Torbjörn': 'DPS', Tracer: 'DPS', Venture: 'DPS', Widowmaker: 'DPS',
-  Winston: 'Tank', 'Wrecking Ball': 'Tank', Zarya: 'Tank', Zenyatta: 'Support',
-  Hazard: 'Tank', Freja: 'DPS',
-  // 2025-2026 additions
-  Shion: 'DPS', 'Jetpack Cat': 'Support', Domina: 'Tank', Sierra: 'DPS',
-  Mizuki: 'Support', Emre: 'DPS', Wuyang: 'Support', Anran: 'DPS', Vendetta: 'DPS',
-  'D.Mon': 'Tank',
-};
+// Hero and map rosters come from server/data/roster.json (the one roster file;
+// the server derives its own lists from it). The bundled copy is the starting
+// value; main.tsx refreshes it from GET /api/roster before the app renders, so
+// a roster update from "Check for game updates" shows without a rebuild. The
+// objects are filled in place, so every importer sees the refreshed data.
+import rosterData from '../../../server/data/roster.json';
 
-// Hanaoka and Anubis removed from active rotation indefinitely
-export const MAPS: Record<string, string> = {
-  Aatlis: 'Flashpoint', 'Antarctic Peninsula': 'Control',
-  'Blizzard World': 'Hybrid', Busan: 'Control', 'Circuit Royal': 'Escort',
-  Colosseo: 'Push', Dorado: 'Escort', Eichenwalde: 'Hybrid',
-  Esperanca: 'Push', 'Watchpoint: Gibraltar': 'Escort', Havana: 'Escort',
-  Hollywood: 'Hybrid', 'Ilios': 'Control', 'Junkertown': 'Escort',
-  "King's Row": 'Hybrid', 'Lijiang Tower': 'Control', 'Midtown': 'Hybrid',
-  'Nepal': 'Control', 'Neon Junction': 'Hybrid',
-  'New Junk City': 'Flashpoint', 'New Queen Street': 'Push',
-  'Numbani': 'Hybrid', 'Oasis': 'Control', 'Paraiso': 'Hybrid',
-  'Rialto': 'Escort', 'Route 66': 'Escort', 'Runasapi': 'Push',
-  'Samoa': 'Control', 'Shambali Monastery': 'Escort', 'Suravasa': 'Flashpoint',
-  'Throne of Anubis': 'Clash',
-};
-
+export const HEROES: Record<string, string> = {};
+export const MAPS: Record<string, string> = {};
 // Short map names for tight spaces (the best/worst tiles on Pre-Match), where
 // a cut-off "Numb…" reads worse than a real abbreviation. Every entry is
 // tested to fit a tile at 1024px. The rules, in order: the name players
 // actually say (Circuit, Eichen, Lijiang, Shambali, Anubis, Gib); standard
 // abbreviations of the words (Ant. Pen., Jct, St., Rt., Wld); contractions
 // in the H'wood style; initials only where the community uses them (NJC).
-// Maps not listed fit in full.
-export const MAP_SHORT: Record<string, string> = {
-  'Antarctic Peninsula': 'Ant. Pen.', 'Blizzard World': 'Blizz Wld',
-  'Circuit Royal': 'Circuit', Eichenwalde: 'Eichen', Esperanca: 'Espnza',
-  'Watchpoint: Gibraltar': 'Gib', Hollywood: "H'wood", Junkertown: "J'town",
-  "King's Row": 'K. Row', 'Lijiang Tower': 'Lijiang', 'Neon Junction': 'Neon Jct',
-  'New Junk City': 'NJC', 'New Queen Street': 'NQ St.', 'Route 66': 'Rt. 66',
-  'Shambali Monastery': 'Shambali', 'Throne of Anubis': 'Anubis',
-};
+// Maps whose short name equals the full name are not listed.
+export const MAP_SHORT: Record<string, string> = {};
+// Maps out of the competitive rotation (Hanaoka and Anubis, removed
+// indefinitely). They stay in MAPS so old matches resolve, but leave pickers.
+export const RETIRED_MAPS = new Set<string>();
+
+export interface RosterData {
+  heroes: { name: string; role: string; addedSeason: string | null }[];
+  maps: { name: string; short: string; mode: string; retired: boolean }[];
+}
+export function fillRoster(r: RosterData): void {
+  for (const o of [HEROES, MAPS, MAP_SHORT]) for (const k of Object.keys(o)) delete o[k];
+  RETIRED_MAPS.clear();
+  for (const h of r.heroes) HEROES[h.name] = h.role;
+  for (const m of r.maps) {
+    MAPS[m.name] = m.mode;
+    if (m.short && m.short !== m.name) MAP_SHORT[m.name] = m.short;
+    if (m.retired) RETIRED_MAPS.add(m.name);
+  }
+}
+fillRoster(rosterData as RosterData);
+/** Maps a new match can be logged on: every map except the retired ones. */
+export const activeMapNames = () => Object.keys(MAPS).filter(m => !RETIRED_MAPS.has(m)).sort();
 export const mapShort = (m: string) => MAP_SHORT[m] ?? m;
 
 /** Short hero names for tight tiles. Only names too long for one are listed. */

@@ -8,7 +8,8 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
-      '/api': 'http://localhost:3002'
+      '/api': 'http://localhost:3002',
+      '/assets': 'http://localhost:3002'
     }
   }
 })

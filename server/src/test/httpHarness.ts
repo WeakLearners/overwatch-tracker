@@ -30,6 +30,7 @@ import configRouter from '../routes/config';
 import roleTimerRouter from '../routes/roleTimer';
 import advisorRouter, { setAdvisorCacheStore, type AdvisorCacheStore } from '../routes/advisor';
 import v1Router from '../routes/v1';
+import rosterRouter from '../routes/roster';
 import { trackerWriteNotifier } from '../lib/trackerEvents';
 import { configureReplicaCache, resetReplicaCache, invalidateReplica } from '../lab/replicaCache';
 import { installExperiments } from '../experiments';
@@ -86,6 +87,7 @@ export async function startHarness(opts: { experiments?: boolean; freshReads?: b
   app.use('/api/role-timer', roleTimerRouter);
   app.use('/api/advisor', advisorRouter);
   app.use('/api/v1', v1Router);
+  app.use('/api/roster', rosterRouter);
 
   const server = http.createServer(app);
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));

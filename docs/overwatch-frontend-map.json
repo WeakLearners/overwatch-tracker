@@ -226,6 +226,26 @@
             "path": "client/src/pages/Dashboard.tsx:171",
             "grep": "grep -n -F -- 'dash-killer-frequency-section' client/src/pages/Dashboard.tsx"
           }
+        },
+        {
+          "id": "dash-season-badge",
+          "label": "Current-season badge",
+          "kind": "text",
+          "description": "Current season label and day number (e.g. \"2026 S5 \u00b7 day 1\"), from the season table (server/data/seasons.json via GET /api/roster).",
+          "locate": {
+            "path": "client/src/pages/Dashboard.tsx:131",
+            "grep": "grep -n -F -- 'data-inspect-id=\"dash-season-badge\"' client/src/pages/Dashboard.tsx"
+          }
+        },
+        {
+          "id": "dash-season-filter",
+          "label": "Season filter",
+          "kind": "select",
+          "description": "Dashboard-only season filter. All seasons by default; narrows the Form chart, mode cards, career strip, session grid and killer card via ?season=.",
+          "locate": {
+            "path": "client/src/pages/Dashboard.tsx:137",
+            "grep": "grep -n -F -- 'data-inspect-id=\"dash-season-filter\"' client/src/pages/Dashboard.tsx"
+          }
         }
       ]
     },
@@ -3459,6 +3479,116 @@
             "path": "client/src/pages/Settings.tsx:54",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-locked-reason\"' client/src/pages/Settings.tsx"
           }
+        },
+        {
+          "id": "settings-game-updates",
+          "label": "Game updates card",
+          "kind": "section",
+          "description": "Settings card: Check for game updates (POST /api/roster/check), then Apply ticked items (POST /api/roster/apply).",
+          "locate": {
+            "path": "client/src/components/GameUpdateCheck.tsx:89",
+            "grep": "grep -n -F -- 'data-inspect-id=\"settings-game-updates\"' client/src/components/GameUpdateCheck.tsx"
+          }
+        },
+        {
+          "id": "settings-game-updates-check",
+          "label": "Check button",
+          "kind": "button",
+          "description": "Reads Blizzard hero, map and season pages; shows a diff, writes nothing.",
+          "locate": {
+            "path": "client/src/components/GameUpdateCheck.tsx:95",
+            "grep": "grep -n -F -- 'data-inspect-id=\"settings-game-updates-check\"' client/src/components/GameUpdateCheck.tsx"
+          }
+        },
+        {
+          "id": "settings-game-updates-error",
+          "label": "Check/apply error",
+          "kind": "text",
+          "description": "Error text, e.g. \"Blizzard page layout changed - no updates read\".",
+          "locate": {
+            "path": "client/src/components/GameUpdateCheck.tsx:99",
+            "grep": "grep -n -F -- 'data-inspect-id=\"settings-game-updates-error\"' client/src/components/GameUpdateCheck.tsx"
+          }
+        },
+        {
+          "id": "settings-game-updates-done",
+          "label": "Apply result",
+          "kind": "text",
+          "description": "Summary of what Apply wrote and the portrait download counts.",
+          "locate": {
+            "path": "client/src/components/GameUpdateCheck.tsx:100",
+            "grep": "grep -n -F -- 'data-inspect-id=\"settings-game-updates-done\"' client/src/components/GameUpdateCheck.tsx"
+          }
+        },
+        {
+          "id": "settings-game-updates-diff",
+          "label": "Diff panel",
+          "kind": "section",
+          "description": "The diff: new heroes, new maps, maps not in Blizzard's list, new season, missing portraits.",
+          "locate": {
+            "path": "client/src/components/GameUpdateCheck.tsx:102",
+            "grep": "grep -n -F -- 'data-inspect-id=\"settings-game-updates-diff\"' client/src/components/GameUpdateCheck.tsx"
+          }
+        },
+        {
+          "id": "settings-game-updates-hero-row",
+          "label": "New hero row",
+          "kind": "row",
+          "description": "Tick box, hero name, role select (pre-filled from the page).",
+          "locate": {
+            "path": "client/src/components/GameUpdateCheck.tsx:108",
+            "grep": "grep -n -F -- 'data-inspect-id=\"settings-game-updates-hero-row\"' client/src/components/GameUpdateCheck.tsx"
+          }
+        },
+        {
+          "id": "settings-game-updates-map-row",
+          "label": "New map row",
+          "kind": "row",
+          "description": "Tick box, map name, mode select.",
+          "locate": {
+            "path": "client/src/components/GameUpdateCheck.tsx:119",
+            "grep": "grep -n -F -- 'data-inspect-id=\"settings-game-updates-map-row\"' client/src/components/GameUpdateCheck.tsx"
+          }
+        },
+        {
+          "id": "settings-game-updates-absent-row",
+          "label": "Map not in Blizzard list row",
+          "kind": "row",
+          "description": "Tick to retire the map from the log picker. Never automatic.",
+          "locate": {
+            "path": "client/src/components/GameUpdateCheck.tsx:129",
+            "grep": "grep -n -F -- 'data-inspect-id=\"settings-game-updates-absent-row\"' client/src/components/GameUpdateCheck.tsx"
+          }
+        },
+        {
+          "id": "settings-game-updates-season-row",
+          "label": "New season row",
+          "kind": "row",
+          "description": "Tick box, editable label, start date pre-filled with today.",
+          "locate": {
+            "path": "client/src/components/GameUpdateCheck.tsx:136",
+            "grep": "grep -n -F -- 'data-inspect-id=\"settings-game-updates-season-row\"' client/src/components/GameUpdateCheck.tsx"
+          }
+        },
+        {
+          "id": "settings-game-updates-images-row",
+          "label": "Portraits row",
+          "kind": "row",
+          "description": "Tick to download missing hero portraits to server/data/assets (gitignored).",
+          "locate": {
+            "path": "client/src/components/GameUpdateCheck.tsx:145",
+            "grep": "grep -n -F -- 'data-inspect-id=\"settings-game-updates-images-row\"' client/src/components/GameUpdateCheck.tsx"
+          }
+        },
+        {
+          "id": "settings-game-updates-apply",
+          "label": "Apply button",
+          "kind": "button",
+          "description": "Writes roster.json / seasons.json from the ticked items only.",
+          "locate": {
+            "path": "client/src/components/GameUpdateCheck.tsx:151",
+            "grep": "grep -n -F -- 'data-inspect-id=\"settings-game-updates-apply\"' client/src/components/GameUpdateCheck.tsx"
+          }
         }
       ]
     },
@@ -3868,6 +3998,16 @@
           "locate": {
             "path": "client/src/components/HeroDrawer.tsx:170",
             "grep": "grep -n -F -- 'data-inspect-id=\"hero-drawer-close-button\"' client/src/components/HeroDrawer.tsx"
+          }
+        },
+        {
+          "id": "hero-drawer-portrait",
+          "label": "Hero portrait",
+          "kind": "image",
+          "description": "Locally cached Blizzard portrait beside the drawer title; renders nothing if not cached or images are off.",
+          "locate": {
+            "path": "client/src/components/HeroDrawer.tsx:169",
+            "grep": "grep -n -F -- 'inspectId=\"hero-drawer-portrait\"' client/src/components/HeroDrawer.tsx"
           }
         }
       ]
@@ -4553,6 +4693,16 @@
           "locate": {
             "path": "client/src/components/KillerFrequencyCard.tsx:74",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-killer-frequency-thin-row\"' client/src/components/KillerFrequencyCard.tsx"
+          }
+        },
+        {
+          "id": "dash-killer-frequency-portrait",
+          "label": "Killer portrait",
+          "kind": "image",
+          "description": "Locally cached hero portrait beside each reliable killer name; absent if not cached or images are off.",
+          "locate": {
+            "path": "client/src/components/KillerFrequencyCard.tsx:66",
+            "grep": "grep -n -F -- 'inspectId=\"dash-killer-frequency-portrait\"' client/src/components/KillerFrequencyCard.tsx"
           }
         }
       ]

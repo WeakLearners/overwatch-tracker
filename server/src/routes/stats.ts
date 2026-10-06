@@ -1,15 +1,29 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
 import statsLab from './statsLab';
+import { seasonRange } from '../lib/seasons';
 
 // Descriptive stats (W/L, by-hero, by-map, by-hour, streaks, trends) stay here,
 // on db/schema. The inferential endpoints (/split, /insights) are the lab's:
 // they live in statsLab.ts and are composed below, so URLs do not change.
 const router = Router();
 
+// Dashboard season filter: ?season=<label> narrows to [start, end) of that
+// season (end open for the current one). An unknown label matches no rows
+// rather than silently showing all of them. `col` is the date column, for
+// queries that join matches under an alias.
+function seasonClauses(q: Record<string, string>, col = 'date'): [string[], Record<string, string>] {
+  if (!q.season) return [[], {}];
+  const r = seasonRange(q.season);
+  if (!r) return [['0'], {}];
+  const clauses = [`${col} >= :season_from`];
+  const params: Record<string, string> = { season_from: r.from };
+  if (r.to) { clauses.push(`${col} < :season_to`); params.season_to = r.to; }
+  return [clauses, params];
+}
+
 function whereClause(q: Record<string, string>): [string, Record<string, string>] {
-  const clauses: string[] = [];
-  const params: Record<string, string> = {};
+  const [clauses, params] = seasonClauses(q);
   if (q.from) { clauses.push('date >= :from'); params.from = q.from; }
   if (q.to) { clauses.push('date <= :to'); params.to = q.to; }
   if (q.role) { clauses.push('role = :role'); params.role = q.role; }
@@ -223,13 +237,14 @@ router.get('/trends', (req: Request, res: Response) => {
   const db = getDb();
   const { window = '20' } = req.query as Record<string, string>;
   const w = Math.max(1, Math.min(100, parseInt(window)));
+  const [where, params] = whereClause(req.query as Record<string, string>);
   const rows = db.prepare(`
     SELECT
       id, date, hero, map, game_type, win, queue_mode, player_rank, player_rank_start, placement, role, account,
       ROUND(AVG(win) OVER (ORDER BY date, time ROWS BETWEEN ${w - 1} PRECEDING AND CURRENT ROW) * 100, 1) as rolling_win_rate
-    FROM matches
+    FROM matches ${where}
     ORDER BY date, time
-  `).all({});
+  `).all(params);
   res.json(rows);
 });
 
@@ -413,7 +428,8 @@ router.get('/weekly', (req: Request, res: Response) => {
 
 router.get('/streaks', (req: Request, res: Response) => {
   const db = getDb();
-  const rows = db.prepare('SELECT id, date, win FROM matches ORDER BY date, time').all({}) as any[];
+  const [where, params] = whereClause(req.query as Record<string, string>);
+  const rows = db.prepare(`SELECT id, date, win FROM matches ${where} ORDER BY date, time`).all(params) as any[];
 
   let currentStreakType: 0 | 1 | null = null;
   let longestWin = 0;
@@ -654,8 +670,12 @@ router.get('/map-detail/:map', (req: Request, res: Response) => {
 
 // Per-queue-mode summary for the side-by-side mode comparison.
 // One row per mode the user has actually played, plus that mode's most-played hero.
-router.get('/mode-comparison', (_req: Request, res: Response) => {
+router.get('/mode-comparison', (req: Request, res: Response) => {
   const db = getDb();
+  // Optional ?season= narrows every figure on the cards, including the
+  // trailing 10-day recent window (which is then empty for a past season).
+  const [sClauses, sParams] = seasonClauses(req.query as Record<string, string>);
+  const sAnd = sClauses.map(c => ` AND ${c}`).join('');
 
   const totals = db.prepare(`
     SELECT
@@ -665,15 +685,15 @@ router.get('/mode-comparison', (_req: Request, res: Response) => {
       ROUND(AVG(win) * 100, 1) as win_rate,
       COUNT(DISTINCT map) as maps_played
     FROM matches
-    WHERE queue_mode IS NOT NULL
+    WHERE queue_mode IS NOT NULL${sAnd}
     GROUP BY queue_mode
-  `).all({}) as any[];
+  `).all(sParams) as any[];
 
   // Distinct heroes played per mode, including switches.
   const heroesPlayedByMode = db.prepare(`
     SELECT queue_mode, COUNT(DISTINCT hero) as heroes_played
-    FROM matches_by_hero WHERE queue_mode IS NOT NULL GROUP BY queue_mode
-  `).all({}) as { queue_mode: string; heroes_played: number }[];
+    FROM matches_by_hero WHERE queue_mode IS NOT NULL${sAnd} GROUP BY queue_mode
+  `).all(sParams) as { queue_mode: string; heroes_played: number }[];
   const heroesPlayedMap: Record<string, number> = {};
   for (const h of heroesPlayedByMode) heroesPlayedMap[h.queue_mode] = h.heroes_played;
 
@@ -688,10 +708,10 @@ router.get('/mode-comparison', (_req: Request, res: Response) => {
           PARTITION BY queue_mode ORDER BY COUNT(*) DESC, AVG(win) DESC
         ) as rn
       FROM matches_by_hero
-      WHERE queue_mode IS NOT NULL
+      WHERE queue_mode IS NOT NULL${sAnd}
       GROUP BY queue_mode, hero
     ) WHERE rn = 1
-  `).all({}) as any[];
+  `).all(sParams) as any[];
 
   const topByMode: Record<string, any> = {};
   for (const t of topHeroes) {
@@ -713,9 +733,9 @@ router.get('/mode-comparison', (_req: Request, res: Response) => {
            COUNT(*) as recent_games,
            SUM(win) as recent_wins
     FROM matches
-    WHERE queue_mode IS NOT NULL AND date >= :cutoff
+    WHERE queue_mode IS NOT NULL AND date >= :cutoff${sAnd}
     GROUP BY queue_mode
-  `).all({ cutoff }) as any[];
+  `).all({ cutoff, ...sParams }) as any[];
   const recentByMode: Record<string, any> = {};
   for (const r of recent) recentByMode[r.queue_mode] = r;
 
@@ -755,24 +775,29 @@ router.get('/mode-comparison', (_req: Request, res: Response) => {
 // per-hero counts run 27-82 deaths today, so this floor suppresses genuine
 // noise (a 3-death cell) without hiding the real signal.
 const KILLER_FREQ_MIN_N = 10;
-router.get('/killer-frequency', (_req: Request, res: Response) => {
+router.get('/killer-frequency', (req: Request, res: Response) => {
   const db = getDb();
   const OWNER = 1; // see routes/config.ts — same constant, same reason.
+  // Optional ?season= joins to matches for the date; unfiltered keeps the
+  // plain owner-only query.
+  const [sClauses, sParams] = seasonClauses(req.query as Record<string, string>, 'm.date');
+  const sAnd = sClauses.map(c => ` AND ${c}`).join('');
+  const from = 'match_deaths d JOIN matches m ON m.id = d.match_id';
 
   const totals = db.prepare(`
-    SELECT COUNT(*) AS total_deaths, SUM(ult) AS total_ult_deaths
-    FROM match_deaths WHERE owner_id = :owner
-  `).get({ owner: OWNER }) as { total_deaths: number; total_ult_deaths: number | null };
+    SELECT COUNT(*) AS total_deaths, SUM(d.ult) AS total_ult_deaths
+    FROM ${from} WHERE d.owner_id = :owner${sAnd}
+  `).get({ owner: OWNER, ...sParams }) as { total_deaths: number; total_ult_deaths: number | null };
 
   const rows = db.prepare(`
-    SELECT killer, killer_role,
+    SELECT d.killer AS killer, d.killer_role AS killer_role,
            COUNT(*) AS deaths,
-           SUM(ult) AS ult_deaths
-    FROM match_deaths
-    WHERE owner_id = :owner
-    GROUP BY killer, killer_role
-    ORDER BY deaths DESC, killer ASC
-  `).all({ owner: OWNER }) as { killer: string; killer_role: string; deaths: number; ult_deaths: number | null }[];
+           SUM(d.ult) AS ult_deaths
+    FROM ${from}
+    WHERE d.owner_id = :owner${sAnd}
+    GROUP BY d.killer, d.killer_role
+    ORDER BY deaths DESC, d.killer ASC
+  `).all({ owner: OWNER, ...sParams }) as { killer: string; killer_role: string; deaths: number; ult_deaths: number | null }[];
 
   const killers = rows.map(r => ({
     killer: r.killer,

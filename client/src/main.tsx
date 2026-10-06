@@ -1,10 +1,14 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import App from './App'
 import './index.css'
+import { loadRoster } from './lib/roster'
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-)
+// The roster (heroes, maps, seasons, cached portraits) loads before the app
+// module does: pages read it at import time, e.g. the map pickers.
+loadRoster().then(() => import('./App')).then(({ default: App }) => {
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>,
+  )
+})

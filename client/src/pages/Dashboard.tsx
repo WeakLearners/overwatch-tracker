@@ -15,13 +15,22 @@ import TrendsSection from '../components/dashboard/TrendsSection';
 import ModeComparisonCard from '../components/dashboard/ModeComparisonCard';
 import RecentMatchesCard from '../components/dashboard/RecentMatchesCard';
 import { useFieldConfig } from '../contexts/FieldConfigContext';
+import { SEASONS, seasonOf, seasonDay, localToday } from '../lib/roster';
 
 export default function Dashboard() {
   const { isFieldEnabled } = useFieldConfig();
-  const { data: overview } = useApi<Overview>('/api/stats/overview');
-  const { data: streaks } = useApi<Streaks>('/api/stats/streaks');
-  const { data: trends } = useApi<TrendPoint[]>('/api/stats/trends?window=20');
-  const { data: modeComparison } = useApi<ModeComparison[]>('/api/stats/mode-comparison');
+  // Season filter (dashboard only): '' = all seasons. It narrows the Form &
+  // Rank chart, the mode cards, the career strip, the session-window grid and
+  // the killer card. The Match section, advisor and the Trends factoids
+  // (career-wide splits computed in the lab) are not filtered.
+  const [season, setSeason] = useState('');
+  const sq = season ? `season=${encodeURIComponent(season)}` : '';
+  const { data: overview } = useApi<Overview>(`/api/stats/overview${sq ? `?${sq}` : ''}`);
+  const { data: streaks } = useApi<Streaks>(`/api/stats/streaks${sq ? `?${sq}` : ''}`);
+  const { data: trends } = useApi<TrendPoint[]>(`/api/stats/trends?window=20${sq ? `&${sq}` : ''}`);
+  const { data: modeComparison } = useApi<ModeComparison[]>(`/api/stats/mode-comparison${sq ? `?${sq}` : ''}`);
+  const today = localToday();
+  const current = seasonOf(today);
   const mapCounts = useTodayMapCounts();
   const heroCounts = useTodayHeroCounts();
   // Session tilt is map-independent, so a no-arg prematch fetch gives it to us.
@@ -117,7 +126,23 @@ export default function Dashboard() {
         aria-label="Jump to section"
         className="card !py-0 sticky top-16 z-20 mb-6 flex items-stretch gap-2.5 min-h-[42px]"
       >
-        <span className="hidden sm:block text-sm card-title shrink-0 flex-1 basis-0 min-w-0 self-center">Jump to</span>
+        <div className="hidden sm:flex items-center gap-2 shrink-0 flex-1 basis-0 min-w-0 self-center">
+          {current && (
+            <span data-inspect-id="dash-season-badge" className="text-sm card-title whitespace-nowrap" title={`Started ${current.start}`}>
+              {current.label} · day {seasonDay(today)}
+            </span>
+          )}
+          <select
+            value={season} onChange={e => setSeason(e.target.value)}
+            data-inspect-id="dash-season-filter"
+            aria-label="Season filter"
+            title="Narrow the dashboard stats to one season"
+            className="field px-1.5 py-0.5 text-xs min-w-0 max-w-[7rem]"
+          >
+            <option value="">All seasons</option>
+            {[...SEASONS].reverse().map(s => <option key={s.label} value={s.label}>{s.label}</option>)}
+          </select>
+        </div>
         <SegmentedPills
           options={sections.map(s => s.id)}
           value={activeSection}
@@ -165,11 +190,11 @@ export default function Dashboard() {
         <div className="contents" data-inspect-id="dash-logmatch-section"><LogMatch /></div>
       </div>
 
-      <TrendsSection />
+      <TrendsSection season={season} />
 
       {isFieldEnabled('deaths') && (
       <div id="sec-killer-frequency" className="mt-8 border-t border-ow-border pt-6 reveal scroll-mt-32" data-inspect-id="dash-killer-frequency-section" style={{ '--reveal-delay': '200ms' } as React.CSSProperties}>
-        <KillerFrequencyCard />
+        <KillerFrequencyCard season={season} />
       </div>
       )}
 

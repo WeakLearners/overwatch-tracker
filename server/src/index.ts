@@ -20,6 +20,8 @@ import configRouter from './routes/config';
 import dfRouter from './routes/df';
 import roleTimerRouter from './routes/roleTimer';
 import v1Router from './routes/v1';
+import rosterRouter from './routes/roster';
+import { imagesEnabled, heroesAssetDir } from './lib/assets';
 import { installExperiments } from './experiments';
 
 // Sensitivity-study controller behind the tracker's ExperimentHooks. Skipped
@@ -62,6 +64,13 @@ app.use('/api/config', configRouter);
 app.use('/api/df', dfRouter);
 app.use('/api/role-timer', roleTimerRouter);
 app.use('/api/v1', v1Router);
+app.use('/api/roster', rosterRouter);
+// Cached Blizzard hero portraits (gitignored). A miss or the off switch is a
+// real 404, not the SPA fallback, so the client's <img> onError fires and the
+// text name shows.
+app.use('/assets/heroes', (req, res, next) => (imagesEnabled() ? next() : res.status(404).end()),
+  (req, res, next) => express.static(heroesAssetDir(), { fallthrough: true, index: false, maxAge: '7d' })(req, res, next),
+  (_req, res) => { res.status(404).end(); });
 
 // Serve the production client build (2026-09-26). `client/current` is a
 // symlink, not a real directory — it points at whichever of client/dist-a or

@@ -40,3 +40,6 @@ scripts/.build-client.lock
 
 # stray Python wheels from analysis runs
 *.whl
+
+# Blizzard art cached by "Check for game updates" — public repo, never commit
+server/data/assets/

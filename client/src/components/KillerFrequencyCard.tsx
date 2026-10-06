@@ -1,3 +1,4 @@
+import HeroIcon from './HeroIcon';
 import { useApi } from '../hooks/useApi';
 import EmptyState from './EmptyState';
 
@@ -26,8 +27,8 @@ interface KillerFrequencyPayload {
 // hidden — "exposure, not lethality" per docs/metric-suggestions.md
 // suggestion 2 — so a thin cell reads as unproven, not as a hole in the
 // data. No "top killer" headline is rendered from an unreliable row.
-export default function KillerFrequencyCard() {
-  const { data, loading } = useApi<KillerFrequencyPayload>('/api/stats/killer-frequency');
+export default function KillerFrequencyCard({ season = '' }: { season?: string }) {
+  const { data, loading } = useApi<KillerFrequencyPayload>(`/api/stats/killer-frequency${season ? `?season=${encodeURIComponent(season)}` : ''}`);
 
   if (loading || !data) return null;
 
@@ -62,7 +63,7 @@ export default function KillerFrequencyCard() {
       <div className="space-y-1" data-inspect-id="dash-killer-frequency-reliable-list">
         {reliable.map(k => (
           <div key={k.killer} className="flex items-center justify-between text-sm py-1" data-inspect-id="dash-killer-frequency-row">
-            <span className="text-[var(--ink)] font-bold">{k.killer}</span>
+            <span className="text-[var(--ink)] font-bold flex items-center gap-2"><HeroIcon hero={k.killer} size={20} inspectId="dash-killer-frequency-portrait" />{k.killer}</span>
             <span className="text-[var(--faint)]">{k.deaths} deaths{k.ult_share != null ? ` · ${k.ult_share}% ult` : ''}</span>
           </div>
         ))}

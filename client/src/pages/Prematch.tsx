@@ -5,7 +5,7 @@ import { useApi, revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { format } from 'date-fns';
-import { MAPS, mapShort, heroShort, QUEUE_MODES, ROLE_COLORS, ROLE_SEL_RGB, ROLE_TEXT, ROLE_PILL_CLASS, TYPE_COLORS, HEROES, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, MapVotingRow, QueueMode, Streaks, RANK_TIER_RGB, ACCOUNTS, rankLabel, rankShort, rankTier, rankDivision } from '../types';
+import { activeMapNames, MAPS, mapShort, heroShort, QUEUE_MODES, ROLE_COLORS, ROLE_SEL_RGB, ROLE_TEXT, ROLE_PILL_CLASS, TYPE_COLORS, HEROES, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, MapVotingRow, QueueMode, Streaks, RANK_TIER_RGB, ACCOUNTS, rankLabel, rankShort, rankTier, rankDivision } from '../types';
 import AdvisorCard from '../components/AdvisorCard';
 import EmptyState from '../components/EmptyState';
 import { useMapDrawer } from '../contexts/MapDrawerContext';
@@ -67,7 +67,7 @@ interface DpiTestHud {
   }[];
 }
 
-const ALL_MAPS = Object.keys(MAPS).sort();
+const ALL_MAPS = activeMapNames();
 const DPI_TEST_HERO_KEY = 'ow-dpi-test-hero';
 const AD_HOC_KEY = '__adhoc__';
 

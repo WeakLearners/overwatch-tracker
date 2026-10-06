@@ -1,5 +1,6 @@
 import { useFieldConfig } from '../contexts/FieldConfigContext';
 import PageHeader from '../components/PageHeader';
+import GameUpdateCheck from '../components/GameUpdateCheck';
 
 // Field registry Phase 1's settings page — one toggle per category (not per
 // field; Sean's 2026-09-23 decision is that a category is the toggle unit).
@@ -58,6 +59,7 @@ export default function Settings() {
           );
         })}
       </div>
+      <GameUpdateCheck />
     </div>
   );
 }

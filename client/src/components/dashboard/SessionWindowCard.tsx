@@ -14,8 +14,8 @@ function hourLabel(h: number): string {
 // played. No best/worst label, no highlight, no colour, no floor: the card
 // states what happened and leaves "does it matter" to the lab. Rows are the
 // hours that have at least one game, so the grid never carries empty rows.
-export default function SessionWindowCard() {
-  const { data, loading } = useApi<DayHourRow[]>('/api/stats/by-day-hour');
+export default function SessionWindowCard({ season = '' }: { season?: string }) {
+  const { data, loading } = useApi<DayHourRow[]>(`/api/stats/by-day-hour${season ? `?season=${encodeURIComponent(season)}` : ''}`);
 
   const rows = foldSessionRows(data ?? [], DAYS);
   const hourRows = rows.filter(r => r.kind === 'hour');

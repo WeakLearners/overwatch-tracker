@@ -13,12 +13,12 @@ import SessionWindowCard from './SessionWindowCard';
  * activeSection re-renders for no reason — memo(no-props) skips all of
  * those; TrendsSummary's own internal state/fetch still updates it
  * normally. */
-function TrendsSection() {
+function TrendsSection({ season = '' }: { season?: string }) {
   return (
     <div id="sec-trends" className="mt-8 border-t border-ow-border pt-6 reveal scroll-mt-32" style={{ '--reveal-delay': '180ms' } as React.CSSProperties}>
       <PageHeader dataInspectId="dash-trends-section-header" title="Trends" sub="Recent form and momentum." />
       <TrendsSummary />
-      <div className="mt-4"><SessionWindowCard /></div>
+      <div className="mt-4"><SessionWindowCard season={season} /></div>
     </div>
   );
 }

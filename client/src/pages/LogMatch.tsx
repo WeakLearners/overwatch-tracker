@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { HEROES, MAPS, ROLE_COLORS, ROLE_PILL_CLASS, ROLE_PILL_CLASS_DARK, TYPE_COLORS, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB, MODE_WASH_CLASS, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, isAccount, rankLabel, clampRank } from '../types';
+import { activeMapNames, HEROES, MAPS, ROLE_COLORS, ROLE_PILL_CLASS, ROLE_PILL_CLASS_DARK, TYPE_COLORS, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB, MODE_WASH_CLASS, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, isAccount, rankLabel, clampRank } from '../types';
 import { useMatch } from '../contexts/MatchContext';
 import { useDeathBuffer } from '../contexts/DeathBufferContext';
 import { revalidateRec } from '../contexts/AdvisorContext';
@@ -34,7 +34,7 @@ interface FormState {
 type SwitchHeroes = [string, string];
 
 const HERO_LIST = Object.entries(HEROES).sort((a, b) => a[0].localeCompare(b[0]));
-const MAP_LIST = Object.keys(MAPS).sort();
+const MAP_LIST = activeMapNames();
 
 // Same "blank means unanswered, don't parse it as 0" convention SensLog.tsx's
 // backfill form (and MatchEditDrawer.tsx) use for sens fields.
