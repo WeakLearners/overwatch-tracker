@@ -1281,11 +1281,11 @@ export default function Prematch() {
                           // 1px padding makes up the width gap with the 2px
                           // selected border, so selecting doesn't shift the row.
                           isClicked
-                            ? 'border-2 px-3 py-2.5 is-selected mode-fill'
-                            : 'hero-pane px-[13px] py-[11px] hover-sel'
+                            ? 'border-2 px-3 py-3.5 is-selected mode-fill'
+                            : 'hero-pane px-[13px] py-[15px] hover-sel'
                         }`}
                       >
-                        <HeroPortraitBg hero={h.hero} opacity={0.22} inspectId="prematch-hero-picker-portrait-bg" />
+                        <HeroPortraitBg hero={h.hero} opacity={0.22} position="50% 43%" inspectId="prematch-hero-picker-portrait-bg" />
                         {isClicked && (
                           // Click order (1st/2nd/3rd) — feeds Log Match's
                           // form.hero + 2 switch-hero slots in this same order.
