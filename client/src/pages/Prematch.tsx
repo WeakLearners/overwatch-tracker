@@ -9,7 +9,7 @@ import { activeMapNames, MAPS, mapShort, heroShort, QUEUE_MODES, ROLE_COLORS, RO
 import AdvisorCard from '../components/AdvisorCard';
 import EmptyState from '../components/EmptyState';
 import { useMapDrawer } from '../contexts/MapDrawerContext';
-import HeroPortraitBg from '../components/HeroPortraitBg';
+import HeroPortraitBg, { PortraitFallback } from '../components/HeroPortraitBg';
 import { useHeroDrawer } from '../contexts/HeroDrawerContext';
 import { useMatch } from '../contexts/MatchContext';
 import { useAdvisor, refreshRec } from '../contexts/AdvisorContext';
@@ -1352,6 +1352,7 @@ export default function Prematch() {
                                 : `${r?.left ?? 0} of ${r?.total ?? 0} games left at this sens`}
                               data-inspect-id="prematch-hero-picker-gauge"
                             >
+                              <PortraitFallback hero={h.hero}>
                               <span
                                 aria-hidden="true"
                                 className={`absolute inset-x-0 top-0 ${isClicked ? 'bottom-[2px]' : 'bottom-[1px]'} flex items-center justify-center num-display italic font-black leading-none tracking-[-0.07em] text-[4.2rem] translate-x-[0.15em] translate-y-[0.007em] whitespace-nowrap ${isClicked ? 'opacity-[0.225]' : 'opacity-15'}`}
@@ -1370,6 +1371,7 @@ export default function Prematch() {
                                   >{label}</span>
                                 ) : label}
                               </span>
+                              </PortraitFallback>
                               <span
                                 className={`absolute inset-y-0 left-0 transition-opacity ${isClicked ? '' : 'opacity-0 group-hover:opacity-100'}`}
                                 style={{
