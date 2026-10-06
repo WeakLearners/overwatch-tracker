@@ -1,5 +1,5 @@
 import { useHeroDrawer } from '../contexts/HeroDrawerContext';
-import HeroIcon from './HeroIcon';
+import HeroPortraitBg from './HeroPortraitBg';
 import { useApi } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
@@ -164,9 +164,9 @@ export default function HeroDrawer() {
         onClick={closeHero}
       />
       <div data-inspect-id="hero-drawer-panel" className={`fixed inset-y-0 right-0 w-96 bg-ow-dark border-l border-ow-border z-50 flex flex-col transition-transform duration-300 ${activeHero ? 'translate-x-0' : 'translate-x-full'}`}>
-        <div className="flex items-start justify-between p-5 border-b border-ow-border shrink-0">
+        <div className="relative isolate flex items-start justify-between p-5 border-b border-ow-border shrink-0">
+          {activeHero && <HeroPortraitBg hero={activeHero} inspectId="hero-drawer-portrait-bg" />}
           <div className="flex items-center gap-2.5">
-            {activeHero && <HeroIcon hero={activeHero} size={32} inspectId="hero-drawer-portrait" />}
             <h2 data-inspect-id="hero-drawer-title-header" className="text-xl hero-name text-[var(--ink)] leading-tight">{activeHero ? withHeroCount(activeHero, heroCounts) : ''}</h2>
           </div>
           <button onClick={closeHero} data-inspect-id="hero-drawer-close-button" className="text-[var(--faint)] hover:text-[var(--ink)] transition-colors text-2xl leading-none ml-4">

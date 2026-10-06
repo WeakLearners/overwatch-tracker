@@ -9,6 +9,7 @@ import { activeMapNames, MAPS, mapShort, heroShort, QUEUE_MODES, ROLE_COLORS, RO
 import AdvisorCard from '../components/AdvisorCard';
 import EmptyState from '../components/EmptyState';
 import { useMapDrawer } from '../contexts/MapDrawerContext';
+import HeroPortraitBg from '../components/HeroPortraitBg';
 import { useHeroDrawer } from '../contexts/HeroDrawerContext';
 import { useMatch } from '../contexts/MatchContext';
 import { useAdvisor, refreshRec } from '../contexts/AdvisorContext';
@@ -1112,7 +1113,8 @@ export default function Prematch() {
               const delta = rec && !rec.is_new && rec.recent_wr != null && rec.prev_wr != null
                 ? Math.round((rec.recent_wr - rec.prev_wr) * 10) / 10 : null;
               return (
-                <div key={role} className="chamfer match-card-bg px-4 py-3">
+                <div key={role} className="chamfer match-card-bg relative isolate px-4 py-3">
+                  {rec && <HeroPortraitBg hero={rec.hero} inspectId="prematch-recommended-portrait-bg" />}
                   <div className="text-[10px] grad-brand font-bold uppercase tracking-widest mb-1">Trending {role}</div>
                   {rec ? (
                     <>
@@ -1283,6 +1285,7 @@ export default function Prematch() {
                             : 'hero-pane px-[13px] py-[11px] hover-sel'
                         }`}
                       >
+                        <HeroPortraitBg hero={h.hero} opacity={0.22} inspectId="prematch-hero-picker-portrait-bg" />
                         {isClicked && (
                           // Click order (1st/2nd/3rd) — feeds Log Match's
                           // form.hero + 2 switch-hero slots in this same order.
