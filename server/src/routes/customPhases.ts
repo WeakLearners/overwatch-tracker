@@ -97,6 +97,73 @@ router.post('/:key/heroes', (req: Request, res: Response) => {
   res.status(201).json({ ok: true, description });
 });
 
+// ── Edit one hero entry of a custom phase. Hero, senses and dpis are the test
+// definition: once ANY test set exists for the hero in this phase (testing,
+// paused or completed), changing them would put the study data under a bracket
+// it was not collected at, so the route answers 409. archetype and note are
+// labels and stay editable. gamesPerSlot and the stage count never change here,
+// so the description's totals stay correct. ────────────────────────────────
+router.patch('/:key/heroes/:hero', (req: Request, res: Response) => {
+  const b = req.body as { hero?: unknown; archetype?: unknown; note?: unknown; senses?: unknown };
+  const db = getDb();
+  const existing = db.prepare('SELECT * FROM custom_phases WHERE key = :key').get({ key: req.params.key }) as unknown as CustomPhaseRow | undefined;
+  if (!existing) {
+    res.status(404).json({ error: 'no custom phase with that key' });
+    return;
+  }
+  const plan = JSON.parse(existing.plan) as Array<{ hero: string; archetype: string; note: string; gamesPerSlot: number; senses?: number[]; dpis?: number[] }>;
+  const idx = plan.findIndex(p => p.hero === req.params.hero);
+  if (idx < 0) {
+    res.status(404).json({ error: 'hero is not in this phase' });
+    return;
+  }
+  const cur = plan[idx];
+  if ((b.archetype !== undefined && typeof b.archetype !== 'string') || (b.note !== undefined && typeof b.note !== 'string')
+    || (b.hero !== undefined && (typeof b.hero !== 'string' || !b.hero.trim()))) {
+    res.status(400).json({ error: 'hero, archetype and note must be strings (hero not empty)' });
+    return;
+  }
+  const heroChanged = b.hero !== undefined && b.hero !== cur.hero;
+  let sensChanged = false;
+  let nextSenses: number[] | undefined;
+  if (b.senses !== undefined) {
+    const sn = b.senses;
+    if (!cur.senses) {
+      res.status(400).json({ error: 'this hero uses dpis, not senses; its bracket cannot be edited here' });
+      return;
+    }
+    if (!Array.isArray(sn) || sn.length !== cur.senses.length || !sn.every(v => typeof v === 'number' && Number.isFinite(v) && v > 0)) {
+      res.status(400).json({ error: `senses must be ${cur.senses.length} positive numbers (the stage count does not change)` });
+      return;
+    }
+    if (!(sn[0] < sn[sn.length - 1])) {
+      res.status(400).json({ error: 'low sens must be less than high sens' });
+      return;
+    }
+    nextSenses = sn as number[];
+    sensChanged = nextSenses.some((v, i) => Math.abs(v - cur.senses![i]) > 1e-9);
+  }
+  if (heroChanged || sensChanged) {
+    const locked = db.prepare('SELECT id FROM blind_stage_sets WHERE hero = :hero AND phase IS :phase LIMIT 1')
+      .get({ hero: cur.hero, phase: req.params.key });
+    if (locked) {
+      res.status(409).json({ error: 'a test set exists for this hero in this phase; only archetype and note can change' });
+      return;
+    }
+    if (heroChanged && plan.some(p => p.hero === b.hero)) {
+      res.status(409).json({ error: 'hero is already in this phase' });
+      return;
+    }
+  }
+  if (heroChanged) cur.hero = (b.hero as string).trim();
+  if (sensChanged && nextSenses) cur.senses = nextSenses;
+  if (b.archetype !== undefined) cur.archetype = (b.archetype as string).trim() || 'Unknown';
+  if (b.note !== undefined) cur.note = (b.note as string).trim();
+  db.prepare('UPDATE custom_phases SET plan = :plan WHERE key = :key')
+    .run({ key: req.params.key, plan: JSON.stringify(plan) });
+  res.json({ ok: true, hero: cur });
+});
+
 // ── Delete a custom phase (tab/plan definition only — any test sets already
 // created from it stay as-is, same as the old localStorage behavior). ───────
 router.delete('/:key', (req: Request, res: Response) => {

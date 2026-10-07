@@ -933,7 +933,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
   // moves past that, follow it here — but only until the user actually picks
   // a tab themselves, so this doesn't fight a manual selection.
   const userPickedTab = useRef(false);
-  const setTabKey = (key: string) => { userPickedTab.current = true; setTabKeyRaw(key); };
+  const setTabKey = (key: string) => { userPickedTab.current = true; setTabKeyRaw(key); setEditHero(null); setEditRow(null); };
   useEffect(() => {
     if (!userPickedTab.current) setTabKeyRaw(lastBuilt.key);
   }, [lastBuilt.key]);
@@ -1017,6 +1017,33 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
     if (!res.ok) { alert(((await res.json().catch(() => null)) as { error?: string } | null)?.error ?? 'Could not add hero.'); return; }
     revalidateAll();
     setAddHeroRow(null);
+  }
+
+  // Per-tile "Edit" (custom phases only). Hero and sens lock once a test set
+  // exists for the hero (server enforces it too, PATCH .../heroes/:hero).
+  const [editHero, setEditHero] = useState<string | null>(null);
+  const [editRow, setEditRow] = useState<NewPhaseRow | null>(null);
+  function openEdit(h: PlanHero) {
+    const v = valuesOf(h);
+    setEditHero(h.hero);
+    setEditRow({ ...blankRow(), hero: h.hero, archetype: h.archetype, note: h.note, low: String(Math.min(...v)), high: String(Math.max(...v)) });
+  }
+  async function saveEdit(h: PlanHero, locked: boolean) {
+    const r = editRow;
+    if (!r) return;
+    const body: Record<string, unknown> = { archetype: r.archetype.trim() || 'Unknown', note: r.note.trim() };
+    if (!locked) {
+      const low = parseFloat(r.low), high = parseFloat(r.high);
+      if (!r.hero || !(low > 0) || !(high > low)) { alert('Pick a hero and enter a low sens below the high sens.'); return; }
+      body.hero = r.hero;
+      if (h.senses) body.senses = spreadSens(low, high, h.senses.length);
+    }
+    const res = await fetch(`/api/custom-phases/${encodeURIComponent(tabKey)}/heroes/${encodeURIComponent(h.hero)}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    if (!res.ok) { alert(((await res.json().catch(() => null)) as { error?: string } | null)?.error ?? 'Could not save hero.'); return; }
+    revalidateAll();
+    setEditHero(null); setEditRow(null);
   }
 
   function updateRow(i: number, patch: Partial<NewPhaseRow>) {
@@ -1296,10 +1323,46 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
           const progress = progressLabel(s);
           return (
             <div key={h.hero} className="relative chamfer-sm bg-ow-darker border border-ow-border p-2 overflow-hidden">
-              <div className={s.status === 'completed' ? 'opacity-30 pointer-events-none' : s.status === 'paused' ? 'opacity-60' : ''}>
+              {editHero === h.hero && editRow ? (() => {
+                const locked = s.status !== 'none';
+                return (
+                  <div data-inspect-id="sl-plan-edit-form" className="grid grid-cols-6 gap-1.5 items-center">
+                    <select
+                      value={editRow.hero} disabled={locked} onChange={e => setEditRow({ ...editRow, hero: e.target.value })}
+                      className={`${compactField} col-span-3 disabled:opacity-60`} aria-label="Hero"
+                    >
+                      {Object.keys(HEROES).filter(n => n === h.hero || (!RETIRED_HEROES.has(n) && !plan.some(p => p.hero === n))).sort().map(n => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                    <select
+                      value={editRow.archetype} onChange={e => setEditRow({ ...editRow, archetype: e.target.value })}
+                      className={`${compactField} col-span-3`} aria-label="Archetype"
+                    >
+                      {Object.keys(ARCHETYPE_DEFAULT_RANGE).map(a => <option key={a} value={a}>{a}</option>)}
+                    </select>
+                    <input type="number" step="0.01" min={0.01} placeholder="Low" value={editRow.low} disabled={locked} onChange={e => setEditRow({ ...editRow, low: e.target.value })} className={`${compactField} col-span-3 disabled:opacity-60`} aria-label="Low sens" />
+                    <input type="number" step="0.01" placeholder="High" value={editRow.high} disabled={locked} onChange={e => setEditRow({ ...editRow, high: e.target.value })} className={`${compactField} col-span-3 disabled:opacity-60`} aria-label="High sens" />
+                    <input placeholder="Note (optional)" value={editRow.note} onChange={e => setEditRow({ ...editRow, note: e.target.value })} className={`${compactField} col-span-6`} aria-label="Note" />
+                    {locked && <p className="col-span-6 text-[10px] text-[var(--faint-2)]">Sens and hero lock once a test set exists.</p>}
+                    <button type="button" onClick={() => saveEdit(h, locked)} className="btn-primary col-span-3 py-1 text-xs">Save</button>
+                    <button type="button" onClick={() => { setEditHero(null); setEditRow(null); }} className={`${btnSecondary} col-span-3 py-1 text-xs`}>Cancel</button>
+                  </div>
+                );
+              })() : (<>
+              <div className={s.status === 'paused' ? 'opacity-60' : s.status === 'completed' ? 'opacity-30' : ''}>
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <span className="text-xs hero-name text-[var(--ink)] truncate">{h.hero}</span>
-                  <span className="text-[9px] text-[var(--faint-2)] uppercase shrink-0">{h.archetype}</span>
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    {tabKey.startsWith('custom-') && (
+                      <button
+                        type="button" onClick={() => openEdit(h)}
+                        data-inspect-id="sl-plan-edit-btn"
+                        className="text-[10px] text-[var(--faint)] hover:text-[var(--ink)] underline underline-offset-2"
+                      >
+                        Edit
+                      </button>
+                    )}
+                    <span className="text-[9px] text-[var(--faint-2)] uppercase">{h.archetype}</span>
+                  </span>
                 </div>
                 {/* The sens values being tested are the whole point of the card —
                     lead with them, large and centered, rather than burying them
@@ -1405,7 +1468,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
               </div>
 
               {s.status === 'completed' && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 bg-ow-card/40 backdrop-blur-[1px]">
+                <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center gap-0.5 bg-ow-card/40 backdrop-blur-[1px]">
                   <span
                     data-inspect-id="sl-plan-status-badge"
                     className="heading-display text-2xl leading-none text-center drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)] text-emerald-500"
@@ -1415,6 +1478,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                   <span className="text-[10px] font-semibold num-display text-[var(--ink)] drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">{progress}</span>
                 </div>
               )}
+              </>)}
             </div>
           );
         })}

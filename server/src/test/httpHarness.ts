@@ -31,6 +31,7 @@ import roleTimerRouter from '../routes/roleTimer';
 import advisorRouter, { setAdvisorCacheStore, type AdvisorCacheStore } from '../routes/advisor';
 import v1Router from '../routes/v1';
 import rosterRouter from '../routes/roster';
+import customPhasesRouter from '../routes/customPhases';
 import { trackerWriteNotifier } from '../lib/trackerEvents';
 import { configureReplicaCache, resetReplicaCache, invalidateReplica } from '../lab/replicaCache';
 import { installExperiments } from '../experiments';
@@ -46,6 +47,7 @@ export interface Harness {
   get<T = any>(p: string): Promise<ApiResponse<T>>;
   post<T = any>(p: string, body?: unknown): Promise<ApiResponse<T>>;
   put<T = any>(p: string, body?: unknown): Promise<ApiResponse<T>>;
+  patch<T = any>(p: string, body?: unknown): Promise<ApiResponse<T>>;
   del<T = any>(p: string): Promise<ApiResponse<T>>;
   /** Origin of the harness server, for tests that build their own lab client. */
   baseUrl: string;
@@ -88,6 +90,7 @@ export async function startHarness(opts: { experiments?: boolean; freshReads?: b
   app.use('/api/advisor', advisorRouter);
   app.use('/api/v1', v1Router);
   app.use('/api/roster', rosterRouter);
+  app.use('/api/custom-phases', customPhasesRouter);
 
   const server = http.createServer(app);
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -125,6 +128,7 @@ export async function startHarness(opts: { experiments?: boolean; freshReads?: b
     get: (p) => call('GET', p),
     post: (p, body) => call('POST', p, body ?? {}),
     put: (p, body) => call('PUT', p, body ?? {}),
+    patch: (p, body) => call('PATCH', p, body ?? {}),
     del: (p) => call('DELETE', p),
     close: async () => {
       await new Promise<void>((resolve, reject) =>
