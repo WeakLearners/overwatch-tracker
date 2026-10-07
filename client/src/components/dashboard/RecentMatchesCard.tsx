@@ -4,6 +4,7 @@ import { TrendPoint, RANK_TIER_RGB, rankLabel, isAccount } from '../../types';
 import AnimatedNumber from '../AnimatedNumber';
 import EmptyState from '../EmptyState';
 import { computeTrendsDerived } from '../../lib/trendsDerived';
+import { SEASONS } from '../../lib/roster';
 
 // Extracted 2026-09-26 (perf pass, round 2): this card (the candle/volume/
 // rank-strip chart) is the single heaviest subtree Dashboard renders --
@@ -29,6 +30,20 @@ interface RecentMatchesCardProps {
 }
 const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: RecentMatchesCardProps) {
   const { last100, last500, winRate, wr100, wr500, wrDelta, CANDLE_DAYS, candles, careerComp, careerEdge, perMatchSd, paceAt, sdAt, CH_W, CH_H, CH_PAD, VOL_H, PLOT_BOTTOM, bandLo, bandHi, lowV, highV, vSpan, slotW, bodyW, volW, slotX, chartY, maxVol, ROOFLINE, volY, FALLOFF, VOL_STOPS, volStopColor, pacePts, bandUpper, bandLower, bandPoly, candleIdxByDate, tierMarks, tierMarkByDay, drumLabel, tierStackIdx, RANK_ROLES, RANK_SERIES_COLOR, rankSeries, rankValuesSeen, rankHasData, rankMinRaw, rankMaxRaw, rankTierLoIdx, rankTierHiIdx, rankLo, rankHi, rankSpan, RANK_H, rankY, rankTierBands, zeroY, lastCandle, lastClose, lastN, lastZ, BLEND_THRESHOLD, SAT_FLOOR, SAT_CEIL, SAT_FULL_AT, GRAD_STOPS, gradStops, UP_COLOR, DOWN_COLOR, UP_SWATCH, DOWN_SWATCH, LEGEND_SWATCH, LEGEND_TITLE, yTicks, labelEvery, dayTicks, dayNets, bestDay, worstDay } = useMemo(() => computeTrendsDerived(trends), [trends]);
+  // Season starts. The x-axis is one candle per day PLAYED, not per calendar day,
+  // so a start lands on the first candle dated on or after it. A start at or
+  // before the first candle (or after the last) is outside the window: skipped.
+  const seasonMarks = (() => {
+    const first = candles[0]?.date, last = candles[candles.length - 1]?.date;
+    if (!first || !last) return [];
+    const out: { label: string; start: string; x: number }[] = [];
+    for (const s of SEASONS) {
+      if (s.start <= first || s.start > last) continue;
+      const j = candles.findIndex(c => c.date >= s.start);
+      if (j > 0) out.push({ label: s.label, start: s.start, x: slotX(j) - slotW / 2 });
+    }
+    return out;
+  })();
   return (
         <div className="card reveal" style={{ '--reveal-delay': '60ms' } as React.CSSProperties} data-inspect-id="dash-recent-matches-card">
           <div className="flex items-center justify-between flex-wrap gap-y-1 mb-4">
@@ -178,6 +193,21 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
                     />
                   ))}
 
+                  {/* Season starts: faint dashed verticals, behind the data. */}
+                  {seasonMarks.map(m => (
+                    <line
+                      key={`ss${m.start}`}
+                      data-inspect-id="dash-form-season-line"
+                      x1={m.x} y1="0" x2={m.x} y2={PLOT_BOTTOM}
+                      stroke="currentColor"
+                      strokeWidth="1"
+                      strokeDasharray="3 3"
+                      vectorEffect="non-scaling-stroke"
+                      pointerEvents="none"
+                      className="text-[var(--faint)] opacity-[0.45]"
+                    />
+                  ))}
+
                   {/* Break-even. Above it the window is up on the run, below it down. */}
                   <line
                     x1="0"
@@ -319,6 +349,21 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
                     </rect>
                   ))}
                 </svg>
+
+                {/* Season labels, top of each start line. Never catch the pointer. */}
+                {seasonMarks.map(m => {
+                  const pct = (m.x / CH_W) * 100;
+                  return (
+                    <span
+                      key={`ssl${m.start}`}
+                      data-inspect-id="dash-form-season-label"
+                      className={`absolute top-0 z-0 pointer-events-none text-[9px] leading-none whitespace-nowrap text-[var(--faint)] ${pct > 88 ? '-translate-x-full pr-0.5' : 'pl-0.5'}`}
+                      style={{ left: `calc(1.75rem + ${pct}% - ${(m.x / CH_W) * 1.75}rem)` }}
+                    >
+                      {m.label}
+                    </span>
+                  );
+                })}
 
                 {/* Y scale, one label per gridline, sitting in the pl-7 gutter. */}
                 {yTicks.map(v => (
