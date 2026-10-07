@@ -30,7 +30,7 @@ function fakeBlizzard(opts: { newHero?: boolean; season?: number; breakHeroes?: 
   setRosterFetcher(async url => {
     if (url.includes('/heroes/')) {
       if (opts.breakHeroes) return '<html>new layout</html>';
-      return r.heroes.map((x: any) => card(x.name, role(x.role))).join('') + (opts.newHero ? card('Doctrine', 'support') : '');
+      return r.heroes.map((x: any) => card(x.name, role(x.role))).join('') + (opts.newHero ? card('Zephyr', 'support') : '');
     }
     if (url.includes('/rates/')) {
       const open = r.maps.filter((m: any) => !m.retired);
@@ -45,7 +45,7 @@ describe('GET /api/roster', () => {
   test('returns heroes, maps and seasons; Throne of Anubis is retired but still listed', async () => {
     const r = await h.get('/api/roster');
     assert.equal(r.status, 200);
-    assert.equal(r.body.heroes.length, 53);
+    assert.equal(r.body.heroes.length, 54);
     assert.equal(r.body.maps.find((m: any) => m.name === 'Throne of Anubis').retired, true);
     assert.equal(r.body.seasons.at(-1).label, '2026 S5');
   });
@@ -63,7 +63,7 @@ describe('POST /api/roster/check', () => {
   test('reports a new hero and a new season', async () => {
     fakeBlizzard({ newHero: true, season: 6 });
     const r = await h.post('/api/roster/check');
-    assert.deepEqual(r.body.newHeroes, [{ name: 'Doctrine', role: 'Support' }]);
+    assert.deepEqual(r.body.newHeroes, [{ name: 'Zephyr', role: 'Support' }]);
     assert.equal(r.body.newSeason.label.endsWith(' S6'), true);
   });
   test('a layout change is a 502 with the clear message and writes nothing', async () => {
@@ -78,17 +78,17 @@ describe('POST /api/roster/check', () => {
 
 describe('POST /api/roster/apply', () => {
   test('writes a ticked hero and season, and the server views update without a restart', async () => {
-    const r = await h.post('/api/roster/apply', { heroes: [{ name: 'Doctrine', role: 'Support' }], season: { label: '2026 S6', start: '2026-12-09' } });
+    const r = await h.post('/api/roster/apply', { heroes: [{ name: 'Zephyr', role: 'Support' }], season: { label: '2026 S6', start: '2026-12-09' } });
     assert.equal(r.status, 200);
-    assert.ok(HEROES_BY_ROLE.Support.includes('Doctrine'));
-    assert.equal(JSON.parse(fs.readFileSync(path.join(tmp, 'roster.json'), 'utf8')).heroes.find((x: any) => x.name === 'Doctrine').addedSeason, '2026 S6');
+    assert.ok(HEROES_BY_ROLE.Support.includes('Zephyr'));
+    assert.equal(JSON.parse(fs.readFileSync(path.join(tmp, 'roster.json'), 'utf8')).heroes.find((x: any) => x.name === 'Zephyr').addedSeason, '2026 S6');
     const s = JSON.parse(fs.readFileSync(path.join(tmp, 'seasons.json'), 'utf8'));
     assert.deepEqual(s.slice(-2), [{ label: '2026 S5', start: '2026-10-06', end: '2026-12-09' }, { label: '2026 S6', start: '2026-12-09', end: null }]);
     assert.equal(SEASONS.at(-1)!.label, '2026 S6');
   });
   test('a hero without a valid role rejects the whole request; nothing is written', async () => {
     const before = fs.readFileSync(path.join(tmp, 'roster.json'), 'utf8');
-    const r = await h.post('/api/roster/apply', { heroes: [{ name: 'Doctrine', role: 'Healer' }], season: { label: '2026 S6', start: '2026-12-09' } });
+    const r = await h.post('/api/roster/apply', { heroes: [{ name: 'Zephyr', role: 'Healer' }], season: { label: '2026 S6', start: '2026-12-09' } });
     assert.equal(r.status, 400);
     assert.equal(fs.readFileSync(path.join(tmp, 'roster.json'), 'utf8'), before);
     assert.equal(SEASONS.at(-1)!.label, '2026 S5');
@@ -116,9 +116,9 @@ describe('portraits', () => {
     setRosterFetcher(async () => page(), async () => PNG);
     const r = await h.post('/api/roster/apply', { images: true });
     assert.equal(r.status, 200);
-    assert.deepEqual([r.body.images.downloaded, r.body.images.matched, r.body.images.total], [53, 53, 53]);
+    assert.deepEqual([r.body.images.downloaded, r.body.images.matched, r.body.images.total], [54, 54, 54]);
     const g = await h.get('/api/roster');
-    assert.equal(g.body.images.heroes.length, 53);
+    assert.equal(g.body.images.heroes.length, 54);
     assert.ok(g.body.images.heroes.includes('dva') && g.body.images.heroes.includes('soldier76'));
   });
   test('with OW_BLIZZARD_IMAGES=off nothing is downloaded or listed', async () => {
@@ -134,7 +134,7 @@ describe('portraits', () => {
 
 describe('roster data matches the old hard-coded shapes', () => {
   test('HEROES_BY_ROLE counts and MAPS_BY_NAME size', () => {
-    assert.deepEqual(Object.fromEntries(Object.entries(HEROES_BY_ROLE).map(([k, v]) => [k, v.length])), { DPS: 24, Support: 14, Tank: 15 });
+    assert.deepEqual(Object.fromEntries(Object.entries(HEROES_BY_ROLE).map(([k, v]) => [k, v.length])), { DPS: 23, Support: 16, Tank: 15 });
     assert.equal(Object.keys(MAPS_BY_NAME).length, 31);
   });
 });
