@@ -1237,7 +1237,7 @@ export default function Prematch() {
               return (
                 <div key={role} className={sensStudyOn ? 'lg:flex lg:flex-col lg:min-h-0' : ''}>
                   <div className={`text-xs font-bold uppercase tracking-widest mb-2 shrink-0 ${ROLE_TEXT[role]}`}>{role}</div>
-                  <div className={`flex flex-col gap-1.5 ${sensStudyOn ? 'lg:flex-1 lg:min-h-0 lg:overflow-y-auto' : ''}`}>
+                  <div className={`flex flex-col gap-1.5 ${sensStudyOn ? 'lg:flex-1 lg:min-h-0 lg:overflow-y-auto lg:p-2 lg:-m-2' : ''}`}>
                     {heroes.map(h => {
                       const clickIndex = clickedHeroes.indexOf(h.hero);
                       const isClicked = clickIndex !== -1;
