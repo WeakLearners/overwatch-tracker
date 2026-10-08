@@ -1,6 +1,6 @@
 import LobbyRankSection from '../components/LobbyRankSection';
 import SegmentedPills, { NOTCH, ACCENT_SEL } from '../components/SegmentedPills';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, Fragment } from 'react';
 import { useApi, revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
@@ -797,8 +797,7 @@ export default function Prematch() {
                 </div>
               </div>
             </div>
-            <div className="col-span-2 flex items-center justify-between gap-2 pl-4 min-w-0">
-              <span className="text-xs text-[var(--faint)] bg-ow-border/50 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">tap up to 3</span>
+            <div className="col-span-2 flex items-center gap-2 pl-4 min-w-0">
               {mapType && <span className={`pill shrink-0 ${TYPE_COLORS[mapType] ?? ''}`} data-inspect-id="prematch-map-type-badge">{mapType}</span>}
             </div>
           </div>
@@ -906,74 +905,47 @@ export default function Prematch() {
               per "new feature does not equate to new elements" rather than
               keeping two side-by-side recommendations. */}
           {selected.length > 0 && (testPick?.available ? testPick.picks.length > 0 : ranked.length > 0) && (
-            <div className="flex-1 flex flex-col">
+            <div className="grid grid-cols-[minmax(0,max-content)_minmax(0,1fr)_max-content] items-baseline gap-x-3 gap-y-1.5 content-start">
               {testPick?.available && testPick.picks.length > 0 ? (
-                <div className="flex-1 flex flex-col justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-baseline justify-between gap-2 min-w-0">
+                testPick.picks.slice(0, 3).map((p, i) => (
+                  <Fragment key={`${p.map}|${p.hero}`}>
+                    {i === 0 ? (
                       <div className="flex items-center gap-2 min-w-0">
-                        <button onClick={() => setMap(testPick.picks[0].map)} className="min-w-0 truncate text-2xl leading-tight map-name text-emerald-600 hover:text-emerald-700 transition-colors text-left" data-inspect-id="prematch-vote-for-button">
-                          {withMapCount(testPick.picks[0].map, mapCounts)}
+                        <button onClick={() => setMap(p.map)} className="min-w-0 truncate text-2xl leading-tight map-name text-emerald-600 hover:text-emerald-700 transition-colors text-left" data-inspect-id="prematch-vote-for-button">
+                          {withMapCount(p.map, mapCounts)}
                         </button>
                         <span className={`pill shrink-0 ${ROLE_COLORS[testRole]}`}>{testRole}</span>
                       </div>
-                      <span className="shrink-0 text-2xl leading-tight map-name font-bold text-emerald-500">{testPick.picks[0].win_rate.toFixed(1)}%</span>
-                    </div>
-                    <div className="text-xs text-[var(--faint)] text-right truncate">
-                      <span className="hero-name">{testPick.picks[0].hero}</span> · <b className="font-bold">{testPick.picks[0].games}</b> games
-                      {testPick.picks[0].sample_size === 'thin' && <span className="text-amber-500"> · thin</span>}
-                    </div>
-                  </div>
-                  {testPick.picks.length > 1 && (
-                    <div className="flex flex-col gap-1.5">
-                      {testPick.picks.slice(1, 3).map(p => (
-                        <div key={`${p.map}|${p.hero}`} className="min-w-0">
-                          <div className="flex items-baseline justify-between gap-2 min-w-0">
-                            <span className="map-name text-sm text-[var(--ink-2)] min-w-0 truncate">{withMapCount(p.map, mapCounts)}</span>
-                            <span className="shrink-0 text-sm map-name font-bold">{p.win_rate.toFixed(1)}%</span>
-                          </div>
-                          <div className="text-xs text-[var(--faint)] text-right truncate">
-                            <span className="hero-name">{p.hero}</span> · <b className="font-bold">{p.games}</b> games
-                            {p.sample_size === 'thin' && <span className="text-amber-500"> · thin</span>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                    ) : (
+                      <span className="map-name text-sm text-[var(--ink-2)] min-w-0 truncate">{withMapCount(p.map, mapCounts)}</span>
+                    )}
+                    <span className="text-xs text-[var(--faint)] text-left truncate min-w-0">
+                      <span className="hero-name">{p.hero}</span> · <b className="font-bold">{p.games}</b> games
+                      {p.sample_size === 'thin' && <span className="text-amber-500"> · thin</span>}
+                    </span>
+                    <span className={i === 0 ? 'text-2xl leading-tight map-name font-bold text-emerald-500 text-right' : 'text-sm map-name font-bold text-right'}>{p.win_rate.toFixed(1)}%</span>
+                  </Fragment>
+                ))
               ) : ranked.length === 1 ? (
-                <div className="text-sm text-[var(--muted)]">Select more maps to compare.</div>
+                <div className="col-span-3 text-sm text-[var(--muted)]">Select more maps to compare.</div>
               ) : (
-                <div className="flex-1 flex flex-col justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-baseline justify-between gap-2 min-w-0">
+                ranked.slice(0, 3).map((m, i) => (
+                  <Fragment key={m}>
+                    {i === 0 ? (
                       <button onClick={() => openMap(winner)} className="min-w-0 truncate text-2xl leading-tight map-name text-emerald-600 hover:text-emerald-700 transition-colors text-left" data-inspect-id="prematch-vote-for-button">
                         {withMapCount(winner, mapCounts)}
                       </button>
-                      {scoreMap[winner] && <span className="shrink-0 text-2xl leading-tight map-name font-bold text-emerald-500">{scoreMap[winner].blended_score.toFixed(1)}%</span>}
-                    </div>
-                    {scoreMap[winner] && (
-                      <div className="text-xs text-[var(--faint)] text-right truncate">
-                        blended · <b className="font-bold">{scoreMap[winner].total_games}</b> games
-                      </div>
+                    ) : (
+                      <span className="map-name text-sm text-[var(--ink-2)] min-w-0 truncate">{withMapCount(m, mapCounts)}</span>
                     )}
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    {ranked.slice(1, 3).map(m => (
-                      <div key={m} className="min-w-0">
-                        <div className="flex items-baseline justify-between gap-2 min-w-0">
-                          <span className="map-name text-sm text-[var(--ink-2)] min-w-0 truncate">{withMapCount(m, mapCounts)}</span>
-                          <span className="shrink-0 text-sm map-name font-bold">{scoreMap[m] ? `${scoreMap[m].blended_score.toFixed(1)}%` : <span className="font-normal text-[var(--faint)]">no data</span>}</span>
-                        </div>
-                        {scoreMap[m] && (
-                          <div className="text-xs text-[var(--faint)] text-right truncate">
-                            blended · <b className="font-bold">{scoreMap[m].total_games}</b> games
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                    <span className="text-xs text-[var(--faint)] text-left truncate min-w-0">
+                      {scoreMap[m] && <>blended · <b className="font-bold">{scoreMap[m].total_games}</b> games</>}
+                    </span>
+                    <span className={i === 0 ? 'text-2xl leading-tight map-name font-bold text-emerald-500 text-right' : 'text-sm map-name font-bold text-right'}>
+                      {scoreMap[m] ? `${scoreMap[m].blended_score.toFixed(1)}%` : <span className="font-normal text-[var(--faint)]">no data</span>}
+                    </span>
+                  </Fragment>
+                ))
               )}
             </div>
           )}
