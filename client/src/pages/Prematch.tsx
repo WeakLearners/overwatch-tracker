@@ -150,12 +150,11 @@ function ClockOdometer({ minutes, size, dataInspectId }: { minutes: number; size
   );
 }
 
-interface RoleTimerData {
-  role: string | null; matches: number; since: string | null;
-  recordedMin: number; estimatedMin: number; totalMin: number;
-  thresholdMin: number; reached: boolean; switchTo: string | null;
-  held: { role: string; totalMin: number; matches: number } | null;
+interface RoleClockData {
+  role: 'Tank' | 'DPS' | 'Support'; recordedMin: number; estimatedMin: number; totalMin: number;
+  matches: number; since: string | null; resets: number;
 }
+interface RoleTimersData { thresholdMin: number; roles: RoleClockData[] }
 const fmtHM = (min: number) => { const t = Math.round(min); return `${Math.floor(t / 60)}h ${String(t % 60).padStart(2, '0')}m`; };
 
 export default function Prematch() {
@@ -165,9 +164,9 @@ export default function Prematch() {
   const { rec, recLoading, recError } = useAdvisor();
 
   const { data: dpiHud } = useApi<DpiTestHud>('/api/blind/state');
-  // Role timer: competitive minutes in the current role run. matchLoggedSignal
-  // is a dep as well as useApi's revalidateAll(), so a logged match always refetches.
-  const { data: roleTimer } = useApi<RoleTimerData>('/api/role-timer', [matchLoggedSignal]);
+  // Role timers: three clocks (Tank, DPS, Support), competitive minutes since each role's
+  // last reset. matchLoggedSignal is a dep as well as useApi's revalidateAll(), so a logged match always refetches.
+  const { data: roleTimers } = useApi<RoleTimersData>('/api/role-timer', [matchLoggedSignal]);
   const btActives = dpiHud?.actives ?? [];
   // Several heroes can be "In Testing" at once, but the mouse can only be set
   // to one DPI at a time — so the HUD tracks whichever hero you're about to
@@ -652,8 +651,8 @@ export default function Prematch() {
           with the same 20px inset, so "Playing as" and that card's title start
           on the same vertical line. Trimming both sides knocked them 8px out
           of alignment. */}
-      {/* Three columns on a 4-2-4 split (Sean, 2026-10-01): who is playing on
-          the left, the role pick in the middle, the role timer on the right.
+      {/* Two columns, 4-2 of 6 (was 4-2-4, Sean 2026-10-01): who is playing on
+          the left, the role pick on the right (the role timers moved to their own card beside Hero advice, 2026-10-08).
           A fixed grid rather than content-sized flex, so each column keeps
           its place whatever the text inside it says.
 
@@ -661,11 +660,9 @@ export default function Prematch() {
           12px, line-height-1 text in the strip's full height. Each label is
           wrapped in onLine(), a box of that same size, centred the same way;
           smaller text inside it sits on the box's baseline, so a 10px label
-          and a 12px pill letter rest on the same line. The timer bar is an
-          inline-block in the same kind of box, so its bottom edge sits on
-          that line too. */}
+          and a 12px pill letter rest on the same line. */}
       <div
-        className="card !py-0 mb-3 grid grid-cols-10 items-stretch gap-4 min-h-[34px]"
+        className="card !py-0 mb-3 grid grid-cols-6 items-stretch gap-4 min-h-[34px]"
         data-inspect-id="prematch-identity-strip"
       >
         {/* Left (4): label, account pills, then the rank slot the account and
@@ -692,9 +689,9 @@ export default function Prematch() {
           )}
         </div>
 
-        {/* Middle (2): the role pick. Open Queue has one rank per account and
+        {/* Right (2): the role pick. Open Queue has one rank per account and
             no role queue, so the pick is hidden there, but the column keeps
-            its space so the timer never shifts between queue modes. */}
+            its space so nothing shifts between queue modes. */}
         <div className="col-span-2 min-w-0 flex items-stretch justify-center gap-2.5">
           {queueMode !== 'comp_open' && (<>
           {onLine(<span className="text-[10px] uppercase tracking-wider text-[var(--faint-2)]" data-inspect-id="prematch-role-label">Role</span>)}
@@ -708,37 +705,6 @@ export default function Prematch() {
             r => `Queue as ${r}`,
           )}
           </>)}
-        </div>
-
-        {/* Right (4): role timer. Competitive minutes in the current role run,
-            a run that reaches 4 hours resets and flips to the other role. Shown in every queue mode: Open
-            Queue matches count too. Quick Play is ignored server-side.
-            Detour/reset rules live in server/src/lib/roleTimer.ts.
-            Recommendation only, never blocks logging. */}
-        <div className="col-span-4 min-w-0 flex items-stretch">
-          {roleTimer && roleTimer.role && (
-            <div
-              className="flex-1 min-w-0 flex items-stretch gap-2.5"
-              title={`Competitive only · ${roleTimer.matches} matches since ${roleTimer.since}. Resets at ${fmtHM(roleTimer.thresholdMin)}.`}
-              data-inspect-id="prematch-role-timer-card"
-            >
-              {onLine(<span className="text-[10px] uppercase tracking-wider text-[var(--faint-2)]">Role time</span>)}
-              <span className="self-center flex-1 min-w-[40px] text-xs leading-none">
-                <span className="inline-block align-baseline w-full h-1.5 rounded-full bg-ow-border/50 overflow-hidden" data-inspect-id="prematch-role-timer-bar">
-                  <span
-                    className="block h-full rounded-full"
-                    style={{ width: `${Math.min(100, (roleTimer.totalMin / roleTimer.thresholdMin) * 100)}%`, background: `rgb(${ROLE_SEL_RGB[roleTimer.role] ?? '148 163 184'})` }}
-                    data-inspect-id="prematch-role-timer-fill"
-                  />
-                </span>
-              </span>
-              {onLine(<span className="text-[11px] text-[var(--ink-2)]" data-inspect-id="prematch-role-timer-readout">
-                <b className="font-semibold">{roleTimer.role}</b> {fmtHM(roleTimer.totalMin)} / {fmtHM(roleTimer.thresholdMin)}
-                {roleTimer.estimatedMin > 0 && <span className="text-[var(--faint-2)]"> (+{Math.round(roleTimer.estimatedMin)}m est.)</span>}
-                {roleTimer.held && <span className="text-[var(--faint-2)]"> · {roleTimer.held.role} held at {fmtHM(roleTimer.held.totalMin)}, one more {roleTimer.role} resets it</span>}
-              </span>)}
-            </div>
-          )}
         </div>
       </div>
 
@@ -1081,7 +1047,8 @@ export default function Prematch() {
 
       {/* Hero advice — the recommendation and the coaching behind it, in one
           card above Select Your Hero (the tracker's hero input). */}
-      <div id="consolidated-advisor" className="card mb-4" data-inspect-id="prematch-consolidated-advisor-card">
+      <div className="grid grid-cols-1 lg:grid-cols-3 items-stretch gap-4 mb-4">
+      <div id="consolidated-advisor" className="card lg:col-span-2 min-w-0" data-inspect-id="prematch-consolidated-advisor-card">
         <div className="flex items-start justify-between gap-3 mb-1">
           <div>
             <h2 className="text-sm card-title">
@@ -1196,6 +1163,47 @@ export default function Prematch() {
             )}
           </div>
         )}
+      </div>
+
+      {/* Role time: three independent clocks (Tank, DPS, Support), competitive
+          minutes since each role's last reset; a clock that reaches 4 hours
+          resets to 0. Rules in server/src/lib/roleTimer.ts. Quick Play is
+          ignored server-side. Recommendation only, never blocks logging. */}
+      <div className="card lg:col-span-1 min-w-0" data-inspect-id="prematch-role-timers-card">
+        <div className="flex items-baseline gap-2 mb-3">
+          <h2 className="text-sm card-title">Role time</h2>
+          <span className="text-xs text-[var(--faint-2)] whitespace-nowrap">
+            Comp only · resets at {roleTimers ? fmtHM(roleTimers.thresholdMin).replace(' 00m', '') : '4h'}
+          </span>
+        </div>
+        <div className="flex flex-col gap-3">
+          {(roleTimers?.roles ?? []).map(r => {
+            const k = r.role.toLowerCase();
+            return (
+              <div
+                key={r.role}
+                className="min-w-0"
+                title={`${r.matches} matches since ${r.since ?? 'the start'} · ${r.resets} resets so far`}
+                data-inspect-id={`prematch-role-timer-row-${k}`}
+              >
+                <div className="flex items-baseline justify-between gap-2 mb-1">
+                  <b className="text-xs font-semibold" style={{ color: `rgb(${ROLE_SEL_RGB[r.role]})` }}>{r.role}</b>
+                  <span className="text-[11px] text-[var(--ink-2)] whitespace-nowrap" data-inspect-id={`prematch-role-timer-readout-${k}`}>
+                    {fmtHM(r.totalMin)} / {fmtHM(roleTimers!.thresholdMin)}
+                    {r.estimatedMin > 0 && <span className="text-[var(--faint-2)]"> (+{Math.round(r.estimatedMin)}m est.)</span>}
+                  </span>
+                </div>
+                <div className="w-full h-1.5 rounded-full bg-ow-border/50 overflow-hidden" data-inspect-id={`prematch-role-timer-bar-${k}`}>
+                  <div
+                    className="h-full rounded-full"
+                    style={{ width: `${Math.min(100, (r.totalMin / roleTimers!.thresholdMin) * 100)}%`, background: `rgb(${ROLE_SEL_RGB[r.role]})` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
       </div>
 
       {/* Step 5 row, on the same three-column grid as step 1 so the edges and

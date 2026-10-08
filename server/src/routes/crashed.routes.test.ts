@@ -134,10 +134,11 @@ describe('where it counts and where it does not', () => {
     h.db.prepare('INSERT INTO aim_stats_heroes (match_id, hero, duration_min, overall_acc) VALUES (?, ?, 10, 40)').run(id, 'Ashe');
     await crashed({ time: '2026-10-02T09:00:00' });
     const t = await h.get('/api/role-timer');
-    assert.equal(t.body.matches, 2);
-    assert.equal(t.body.recordedMin, 10);
-    assert.equal(t.body.estimatedMin, 10);
-    assert.equal(t.body.totalMin, 20);
+    const dps = t.body.roles.find((r: any) => r.role === 'DPS');
+    assert.equal(dps.matches, 2);
+    assert.equal(dps.recordedMin, 10);
+    assert.equal(dps.estimatedMin, 10);
+    assert.equal(dps.totalMin, 20);
   });
 });
 
