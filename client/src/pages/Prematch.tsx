@@ -135,7 +135,7 @@ interface PrematchData {
 // column, so the minute drums of every clock line up.
 // Vote-advice grid cell. Rows 2+ get a divider across all three cells and
 // stretch to the row so the line sits at the row top; row 1 centres only.
-const cell = (i: number, extra: string) =>
+const cell = (i: number, extra = '') =>
   `min-w-0 flex items-center ${extra} ${i > 0 ? 'self-stretch border-t border-ow-border/40 pt-1' : ''}`;
 
 function ClockOdometer({ minutes, size, dataInspectId }: { minutes: number; size: number; dataInspectId: string }) {
@@ -910,7 +910,7 @@ export default function Prematch() {
               per "new feature does not equate to new elements" rather than
               keeping two side-by-side recommendations. */}
           {selected.length > 0 && (testPick?.available ? testPick.picks.length > 0 : ranked.length > 0) && (
-            <div className="grid grid-cols-[minmax(0,max-content)_minmax(0,1fr)_max-content] items-center gap-0 auto-rows-fr flex-1 min-h-0">
+            <div className="grid grid-cols-[minmax(0,max-content)_10%_minmax(0,1fr)_max-content] items-center gap-0 auto-rows-fr flex-1 min-h-0">
               {testPick?.available && testPick.picks.length > 0 ? (
                 testPick.picks.slice(0, 3).map((p, i) => (
                   <Fragment key={`${p.map}|${p.hero}`}>
@@ -926,8 +926,9 @@ export default function Prematch() {
                       <span className="map-name text-lg text-[var(--ink-2)] min-w-0 truncate">{withMapCount(p.map, mapCounts)}</span>
                     )}
                     </div>
+                    <div className={cell(i)} />
                     <div className={cell(i, 'pr-3')}>
-                    <span className={`${i === 0 ? 'text-xs' : 'text-sm'} text-[var(--faint)] text-left truncate min-w-0`}>
+                    <span className={`text-xs text-[var(--faint)] text-left truncate min-w-0`}>
                       <span className="hero-name">{p.hero}</span> · <b className="font-bold">{p.games}</b> games
                       {p.sample_size === 'thin' && <span className="text-amber-500"> · thin</span>}
                     </span>
@@ -938,7 +939,7 @@ export default function Prematch() {
                   </Fragment>
                 ))
               ) : ranked.length === 1 ? (
-                <div className="col-span-3 self-start text-sm text-[var(--muted)]">Select more maps to compare.</div>
+                <div className="col-span-4 self-start text-sm text-[var(--muted)]">Select more maps to compare.</div>
               ) : (
                 ranked.slice(0, 3).map((m, i) => (
                   <Fragment key={m}>
@@ -951,8 +952,9 @@ export default function Prematch() {
                       <span className="map-name text-lg text-[var(--ink-2)] min-w-0 truncate">{withMapCount(m, mapCounts)}</span>
                     )}
                     </div>
+                    <div className={cell(i)} />
                     <div className={cell(i, 'pr-3')}>
-                    <span className={`${i === 0 ? 'text-xs' : 'text-sm'} text-[var(--faint)] text-left truncate min-w-0`}>
+                    <span className={`text-xs text-[var(--faint)] text-left truncate min-w-0`}>
                       {scoreMap[m] && <>blended · <b className="font-bold">{scoreMap[m].total_games}</b> games</>}
                     </span>
                     </div>
