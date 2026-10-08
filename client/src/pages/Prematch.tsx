@@ -133,6 +133,11 @@ interface PrematchData {
 // Time left as H:MM on narrow odometer drums: one hour drum (two past 9h), a colon,
 // two minute drums. Under an hour the hour drum reads 0. Right-aligned in its
 // column, so the minute drums of every clock line up.
+// Vote-advice grid cell. Rows 2+ get a divider across all three cells and
+// stretch to the row so the line sits at the row top; row 1 centres only.
+const cell = (i: number, extra: string) =>
+  `min-w-0 flex items-center ${extra} ${i > 0 ? 'self-stretch border-t border-ow-border/40 pt-1' : ''}`;
+
 function ClockOdometer({ minutes, size, dataInspectId }: { minutes: number; size: number; dataInspectId: string }) {
   const m = Math.max(0, Math.round(minutes));
   const h = Math.floor(m / 60);
@@ -905,10 +910,11 @@ export default function Prematch() {
               per "new feature does not equate to new elements" rather than
               keeping two side-by-side recommendations. */}
           {selected.length > 0 && (testPick?.available ? testPick.picks.length > 0 : ranked.length > 0) && (
-            <div className="grid grid-cols-[minmax(0,max-content)_minmax(0,1fr)_max-content] items-baseline gap-x-3 gap-y-1.5 content-start">
+            <div className="grid grid-cols-[minmax(0,max-content)_minmax(0,1fr)_max-content] items-center gap-0 auto-rows-fr flex-1 min-h-0">
               {testPick?.available && testPick.picks.length > 0 ? (
                 testPick.picks.slice(0, 3).map((p, i) => (
                   <Fragment key={`${p.map}|${p.hero}`}>
+                    <div className={cell(i, 'pr-3')}>
                     {i === 0 ? (
                       <div className="flex items-center gap-2 min-w-0">
                         <button onClick={() => setMap(p.map)} className="min-w-0 truncate text-2xl leading-tight map-name text-emerald-600 hover:text-emerald-700 transition-colors text-left" data-inspect-id="prematch-vote-for-button">
@@ -917,33 +923,44 @@ export default function Prematch() {
                         <span className={`pill shrink-0 ${ROLE_COLORS[testRole]}`}>{testRole}</span>
                       </div>
                     ) : (
-                      <span className="map-name text-sm text-[var(--ink-2)] min-w-0 truncate">{withMapCount(p.map, mapCounts)}</span>
+                      <span className="map-name text-lg text-[var(--ink-2)] min-w-0 truncate">{withMapCount(p.map, mapCounts)}</span>
                     )}
-                    <span className="text-xs text-[var(--faint)] text-left truncate min-w-0">
+                    </div>
+                    <div className={cell(i, 'pr-3')}>
+                    <span className={`${i === 0 ? 'text-xs' : 'text-sm'} text-[var(--faint)] text-left truncate min-w-0`}>
                       <span className="hero-name">{p.hero}</span> · <b className="font-bold">{p.games}</b> games
                       {p.sample_size === 'thin' && <span className="text-amber-500"> · thin</span>}
                     </span>
-                    <span className={i === 0 ? 'text-2xl leading-tight map-name font-bold text-emerald-500 text-right' : 'text-sm map-name font-bold text-right'}>{p.win_rate.toFixed(1)}%</span>
+                    </div>
+                    <div className={cell(i, 'justify-end')}>
+                    <span className={i === 0 ? 'text-2xl leading-tight map-name font-bold text-emerald-500 text-right' : 'text-lg map-name font-bold text-right'}>{p.win_rate.toFixed(1)}%</span>
+                    </div>
                   </Fragment>
                 ))
               ) : ranked.length === 1 ? (
-                <div className="col-span-3 text-sm text-[var(--muted)]">Select more maps to compare.</div>
+                <div className="col-span-3 self-start text-sm text-[var(--muted)]">Select more maps to compare.</div>
               ) : (
                 ranked.slice(0, 3).map((m, i) => (
                   <Fragment key={m}>
+                    <div className={cell(i, 'pr-3')}>
                     {i === 0 ? (
                       <button onClick={() => openMap(winner)} className="min-w-0 truncate text-2xl leading-tight map-name text-emerald-600 hover:text-emerald-700 transition-colors text-left" data-inspect-id="prematch-vote-for-button">
                         {withMapCount(winner, mapCounts)}
                       </button>
                     ) : (
-                      <span className="map-name text-sm text-[var(--ink-2)] min-w-0 truncate">{withMapCount(m, mapCounts)}</span>
+                      <span className="map-name text-lg text-[var(--ink-2)] min-w-0 truncate">{withMapCount(m, mapCounts)}</span>
                     )}
-                    <span className="text-xs text-[var(--faint)] text-left truncate min-w-0">
+                    </div>
+                    <div className={cell(i, 'pr-3')}>
+                    <span className={`${i === 0 ? 'text-xs' : 'text-sm'} text-[var(--faint)] text-left truncate min-w-0`}>
                       {scoreMap[m] && <>blended · <b className="font-bold">{scoreMap[m].total_games}</b> games</>}
                     </span>
-                    <span className={i === 0 ? 'text-2xl leading-tight map-name font-bold text-emerald-500 text-right' : 'text-sm map-name font-bold text-right'}>
+                    </div>
+                    <div className={cell(i, 'justify-end')}>
+                    <span className={i === 0 ? 'text-2xl leading-tight map-name font-bold text-emerald-500 text-right' : 'text-lg map-name font-bold text-right'}>
                       {scoreMap[m] ? `${scoreMap[m].blended_score.toFixed(1)}%` : <span className="font-normal text-[var(--faint)]">no data</span>}
                     </span>
+                    </div>
                   </Fragment>
                 ))
               )}
