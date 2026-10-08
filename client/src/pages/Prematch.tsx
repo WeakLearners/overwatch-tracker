@@ -1221,7 +1221,10 @@ export default function Prematch() {
             is as tall as the Experiment column, so its bottom edge matches Next
             Test, and each role column scrolls on its own. lg:h-0 + lg:min-h-full
             stops the card adding height to the row. Sean asked for this scroll;
-            it overrides the no-scroll-in-cards rule for this card only. */}
+            it overrides the no-scroll-in-cards rule for this card only.
+            overflow-y-auto also clips x, so each list gets lg:p-2 with an equal
+            lg:-m-2: the selected border and glow ring draw outside the row box
+            and would be cut at the edges; rows keep their position and width. */}
         <div className={`card min-w-0 ${sensStudyOn ? 'lg:col-span-2 lg:h-0 lg:min-h-full lg:flex lg:flex-col' : 'lg:col-span-3'}`} data-inspect-id="prematch-hero-select-card">
         <div className="flex items-baseline gap-2 mb-3 shrink-0">
           <h3 className="text-sm card-title" data-inspect-id="prematch-select-your-hero-header">Select Your Hero</h3>
