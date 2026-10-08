@@ -45,11 +45,20 @@ export interface RoleClock {
 
 export interface RoleTimers { thresholdMin: number; roles: RoleClock[] }
 
+/** The newest comp role-queue match (queue_mode comp_role): its matches.role and the roles whose clock it reset. */
+export interface LastRoleQueueMatch { role: string; resetRoles: TimerRole[] }
+
 const isComp = (m: RoleTimerMatch) => (m.queue_mode ?? '').startsWith('comp');
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
 /** `matches` is newest first (the route's order), any queue mode. Filtered and reversed to oldest -> newest here. */
 export function computeRoleTimers(matches: RoleTimerMatch[], avgMatchMin: number): RoleTimers {
+  return replayRoleTimers(matches, avgMatchMin).timers;
+}
+
+/** Same replay as computeRoleTimers, plus what the newest comp role-queue match did (null when there is none). */
+export function replayRoleTimers(matches: RoleTimerMatch[], avgMatchMin: number): { timers: RoleTimers; lastRoleQueue: LastRoleQueueMatch | null } {
+  let lastRoleQueue: LastRoleQueueMatch | null = null;
   const clocks = new Map<TimerRole, { rec: number; est: number; n: number; since: string | null; resets: number }>();
   for (const r of TIMER_ROLES) clocks.set(r, { rec: 0, est: 0, n: 0, since: null, resets: 0 });
 
@@ -67,21 +76,25 @@ export function computeRoleTimers(matches: RoleTimerMatch[], avgMatchMin: number
     } else if (clocks.has(m.role as TimerRole)) {
       add.set(m.role as TimerRole, [0, avgMatchMin]);
     }
+    const resetRoles: TimerRole[] = [];
     for (const [role, [rec, est]] of add) {
       const c = clocks.get(role)!;
       c.rec += rec; c.est += est; c.n++;
       if (c.since === null) c.since = m.date;
       if (c.rec + c.est >= ROLE_THRESHOLD_MIN) {
         c.rec = 0; c.est = 0; c.n = 0; c.since = m.date; c.resets++;
+        resetRoles.push(role);
       }
     }
+    if (m.queue_mode === 'comp_role') lastRoleQueue = { role: m.role, resetRoles };
   }
 
-  return {
+  const timers: RoleTimers = {
     thresholdMin: ROLE_THRESHOLD_MIN,
     roles: TIMER_ROLES.map(role => {
       const c = clocks.get(role)!;
       return { role, recordedMin: round1(c.rec), estimatedMin: round1(c.est), totalMin: round1(c.rec + c.est), matches: c.n, since: c.since, resets: c.resets };
     }),
   };
+  return { timers, lastRoleQueue };
 }

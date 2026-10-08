@@ -1,4 +1,4 @@
-import { computeRoleTimers, RoleTimerMatch } from '../server/src/lib/roleTimer';
+import { computeRoleTimers, replayRoleTimers, RoleTimerMatch } from '../server/src/lib/roleTimer';
 
 // Newest first, as the route returns them. `d` = date label, h = [role, minutes] pairs, null = no per-hero minutes yet.
 type H = [string, number][] | null;
@@ -48,6 +48,14 @@ const cases: [string, () => boolean][] = [
   ['same-role heroes in one match sum and count one match', () => {
     const t = computeRoleTimers(mk([{ d: 'd1', role: 'DPS', h: [['DPS', 6], ['DPS', 4]] }]), 20);
     return get(t, 'DPS').totalMin === 10 && get(t, 'DPS').matches === 1;
+  }],
+  ['replay: newest comp role-queue match and the roles it reset', () => {
+    const t = replayRoleTimers(mk([
+      { d: 'd1', role: 'DPS', h: [['DPS', 200]] },
+      { d: 'd2', role: 'DPS', h: [['DPS', 50]] },
+      { d: 'd3', role: 'Support', q: 'comp_open', h: [['Support', 10]] },
+    ]), 20);
+    return t.lastRoleQueue?.role === 'DPS' && t.lastRoleQueue.resetRoles.join() === 'DPS' && replayRoleTimers([], 20).lastRoleQueue === null;
   }],
 ];
 let bad = 0;

@@ -1,40 +1,31 @@
 // "Next test" recommender — sens-study category. Pure decision logic only;
 // no DB access lives in this file. routes/blind.ts's GET /api/blind/next
 // gathers the inputs below from blind_stage_sets/blind_credits/matches and
-// hands them to computeNextTest, which is the part that's actually worth
-// unit-testing in isolation (round-robin ordering, the block math, the cold
-// guard) without spinning up a database for every case.
+// the role clocks, and hands them to computeNextTest.
 //
-// The three rules this implements (Sean's decision, 2026-09-23; converted
-// from a game-counted "stint" to a minutes-counted "block" 2026-09-27):
-//   1. Pick the least-progressed hero first (progress = both stages' credits
-//      summed, now in closed blocks rather than games), tie-broken by
-//      longest since last played. The #1 hero's role is what the card tells
-//      Sean to queue.
-//   2. A "block" is 60 minutes of play on one hero (lib/blind.ts's
-//      BLOCK_MINUTES/deriveBlockState — that file is the source of truth for
-//      the unit and its rationale, since the ABBA schedule needs the exact
-//      same clock). The recommendation only recomputes once that block
-//      closes — mid-block, the card just says stay put, showing minutes
-//      played toward 60 rather than a game count. Unlike the old
-//      fixed-5-games stint, an interrupted block (switch away, come back)
-//      resumes where it left off instead of resetting — see BlockInfo below.
-//   3. A hero unplayed 7+ days is "going cold" and jumps to the top of its
-//      OWN role's list (not the cross-role pick above) the next time the
-//      card recomputes.
-
-// A chunk (ABBA's alternation unit) is 2 blocks, so a block is exactly half
-// a chunk — the sens only ever changes at the START of a block-pair, never
-// partway through one, since block boundaries land on chunk midpoints/
-// edges, not mid-chunk. This is a play-experience choice, not a statistical
-// one: across 905 matches, the first game on a hero each day scored -0.27
-// accuracy points versus later same-day games on the same hero (SE 0.46) —
-// indistinguishable from zero. Switching heroes carries no measurable
-// warm-up cost in this data. Do not shrink BLOCK_MINUTES to "optimize" this
-// — there is nothing here to optimize; it exists purely so a session
-// doesn't feel like hero roulette. See lib/blind.ts's BLOCK_MINUTES comment
-// for the full rationale (shared verbatim with the ABBA schedule, since it's
-// the same clock).
+// The rule (Sean, 2026-10-08):
+//   1. Hero pick = the pending (not completed) test hero of a role with the
+//      least playedMinutes (missing counts as 0). Ties: cold first, then
+//      fewer credited, then longest since last played, then name. That is
+//      compareTestHeroes, the one comparator. The Next Test list on the
+//      Prematch page shows the same order (each hero carries its `rank`), so
+//      the list's top row and the glow always agree.
+//   2. Keep the block lock (Sean, 2026-10-08). If the last test hero has an
+//      open 60-minute block (openMinutes > 0, lib/blind.ts deriveBlockState)
+//      and is still pending, it stays the pick until the block closes. The
+//      least-minutes pick of item 1 applies only when no block is open. The
+//      role flip (item 3) wins over an open block: if the queued role is not
+//      the block hero's role, the block is not held and the least-minutes
+//      hero of the queued role is picked (the block resumes later, because
+//      blocks resume).
+//   3. Role queue (comp_role): one pick, from `queueRole`. The route works
+//      out queueRole from the role clocks (lib/roleTimer.ts): the role of the
+//      newest comp role-queue match, flipped to the other of DPS/Support when
+//      that match crossed 240 minutes; with no comp match yet, the role with
+//      the lower clock. Open queue (comp_open): no single role, so one pick
+//      per role (DPS and Support), both glow. An open block holds its
+//      hero's slot; the other role takes its least-minutes hero. Quick Play: no pick (the route
+//      never calls this function for it).
 
 // A hero unplayed this many days or more (measured from its last
 // test-credited match) is "going cold."
@@ -45,46 +36,54 @@ export interface HeroTestProgress {
   role: string;
   credited: number;       // closed blocks this phase, both stages summed
   target: number;          // STAGE_BLOCKS * n_stages for this hero's set (chunked); legacy sets stay in games
-  // Display-only, chunked sets (2026-09-28): minutes played / minutes
-  // planned, so the UI can show time instead of blocks. Ranking still uses
-  // credited/target. Absent for a legacy set.
+  // Minutes played / minutes planned for a chunked set; absent for a legacy set.
   playedMinutes?: number;
   targetMinutes?: number;
   daysSinceLastPlayed: number | null; // null = never test-played this set
   completed: boolean;
 }
 
-// The most recently test-credited match's primary hero (matches.hero, the
-// hero actually queued as — a mid-match switch credits a set too, but the
-// block belongs to whoever Sean queued as, not whoever he ended up playing),
-// plus that hero's OWN currently open (unclosed) block, in minutes — see
-// lib/blind.ts's deriveBlockState, which this is built from directly. Unlike
-// the old game-counted "stint," this does NOT reset on an interruption: play
-// Ana 30 minutes, switch to Kiriko, come back to Ana later, and Ana's block
-// resumes at 30/60 rather than restarting at 0 (Sean's decision, 2026-09-27
-// — see the task's frozen spec item 3). A caller with no test-credited
-// matches at all passes null instead of a BlockInfo.
+// The most recently test-credited match's primary hero (matches.hero) and
+// that hero's own open (unclosed) block in minutes (lib/blind.ts
+// deriveBlockState). null when no test-credited match exists.
 export interface BlockInfo {
   hero: string;
   openMinutes: number;
 }
 
-export interface OrderedHero extends HeroTestProgress {
-  cold: boolean;
-}
+export type QueueRole = 'DPS' | 'Support';
+
+export interface TestPick { hero: string; role: string }
 
 export interface NextTestRecommendation {
   allFinished: boolean;
   finishedHeroes: string[];
-  // Set only when the card should show "Stay on X — 34/60 min" without
-  // recomputing anything else. null means a full recompute happened —
-  // either there was no open block, or the open block just closed.
+  // Set only when an open block holds its hero as the pick ("stay put").
   block: { hero: string; role: string; openMinutes: number } | null;
+  // Role queue: the role to queue. Open queue: null (no single role).
   recommendedRole: string | null;
-  // Ordered within recommendedRole only, cold heroes first. Empty while
-  // `block` is set (mid-block means the card doesn't recompute this list)
-  // or once every hero is finished.
-  orderedHeroes: OrderedHero[];
+  // Role queue: 1 pick. Open queue: up to 2 (least-minutes DPS, least-minutes
+  // Support). Empty when every hero is finished.
+  picks: TestPick[];
+}
+
+const isCold = (h: HeroTestProgress) => h.daysSinceLastPlayed != null && h.daysSinceLastPlayed >= COLD_DAYS;
+
+// The one comparator: least minutes played first. Ties: cold, fewer credited,
+// longest since last played (never played = longest), then name.
+export function compareTestHeroes(a: HeroTestProgress, b: HeroTestProgress): number {
+  return (a.playedMinutes ?? 0) - (b.playedMinutes ?? 0)
+    || Number(isCold(b)) - Number(isCold(a))
+    || a.credited - b.credited
+    || (b.daysSinceLastPlayed ?? Infinity) - (a.daysSinceLastPlayed ?? Infinity)
+    || a.hero.localeCompare(b.hero);
+}
+
+// Tags every hero with `cold` and, for pending heroes, its `rank` (0 = best
+// pick, over all roles). The Next Test list sorts by this rank.
+export function annotateHeroes(heroes: HeroTestProgress[]): (HeroTestProgress & { cold: boolean; rank: number | null })[] {
+  const order = heroes.filter(h => !h.completed).sort(compareTestHeroes).map(h => h.hero);
+  return heroes.map(h => ({ ...h, cold: isCold(h), rank: h.completed ? null : order.indexOf(h.hero) }));
 }
 
 export interface PhaseProjection {
@@ -114,57 +113,61 @@ export function projectionBasis(heroes: HeroTestProgress[]): { unit: 'min' | 'ga
   return { unit: minutes ? 'min' : 'games', remaining };
 }
 
+const bestOfRole = (pending: HeroTestProgress[], role: string): TestPick | null => {
+  const top = pending.filter(h => h.role === role).sort(compareTestHeroes)[0];
+  return top ? { hero: top.hero, role: top.role } : null;
+};
+
 export function computeNextTest(
   heroes: HeroTestProgress[],
+  mode: { openQueue: boolean; queueRole: QueueRole },
   block: BlockInfo | null,
 ): NextTestRecommendation {
   const finishedHeroes = heroes.filter(h => h.completed).map(h => h.hero);
   const pending = heroes.filter(h => !h.completed);
 
   if (pending.length === 0) {
-    return { allFinished: true, finishedHeroes, block: null, recommendedRole: null, orderedHeroes: [] };
+    return { allFinished: true, finishedHeroes, block: null, recommendedRole: null, picks: [] };
   }
 
-  if (block && block.openMinutes > 0) {
-    // Looked up in `pending`, not the full roster: an open block on a hero
-    // whose test has SINCE completed (its last few credited games finished
-    // it mid-block) has nothing left to "stay" on — fall through to a full
-    // recompute exactly as if the hero weren't tracked at all.
-    const blockHero = pending.find(h => h.hero === block.hero);
-    // Mid-block (openMinutes > 0): stay put, don't recompute. At the
-    // boundary (openMinutes === 0 — the block just closed, or nothing has
-    // been played yet), a completed hero, or an unrecognized one (e.g. a
-    // set that's since been deleted): fall through to a full recompute
-    // below.
-    if (blockHero) {
-      return {
-        allFinished: false, finishedHeroes,
-        block: { hero: blockHero.hero, role: blockHero.role, openMinutes: block.openMinutes },
-        recommendedRole: blockHero.role, orderedHeroes: [],
-      };
-    }
+  // A block holds its hero only while the hero is still pending (a hero whose
+  // test finished mid-block has nothing to stay on) and is a DPS/Support hero.
+  const held = block && block.openMinutes > 0
+    ? pending.find(h => h.hero === block.hero && (h.role === 'DPS' || h.role === 'Support')) ?? null
+    : null;
+  const heldInfo = (h: HeroTestProgress) => ({ hero: h.hero, role: h.role, openMinutes: block!.openMinutes });
+
+  if (mode.openQueue) {
+    const picks = (['DPS', 'Support'] as const)
+      .map(r => (held && held.role === r) ? { hero: held.hero, role: held.role } : bestOfRole(pending, r))
+      .filter((p): p is TestPick => p !== null);
+    if (picks.length === 0) picks.push(...[[...pending].sort(compareTestHeroes)[0]].map(h => ({ hero: h.hero, role: h.role })));
+    return { allFinished: false, finishedHeroes, block: held ? heldInfo(held) : null, recommendedRole: null, picks };
   }
 
-  // Rule 1: least-progressed first, tie broken by longest since last played.
-  // Never-played (null) sorts as "longest since" — it's more overdue than
-  // any hero with an actual last-played date, not less.
-  const dayKey = (h: HeroTestProgress) => h.daysSinceLastPlayed ?? Infinity;
-  const ranked = [...pending].sort((a, b) => a.credited - b.credited || dayKey(b) - dayKey(a));
-  const recommendedRole = ranked[0].role;
+  // Role queue. The role flip wins over an open block: the block holds only
+  // when its hero is in the queued role.
+  if (held && held.role === mode.queueRole) {
+    return { allFinished: false, finishedHeroes, block: heldInfo(held), recommendedRole: held.role, picks: [{ hero: held.hero, role: held.role }] };
+  }
+  // If the wanted role has nothing pending, use the other role rather than
+  // recommend a hero that is already done.
+  const other: QueueRole = mode.queueRole === 'DPS' ? 'Support' : 'DPS';
+  const pick = bestOfRole(pending, mode.queueRole) ?? bestOfRole(pending, other)
+    ?? (() => { const h = [...pending].sort(compareTestHeroes)[0]; return { hero: h.hero, role: h.role }; })();
+  return { allFinished: false, finishedHeroes, block: null, recommendedRole: pick.role, picks: [pick] };
+}
 
-  // Rule 3: within that role only, a cold hero (unplayed COLD_DAYS+) jumps
-  // to the top, ahead of the round-robin order. Ties within "cold" and
-  // within "not cold" both fall back to the same progress/last-played sort
-  // as the cross-role pick above.
-  const isCold = (h: HeroTestProgress) => h.daysSinceLastPlayed != null && h.daysSinceLastPlayed >= COLD_DAYS;
-  const orderedHeroes: OrderedHero[] = pending
-    .filter(h => h.role === recommendedRole)
-    .sort((a, b) => {
-      const coldDiff = Number(isCold(b)) - Number(isCold(a));
-      if (coldDiff !== 0) return coldDiff;
-      return a.credited - b.credited || dayKey(b) - dayKey(a);
-    })
-    .map(h => ({ ...h, cold: isCold(h) }));
-
-  return { allFinished: false, finishedHeroes, block: null, recommendedRole, orderedHeroes };
+// Which of DPS/Support to queue, from the role clocks. `lastRoleQueue` is the
+// newest comp role-queue match (replayRoleTimers); `clocks` the DPS/Support
+// clock totals. Pure, so the route only gathers inputs.
+export function pickQueueRole(
+  lastRoleQueue: { role: string; resetRoles: string[] } | null,
+  clocks: { DPS: number; Support: number },
+): QueueRole {
+  if (lastRoleQueue && (lastRoleQueue.role === 'DPS' || lastRoleQueue.role === 'Support')) {
+    const r = lastRoleQueue.role as QueueRole;
+    return lastRoleQueue.resetRoles.includes(r) ? (r === 'DPS' ? 'Support' : 'DPS') : r;
+  }
+  return clocks.Support < clocks.DPS ? 'Support' : 'DPS';
 }

@@ -5,7 +5,8 @@ import {
   chunkLabelFor, deriveBlockState, CHUNK_BLOCKS, STAGE_BLOCKS, type BlockState,
 } from '../lib/blind';
 import { cm360, eDPI } from '../lib/aim';
-import { computeNextTest, projectPhaseFinish, projectionBasis, type HeroTestProgress, type BlockInfo } from '../lib/nextTest';
+import { computeNextTest, pickQueueRole, annotateHeroes, projectPhaseFinish, projectionBasis, type HeroTestProgress, type BlockInfo } from '../lib/nextTest';
+import { loadRoleTimerReplay } from './roleTimer';
 import { HEROES_BY_ROLE } from '../lib/heroes';
 import { isDfHero } from '../lib/df';
 
@@ -652,7 +653,7 @@ router.get('/sets/:id', (req: Request, res: Response) => {
 
 // ── Next-test recommender ────────────────────────────────────────────────────
 // GET /api/blind/next?queue_mode=... — see lib/nextTest.ts for the actual
-// decision logic (round-robin pick, block math, cold guard). Everything
+// decision logic (block lock, least-minutes pick, role-queue role, open-queue pair). Everything
 // below is just gathering that function's plain-data inputs from the DB;
 // nothing here is stored or computed ahead of time — it's all derived fresh
 // on every call, same as /state above.
@@ -719,14 +720,8 @@ function heroProgressForPhase(db: ReturnType<typeof getDb>, phase: string): Hero
 }
 
 // The current block: the most recently test-credited match's PRIMARY hero
-// (matches.hero — the hero Sean queued as, not a mid-match switch), plus
-// that hero's own currently open block (lib/blind.ts's deriveBlockState,
-// same whole-set clock liveStageIndex reads). Unlike the old game-counted
-// "stint" this replaced, this does NOT require the recent matches to be
-// consecutive on that hero — the block state is derived from the WHOLE of
-// that hero's own set, so an interruption (playing something else and
-// coming back) doesn't reset it; see the frozen spec's item 3 and
-// nextTest.ts's BlockInfo doc.
+// (matches.hero, the hero Sean queued as) plus that hero's own open block
+// (lib/blind.ts deriveBlockState). An interruption does not reset it.
 function currentBlock(db: ReturnType<typeof getDb>): BlockInfo | null {
   const row = db.prepare(`
     SELECT m.hero, bc.blind_set_id FROM matches m
@@ -736,6 +731,14 @@ function currentBlock(db: ReturnType<typeof getDb>): BlockInfo | null {
   `).get() as { hero: string; blind_set_id: number } | undefined;
   if (!row) return null;
   return { hero: row.hero, openMinutes: blockStateOf(db, row.blind_set_id).openMinutes };
+}
+
+// The role to queue in a role queue, from the three role clocks (the same
+// replay GET /api/role-timer serves): see lib/nextTest.ts's pickQueueRole.
+function queueRoleNow(db: ReturnType<typeof getDb>) {
+  const { timers, lastRoleQueue } = loadRoleTimerReplay(db);
+  const total = (role: string) => timers.roles.find(r => r.role === role)?.totalMin ?? 0;
+  return pickQueueRole(lastRoleQueue, { DPS: total('DPS'), Support: total('Support') });
 }
 
 router.get('/next', (req: Request, res: Response) => {
@@ -750,29 +753,23 @@ router.get('/next', (req: Request, res: Response) => {
   // stay on screen; the card itself says Quickplay doesn't count.
   const phase = currentPhaseKey(db);
   if (!isStudyQueueMode(queueMode)) {
-    res.json({ isQuickplay: true, heroes: phase ? heroProgressForPhase(db, phase) : [] });
+    res.json({ isQuickplay: true, heroes: phase ? annotateHeroes(heroProgressForPhase(db, phase)) : [] });
     return;
   }
 
   if (!phase) {
     res.json({
       isQuickplay: false, phase: null, heroes: [], projection: { unit: 'games', ratePerDay: 0, projectedDays: null },
-      allFinished: true, finishedHeroes: [], block: null, justClosed: null, recommendedRole: null, orderedHeroes: [],
+      allFinished: true, finishedHeroes: [], block: null, justClosed: null, recommendedRole: null, picks: [],
     });
     return;
   }
 
   const heroes = heroProgressForPhase(db, phase);
   const block = currentBlock(db);
-  const rec = computeNextTest(heroes, block);
-  // Distinguishes rec.block === null's two real causes, which are otherwise
-  // indistinguishable from the response alone: a block just closed (there
-  // WAS a most-recently-credited match, its openMinutes reads exactly 0) vs.
-  // nothing has been played yet this phase (currentBlock found no
-  // test-credited match at all). Read off the raw `block` input, not
-  // computeNextTest's output — a hero whose test has SINCE completed still
-  // "just closed" its block even though computeNextTest's own recompute
-  // falls through past it (see computeNextTest's fallthrough comment).
+  const rec = computeNextTest(heroes, { openQueue: queueMode === 'comp_open', queueRole: queueRoleNow(db) }, block);
+  // A block just closed (the newest credited match's hero reads exactly 0
+  // open minutes) vs. nothing played yet this phase. Read off the raw input.
   const justClosed = block && block.openMinutes === 0 ? { hero: block.hero } : null;
 
   // Phase-wide projection (the /sens overview's job, not Prematch's card —
@@ -813,7 +810,7 @@ router.get('/next', (req: Request, res: Response) => {
     .all({ phase }) as { hero: string }[]).map(r => r.hero);
   const allPaused = heroes.length === 0 && pausedHeroes.length > 0;
 
-  res.json({ isQuickplay: false, phase, heroes, projection, justClosed, pausedHeroes, allPaused, ...rec });
+  res.json({ isQuickplay: false, phase, heroes: annotateHeroes(heroes), projection, justClosed, pausedHeroes, allPaused, ...rec });
 });
 
 export default router;

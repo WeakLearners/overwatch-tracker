@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
-import { computeRoleTimers, RoleTimerMatch } from '../lib/roleTimer';
+import { replayRoleTimers, RoleTimerMatch } from '../lib/roleTimer';
 
 const router = Router();
 
@@ -8,8 +8,7 @@ const router = Router();
 // minutes (hero role from match_heroes, falling back to matches.role when the
 // match has no match_heroes row), plus the average per-match minutes across every
 // match that has any: the estimate stand-in for matches without minutes yet.
-router.get('/', (_req: Request, res: Response) => {
-  const db = getDb();
+export function loadRoleTimerReplay(db: ReturnType<typeof getDb>) {
   const matches = db.prepare(`
     SELECT m.id, m.date, m.role, m.queue_mode
     FROM matches m
@@ -35,7 +34,11 @@ router.get('/', (_req: Request, res: Response) => {
       SELECT SUM(duration_min) AS s FROM aim_stats_heroes WHERE duration_min IS NOT NULL GROUP BY match_id
     )
   `).get() as unknown as { avg: number | null };
-  res.json(computeRoleTimers(matches, avg.avg ?? 0));
+  return replayRoleTimers(matches, avg.avg ?? 0);
+}
+
+router.get('/', (_req: Request, res: Response) => {
+  res.json(loadRoleTimerReplay(getDb()).timers);
 });
 
 export default router;

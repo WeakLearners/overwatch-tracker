@@ -1,5 +1,5 @@
 // DB-integration tests for GET /api/blind/next. lib/nextTest.test.ts already
-// covers the pure ranking/block/cold logic exhaustively with plain data —
+// covers the pure pick/tie/role logic exhaustively with plain data —
 // this suite exists only to prove the wiring: that real blind_stage_sets/
 // blind_credits/matches rows get turned into the right inputs for that
 // function. See blind.routes.test.ts for the harness/makeSet conventions.
@@ -22,11 +22,11 @@ afterEach(async () => { await h.close(); });
 // game = 1 block) instead.
 async function playGames(
   hero: string, n: number,
-  opts: { win?: boolean; queue_mode?: string; durationMin?: number } = {},
+  opts: { win?: boolean; queue_mode?: string; durationMin?: number; role?: string } = {},
 ) {
   for (let i = 0; i < n; i++) {
     const r = await h.post('/api/matches', {
-      date: '2026-09-23', time: '12:00', hour: 12, hero, role: 'DPS',
+      date: '2026-09-23', time: '12:00', hour: 12, hero, role: opts.role ?? 'DPS',
       map: 'Ilios', game_type: 'comp', win: opts.win ?? (i % 2 === 0),
       queue_mode: opts.queue_mode ?? 'comp_role',
     });
@@ -48,60 +48,151 @@ async function makeSet(opts: { hero: string; batch_size?: number; chunk_size?: n
 }
 
 describe('GET /api/blind/next — quickplay', () => {
-  test('quickplay shows no roster at all', async () => {
+  test('quickplay shows the roster but no pick', async () => {
     await makeSet({ hero: 'Tracer' });
     const r = await h.get('/api/blind/next?queue_mode=qp_role');
     assert.equal(r.status, 200);
     assert.equal(r.body.isQuickplay, true);
-    assert.equal(r.body.orderedHeroes, undefined);
+    assert.equal(r.body.picks, undefined);
   });
 });
 
-describe('GET /api/blind/next — ordering and phase scoping', () => {
-  test('recommends the role of the least-progressed hero in the current phase', async () => {
-    await makeSet({ hero: 'Tracer', batch_size: 40, phase: 'phaseA' }); // DPS
-    await makeSet({ hero: 'Ana', batch_size: 40, phase: 'phaseA' }); // Support
-    // A full 60-minute block on Ana (5 games x 12 min): reaches the
-    // boundary (openMinutes === 0), so the card recomputes instead of
-    // staying locked on Ana.
-    await playGames('Ana', 5);
+// chunk_size 2 makes a set report playedMinutes, which is what the pick ranks on.
+const CH = { batch_size: 40, chunk_size: 2, phase: 'phaseA' };
 
+describe('GET /api/blind/next — role queue', () => {
+  test('no comp match yet: lower clock wins (tie -> DPS), least-minutes hero in that role', async () => {
+    await makeSet({ hero: 'Tracer', ...CH });
+    await makeSet({ hero: 'Ana', ...CH });
     const r = await h.get('/api/blind/next?queue_mode=comp_role');
     assert.equal(r.body.isQuickplay, false);
-    assert.equal(r.body.block, null, 'landed exactly on a block boundary');
-    assert.equal(r.body.recommendedRole, 'DPS'); // Tracer (0 credited) beats Ana (5)
-    assert.deepEqual(r.body.orderedHeroes.map((o: any) => o.hero), ['Tracer']);
+    assert.equal(r.body.recommendedRole, 'DPS');
+    assert.deepEqual(r.body.picks, [{ hero: 'Tracer', role: 'DPS' }]);
   });
 
+  test('role comes from the newest comp role-queue match, and the pick is the least-minutes hero of that role', async () => {
+    await makeSet({ hero: 'Tracer', ...CH });
+    await makeSet({ hero: 'Pharah', ...CH });
+    await makeSet({ hero: 'Ana', ...CH });
+    await playGames('Tracer', 3);                   // 36 min
+    await playGames('Ana', 1, { role: 'Support' }); // newest: Support
+    const r = await h.get('/api/blind/next?queue_mode=comp_role');
+    assert.equal(r.body.recommendedRole, 'Support');
+    assert.deepEqual(r.body.picks, [{ hero: 'Ana', role: 'Support' }]);
+    // Newest match is DPS instead: the role goes back to DPS, and Tracer's open block (48 min) holds.
+    await playGames('Tracer', 1);
+    const r2 = await h.get('/api/blind/next?queue_mode=comp_role');
+    assert.equal(r2.body.recommendedRole, 'DPS');
+    assert.deepEqual(r2.body.picks, [{ hero: 'Tracer', role: 'DPS' }]);
+  });
+
+  test('flips to the other role after the newest match crosses 240 minutes', async () => {
+    await makeSet({ hero: 'Tracer', ...CH });
+    await makeSet({ hero: 'Ana', ...CH });
+    await playGames('Tracer', 2, { durationMin: 120 }); // 240 on the DPS clock: reset
+    const r = await h.get('/api/blind/next?queue_mode=comp_role');
+    assert.equal(r.body.recommendedRole, 'Support');
+    assert.deepEqual(r.body.picks, [{ hero: 'Ana', role: 'Support' }]);
+  });
+
+  test('block lock: a hero mid-block is held while another has fewer minutes', async () => {
+    await makeSet({ hero: 'Tracer', ...CH });
+    await makeSet({ hero: 'Pharah', ...CH });
+    await playGames('Tracer', 2); // Tracer 24 min mid-block, Pharah 0
+    const r = await h.get('/api/blind/next?queue_mode=comp_role');
+    assert.deepEqual(r.body.picks, [{ hero: 'Tracer', role: 'DPS' }]);
+    assert.deepEqual(r.body.block, { hero: 'Tracer', role: 'DPS', openMinutes: 24 });
+    assert.equal(r.body.justClosed, null);
+  });
+
+  test('a block close recomputes by least minutes and reports justClosed', async () => {
+    await makeSet({ hero: 'Tracer', ...CH });
+    await makeSet({ hero: 'Pharah', ...CH });
+    await playGames('Tracer', 5); // exactly 60 min
+    const r = await h.get('/api/blind/next?queue_mode=comp_role');
+    assert.equal(r.body.block, null);
+    assert.deepEqual(r.body.justClosed, { hero: 'Tracer' });
+    assert.deepEqual(r.body.picks, [{ hero: 'Pharah', role: 'DPS' }]);
+  });
+
+  test('a role flip overrides an open block', async () => {
+    await makeSet({ hero: 'Tracer', ...CH });
+    await makeSet({ hero: 'Ana', ...CH });
+    await playGames('Genji', 1, { durationMin: 230 }); // DPS clock 230, no credit (no set)
+    await playGames('Tracer', 1);                       // 12 more: DPS clock 242 -> reset; Tracer block 12 min open
+    const r = await h.get('/api/blind/next?queue_mode=comp_role');
+    assert.equal(r.body.block, null, 'the flip overrides the open block');
+    assert.equal(r.body.recommendedRole, 'Support');
+    assert.deepEqual(r.body.picks, [{ hero: 'Ana', role: 'Support' }]);
+  });
+
+  test('a Quickplay match does not move the role', async () => {
+    await makeSet({ hero: 'Tracer', ...CH });
+    await makeSet({ hero: 'Ana', ...CH });
+    await playGames('Tracer', 1);
+    await playGames('Ana', 1, { role: 'Support', queue_mode: 'qp_role' });
+    const r = await h.get('/api/blind/next?queue_mode=comp_role');
+    assert.equal(r.body.recommendedRole, 'DPS');
+  });
+});
+
+describe('GET /api/blind/next — open queue', () => {
+  test('one open block holds its hero; the other role takes its least-minutes hero', async () => {
+    await makeSet({ hero: 'Tracer', ...CH });
+    await makeSet({ hero: 'Pharah', ...CH });
+    await makeSet({ hero: 'Ana', ...CH });
+    await makeSet({ hero: 'Juno', ...CH });
+    await playGames('Ana', 1, { role: 'Support' });
+    await playGames('Tracer', 2); // newest: Tracer mid-block (24 min)
+    const r = await h.get('/api/blind/next?queue_mode=comp_open');
+    assert.equal(r.body.recommendedRole, null);
+    assert.deepEqual(r.body.picks, [{ hero: 'Tracer', role: 'DPS' }, { hero: 'Juno', role: 'Support' }]);
+  });
+
+  test('no open block: least-minutes DPS and Support hero', async () => {
+    await makeSet({ hero: 'Tracer', ...CH });
+    await makeSet({ hero: 'Pharah', ...CH });
+    await makeSet({ hero: 'Ana', ...CH });
+    await makeSet({ hero: 'Juno', ...CH });
+    await playGames('Tracer', 5); // closes a block: nothing open
+    await playGames('Ana', 5, { role: 'Support' });
+    const r = await h.get('/api/blind/next?queue_mode=comp_open');
+    assert.deepEqual(r.body.picks, [{ hero: 'Pharah', role: 'DPS' }, { hero: 'Juno', role: 'Support' }]);
+  });
+});
+
+describe('GET /api/blind/next — roster annotation', () => {
+  test('heroes carry rank and cold; rank 0 is the top pick overall', async () => {
+    await makeSet({ hero: 'Tracer', ...CH });
+    await makeSet({ hero: 'Ana', ...CH });
+    await playGames('Tracer', 1);
+    const r = await h.get('/api/blind/next?queue_mode=comp_role');
+    const byHero = Object.fromEntries(r.body.heroes.map((x: any) => [x.hero, x]));
+    assert.equal(byHero.Ana.rank, 0);
+    assert.equal(byHero.Tracer.rank, 1);
+    assert.equal(byHero.Ana.cold, false);
+  });
+});
+
+describe('GET /api/blind/next — phase scoping and finished heroes', () => {
   test('a set from an OLDER phase is not part of the current-phase roster', async () => {
     await makeSet({ hero: 'Ana', batch_size: 4, phase: 'phaseOld' });
     await makeSet({ hero: 'Tracer', batch_size: 4, phase: 'phaseNew' });
     const r = await h.get('/api/blind/next?queue_mode=comp_role');
     assert.equal(r.body.phase, 'phaseNew');
-    assert.deepEqual(r.body.orderedHeroes.map((o: any) => o.hero), ['Tracer']);
+    assert.deepEqual(r.body.picks.map((o: any) => o.hero), ['Tracer']);
   });
-});
 
-describe('GET /api/blind/next — finished heroes', () => {
-  // chunk_size (any nonzero value — it's just the ABBA-enabled flag now,
-  // lib/blind.ts's block-model comment) plus a 60-minute duration per game
-  // makes every single game close exactly one block, so STAGE_BLOCKS(8) x
-  // n_stages(2) = 16 games complete both stages without needing a manual
-  // /advance call — the fast-completing-fixture equivalent of the old
-  // "chunk_size 1, batch_size 2" trick, sized to the fixed block-model
-  // constants instead of an arbitrary small batch_size.
-  test('a hero that finished its batch on every stage shows as finished, not in the pick', async () => {
+  // chunk_size plus a 60-minute duration per game makes every game close one
+  // block, so STAGE_BLOCKS(8) x n_stages(2) = 16 games complete a set.
+  test('a finished hero shows as finished and is not picked', async () => {
     await makeSet({ hero: 'Tracer', batch_size: 10, chunk_size: 1, phase: 'phaseA' });
     await makeSet({ hero: 'Ana', batch_size: 10, chunk_size: 1, phase: 'phaseA' });
     await playGames('Tracer', 16, { durationMin: 60 });
-
-    // Tracer's own block just hit its test target, but the mid-block lock
-    // only applies to a hero still pending — Tracer already completed, so
-    // the card falls through to a full recompute rather than staying
-    // locked on a finished hero.
     const r = await h.get('/api/blind/next?queue_mode=comp_role');
     assert.deepEqual(r.body.finishedHeroes, ['Tracer']);
     assert.equal(r.body.recommendedRole, 'Support');
+    assert.deepEqual(r.body.picks, [{ hero: 'Ana', role: 'Support' }]);
   });
 
   test('every hero finished reports allFinished', async () => {
@@ -110,135 +201,27 @@ describe('GET /api/blind/next — finished heroes', () => {
     const r = await h.get('/api/blind/next?queue_mode=comp_role');
     assert.equal(r.body.allFinished, true);
     assert.equal(r.body.recommendedRole, null);
-  });
-});
-
-describe('GET /api/blind/next — block (real match log)', () => {
-  test('two comp matches in a row mid-block locks the same hero', async () => {
-    await makeSet({ hero: 'Tracer', batch_size: 40, phase: 'phaseA' });
-    await makeSet({ hero: 'Ana', batch_size: 40, phase: 'phaseA' });
-    await playGames('Tracer', 2); // 2 games x 12 min = 24 min into the open block
-
-    const r = await h.get('/api/blind/next?queue_mode=comp_role');
-    assert.deepEqual(r.body.block, { hero: 'Tracer', role: 'DPS', openMinutes: 24 });
-    assert.equal(r.body.recommendedRole, 'DPS');
-    assert.deepEqual(r.body.orderedHeroes, []);
-  });
-
-  test('a Quickplay match in between does not break or advance the block', async () => {
-    await makeSet({ hero: 'Tracer', batch_size: 40, phase: 'phaseA' });
-    await playGames('Tracer', 2); // 24 min
-    await playGames('Tracer', 1, { queue_mode: 'qp_role' }); // uncredited, must be invisible
-    await playGames('Tracer', 1); // 3rd credited game -> 36 min
-
-    const r = await h.get('/api/blind/next?queue_mode=comp_role');
-    assert.equal(r.body.block.openMinutes, 36, 'the QP game did not count toward or reset the block');
-  });
-
-  test('at the 5th consecutive credited game (60 minutes), the card recomputes instead of staying', async () => {
-    await makeSet({ hero: 'Tracer', batch_size: 40, phase: 'phaseA' });
-    await makeSet({ hero: 'Ana', batch_size: 40, phase: 'phaseA' });
-    await playGames('Tracer', 5); // exactly 60 min -> block closes
-
-    const r = await h.get('/api/blind/next?queue_mode=comp_role');
-    assert.equal(r.body.block, null);
-  });
-});
-
-describe('GET /api/blind/next — justClosed (2026-09-27)', () => {
-  test('nothing played yet this phase: block and justClosed are both null', async () => {
-    await makeSet({ hero: 'Tracer', batch_size: 40, phase: 'phaseA' });
-    const r = await h.get('/api/blind/next?queue_mode=comp_role');
-    assert.equal(r.body.block, null);
-    assert.equal(r.body.justClosed, null);
-  });
-
-  test('mid-block (open minutes > 0): justClosed stays null, only block locks', async () => {
-    await makeSet({ hero: 'Tracer', batch_size: 40, phase: 'phaseA' });
-    await playGames('Tracer', 2); // 24 min, still open
-    const r = await h.get('/api/blind/next?queue_mode=comp_role');
-    assert.equal(r.body.block.openMinutes, 24);
-    assert.equal(r.body.justClosed, null);
-  });
-
-  test('exactly 60 minutes: justClosed names the hero whose block just closed', async () => {
-    await makeSet({ hero: 'Tracer', batch_size: 40, phase: 'phaseA' });
-    await makeSet({ hero: 'Ana', batch_size: 40, phase: 'phaseA' });
-    await playGames('Tracer', 5); // exactly 60 min -> block closes
-    const r = await h.get('/api/blind/next?queue_mode=comp_role');
-    assert.equal(r.body.block, null);
-    assert.deepEqual(r.body.justClosed, { hero: 'Tracer' });
-  });
-
-  // The "stay put" lock is a fact about the MOST RECENTLY credited match's
-  // hero, never a scan for "any hero with an open (>0 minute) block" —
-  // every hero in a phase normally has SOME nonzero open block at once, so
-  // the latter would be ambiguous. Ana plays second here and ends with a
-  // smaller open block (12 min) than Tracer (24 min), which would flip the
-  // pick if this were a "biggest/any open block" rule instead of "whoever
-  // was played most recently."
-  test('the lock is on the most-recently-played hero, not any hero with a partial block', async () => {
-    await makeSet({ hero: 'Tracer', batch_size: 40, phase: 'phaseA' });
-    await makeSet({ hero: 'Ana', batch_size: 40, phase: 'phaseA' });
-    await playGames('Tracer', 2); // 24 min open on Tracer
-    await playGames('Ana', 1);    // 12 min open on Ana, played more recently
-
-    const r = await h.get('/api/blind/next?queue_mode=comp_role');
-    assert.equal(r.body.block.hero, 'Ana', 'Ana was the most recently credited match, even with the smaller open block');
-    assert.equal(r.body.block.openMinutes, 12);
-    assert.equal(r.body.justClosed, null);
-  });
-});
-
-describe('GET /api/blind/next — going cold', () => {
-  test('a hero unplayed 7+ days jumps to the top of its role even though it is MORE progressed', async () => {
-    const oldId = await makeSet({ hero: 'Pharah', batch_size: 40, phase: 'phaseA' });
-    await makeSet({ hero: 'Tracer', batch_size: 40, phase: 'phaseA' });
-    // A full 60-minute block on Pharah (5 games): reaches the boundary, so
-    // the very next call is a full recompute rather than a "stay on
-    // Pharah" lock.
-    await playGames('Pharah', 5);
-    // Backdate all 5 of Pharah's credited matches 10 days so it reads as
-    // cold, while Tracer (never played) is not.
-    h.db.prepare(`
-      UPDATE matches SET created_at = datetime('now', '-10 days')
-      WHERE id IN (SELECT match_id FROM blind_credits WHERE blind_set_id = ?)
-    `).run(oldId);
-
-    const r = await h.get('/api/blind/next?queue_mode=comp_role');
-    assert.equal(r.body.block, null, 'landed exactly on a block boundary');
-    // Tracer (0 credited) is still the true least-progressed pick overall,
-    // so DPS is still the recommended role...
-    assert.equal(r.body.recommendedRole, 'DPS');
-    // ...but WITHIN that role, cold Pharah (5 credited, 10 days stale)
-    // jumps ahead of fresher, less-progressed Tracer (0 credited).
-    assert.equal(r.body.orderedHeroes[0].hero, 'Pharah');
-    assert.equal(r.body.orderedHeroes[0].cold, true);
-    assert.equal(r.body.orderedHeroes[0].credited, 5);
-    assert.equal(r.body.orderedHeroes[1].hero, 'Tracer');
-    assert.equal(r.body.orderedHeroes[1].cold, false);
+    assert.deepEqual(r.body.picks, []);
   });
 });
 
 describe('GET /api/blind/next — chunked (ABBA) vs unchunked sets', () => {
-  // Both tests play exactly 5 games (60 minutes) so the call lands right on
-  // a block boundary and the card actually recomputes its ordered list
-  // (mid-block, orderedHeroes is deliberately empty — see the block suite).
   test('an unchunked (legacy) set reports progress in games, not blocks', async () => {
     await makeSet({ hero: 'Tracer', batch_size: 10, phase: 'phaseA' }); // no chunk_size
     await playGames('Tracer', 5);
     const r = await h.get('/api/blind/next?queue_mode=comp_role');
-    assert.equal(r.body.block, null);
-    assert.equal(r.body.orderedHeroes[0].credited, 5); // still a plain game count
-    assert.equal(r.body.orderedHeroes[0].target, 20); // batch_size(10) x n_stages(2)
+    const t = r.body.heroes[0];
+    assert.equal(t.credited, 5); // still a plain game count
+    assert.equal(t.target, 20); // batch_size(10) x n_stages(2)
   });
 
   test('a chunked (ABBA) set reports progress in closed blocks, not games', async () => {
     await makeSet({ hero: 'Tracer', batch_size: 10, chunk_size: 2, phase: 'phaseA' });
     await playGames('Tracer', 5); // exactly 60 min -> exactly 1 closed block
     const r = await h.get('/api/blind/next?queue_mode=comp_role');
-    assert.equal(r.body.block, null);
-    assert.equal(r.body.orderedHeroes[0].credited, 1); // 1 closed block, not 5 games
-    assert.equal(r.body.orderedHeroes[0].target, 16); // STAGE_BLOCKS(8) x n_stages(2) — batch_size is no longer the target for a chunked set
+    const t = r.body.heroes[0];
+    assert.equal(t.credited, 1); // 1 closed block, not 5 games
+    assert.equal(t.target, 16); // STAGE_BLOCKS(8) x n_stages(2)
+    assert.equal(t.playedMinutes, 60);
   });
 });

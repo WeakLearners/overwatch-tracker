@@ -22,7 +22,7 @@ import { useDfHeroes, dfHeroSet, withDfBadge } from '../hooks/useDfHeroes';
 const VOTING_PICKS_KEY = 'ow-map-voting-picks';
 
 // GET /api/blind/next's shape — see server/src/lib/nextTest.ts for what each
-// field means (role pick, block lock, cold flag). Fetched fresh whenever
+// field means (picks, block lock, cold flag). Fetched fresh whenever
 // queueMode changes (Quickplay gets its own no-list response) and whenever
 // any match is logged, via useApi's shared revalidateAll() subscription.
 interface NextTestResponse {
@@ -39,10 +39,11 @@ interface NextTestResponse {
   // "Block done" or has to stay neutral.
   justClosed?: { hero: string } | null;
   recommendedRole?: string | null;
-  orderedHeroes?: { hero: string; role: string; credited: number; target: number; playedMinutes?: number; targetMinutes?: number; daysSinceLastPlayed: number | null; cold: boolean }[];
+  // The heroes to glow: 1 in a role queue, up to 2 (DPS, Support) in open queue.
+  picks?: { hero: string; role: string }[];
   // Every hero in the phase, all roles (Quickplay included). Drives the
   // card's always-on Support | DPS columns.
-  heroes?: { hero: string; role: string; credited: number; target: number; playedMinutes?: number; targetMinutes?: number; daysSinceLastPlayed: number | null; completed: boolean }[];
+  heroes?: { hero: string; role: string; credited: number; target: number; playedMinutes?: number; targetMinutes?: number; daysSinceLastPlayed: number | null; completed: boolean; cold: boolean; rank: number | null }[];
 }
 
 // DPI stage-test HUD state — the dashboard reads this live to show the
@@ -208,12 +209,14 @@ export default function Prematch() {
   // the fetch itself unconditional also means flipping the toggle on shows
   // fresh data immediately rather than a stale null from before it was on.
   const { data: nextTest } = useApi<NextTestResponse>(`/api/blind/next?queue_mode=${queueMode}`, [queueMode, matchLoggedSignal]);
-  // The hero the Next test card is pointing at: the locked open-block hero,
-  // else the top of the recommended list. Its picker row pulses
-  // (.test-glow) so it can be found at a glance.
-  const testHero = sensStudyOn && nextTest && !nextTest.isQuickplay && !nextTest.allFinished
-    ? (nextTest.block?.hero ?? nextTest.orderedHeroes?.[0]?.hero ?? null)
-    : null;
+  // The heroes the Next test card points at (server `picks`: the open-block
+  // hero, else the least-minutes hero; two in open queue). Their picker rows
+  // pulse (.test-glow) so they can be found at a glance.
+  const testHeroes = new Set<string>(
+    sensStudyOn && nextTest && !nextTest.isQuickplay && !nextTest.allFinished
+      ? (nextTest.picks ?? []).map(p => p.hero)
+      : [],
+  );
   const mapCounts = useTodayMapCounts();
   const heroCounts = useTodayHeroCounts();
   // GET /api/df — the Designated Fallback (a role's safe pick when nothing
@@ -1237,7 +1240,7 @@ export default function Prematch() {
                       const isClicked = clickIndex !== -1;
                       const sensTag = pickerSensFor(h.hero);
                       const isDfHero = dfHeroes.has(h.hero);
-                      const isTestHero = h.hero === testHero && !isDfHero;
+                      const isTestHero = testHeroes.has(h.hero) && !isDfHero;
                       // Lit letters follow the gauge: glow where the bar is under
                       // them, plain past its end. Selected cards only, since
                       // resting names aren't lit.
@@ -1591,6 +1594,12 @@ export default function Prematch() {
                       ? 'No heroes in the test pool — add one back on the Sens page.'
                       : 'Every hero in this phase is done — next phase needs creating on the Sens page.'}
                   </p>
+                ) : nextTest.recommendedRole == null && nextTest.picks?.length ? (
+                  <p className="text-xs text-[var(--ink)]" data-inspect-id="prematch-next-test-open">
+                    {nextTest.picks.map((p, i) => (
+                      <span key={p.hero}>{i > 0 && ' · '}<b className="hero-name">{p.hero}</b></span>
+                    ))}
+                  </p>
                 ) : nextTest.block ? (
                   <p className="text-xs text-[var(--ink)]" data-inspect-id="prematch-next-test-block">
                     Stay on <b className="hero-name">{nextTest.block.hero}</b> — {Math.floor(nextTest.block.openMinutes)} minutes played
@@ -1598,17 +1607,18 @@ export default function Prematch() {
                   </p>
                 ) : nextTest.justClosed ? (
                   <p className="text-xs text-[var(--ink)]" data-inspect-id="prematch-next-test-just-closed">
-                    Block done on <b className="hero-name">{nextTest.justClosed.hero}</b> — switch to <b className="hero-name">{nextTest.orderedHeroes?.[0]?.hero}</b>
+                    Block done on <b className="hero-name">{nextTest.justClosed.hero}</b> — switch to <b className="hero-name">{nextTest.picks?.[0]?.hero}</b>
                   </p>
                 ) : (
                   <p className="text-xs text-[var(--ink)]" data-inspect-id="prematch-next-test-just-closed">
-                    Queue <b>{nextTest.recommendedRole}</b> → <b className="hero-name">{nextTest.orderedHeroes?.[0]?.hero}</b>
+                    Queue <b>{nextTest.recommendedRole}</b> → <b className="hero-name">{nextTest.picks?.[0]?.hero}</b>
                   </p>
                 )}
                 {/* Always on (2026-09-30): DPS left, Support right, whatever
-                    the line above says. Sorted by minutes played, ascending
-                    (Sean, 2026-10-08), then cold, credited, hero name. List order
-                    only: the headline pick still follows lib/nextTest.ts. */}
+                    the line above says. Sorted by the server's `rank`
+                    (lib/nextTest.ts compareTestHeroes: minutes played ascending,
+                    then cold, credited, longest unplayed, name), so the top row
+                    of each column matches the glow unless a block holds a hero. */}
                 {!!nextTest.heroes?.some(h => !h.completed) && (
                   <div className="grid grid-cols-2 gap-x-4 mt-1.5" data-inspect-id="prematch-next-test-list">
                     {(['DPS', 'Support'] as const).map(role => (
@@ -1616,9 +1626,7 @@ export default function Prematch() {
                         <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">{role}</div>
                         {nextTest.heroes!
                           .filter(h => h.role === role && !h.completed)
-                          .map(h => ({ ...h, cold: h.daysSinceLastPlayed != null && h.daysSinceLastPlayed >= 7 }))
-                          .sort((a, b) => (a.playedMinutes ?? 0) - (b.playedMinutes ?? 0) || Number(b.cold) - Number(a.cold)
-                            || a.credited - b.credited || a.hero.localeCompare(b.hero))
+                          .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0))
                           .map(h => (
                             <div key={h.hero} className="flex items-center justify-start gap-1.5 text-[11px] text-[var(--faint-2)]" data-inspect-id="prematch-next-test-hero-row">
                               <span className="hero-name truncate">{h.hero}</span>

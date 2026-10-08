@@ -1,163 +1,174 @@
-// Pure-function tests for lib/nextTest.ts's computeNextTest — no DB. See
+// Pure-function tests for lib/nextTest.ts — no DB. See
 // routes/blind.next.test.ts for the DB-integration layer (gathering
-// HeroTestProgress/BlockInfo from real tables).
+// HeroTestProgress and the role clocks from real tables).
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeNextTest, projectPhaseFinish, projectionBasis, COLD_DAYS, type HeroTestProgress } from './nextTest';
+import { computeNextTest, pickQueueRole, annotateHeroes, compareTestHeroes, projectPhaseFinish, projectionBasis, COLD_DAYS, type HeroTestProgress, type BlockInfo } from './nextTest';
 
 function hero(overrides: Partial<HeroTestProgress> & { hero: string; role: string }): HeroTestProgress {
   return { credited: 0, target: 80, daysSinceLastPlayed: null, completed: false, ...overrides };
 }
 
 const ROSTER: HeroTestProgress[] = [
-  hero({ hero: 'Sojourn', role: 'DPS', credited: 40, daysSinceLastPlayed: 2 }),
-  hero({ hero: 'Tracer', role: 'DPS', credited: 10, daysSinceLastPlayed: 1 }),
-  hero({ hero: 'Pharah', role: 'DPS', credited: 20, daysSinceLastPlayed: 3 }),
-  hero({ hero: 'Shion', role: 'DPS', credited: 30, daysSinceLastPlayed: 0 }),
-  hero({ hero: 'Ana', role: 'Support', credited: 15, daysSinceLastPlayed: 5 }),
-  hero({ hero: 'Juno', role: 'Support', credited: 15, daysSinceLastPlayed: 1 }),
-  hero({ hero: 'Zenyatta', role: 'Support', credited: 50, daysSinceLastPlayed: 0 }),
-  hero({ hero: 'Kiriko', role: 'Support', credited: 25, daysSinceLastPlayed: 0 }),
+  hero({ hero: 'Sojourn', role: 'DPS', playedMinutes: 400, daysSinceLastPlayed: 2 }),
+  hero({ hero: 'Tracer', role: 'DPS', playedMinutes: 100, daysSinceLastPlayed: 1 }),
+  hero({ hero: 'Pharah', role: 'DPS', playedMinutes: 200, daysSinceLastPlayed: 3 }),
+  hero({ hero: 'Ana', role: 'Support', playedMinutes: 150, daysSinceLastPlayed: 5 }),
+  hero({ hero: 'Juno', role: 'Support', playedMinutes: 90, daysSinceLastPlayed: 1 }),
+  hero({ hero: 'Zenyatta', role: 'Support', playedMinutes: 500, daysSinceLastPlayed: 0 }),
 ];
+const ROLE = (queueRole: 'DPS' | 'Support') => ({ openQueue: false, queueRole });
+const OPEN = { openQueue: true, queueRole: 'DPS' as const };
 
-describe('computeNextTest — ordering', () => {
-  test('picks the least-progressed hero overall and its role', () => {
-    const r = computeNextTest(ROSTER, null);
-    assert.equal(r.recommendedRole, 'DPS'); // Tracer at 10 is the global minimum
-    assert.equal(r.orderedHeroes[0].hero, 'Tracer');
-  });
-
-  test('lists every pending hero in the recommended role, ordered by progress', () => {
-    const r = computeNextTest(ROSTER, null);
-    assert.deepEqual(r.orderedHeroes.map(h => h.hero), ['Tracer', 'Pharah', 'Shion', 'Sojourn']);
-  });
-
-  test('tie-breaks equal progress by longest since last played', () => {
-    const roster: HeroTestProgress[] = [
-      hero({ hero: 'Ana', role: 'Support', credited: 15, daysSinceLastPlayed: 1 }),
-      hero({ hero: 'Juno', role: 'Support', credited: 15, daysSinceLastPlayed: 9 }),
-      hero({ hero: 'Sojourn', role: 'DPS', credited: 40, daysSinceLastPlayed: 0 }),
-    ];
-    const r = computeNextTest(roster, null);
-    assert.equal(r.recommendedRole, 'Support');
-    // Juno has been sitting longer (9 days) than Ana (1 day) at the same
-    // progress, so it wins the tie.
-    assert.equal(r.orderedHeroes[0].hero, 'Juno');
-  });
-
-  test('never-played (null days) outranks any hero with a real last-played date on a tie', () => {
-    // Both stay under COLD_DAYS so this is testing the plain tie-break, not
-    // the going-cold jump-to-top rule (a separate, later test).
-    const roster: HeroTestProgress[] = [
-      hero({ hero: 'Ana', role: 'Support', credited: 0, daysSinceLastPlayed: 3 }),
-      hero({ hero: 'Juno', role: 'Support', credited: 0, daysSinceLastPlayed: null }),
-    ];
-    const r = computeNextTest(roster, null);
-    assert.equal(r.orderedHeroes[0].hero, 'Juno');
-  });
-});
-
-describe('computeNextTest — going cold', () => {
-  test('a cold hero jumps to the top of its role even though it is not least-progressed', () => {
-    const roster: HeroTestProgress[] = [
-      hero({ hero: 'Tracer', role: 'DPS', credited: 5, daysSinceLastPlayed: 1 }),
-      hero({ hero: 'Sojourn', role: 'DPS', credited: 40, daysSinceLastPlayed: COLD_DAYS }),
-    ];
-    const r = computeNextTest(roster, null);
-    assert.equal(r.recommendedRole, 'DPS'); // Tracer is still the global pick (least progressed)
-    assert.equal(r.orderedHeroes[0].hero, 'Sojourn', 'cold hero leads its own role list');
-    assert.equal(r.orderedHeroes[0].cold, true);
-    assert.equal(r.orderedHeroes[1].cold, false);
-  });
-
-  test('going cold does NOT change which role is recommended', () => {
-    // Zenyatta (Support) is most progressed overall AND cold — cold only
-    // reorders within a role, it never promotes a role over the true
-    // least-progressed pick.
-    const roster: HeroTestProgress[] = [
-      ...ROSTER.filter(h => h.hero !== 'Zenyatta'),
-      hero({ hero: 'Zenyatta', role: 'Support', credited: 79, daysSinceLastPlayed: 30 }),
-    ];
-    const r = computeNextTest(roster, null);
+describe('computeNextTest — role queue', () => {
+  test('least minutes played wins within the queued role', () => {
+    const r = computeNextTest(ROSTER, ROLE('DPS'), null);
+    assert.deepEqual(r.picks, [{ hero: 'Tracer', role: 'DPS' }]);
     assert.equal(r.recommendedRole, 'DPS');
+    assert.deepEqual(computeNextTest(ROSTER, ROLE('Support'), null).picks, [{ hero: 'Juno', role: 'Support' }]);
   });
 
-  test('below the cold threshold, a hero does not jump the line', () => {
-    const roster: HeroTestProgress[] = [
-      hero({ hero: 'Tracer', role: 'DPS', credited: 5, daysSinceLastPlayed: 1 }),
-      hero({ hero: 'Sojourn', role: 'DPS', credited: 40, daysSinceLastPlayed: COLD_DAYS - 1 }),
-    ];
-    const r = computeNextTest(roster, null);
-    assert.equal(r.orderedHeroes[0].hero, 'Tracer');
+  test('the queued role is used even when the other role has the global minimum', () => {
+    const r = computeNextTest(ROSTER, ROLE('DPS'), null); // Juno (90) is the global minimum
+    assert.equal(r.picks[0].hero, 'Tracer');
   });
-});
 
-describe('computeNextTest — finished heroes', () => {
-  test('a completed hero is reported as finished and excluded from the pick', () => {
-    const roster: HeroTestProgress[] = [
-      hero({ hero: 'Tracer', role: 'DPS', credited: 80, completed: true }),
-      hero({ hero: 'Pharah', role: 'DPS', credited: 10 }),
-    ];
-    const r = computeNextTest(roster, null);
+  test('missing playedMinutes counts as 0', () => {
+    const roster = [hero({ hero: 'Tracer', role: 'DPS', playedMinutes: 50 }), hero({ hero: 'Pharah', role: 'DPS' })];
+    assert.equal(computeNextTest(roster, ROLE('DPS'), null).picks[0].hero, 'Pharah');
+  });
+
+  test('a completed hero is skipped and reported as finished', () => {
+    const roster = ROSTER.map(h => h.hero === 'Tracer' ? { ...h, completed: true } : h);
+    const r = computeNextTest(roster, ROLE('DPS'), null);
+    assert.equal(r.picks[0].hero, 'Pharah');
     assert.deepEqual(r.finishedHeroes, ['Tracer']);
-    assert.equal(r.orderedHeroes.some(h => h.hero === 'Tracer'), false);
-    assert.equal(r.recommendedRole, 'DPS');
   });
 
-  test('every hero finished reports allFinished with no recommendation', () => {
-    const roster: HeroTestProgress[] = [
-      hero({ hero: 'Tracer', role: 'DPS', credited: 80, completed: true }),
-      hero({ hero: 'Ana', role: 'Support', credited: 80, completed: true }),
-    ];
-    const r = computeNextTest(roster, null);
+  test('a queued role with nothing pending falls back to the other role', () => {
+    const roster = ROSTER.map(h => h.role === 'DPS' ? { ...h, completed: true } : h);
+    const r = computeNextTest(roster, ROLE('DPS'), null);
+    assert.deepEqual(r.picks, [{ hero: 'Juno', role: 'Support' }]);
+    assert.equal(r.recommendedRole, 'Support');
+  });
+
+  test('every hero finished reports allFinished with no picks', () => {
+    const r = computeNextTest(ROSTER.map(h => ({ ...h, completed: true })), ROLE('DPS'), null);
     assert.equal(r.allFinished, true);
+    assert.deepEqual(r.picks, []);
     assert.equal(r.recommendedRole, null);
-    assert.deepEqual(r.orderedHeroes, []);
-    assert.deepEqual(r.finishedHeroes.sort(), ['Ana', 'Tracer']);
+  });
+
+});
+
+describe('computeNextTest — block lock', () => {
+  const roster = [
+    hero({ hero: 'Pharah', role: 'DPS', playedMinutes: 130, credited: 2 }),
+    hero({ hero: 'Tracer', role: 'DPS', playedMinutes: 100, credited: 1 }),
+    hero({ hero: 'Ana', role: 'Support', playedMinutes: 20 }),
+    hero({ hero: 'Juno', role: 'Support', playedMinutes: 70 }),
+  ];
+  const mid = (h: string, openMinutes: number): BlockInfo => ({ hero: h, openMinutes });
+
+  test('a mid-block hero is held even when another has fewer minutes', () => {
+    const r = computeNextTest(roster, ROLE('DPS'), mid('Pharah', 10));
+    assert.deepEqual(r.picks, [{ hero: 'Pharah', role: 'DPS' }]);
+    assert.deepEqual(r.block, { hero: 'Pharah', role: 'DPS', openMinutes: 10 });
+  });
+
+  test('a block close (0 open minutes) recomputes by least minutes', () => {
+    const r = computeNextTest(roster, ROLE('DPS'), mid('Pharah', 0));
+    assert.deepEqual(r.picks, [{ hero: 'Tracer', role: 'DPS' }]);
+    assert.equal(r.block, null);
+  });
+
+  test('a role flip overrides an open block', () => {
+    const r = computeNextTest(roster, ROLE('Support'), mid('Pharah', 10));
+    assert.deepEqual(r.picks, [{ hero: 'Ana', role: 'Support' }]);
+    assert.equal(r.block, null);
+  });
+
+  test('a block on a completed hero is not held', () => {
+    const r = computeNextTest(roster.map(h => h.hero === 'Pharah' ? { ...h, completed: true } : h), ROLE('DPS'), mid('Pharah', 10));
+    assert.equal(r.picks[0].hero, 'Tracer');
+    assert.equal(r.block, null);
+  });
+
+  test('open queue with one open block: the block hero holds its role, the other role takes least minutes', () => {
+    const r = computeNextTest(roster, OPEN, mid('Pharah', 10));
+    assert.deepEqual(r.picks, [{ hero: 'Pharah', role: 'DPS' }, { hero: 'Ana', role: 'Support' }]);
+    assert.equal(r.block?.hero, 'Pharah');
+    const r2 = computeNextTest(roster, OPEN, mid('Juno', 10));
+    assert.deepEqual(r2.picks, [{ hero: 'Tracer', role: 'DPS' }, { hero: 'Juno', role: 'Support' }]);
   });
 });
 
-describe('computeNextTest — block', () => {
-  test('mid-block (34 of 60 min) locks the role and does not recompute the ordered list', () => {
-    // Kiriko is not the global least-progressed pick, but the open block
-    // overrides the recompute entirely.
-    const r = computeNextTest(ROSTER, { hero: 'Kiriko', openMinutes: 34 });
-    assert.deepEqual(r.block, { hero: 'Kiriko', role: 'Support', openMinutes: 34 });
-    assert.equal(r.recommendedRole, 'Support');
-    assert.deepEqual(r.orderedHeroes, []);
+describe('computeNextTest — open queue', () => {
+  test('returns the least-minutes DPS and the least-minutes Support, no single role', () => {
+    const r = computeNextTest(ROSTER, OPEN, null);
+    assert.deepEqual(r.picks, [{ hero: 'Tracer', role: 'DPS' }, { hero: 'Juno', role: 'Support' }]);
+    assert.equal(r.recommendedRole, null);
   });
 
-  test('a freshly started block (1 minute in) still locks (an off-plan hero starts its own block)', () => {
-    const r = computeNextTest(ROSTER, { hero: 'Shion', openMinutes: 1 });
-    assert.equal(r.block?.openMinutes, 1);
-    assert.equal(r.block?.hero, 'Shion');
+  test('a role with every hero done contributes no pick', () => {
+    const roster = ROSTER.map(h => h.role === 'Support' ? { ...h, completed: true } : h);
+    assert.deepEqual(computeNextTest(roster, OPEN, null).picks, [{ hero: 'Tracer', role: 'DPS' }]);
   });
+});
 
-  test('at the block boundary (0 open minutes — it just closed), the card recomputes instead of staying', () => {
-    const r = computeNextTest(ROSTER, { hero: 'Kiriko', openMinutes: 0 });
-    assert.equal(r.block, null);
-    assert.equal(r.recommendedRole, 'DPS'); // back to the true global pick (Tracer)
+describe('compareTestHeroes — ties', () => {
+  const t = (over: Partial<HeroTestProgress> & { hero: string }) => hero({ role: 'DPS', playedMinutes: 60, ...over });
+  const order = (hs: HeroTestProgress[]) => [...hs].sort(compareTestHeroes).map(h => h.hero);
+
+  test('equal minutes: cold first', () => {
+    assert.deepEqual(order([t({ hero: 'A', daysSinceLastPlayed: 1 }), t({ hero: 'B', daysSinceLastPlayed: COLD_DAYS })]), ['B', 'A']);
   });
+  test('equal minutes, equal cold: fewer credited first', () => {
+    assert.deepEqual(order([t({ hero: 'A', credited: 3 }), t({ hero: 'B', credited: 1 })]), ['B', 'A']);
+  });
+  test('then longest since last played, never played counts longest', () => {
+    assert.deepEqual(order([t({ hero: 'A', daysSinceLastPlayed: 2 }), t({ hero: 'B', daysSinceLastPlayed: 5 })]), ['B', 'A']);
+    assert.deepEqual(order([t({ hero: 'A', daysSinceLastPlayed: 2 }), t({ hero: 'B', daysSinceLastPlayed: null })]), ['B', 'A']);
+  });
+  test('then name', () => {
+    assert.deepEqual(order([t({ hero: 'Zed' }), t({ hero: 'Abe' })]), ['Abe', 'Zed']);
+  });
+  test('minutes outrank cold', () => {
+    assert.deepEqual(order([t({ hero: 'A', playedMinutes: 10, daysSinceLastPlayed: 1 }), t({ hero: 'B', playedMinutes: 20, daysSinceLastPlayed: 30 })]), ['A', 'B']);
+  });
+});
 
-  test('a block on a hero whose test has since completed falls through to a full recompute', () => {
-    const roster: HeroTestProgress[] = [
-      hero({ hero: 'Kiriko', role: 'Support', credited: 80, completed: true }),
-      hero({ hero: 'Tracer', role: 'DPS', credited: 5 }),
+describe('annotateHeroes', () => {
+  test('rank 0 is the global best pick, completed heroes have no rank, cold is flagged', () => {
+    const roster = [
+      hero({ hero: 'A', role: 'DPS', playedMinutes: 50, daysSinceLastPlayed: COLD_DAYS }),
+      hero({ hero: 'B', role: 'Support', playedMinutes: 10 }),
+      hero({ hero: 'C', role: 'DPS', playedMinutes: 5, completed: true }),
     ];
-    const r = computeNextTest(roster, { hero: 'Kiriko', openMinutes: 25 }); // would be mid-block if still pending
-    assert.equal(r.block, null);
-    assert.equal(r.recommendedRole, 'DPS');
+    const a = annotateHeroes(roster);
+    assert.deepEqual(a.map(h => [h.hero, h.rank, h.cold]), [['A', 1, true], ['B', 0, false], ['C', null, false]]);
   });
+});
 
-  test('a block on a hero not in the current roster falls through to a full recompute', () => {
-    const r = computeNextTest(ROSTER, { hero: 'Widowmaker', openMinutes: 12 });
-    assert.equal(r.block, null);
-    assert.equal(r.recommendedRole, 'DPS');
+describe('pickQueueRole', () => {
+  test('stays on the role of the newest comp role-queue match', () => {
+    assert.equal(pickQueueRole({ role: 'Support', resetRoles: [] }, { DPS: 10, Support: 200 }), 'Support');
+    assert.equal(pickQueueRole({ role: 'DPS', resetRoles: [] }, { DPS: 200, Support: 10 }), 'DPS');
   });
-
-  test('no block at all (null) is a full recompute', () => {
-    const r = computeNextTest(ROSTER, null);
-    assert.equal(r.block, null);
+  test('flips to the other role when that match crossed 240', () => {
+    assert.equal(pickQueueRole({ role: 'DPS', resetRoles: ['DPS'] }, { DPS: 0, Support: 100 }), 'Support');
+    assert.equal(pickQueueRole({ role: 'Support', resetRoles: ['Support'] }, { DPS: 100, Support: 0 }), 'DPS');
+  });
+  test('a reset of a different role does not flip', () => {
+    assert.equal(pickQueueRole({ role: 'DPS', resetRoles: ['Support'] }, { DPS: 50, Support: 0 }), 'DPS');
+  });
+  test('no comp match yet: the lower clock, DPS on a tie', () => {
+    assert.equal(pickQueueRole(null, { DPS: 30, Support: 10 }), 'Support');
+    assert.equal(pickQueueRole(null, { DPS: 10, Support: 30 }), 'DPS');
+    assert.equal(pickQueueRole(null, { DPS: 0, Support: 0 }), 'DPS');
+  });
+  test('a Tank role-queue match falls back to the lower DPS/Support clock', () => {
+    assert.equal(pickQueueRole({ role: 'Tank', resetRoles: [] }, { DPS: 30, Support: 10 }), 'Support');
   });
 });
 
