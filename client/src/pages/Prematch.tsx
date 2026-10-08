@@ -1214,19 +1214,24 @@ export default function Prematch() {
         {/* Select Your Hero — game step 5, the tracker's hero input. Advice sits
             above it (the card above) and the Experiment column beside it. Its
             picks feed the Match Log's hero slots through MatchContext. */}
-        <div className={`card min-w-0 ${sensStudyOn ? 'lg:col-span-2' : 'lg:col-span-3'}`} data-inspect-id="prematch-hero-select-card">
-        <div className="flex items-baseline gap-2 mb-3">
+        {/* Fixed height at lg+ with the sens study on (Sean, 2026-10-08): the card
+            is as tall as the Experiment column, so its bottom edge matches Next
+            Test, and each role column scrolls on its own. lg:h-0 + lg:min-h-full
+            stops the card adding height to the row. Sean asked for this scroll;
+            it overrides the no-scroll-in-cards rule for this card only. */}
+        <div className={`card min-w-0 ${sensStudyOn ? 'lg:col-span-2 lg:h-0 lg:min-h-full lg:flex lg:flex-col' : 'lg:col-span-3'}`} data-inspect-id="prematch-hero-select-card">
+        <div className="flex items-baseline gap-2 mb-3 shrink-0">
           <h3 className="text-sm card-title" data-inspect-id="prematch-select-your-hero-header">Select Your Hero</h3>
           <span className="text-xs text-[var(--faint-2)]">by role · min 2 games · tap hero to pre-fill log</span>
         </div>
         {showHeroPicker ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" data-inspect-id="prematch-hero-picker-list">
+          <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${sensStudyOn ? 'lg:flex-1 lg:min-h-0 lg:grid-rows-[minmax(0,1fr)]' : ''}`} data-inspect-id="prematch-hero-picker-list">
             {(['DPS', 'Support'] as const).map(role => {
               const heroes = byRole[role];
               return (
-                <div key={role}>
-                  <div className={`text-xs font-bold uppercase tracking-widest mb-2 ${ROLE_TEXT[role]}`}>{role}</div>
-                  <div className="flex flex-col gap-1.5">
+                <div key={role} className={sensStudyOn ? 'lg:flex lg:flex-col lg:min-h-0' : ''}>
+                  <div className={`text-xs font-bold uppercase tracking-widest mb-2 shrink-0 ${ROLE_TEXT[role]}`}>{role}</div>
+                  <div className={`flex flex-col gap-1.5 ${sensStudyOn ? 'lg:flex-1 lg:min-h-0 lg:overflow-y-auto' : ''}`}>
                     {heroes.map(h => {
                       const clickIndex = clickedHeroes.indexOf(h.hero);
                       const isClicked = clickIndex !== -1;
