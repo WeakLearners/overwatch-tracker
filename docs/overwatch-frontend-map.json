@@ -928,7 +928,7 @@
           "id": "prematch-role-timer-readout",
           "label": "Role timer readout",
           "kind": "display",
-          "description": "'DPS 3h 36m / 4h', plus '(+Nm est.)' only when estimated minutes exist (comp matches without Aim Stats minutes, counted at the average). At or over threshold: '4h — switch to Support'. Sits after the bar.",
+          "description": "'DPS 3h 36m / 4h', plus '(+Nm est.)' only when estimated minutes exist (comp matches without Aim Stats minutes, counted at the average). A run reaching 4h closes and the readout flips to the other role at 0m (e.g. 'Support 0m / 4h'). Sits after the bar.",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:735",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-role-timer-readout\"' client/src/pages/Prematch.tsx"

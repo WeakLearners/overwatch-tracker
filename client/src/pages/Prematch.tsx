@@ -711,7 +711,7 @@ export default function Prematch() {
         </div>
 
         {/* Right (4): role timer. Competitive minutes in the current role run,
-            with a nudge to switch at 4 hours. Shown in every queue mode: Open
+            a run that reaches 4 hours resets and flips to the other role. Shown in every queue mode: Open
             Queue matches count too. Quick Play is ignored server-side.
             Detour/reset rules live in server/src/lib/roleTimer.ts.
             Recommendation only, never blocks logging. */}
@@ -719,7 +719,7 @@ export default function Prematch() {
           {roleTimer && roleTimer.role && (
             <div
               className="flex-1 min-w-0 flex items-stretch gap-2.5"
-              title={`Competitive only · ${roleTimer.matches} matches since ${roleTimer.since}. Switch roles at ${fmtHM(roleTimer.thresholdMin)}.`}
+              title={`Competitive only · ${roleTimer.matches} matches since ${roleTimer.since}. Resets at ${fmtHM(roleTimer.thresholdMin)}.`}
               data-inspect-id="prematch-role-timer-card"
             >
               {onLine(<span className="text-[10px] uppercase tracking-wider text-[var(--faint-2)]">Role time</span>)}
@@ -733,9 +733,7 @@ export default function Prematch() {
                 </span>
               </span>
               {onLine(<span className="text-[11px] text-[var(--ink-2)]" data-inspect-id="prematch-role-timer-readout">
-                {roleTimer.reached
-                  ? <b className="font-semibold">{fmtHM(roleTimer.thresholdMin)} — switch to {roleTimer.switchTo}</b>
-                  : <><b className="font-semibold">{roleTimer.role}</b> {fmtHM(roleTimer.totalMin)} / {fmtHM(roleTimer.thresholdMin)}</>}
+                <b className="font-semibold">{roleTimer.role}</b> {fmtHM(roleTimer.totalMin)} / {fmtHM(roleTimer.thresholdMin)}
                 {roleTimer.estimatedMin > 0 && <span className="text-[var(--faint-2)]"> (+{Math.round(roleTimer.estimatedMin)}m est.)</span>}
                 {roleTimer.held && <span className="text-[var(--faint-2)]"> · {roleTimer.held.role} held at {fmtHM(roleTimer.held.totalMin)}, one more {roleTimer.role} resets it</span>}
               </span>)}
