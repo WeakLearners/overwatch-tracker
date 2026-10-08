@@ -1004,15 +1004,26 @@ const DATA = {
           }
         },
         {
+          "id": "prematch-vote-rec-map-button",
+          "label": "Vote for (testPick rec map) button",
+          "kind": "button",
+          "description": "The first-choice map name in the hero-informed vote advice (testPick branch; 24px, emerald, truncates). Clicking it sets that map as the match map via setMap. The map-only fallback has its own button, prematch-vote-for-button.",
+          "locate": {
+            "path": "client/src/pages/Prematch.tsx:884",
+            "grep": "grep -n -F -- 'data-inspect-id=\"prematch-vote-rec-map-button\"' client/src/pages/Prematch.tsx"
+          },
+          "expectedMatches": 1
+        },
+        {
           "id": "prematch-vote-for-button",
           "label": "Vote for (winner map) button",
           "kind": "button",
-          "description": "The first-choice map name in the vote advice (24px, emerald, truncates). Clicking it sets that map as the match map (testPick branch) or opens its map drawer (map-only fallback).",
+          "description": "The first-choice map name in the map-only fallback vote advice (24px, emerald, truncates). Clicking it opens that map's drawer. The testPick branch has its own button, prematch-vote-rec-map-button.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:884",
-            "grep": "grep -n -F -- 'prematch-vote-for-button' client/src/pages/Prematch.tsx"
+            "path": "client/src/pages/Prematch.tsx:912",
+            "grep": "grep -n -F -- 'data-inspect-id=\"prematch-vote-for-button\"' client/src/pages/Prematch.tsx"
           },
-          "expectedMatches": 2
+          "expectedMatches": 1
         },
         {
           "id": "prematch-hero-advisor-card",
@@ -1231,9 +1242,9 @@ const DATA = {
           "id": "prematch-next-test-list",
           "label": "Next test \u2014 ordered role/hero recommendation",
           "kind": "list",
-          "description": "Always-on two-column hero list (2026-09-30): DPS left, Support right, matching the page's other role columns. Built from nextTest.heroes (the whole phase roster, which /api/blind/next now returns in Quickplay too), pending heroes only. Each column sorts like lib/nextTest.ts: cold (7+ days unplayed, COLD_DAYS) first, then least credited, then longest since last played. Rows are prematch-next-test-hero-row. Shown in every status branch, not just the recompute one.",
+          "description": "Always-on two-column hero list (2026-09-30): DPS left, Support right, matching the page's other role columns. Built from nextTest.heroes (the whole phase roster, which /api/blind/next now returns in Quickplay too), pending heroes only. Each column sorts by minutes played ascending (playedMinutes, 2026-10-08), then cold (7+ days unplayed, COLD_DAYS) first, then least credited, then hero name; the cold tag still shows. List order only: the headline pick still follows lib/nextTest.ts. Refetches on every match log (matchLoggedSignal + revalidateAll). Rows are prematch-next-test-hero-row. Shown in every status branch, not just the recompute one.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1612",
+            "path": "client/src/pages/Prematch.tsx:1613",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-next-test-list\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -1253,7 +1264,7 @@ const DATA = {
           "kind": "list-item",
           "description": "One row per pending hero in its role column: hero name, a 'cold' badge right after the name when unplayed 7+ days, and progress right-aligned (ml-auto). A chunked set shows minutes played / planned ('45/960 min', playedMinutes/targetMinutes); a legacy set shows credited/target games. Ordering uses credited/target (closed blocks). Rendered once per hero from a map() over nextTest.heroes, so the id is intentionally shared across rows \u2014 each row's content distinguishes it.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1622",
+            "path": "client/src/pages/Prematch.tsx:1623",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-next-test-hero-row\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -1263,7 +1274,7 @@ const DATA = {
           "kind": "text",
           "description": "Small footer line listing heroes that already finished this phase's test (nextTest.finishedHeroes), shown alongside the active recommendation so Sean can see the whole phase roster's state at a glance, not just whoever's next.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1641",
+            "path": "client/src/pages/Prematch.tsx:1642",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-next-test-done-heroes\"' client/src/pages/Prematch.tsx"
           }
         },
@@ -6120,6 +6131,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 
