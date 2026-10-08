@@ -910,24 +910,32 @@ export default function Prematch() {
               {testPick?.available && testPick.picks.length > 0 ? (
                 <div className="flex-1 flex flex-col justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <button onClick={() => setMap(testPick.picks[0].map)} className="min-w-0 truncate text-2xl leading-tight map-name text-emerald-600 hover:text-emerald-700 transition-colors text-left" data-inspect-id="prematch-vote-for-button">
-                        {withMapCount(testPick.picks[0].map, mapCounts)}
-                      </button>
-                      <span className={`pill shrink-0 ${ROLE_COLORS[testRole]}`}>{testRole}</span>
+                    <div className="flex items-baseline justify-between gap-2 min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <button onClick={() => setMap(testPick.picks[0].map)} className="min-w-0 truncate text-2xl leading-tight map-name text-emerald-600 hover:text-emerald-700 transition-colors text-left" data-inspect-id="prematch-vote-for-button">
+                          {withMapCount(testPick.picks[0].map, mapCounts)}
+                        </button>
+                        <span className={`pill shrink-0 ${ROLE_COLORS[testRole]}`}>{testRole}</span>
+                      </div>
+                      <span className="shrink-0 text-2xl leading-tight map-name font-bold text-emerald-500">{testPick.picks[0].win_rate.toFixed(1)}%</span>
                     </div>
-                    <div className="text-xs text-[var(--faint)] truncate">
-                      <span className="hero-name">{testPick.picks[0].hero}</span> · <b className="font-bold text-emerald-500">{testPick.picks[0].win_rate.toFixed(1)}</b>%
+                    <div className="text-xs text-[var(--faint)] text-right truncate">
+                      <span className="hero-name">{testPick.picks[0].hero}</span> · <b className="font-bold">{testPick.picks[0].games}</b> games
                       {testPick.picks[0].sample_size === 'thin' && <span className="text-amber-500"> · thin</span>}
-                      {' · '}<b className="font-bold">{testPick.picks[0].games}</b> games played
                     </div>
                   </div>
                   {testPick.picks.length > 1 && (
                     <div className="flex flex-col gap-1.5">
                       {testPick.picks.slice(1, 3).map(p => (
-                        <div key={`${p.map}|${p.hero}`} className="min-w-0 flex items-baseline justify-between gap-2 text-xs text-[var(--faint)]">
-                          <span className="map-name text-sm text-[var(--ink-2)] truncate">{withMapCount(p.map, mapCounts)}</span>
-                          <span className="shrink-0"><span className="hero-name">{p.hero}</span> · <b className="font-bold">{p.win_rate.toFixed(1)}</b>%</span>
+                        <div key={`${p.map}|${p.hero}`} className="min-w-0">
+                          <div className="flex items-baseline justify-between gap-2 min-w-0">
+                            <span className="map-name text-sm text-[var(--ink-2)] min-w-0 truncate">{withMapCount(p.map, mapCounts)}</span>
+                            <span className="shrink-0 text-sm map-name font-bold">{p.win_rate.toFixed(1)}%</span>
+                          </div>
+                          <div className="text-xs text-[var(--faint)] text-right truncate">
+                            <span className="hero-name">{p.hero}</span> · <b className="font-bold">{p.games}</b> games
+                            {p.sample_size === 'thin' && <span className="text-amber-500"> · thin</span>}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -938,20 +946,30 @@ export default function Prematch() {
               ) : (
                 <div className="flex-1 flex flex-col justify-between gap-3">
                   <div className="min-w-0">
-                    <button onClick={() => openMap(winner)} className="min-w-0 truncate text-2xl leading-tight map-name text-emerald-600 hover:text-emerald-700 transition-colors text-left" data-inspect-id="prematch-vote-for-button">
-                      {withMapCount(winner, mapCounts)}
-                    </button>
+                    <div className="flex items-baseline justify-between gap-2 min-w-0">
+                      <button onClick={() => openMap(winner)} className="min-w-0 truncate text-2xl leading-tight map-name text-emerald-600 hover:text-emerald-700 transition-colors text-left" data-inspect-id="prematch-vote-for-button">
+                        {withMapCount(winner, mapCounts)}
+                      </button>
+                      {scoreMap[winner] && <span className="shrink-0 text-2xl leading-tight map-name font-bold text-emerald-500">{scoreMap[winner].blended_score.toFixed(1)}%</span>}
+                    </div>
                     {scoreMap[winner] && (
-                      <div className="text-xs text-[var(--faint)]">
-                        <b className="font-bold">{scoreMap[winner].blended_score.toFixed(1)}</b>% blended · <b className="font-bold">{scoreMap[winner].total_games}</b> games played
+                      <div className="text-xs text-[var(--faint)] text-right truncate">
+                        blended · <b className="font-bold">{scoreMap[winner].total_games}</b> games
                       </div>
                     )}
                   </div>
                   <div className="flex flex-col gap-1.5">
                     {ranked.slice(1, 3).map(m => (
-                      <div key={m} className="min-w-0 flex items-baseline justify-between gap-2 text-xs text-[var(--faint)]">
-                        <span className="map-name text-sm text-[var(--ink-2)] truncate">{withMapCount(m, mapCounts)}</span>
-                        <span className="shrink-0">{scoreMap[m] ? <><b className="font-bold">{scoreMap[m].blended_score.toFixed(1)}</b>% blended</> : 'no data'}</span>
+                      <div key={m} className="min-w-0">
+                        <div className="flex items-baseline justify-between gap-2 min-w-0">
+                          <span className="map-name text-sm text-[var(--ink-2)] min-w-0 truncate">{withMapCount(m, mapCounts)}</span>
+                          <span className="shrink-0 text-sm map-name font-bold">{scoreMap[m] ? `${scoreMap[m].blended_score.toFixed(1)}%` : <span className="font-normal text-[var(--faint)]">no data</span>}</span>
+                        </div>
+                        {scoreMap[m] && (
+                          <div className="text-xs text-[var(--faint)] text-right truncate">
+                            blended · <b className="font-bold">{scoreMap[m].total_games}</b> games
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
