@@ -435,14 +435,21 @@ router.get('/test-pick', withReplica((req: Request, res: Response, db) => {
 
   const mapsParam = (req.query.maps as string | undefined) ?? '';
   const candidateMaps = [...new Set(mapsParam.split(',').map(m => m.trim()).filter(Boolean))].slice(0, 3);
-  res.json(computeTestPick(db, role, candidateMaps));
+  // Optional queue mode: when present, every figure (ranking, games, thin) is
+  // computed from that mode's rows only. Absent = all modes, as before.
+  const qm = req.query.queue_mode as string | undefined;
+  if (qm !== undefined && !['qp_role', 'comp_role', 'comp_open'].includes(qm)) {
+    res.status(400).json({ error: 'invalid queue_mode' });
+    return;
+  }
+  res.json(computeTestPick(db, role, candidateMaps, qm as QueueMode | undefined));
 }));
 
 export default router;
 
 // The /test-pick body for a role and the candidate maps. Pure over a db handle
 // so a test can run it on the tracker's own database and on a replica.
-export function computeTestPick(db: DatabaseSync, role: AdvisorRole, candidateMaps: string[]) {
+export function computeTestPick(db: DatabaseSync, role: AdvisorRole, candidateMaps: string[], queueMode?: QueueMode) {
   if (candidateMaps.length === 0) {
     return { role, available: false, reason: 'no_maps_selected', picks: [] };
   }
@@ -459,9 +466,9 @@ export function computeTestPick(db: DatabaseSync, role: AdvisorRole, candidateMa
   const rows = db.prepare(`
     SELECT map, hero, COUNT(*) games, ROUND(AVG(win) * 100, 1) win_rate
     FROM matches_by_hero
-    WHERE hero IN (${heroPlaceholders}) AND map IN (${mapPlaceholders})
+    WHERE hero IN (${heroPlaceholders}) AND map IN (${mapPlaceholders})${queueMode ? ' AND queue_mode = ?' : ''}
     GROUP BY map, hero
-  `).all(...roleHeroes, ...candidateMaps) as unknown as { map: string; hero: string; games: number; win_rate: number }[];
+  `).all(...roleHeroes, ...candidateMaps, ...(queueMode ? [queueMode] : [])) as unknown as { map: string; hero: string; games: number; win_rate: number }[];
   const statsByKey = new Map(rows.map(r => [`${r.map}|${r.hero}`, r]));
 
   // Cross product: every (candidate map) x (role's currently-active testing

@@ -874,7 +874,7 @@ const DATA = {
           "id": "prematch-map-voting-card",
           "label": "Vote advice (right two columns of the Map card)",
           "kind": "card",
-          "description": "Right two thirds (col-span-2) of prematch-map-card since 2026-10-04; middle column from 2026-09-30 (was its own \"Map Voting\" card). Advice only: with maps offered, every pick is two lines: line 1 has the map name left and the win% right at the same size (top choice text-2xl with the role pill, 2nd and 3rd text-sm); line 2 is right-aligned small text under the win% with hero - games (and an amber thin tag). The map-only fallback shows blended % on line 1 and blended - N games on line 2. With no maps offered it says \"Enter the offered maps for a vote.\" (prematch-map-voting-empty). Ranking prefers the hero-informed testPick across offered maps x the testing hero pool, falling back to the map-only blended score; it ranks map x hero PAIRS, so one map can appear twice and another not at all (known, not fixed).",
+          "description": "Right two thirds (col-span-2) of prematch-map-card since 2026-10-04; middle column from 2026-09-30 (was its own \"Map Voting\" card). Advice only; every rate (win%, games, blended) follows the selected queue mode (queue_mode is sent to /api/stats/map-voting and /api/advisor/test-pick; a mode with no games shows the empty and no-data states, never all-mode data): with maps offered, every pick is two lines: line 1 has the map name left and the win% right at the same size (top choice text-2xl with the role pill, 2nd and 3rd text-sm); line 2 is right-aligned small text under the win% with hero - games (and an amber thin tag). The map-only fallback shows blended % on line 1 and blended - N games on line 2. With no maps offered it says \"Enter the offered maps for a vote.\" (prematch-map-voting-empty). Ranking prefers the hero-informed testPick across offered maps x the testing hero pool, falling back to the map-only blended score; it ranks map x hero PAIRS, so one map can appear twice and another not at all (known, not fixed).",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:888",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-map-voting-card\"' client/src/pages/Prematch.tsx"
@@ -6060,6 +6060,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 

@@ -462,6 +462,14 @@ router.get('/streaks', (req: Request, res: Response) => {
 
 router.get('/map-voting', (req: Request, res: Response) => {
   const db = getDb();
+  // Optional queue mode: filters historical_rate, blended_score and
+  // total_games to that mode's rows. Absent = all modes, as before.
+  const qm = req.query.queue_mode as string | undefined;
+  if (qm !== undefined && !['qp_role', 'comp_role', 'comp_open'].includes(qm)) {
+    res.status(400).json({ error: 'invalid queue_mode' });
+    return;
+  }
+  const qmAnd = qm ? ' AND queue_mode = :qm' : '';
   // "recent" = last 90 days; blended = 70% recent + 30% historical
   // Falls back to historical-only when fewer than 3 recent games on a map.
   // The 90-day "recent" window does double duty: it feeds blended_score here
@@ -479,7 +487,7 @@ router.get('/map-voting', (req: Request, res: Response) => {
              COUNT(*) AS total_games,
              ROUND(AVG(win) * 100, 1) AS historical_rate
       FROM matches
-      WHERE map NOT IN ('Hanaoka', 'Anubis')
+      WHERE map NOT IN ('Hanaoka', 'Anubis')${qmAnd}
       GROUP BY map
       HAVING total_games >= 3
     ),
@@ -488,7 +496,7 @@ router.get('/map-voting', (req: Request, res: Response) => {
              COUNT(*) AS recent_games,
              ROUND(AVG(win) * 100, 1) AS recent_rate
       FROM matches
-      WHERE date >= date('now', '-90 days')
+      WHERE date >= date('now', '-90 days')${qmAnd}
       GROUP BY map
     )
     SELECT
@@ -505,7 +513,7 @@ router.get('/map-voting', (req: Request, res: Response) => {
     FROM historical h
     LEFT JOIN recent r ON h.map = r.map
     ORDER BY blended_score DESC
-  `).all({});
+  `).all(qm ? { qm } : {});
 
   res.json(rows);
 });

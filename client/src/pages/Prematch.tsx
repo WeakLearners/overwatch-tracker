@@ -251,7 +251,7 @@ export default function Prematch() {
 
   const { openMap } = useMapDrawer();
   const { openHero } = useHeroDrawer();
-  const { data: votingData } = useApi<MapVotingRow[]>('/api/stats/map-voting');
+  const { data: votingData } = useApi<MapVotingRow[]>(`/api/stats/map-voting?queue_mode=${queueMode}`, [queueMode]);
 
   // Data for the Today card.
   const today = format(new Date(), 'yyyy-MM-dd');
@@ -309,8 +309,8 @@ export default function Prematch() {
   // Match's hero dropdowns can read the same chosen role to filter by.
   const testPickMaps = selected.join(',');
   const { data: testPick } = useApi<TestPick>(
-    `/api/advisor/test-pick?role=${testRole}&maps=${encodeURIComponent(testPickMaps)}`,
-    [testRole, testPickMaps],
+    `/api/advisor/test-pick?role=${testRole}&maps=${encodeURIComponent(testPickMaps)}&queue_mode=${queueMode}`,
+    [testRole, testPickMaps, queueMode],
   );
 
   const [query, setQuery]       = useState('');
