@@ -207,7 +207,7 @@ export default function Prematch() {
   // card below, not a reason to skip a cheap, side-effect-free GET. Keeping
   // the fetch itself unconditional also means flipping the toggle on shows
   // fresh data immediately rather than a stale null from before it was on.
-  const { data: nextTest } = useApi<NextTestResponse>(`/api/blind/next?queue_mode=${queueMode}`, [queueMode]);
+  const { data: nextTest } = useApi<NextTestResponse>(`/api/blind/next?queue_mode=${queueMode}`, [queueMode, matchLoggedSignal]);
   // The hero the Next test card is pointing at: the locked open-block hero,
   // else the top of the recommended list. Its picker row pulses
   // (.test-glow) so it can be found at a glance.
@@ -881,7 +881,7 @@ export default function Prematch() {
                     <div className={cell(i, 'pr-3')}>
                     {i === 0 ? (
                       <div className="flex items-center gap-2 min-w-0">
-                        <button onClick={() => setMap(p.map)} className="min-w-0 truncate text-2xl leading-tight map-name text-emerald-600 hover:text-emerald-700 transition-colors text-left" data-inspect-id="prematch-vote-for-button">
+                        <button onClick={() => setMap(p.map)} className="min-w-0 truncate text-2xl leading-tight map-name text-emerald-600 hover:text-emerald-700 transition-colors text-left" data-inspect-id="prematch-vote-rec-map-button">
                           {withMapCount(p.map, mapCounts)}
                         </button>
                         <span className={`pill shrink-0 ${ROLE_COLORS[testRole]}`}>{testRole}</span>
@@ -1606,8 +1606,9 @@ export default function Prematch() {
                   </p>
                 )}
                 {/* Always on (2026-09-30): DPS left, Support right, whatever
-                    the line above says. Same order as lib/nextTest.ts —
-                    cold first, then least-progressed, then longest unplayed. */}
+                    the line above says. Sorted by minutes played, ascending
+                    (Sean, 2026-10-08), then cold, credited, hero name. List order
+                    only: the headline pick still follows lib/nextTest.ts. */}
                 {!!nextTest.heroes?.some(h => !h.completed) && (
                   <div className="grid grid-cols-2 gap-x-4 mt-1.5" data-inspect-id="prematch-next-test-list">
                     {(['DPS', 'Support'] as const).map(role => (
@@ -1616,8 +1617,8 @@ export default function Prematch() {
                         {nextTest.heroes!
                           .filter(h => h.role === role && !h.completed)
                           .map(h => ({ ...h, cold: h.daysSinceLastPlayed != null && h.daysSinceLastPlayed >= 7 }))
-                          .sort((a, b) => Number(b.cold) - Number(a.cold) || a.credited - b.credited
-                            || (b.daysSinceLastPlayed ?? Infinity) - (a.daysSinceLastPlayed ?? Infinity))
+                          .sort((a, b) => (a.playedMinutes ?? 0) - (b.playedMinutes ?? 0) || Number(b.cold) - Number(a.cold)
+                            || a.credited - b.credited || a.hero.localeCompare(b.hero))
                           .map(h => (
                             <div key={h.hero} className="flex items-center justify-start gap-1.5 text-[11px] text-[var(--faint-2)]" data-inspect-id="prematch-next-test-hero-row">
                               <span className="hero-name truncate">{h.hero}</span>
