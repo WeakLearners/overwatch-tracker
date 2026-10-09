@@ -5,16 +5,16 @@ import os from 'os';
 import path from 'path';
 import { getDb, closeDb } from '../db/schema';
 import {
-  decideMatch, MATCH_WINDOW_MIN, processFile, rematchRecent, validateParsed, callVision,
+  decideMatch, MATCH_WINDOW_MIN, processFile, rematchRecent, validateParsed, callVision, resolveSelf, recomputeScoreboards, storeScoreboard, systemPrompt, SCHEMA,
   type MatchCandidate, type ParsedRow, type ParsedScoreboard, type SelfRow,
 } from './scoreboard';
 import { pollOnce } from './scoreboardWatcher';
 
 const MTIME = Date.parse('2026-10-09T13:08:54Z');
 const at = (minAfter: number) => new Date(MTIME + minAfter * 60_000).toISOString().slice(0, 19).replace('T', ' ');
-const self: SelfRow = { name: 'LINX', role: 'support', hero: null };
+const self: SelfRow = { name: 'LINX', role: 'support' };
 const cand = (o: Partial<MatchCandidate> = {}): MatchCandidate =>
-  ({ id: 1, created_at: at(5), account: 'Linx', role: 'Support', hero: 'Mizuki', hasScoreboard: false, ...o });
+  ({ id: 1, created_at: at(5), account: 'Linx', role: 'Support', hasScoreboard: false, ...o });
 
 describe('decideMatch window (fixed times)', () => {
   test('window constant is 10 minutes', () => assert.equal(MATCH_WINDOW_MIN, 10));
@@ -43,9 +43,8 @@ describe('decideMatch window (fixed times)', () => {
   test('other account is rejected', () => assert.equal(decideMatch(MTIME, self, [cand({ account: 'Pinx' })]).matchId, null));
   test('null account is never guessed', () => assert.equal(decideMatch(MTIME, self, [cand({ account: null })]).matchId, null));
   test('role mismatch is rejected', () => assert.equal(decideMatch(MTIME, self, [cand({ role: 'DPS' })]).matchId, null));
-  test('hero mismatch is rejected only when the model named a hero', () => {
-    assert.equal(decideMatch(MTIME, { ...self, hero: 'Ana' }, [cand()]).matchId, null);
-    assert.equal(decideMatch(MTIME, { ...self, hero: 'Mizuki' }, [cand()]).matchId, 1);
+  test('hero plays no part: a candidate matches whatever hero was logged', () => {
+    assert.equal(decideMatch(MTIME, self, [{ ...cand(), hero: 'Wrecking Ball' } as MatchCandidate]).matchId, 1);
   });
   test('two candidates -> unmatched', () => {
     const d = decideMatch(MTIME, self, [cand({ id: 1 }), cand({ id: 2, created_at: at(9) })]);
@@ -57,7 +56,7 @@ describe('decideMatch window (fixed times)', () => {
 });
 
 function row(team: 'us' | 'them', i: number, isSelf = false, over: Partial<ParsedRow> = {}): ParsedRow {
-  return { team, role: 'support', is_self: isSelf, hero: null, player_name: isSelf ? 'LINX' : `P${team}${i}`, e: 1, a: 2, d: 3, dmg: 4, h: 5, mit: 6, ...over };
+  return { team, role: 'support', is_self: isSelf, player_name: isSelf ? 'LINX' : `P${team}${i}`, e: 1, a: 2, d: 3, dmg: 4, h: 5, mit: 6, ...over };
 }
 function board(n = 6): ParsedScoreboard {
   return { is_scoreboard: true, rows: [...Array(n)].map((_, i) => row('us', i, i === n - 1)).concat([...Array(n)].map((_, i) => row('them', i))) };
@@ -66,7 +65,21 @@ function board(n = 6): ParsedScoreboard {
 describe('validateParsed', () => {
   test('6v6 and 5v5 pass', () => { assert.equal(validateParsed(board(6)), null); assert.equal(validateParsed(board(5)), null); });
   test('uneven teams fail', () => { const b = board(6); b.rows.pop(); assert.match(validateParsed(b)!, /row counts/); });
-  test('no self row fails', () => { const b = board(6); b.rows.forEach(r => (r.is_self = false)); assert.match(validateParsed(b)!, /self/); });
+  test('the model highlight is not validated (self comes from the name)', () => { const b = board(6); b.rows.forEach(r => (r.is_self = false)); assert.equal(validateParsed(b), null); });
+});
+
+describe('self row by name, hero removed', () => {
+  const rows = (names: string[], team = 'us') => names.map(n => ({ team, player_name: n }));
+  test('case-insensitive, trimmed match', () => assert.deepEqual(resolveSelf(rows(['A', ' lInx ', 'B']), ['Linx', 'Pinx']), { index: 1 }));
+  test('other account names also work', () => assert.deepEqual(resolveSelf(rows(['A', 'PINX']), ['Linx', 'Pinx']), { index: 1 }));
+  test('enemy team rows never count', () => assert.ok('error' in resolveSelf([{ team: 'us', player_name: 'A' }, { team: 'them', player_name: 'LINX' }], ['Linx'])));
+  test('zero hits -> error', () => assert.match((resolveSelf(rows(['A', 'B']), ['Linx']) as any).error, /no row/));
+  test('2+ hits -> error', () => assert.match((resolveSelf(rows(['LINX', 'PINX']), ['Linx', 'Pinx']) as any).error, /2 rows/));
+  test('prompt and schema carry no hero field', () => {
+    assert.ok(!('hero' in (SCHEMA as any).properties.rows.items.properties));
+    assert.ok(!(SCHEMA as any).properties.rows.items.required.includes('hero'));
+    assert.ok(!/hero name|portrait|Wrecking/i.test(systemPrompt().replace('Do not report hero names.', '')));
+  });
 });
 
 describe('processFile + rematch on a temp DB', () => {
@@ -85,22 +98,60 @@ describe('processFile + rematch on a temp DB', () => {
     assert.equal((db.prepare(`SELECT COUNT(*) n FROM scoreboard_rows`).get() as any).n, 12);
     assert.equal((db.prepare(`SELECT slot FROM scoreboard_rows WHERE team='us' AND is_self=1`).get() as any).slot, 5);
   });
+  test('highlight guess on another player: self is still the account-name row; hero stored NULL; raw_json keeps the guess', async () => {
+    const id = addMatch(at(5));
+    const b = board(6); b.rows.forEach((r, i) => { r.is_self = r.team === 'us' && i === 0; }); // model highlights row 0, LINX is the last us row
+    assert.equal(await processFile(db, '/x/a.png', MTIME, async () => b), 'matched');
+    assert.equal((db.prepare(`SELECT match_id FROM match_scoreboards`).get() as any).match_id, id);
+    const selfRows = db.prepare(`SELECT player_name, slot FROM scoreboard_rows WHERE is_self = 1`).all() as any[];
+    assert.deepEqual(selfRows.map(r => r.player_name), ['LINX']);
+    assert.equal((db.prepare(`SELECT COUNT(*) n FROM scoreboard_rows WHERE hero IS NOT NULL`).get() as any).n, 0);
+    const raw = JSON.parse((db.prepare(`SELECT raw_json FROM match_scoreboards`).get() as any).raw_json);
+    assert.equal(raw.rows[0].is_self, true);
+  });
+  test('no known account name on the top team -> error with a reason', async () => {
+    addMatch(at(5));
+    const b = board(6); b.rows.forEach(r => { if (r.is_self) r.player_name = 'STRANGER'; });
+    assert.equal(await processFile(db, '/x/a.png', MTIME, async () => b), 'error');
+    assert.match((db.prepare(`SELECT reason FROM match_scoreboards`).get() as any).reason, /self row/);
+  });
   test('no candidate -> unmatched with a reason; matches table untouched', async () => {
+    addMatch(at(120));
     const before = (db.prepare(`SELECT COUNT(*) n FROM matches`).get() as any).n;
     assert.equal(await processFile(db, '/x/a.png', MTIME, async () => board(5)), 'unmatched');
     assert.ok((db.prepare(`SELECT reason FROM match_scoreboards`).get() as any).reason);
     assert.equal((db.prepare(`SELECT COUNT(*) n FROM matches`).get() as any).n, before);
   });
   test('late log: rematchRecent attaches once the match exists', async () => {
+    addMatch(at(120));
     await processFile(db, '/x/a.png', MTIME, async () => board(6));
     const id = addMatch(at(8));
     assert.equal(rematchRecent(db, MTIME + 10 * 60_000), 1);
     assert.equal((db.prepare(`SELECT match_id FROM match_scoreboards`).get() as any).match_id, id);
   });
   test('rematchRecent leaves old unmatched rows alone', async () => {
+    addMatch(at(120));
     await processFile(db, '/x/a.png', MTIME, async () => board(6));
     addMatch(at(8));
     assert.equal(rematchRecent(db, MTIME + 3 * 3600_000), 0);
+  });
+  test('recomputeScoreboards: self by name, hero nulled, rematch (stale rows from the 2026-10-09 bug)', () => {
+    const m1 = addMatch(at(1)); const m2 = addMatch(at(31), 'Linx', 'DPS'); addMatch(at(61), 'Pinx');
+    const old = (offsetMin: number, selfAt: number, role: 'support' | 'dps') => {
+      const b = board(6); b.rows.forEach((r, i) => { r.role = role; r.is_self = r.team === 'us' && i === selfAt; });
+      const id = storeScoreboard(db, { filePath: `/x/${offsetMin}.png`, mtimeMs: MTIME + offsetMin * 60_000, status: 'unmatched', reason: 'stale', raw: b, matchId: null, rows: b.rows });
+      db.prepare(`UPDATE scoreboard_rows SET hero = 'Cassidy' WHERE scoreboard_id = ?`).run(id);
+      return id;
+    };
+    const s1 = old(0, 0, 'support');      // highlight on the wrong row; match m1 expected
+    const s2 = old(30, 2, 'dps');         // m2 expected
+    const s3 = old(200, 5, 'support');    // nothing logged near -> stays unmatched
+    db.prepare(`UPDATE match_scoreboards SET match_id = ?, status = 'matched' WHERE id = ?`).run(m2, s1); // stale wrong attach
+    const out = recomputeScoreboards(db);
+    assert.deepEqual(out.map(o => [o.id, o.status, o.matchId]), [[s1, 'matched', m1], [s2, 'matched', m2], [s3, 'unmatched', null]]);
+    assert.equal((db.prepare(`SELECT COUNT(*) n FROM scoreboard_rows WHERE hero IS NOT NULL`).get() as any).n, 0);
+    for (const id of [s1, s2, s3]) assert.equal((db.prepare(`SELECT player_name FROM scoreboard_rows WHERE scoreboard_id = ? AND is_self = 1`).get(id) as any).player_name, 'LINX');
+    assert.equal((db.prepare(`SELECT COUNT(*) n FROM matches`).get() as any).n, 3);
   });
   test('not a scoreboard -> not_scoreboard, no rows', async () => {
     assert.equal(await processFile(db, '/x/b.png', MTIME, async () => ({ is_scoreboard: false, rows: [] })), 'not_scoreboard');
@@ -174,7 +225,8 @@ describe('scoreboard fixture (Screenshot (36).png)', () => {
     assert.equal(validateParsed(p), null);
     const got = p.rows.map(r => [r.team, r.player_name.toUpperCase(), r.e, r.a, r.d, r.dmg, r.h, r.mit]);
     assert.deepEqual(got, TRUTH);
-    assert.equal(p.rows.filter(r => r.is_self).length, 1);
-    assert.equal(p.rows.find(r => r.is_self)!.player_name.toUpperCase(), 'LINX');
+    assert.ok(p.rows.every(r => !('hero' in r)), 'no hero field is requested any more');
+    const found = resolveSelf(p.rows, ['Linx']);
+    assert.ok('index' in found && p.rows[found.index].player_name.toUpperCase() === 'LINX');
   });
 });
