@@ -17,6 +17,7 @@
 //      convention alone.
 import { fitQuadraticPeak, CurvePoint } from '../lib/aim';
 import { NOT_QP_SQL } from '../lib/blind';
+import { patchEra, eraCounts, eraAdjustedMeans, withinEraDiff, EraObs } from '../lib/patchEra';
 
 // A stage needs this many credited games before its mean accuracy is stable
 // enough to be a point in the fit. Below it the point is dropped from the
@@ -37,6 +38,12 @@ export interface StagePoint {
   n: number;
   meanAcc: number | null;
   winRate: number | null;
+  // Matches before / on-or-after the patch boundary (lib/patchEra.ts).
+  eraN?: number[];
+  // Era-adjusted mean accuracy (same as meanAcc when only one era is present).
+  // null = this stage shares no patch era with any other stage, so it has no
+  // valid accuracy comparison. When undefined, readBracket falls back to meanAcc.
+  adjAcc?: number | null;
 }
 
 // Per-stage aggregates for one set, joining the credited games to their stage's
@@ -49,13 +56,15 @@ export interface StagePoint {
 // historical set's bracket read never counts a QP-credited game as if it
 // were Competitive.
 export function stagePointsFor(db: any, setId: number): StagePoint[] {
-  return db.prepare(`
+  // Per-credit rows, aggregated here so each stage also carries its patch-era
+  // split and an era-adjusted accuracy (never compare stages across eras).
+  const rows = db.prepare(`
     SELECT bs.stage_index      AS stage_index,
            bs.sens             AS sens,
            bs.dpi              AS dpi,
-           COUNT(*)            AS n,
-           AVG(ash.overall_acc) AS meanAcc,
-           AVG(m.win)          AS winRate
+           m.date              AS date,
+           ash.overall_acc     AS acc,
+           m.win               AS win
     FROM blind_credits bc
     JOIN blind_stages bs
       ON bs.set_id = bc.blind_set_id AND bs.stage_index = bc.stage_index
@@ -63,9 +72,23 @@ export function stagePointsFor(db: any, setId: number): StagePoint[] {
     LEFT JOIN aim_stats_heroes ash
       ON ash.match_id = bc.match_id AND ash.hero = bc.hero
     WHERE bc.blind_set_id = :setId AND bc.counts_result = 1 AND ${NOT_QP_SQL}
-    GROUP BY bs.stage_index, bs.sens, bs.dpi
     ORDER BY bs.stage_index
-  `).all({ setId }) as unknown as StagePoint[];
+  `).all({ setId }) as { stage_index: number; sens: number | null; dpi: number; date: string; acc: number | null; win: number }[];
+  const adj = eraAdjustedMeans(
+    rows.filter(r => r.acc != null).map(r => ({ arm: r.stage_index, era: patchEra(r.date), v: r.acc as number })),
+  );
+  const byStage = new Map<number, typeof rows>();
+  for (const r of rows) byStage.set(r.stage_index, [...(byStage.get(r.stage_index) ?? []), r]);
+  return [...byStage.entries()].map(([stage_index, rs]) => {
+    const accs = rs.filter(r => r.acc != null).map(r => r.acc as number);
+    return {
+      stage_index, sens: rs[0].sens, dpi: rs[0].dpi, n: rs.length,
+      meanAcc: accs.length ? accs.reduce((a, b) => a + b, 0) / accs.length : null,
+      winRate: rs.reduce((a, r) => a + r.win, 0) / rs.length,
+      eraN: eraCounts(rs.map(r => r.date)),
+      adjAcc: adj.get(stage_index)?.mean ?? null,
+    };
+  });
 }
 
 // Raw per-match accuracy values for one stage, needed for a real two-sample
@@ -83,6 +106,20 @@ export function stageSamplesFor(db: any, setId: number, stageIndex: number): num
     WHERE bc.blind_set_id = :setId AND bc.stage_index = :si AND bc.counts_result = 1
       AND ash.overall_acc IS NOT NULL AND ${NOT_QP_SQL}
   `).all({ setId, si: stageIndex }) as { acc: number }[]).map(r => r.acc);
+}
+
+// Same population as stageSamplesFor, tagged with the patch era of each match,
+// for the within-era stage comparison in readBracket.
+export function stageEraSamplesFor(db: any, setId: number, stageIndex: number): EraObs[] {
+  return (db.prepare(`
+    SELECT ash.overall_acc AS acc, m.date AS date
+    FROM blind_credits bc
+    JOIN aim_stats_heroes ash
+      ON ash.match_id = bc.match_id AND ash.hero = bc.hero
+    JOIN matches m ON m.id = bc.match_id
+    WHERE bc.blind_set_id = :setId AND bc.stage_index = :si AND bc.counts_result = 1
+      AND ash.overall_acc IS NOT NULL AND ${NOT_QP_SQL}
+  `).all({ setId, si: stageIndex }) as { acc: number; date: string }[]).map(r => ({ era: patchEra(r.date), v: r.acc }));
 }
 
 // Welch's t-test (unequal variances) — the honest test for "are these two
@@ -106,7 +143,7 @@ export function welchT(a: number[], b: number[]): number | null {
 
 export type BracketVerdict =
   | { kind: 'thin'; totalN: number; usableStages: number }
-  | { kind: 'head2head'; totalN: number; hi: StagePoint; lo: StagePoint; t: number | null }
+  | { kind: 'head2head'; totalN: number; hi: StagePoint; lo: StagePoint; t: number | null; gap?: number }
   | { kind: 'unresolved'; totalN: number; reason: string }
   | { kind: 'peak'; totalN: number; optimalX: number; r2: number; inRange: boolean };
 
@@ -116,11 +153,15 @@ export type BracketVerdict =
 export function readBracket(
   points: StagePoint[],
   samples?: Record<number, number[]>,
+  eraSamples?: Record<number, EraObs[]>,
 ): BracketVerdict {
   // Only stages that (a) vary a sens value we can put on an x-axis and (b)
   // have enough games and an actual accuracy mean can enter the fit.
+  // Patch eras (2026-10-09): a stage's accuracy is its era-adjusted value
+  // (adjAcc) when the caller supplied it, so no stage is compared across eras.
+  const accOf = (p: StagePoint) => (p.adjAcc !== undefined ? p.adjAcc : p.meanAcc);
   const usable = points.filter(
-    p => p.sens != null && p.n >= MIN_GAMES_PER_STAGE && p.meanAcc != null
+    p => p.sens != null && p.n >= MIN_GAMES_PER_STAGE && accOf(p) != null
   );
   const totalN = usable.reduce((s, p) => s + p.n, 0);
   // A 2-stage bracket is an A/B test, not a curve — fitQuadraticPeak needs 3+
@@ -128,7 +169,17 @@ export function readBracket(
   // Caller supplies the raw samples; without them we can only compare means.
   if (usable.length === 2) {
     const [x, y] = usable;
-    const [hi, lo] = (x.meanAcc as number) >= (y.meanAcc as number) ? [x, y] : [y, x];
+    if (eraSamples) {
+      // Within-era difference, pooled (lib/patchEra.ts withinEraDiff).
+      const wd = withinEraDiff(eraSamples[x.stage_index] ?? [], eraSamples[y.stage_index] ?? []);
+      if (wd.diff == null) {
+        return { kind: 'unresolved', totalN, reason: 'the two stages share no patch era (before/after 10-06), so their accuracy cannot be compared yet' };
+      }
+      const [hi, lo] = wd.diff >= 0 ? [x, y] : [y, x];
+      const t = wd.t == null ? null : (wd.diff >= 0 ? wd.t : -wd.t);
+      return { kind: 'head2head', totalN, hi, lo, t, gap: Math.abs(wd.diff) };
+    }
+    const [hi, lo] = (accOf(x) as number) >= (accOf(y) as number) ? [x, y] : [y, x];
     const t = samples
       ? welchT(samples[hi.stage_index] ?? [], samples[lo.stage_index] ?? [])
       : null;
@@ -140,7 +191,7 @@ export function readBracket(
   // Weight each stage by its game count so a stage with 10 games pulls harder
   // than one with 3 — the same weighting the in-app curve fit uses.
   const pts: CurvePoint[] = usable.map(p => ({
-    x: p.sens as number, y: p.meanAcc as number, w: p.n,
+    x: p.sens as number, y: accOf(p) as number, w: p.n,
   }));
   const fit = fitQuadraticPeak(pts);
   if (!fit) {
@@ -161,22 +212,26 @@ export function readBracket(
   };
 }
 
+// "pre/post" match counts for a stage, so the report shows how much post-patch
+// data exists (boundary list in lib/patchEra.ts).
+const eraTag = (p: StagePoint) => (p.eraN ? ` [before/after 10-06: ${p.eraN.join('/')}]` : '');
+
 export function describeBracket(hero: string | null, v: BracketVerdict): string {
   const who = hero ?? 'unnamed set';
   switch (v.kind) {
     case 'head2head': {
-      const gap = (v.hi.meanAcc as number) - (v.lo.meanAcc as number);
+      const gap = v.gap ?? (v.hi.meanAcc as number) - (v.lo.meanAcc as number);
       const hiS = v.hi.sens != null ? v.hi.sens.toFixed(3) : `dpi ${v.hi.dpi}`;
       const loS = v.lo.sens != null ? v.lo.sens.toFixed(3) : `dpi ${v.lo.dpi}`;
       // Two stages can only ever say "this one looks better", never "the best
       // value is here" — the peak could sit outside both. Say so explicitly.
       if (v.t == null) {
-        return `• ${who}: ${hiS} leads ${loS} by ${gap.toFixed(1)}pt (n=${v.hi.n} vs ${v.lo.n}) — too thin to test, treat as noise for now.`;
+        return `• ${who}: ${hiS} leads ${loS} by ${gap.toFixed(1)}pt (n=${v.hi.n} vs ${v.lo.n}${eraTag(v.hi) ? `; ${eraTag(v.hi).trim()} vs ${eraTag(v.lo).trim()}` : ''}) — too thin to test, treat as noise for now.`;
       }
       const verdict = Math.abs(v.t) >= 2
         ? `separating (t=${v.t.toFixed(1)})`
         : `NOT separating (t=${v.t.toFixed(1)}) — indistinguishable so far`;
-      return `• ${who}: ${hiS} over ${loS} by ${gap.toFixed(1)}pt (n=${v.hi.n} vs ${v.lo.n}) — ${verdict}. 2-stage A/B: ranks the two tested values, cannot locate a peak.`;
+      return `• ${who}: ${hiS} over ${loS} by ${gap.toFixed(1)}pt (n=${v.hi.n} vs ${v.lo.n}${eraTag(v.hi) ? `; ${eraTag(v.hi).trim()} vs ${eraTag(v.lo).trim()}` : ''}) — ${verdict}. 2-stage A/B: ranks the two tested values, cannot locate a peak.`;
     }
     case 'thin':
       return `• ${who}: not enough yet to read — ${v.usableStages} stage${v.usableStages === 1 ? '' : 's'} with ${MIN_GAMES_PER_STAGE}+ games (n=${v.totalN}).`;
@@ -213,15 +268,18 @@ export function baselineFor(db: any, hero: string, today: string): BaselineRead 
     WHERE m.date = :today AND ash.hero = :hero
   `).get({ today, hero }) as { n: number; acc: number | null };
 
-  const rows = db.prepare(`
-    SELECT ash.overall_acc AS acc
+  const rows = (db.prepare(`
+    SELECT ash.overall_acc AS acc, m.date AS date
     FROM aim_stats_heroes ash
     JOIN matches m ON m.id = ash.match_id
     WHERE ash.hero = :hero
       AND ash.overall_acc IS NOT NULL
       AND m.date < :today
       AND m.date >= date(:today, :window)
-  `).all({ hero, today, window: `-${BASELINE_DAYS} days` }) as { acc: number }[];
+  `).all({ hero, today, window: `-${BASELINE_DAYS} days` }) as { acc: number; date: string }[])
+    // Patch eras (2026-10-09): today is only compared with baseline games from
+    // the same era. After a patch the baseline restarts at the patch date.
+    .filter(r => patchEra(r.date) === patchEra(today));
 
   const baseN = rows.length;
   let baseAcc: number | null = null, baseSd: number | null = null;

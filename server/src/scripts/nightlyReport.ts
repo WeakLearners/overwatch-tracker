@@ -17,12 +17,13 @@ import { createLabClient } from '../lab/client';
 import { buildReplica } from '../lab/replica';
 import { loadLabConfig } from '../lab/config';
 import {
-  stagePointsFor, readBracket, describeBracket, stageSamplesFor,
+  stagePointsFor, readBracket, describeBracket, stageSamplesFor, stageEraSamplesFor,
   baselineFor, describeBaseline,
   sweepFindings,
   describeSweep,
 } from './nightlyAnalysis';
 import { computeAnalysis } from '../routes/aimAnalysis';
+import type { EraObs } from '../lib/patchEra';
 import { abbaStageFor, deriveBlockState, CHUNK_BLOCKS, STAGE_BLOCKS } from '../lib/blind';
 
 // --dry-run prints the assembled report to stdout instead of posting it, so
@@ -211,7 +212,15 @@ export function buildReport(db: DatabaseSync, today: string): string | null {
     // ranked by mean.
     const samples: Record<number, number[]> = {};
     for (const p of points) samples[p.stage_index] = stageSamplesFor(db, set.id, p.stage_index);
-    return describeBracket(set.hero, readBracket(points, samples));
+    // Same stages tagged by patch era: the verdict compares stages within an era only.
+    const eraSamples: Record<number, EraObs[]> = {};
+    for (const p of points) eraSamples[p.stage_index] = stageEraSamplesFor(db, set.id, p.stage_index);
+    const verdict = readBracket(points, samples, eraSamples);
+    const line = describeBracket(set.hero, verdict);
+    // head2head lines carry their own per-stage era split; the others get the set total.
+    if (verdict.kind === 'head2head') return line;
+    const tot = points.reduce((a, p) => (p.eraN ?? []).map((n, i) => n + (a[i] ?? 0)), [] as number[]);
+    return tot.length ? `${line} [before/after 10-06: ${tot.join('/')}]` : line;
   });
 
   // 3c. Today against each hero's own trailing baseline, so a day's accuracy

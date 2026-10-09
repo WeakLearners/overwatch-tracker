@@ -161,3 +161,27 @@ describe('describeBracket wording', () => {
     assert.match(line, /NOT separating|too thin to test/);
   });
 });
+
+// ── Patch eras (2026-10-09): stage comparison never crosses the 10-06 patch ──
+
+test('readBracket 2-stage: a patch-wide accuracy drop does not leak into the stage difference', () => {
+  // Stage A is mostly pre-patch, stage B mostly post-patch. The patch shifts
+  // everyone down by 10 points. The true A-B gap is +2 in both eras.
+  const mk = (era: number, vals: number[]) => vals.map(v => ({ era, v }));
+  const A = [...mk(0, [32, 32, 32, 32, 32, 32]), ...mk(1, [22, 22, 22])];
+  const B = [...mk(0, [30, 30, 30]), ...mk(1, [20, 20, 20, 20, 20, 20])];
+  const rawMean = (xs: { v: number }[]) => xs.reduce((s, o) => s + o.v, 0) / xs.length;
+  const pt = (i: number, xs: { v: number }[]): StagePoint => ({
+    stage_index: i, sens: 2 + i / 10, dpi: 1600, n: xs.length, meanAcc: rawMean(xs), winRate: null,
+  });
+  const points = [pt(1, A), pt(2, B)];
+  // Without eras the raw means say A beats B by ~5.3 points.
+  const naive = readBracket(points);
+  assert.equal(naive.kind, 'head2head');
+  assert.ok(Math.abs(((naive as any).hi.meanAcc - (naive as any).lo.meanAcc) - 5.33) < 0.1);
+  // With era samples the gap is the within-era 2.0.
+  const v = readBracket(points, undefined, { 1: A, 2: B });
+  assert.equal(v.kind, 'head2head');
+  assert.equal((v as any).hi.stage_index, 1);
+  assert.equal((v as any).gap, 2);
+});

@@ -7,6 +7,7 @@ import {
 } from '../lib/aim';
 import { getCurveParams } from '../lib/curveParams';
 import { isStudyQueueMode } from '../lib/blind';
+import { patchEra, eraCounts } from '../lib/patchEra';
 
 // Lab side of the aim routes (split plan B3): read-only analysis. Must not
 // write, and must not be imported by aimIngest.ts (see aimBoundary.test.ts).
@@ -256,6 +257,8 @@ export function computeAnalysis(db: DatabaseSync) {
     ...r,
     cm360: cm360(r.sens, r.dpi ?? MOUSE_DPI),
     archetype: archetypeOf(r.hero),
+    // Game-patch era (lib/patchEra.ts): accuracy is only comparable inside one era.
+    era: patchEra(r.date),
     cold: (posById.get(r.id) ?? 1) === 1,
     fresh: (sinceById.get(r.id) ?? 0) <= 2,
     // Match-level signature stat, claimed only by the match's primary hero
@@ -346,7 +349,12 @@ export function computeAnalysis(db: DatabaseSync) {
       dmg10Delta: number | null; heal10Delta: number | null;
       elims10Delta: number | null; deaths10Delta: number | null;
     })[] = [];
-    for (const [, hrows] of groupBy(ptsAbsorbed, p => p.hero)) {
+    // Grouped by (hero, era), not hero alone (2026-10-09): the leave-one-scale-out
+    // baseline then only ever compares scales inside one game-patch era, so a
+    // patch-wide accuracy shift cannot leak into a scale's delta. A bucket's
+    // avgDelta is the mean of these within-era deltas, i.e. weighted by match
+    // count. A scale with no same-era rival gets a null delta.
+    for (const [, hrows] of groupBy(ptsAbsorbed, p => `${p.hero}|${p.era}`)) {
       const overall = losoDeltas(hrows, p => p.overall_acc);
       const crit = losoDeltas(hrows, p => p.crit_acc);
       const extra = losoDeltas(hrows, p => p.extra_acc);
@@ -408,6 +416,7 @@ export function computeAnalysis(db: DatabaseSync) {
         output: g[0].curve_motivity,
         lut: g[0].curve_lut ? (JSON.parse(g[0].curve_lut) as [number, number][]) : null,
         n: g.length,
+        eraN: eraCounts(g.map(p => p.date)),
         avgOverall: mean(g.map(p => p.overall_acc)),
         avgDelta: mean(g.filter(p => p.delta != null).map(p => p.delta as number)),
       }))
@@ -426,6 +435,8 @@ export function computeAnalysis(db: DatabaseSync) {
           eDPI: Math.round(mean(ps.map(p => eDPI(p.sens, p.dpi ?? MOUSE_DPI))) ?? 0),
           sens: anchor.sens,
           n: ps.length,
+          // Matches before / on-or-after each patch boundary (lib/patchEra.ts).
+          eraN: eraCounts(dates),
           // Whether this bucket has enough games to be treated as a tested
           // result rather than an anecdote. Buckets below the bar are still
           // returned in full — thin data is shown, just never selected as a
@@ -685,7 +696,7 @@ export function computeAnalysis(db: DatabaseSync) {
       .filter(p => p.delta != null)
       .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id))
       .map(p => ({
-        date: p.date, hero: p.hero, win: p.win,
+        date: p.date, hero: p.hero, win: p.win, era: p.era,
         eDPI: eDPI(p.sens, p.dpi ?? MOUSE_DPI),
         cm360: p.scaleBucket, delta: p.delta,
         // Labelling only (2026-09-24) — see the rowsUnfiltered query's
@@ -741,11 +752,26 @@ export function computeAnalysis(db: DatabaseSync) {
         // already the SAME hero, so there's no cross-hero baseline to correct
         // for, and raw values stay defined even for a hero with only one
         // eligible scale (where a LOSO delta would be null).
-        const bestScale = coPrimaryBest(
-          eligible,
-          s => s.avgOverall,
-          [s => s.avgCrit, s => s.avgExtra, s => s.avgHeroStat],
-        );
+        //
+        // Patch eras (2026-10-09): when this hero's data spans more than one
+        // era, raw per-scale means mix eras unevenly across scales, so the
+        // ranking uses the within-era deltas instead (comparison only against
+        // scales sharing an era). One era: raw values, unchanged. With 2+
+        // eligible scales and no comparable pair, there is no valid pick.
+        const multiEra = new Set(ps.map(p => p.era)).size > 1;
+        const bestScale = multiEra && eligible.length > 1
+          ? (eligible.some(s => s.avgDelta != null || s.avgCritDelta != null || s.avgExtraDelta != null || s.avgHeroStatDelta != null)
+              ? coPrimaryBest(
+                  eligible,
+                  s => s.avgDelta,
+                  [s => s.avgCritDelta, s => s.avgExtraDelta, s => s.avgHeroStatDelta],
+                )
+              : null)
+          : coPrimaryBest(
+              eligible,
+              s => s.avgOverall,
+              [s => s.avgCrit, s => s.avgExtra, s => s.avgHeroStat],
+            );
         // Richest available hero-stat channel for THIS hero, by how many
         // readings back it — used for heroStatCurveFit below so the fit runs
         // on one unit-consistent channel rather than blending percentages
@@ -766,6 +792,7 @@ export function computeAnalysis(db: DatabaseSync) {
           hero: hero as string,
           archetype: ps[0].archetype,
           n: ps.length,
+          eraN: eraCounts(ps.map(p => p.date)),
           avgOverall: mean(ps.map(p => p.overall_acc)),
           avgCrit: mean(ps.filter(p => p.crit_acc != null).map(p => p.crit_acc as number)),
           // The signature stat's own name, read off the data rather than
@@ -810,7 +837,8 @@ export function computeAnalysis(db: DatabaseSync) {
           heroStatCurveFit: heroStatValueOf ? curveFitOf(eligible, heroStatValueOf) : null,
           heroStatCurveChannel: heroStatChannel,
           // Same trend question asked for this hero alone.
-          metricTrends: trendsOf(eligible),
+          // Multi-era hero: within-era normalized deltas, never raw means across eras.
+          metricTrends: trendsOf(eligible, multiEra ? 'normalized' : 'raw'),
         };
       })
       .sort((a, b) => b.n - a.n),

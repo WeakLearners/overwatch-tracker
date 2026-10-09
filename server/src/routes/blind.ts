@@ -9,6 +9,7 @@ import { computeNextTest, pickQueueRole, annotateHeroes, projectPhaseFinish, pro
 import { loadRoleTimerReplay } from './roleTimer';
 import { HEROES_BY_ROLE } from '../lib/heroes';
 import { isDfHero } from '../lib/df';
+import { eraCounts } from '../lib/patchEra';
 
 const router = Router();
 
@@ -589,14 +590,14 @@ router.get('/sets/:id', (req: Request, res: Response) => {
     // Same QP exclusion as `trials` above — one shared condition, applied at
     // both query sites in this endpoint.
     const perf = db.prepare(`
-      SELECT m.win, ah.overall_acc, a.elims, a.damage, a.duration_min
+      SELECT m.win, m.date, ah.overall_acc, a.elims, a.damage, a.duration_min
       FROM blind_credits bc
       JOIN matches m ON m.id = bc.match_id
       LEFT JOIN aim_stats_heroes ah ON ah.match_id = bc.match_id AND ah.hero = bc.hero
       LEFT JOIN aim_stats a ON a.match_id = bc.match_id
       WHERE bc.blind_set_id = :sid AND bc.stage_index = :si AND bc.counts_result = 1 AND ${NOT_QP_SQL}
     `).all({ sid: set.id, si: st.stage_index }) as {
-      win: number; overall_acc: number | null; elims: number | null; damage: number | null; duration_min: number | null;
+      win: number; date: string; overall_acc: number | null; elims: number | null; damage: number | null; duration_min: number | null;
     }[];
     const winRate = perf.length ? Math.round((perf.filter(p => p.win).length / perf.length) * 1000) / 10 : null;
     const accVals = perf.map(p => p.overall_acc).filter((v): v is number => v != null);
@@ -637,6 +638,9 @@ router.get('/sets/:id', (req: Request, res: Response) => {
       stage_index: st.stage_index, dpi: st.dpi, sens: st.sens, pct_delta: st.pct_delta,
       eDPI: eDPI(stageSens, st.dpi), cm360: Math.round(cm360(stageSens, st.dpi) * 100) / 100,
       n: trials.length, feelMean, feelVar,
+      // Matches before / on-or-after the 2026-10-06 patch (lib/patchEra.ts). accMean
+      // is a single-stage descriptive; compare stages only within an era.
+      eraN: eraCounts(perf.map(p => p.date)),
       games: perf.length, winRate, accMean, elimsPer10, dmgPer10,
       switchedOut, switchedOutRate,
     };
