@@ -9,6 +9,7 @@
 //  - A name that is not exactly in the roster becomes null. Never fuzzy-match.
 //  - Accuracy slots fill only for heroes in HERO_TILE_MAP (heroTileLabels.ts).
 //  - Recovery and submit fills only write NULL columns of rows that already exist.
+import { syncMatchHeroStats } from './matchHeroStats';
 import type { DatabaseSync } from 'node:sqlite';
 import { HEROES_BY_ROLE, MAPS_BY_NAME } from './roster';
 import { slotValues, finalBlows, type Tile } from './heroTileLabels';
@@ -148,6 +149,7 @@ export function linkGroup(db: DatabaseSync, groupId: number, matchId: number, st
       OR NOT EXISTS (SELECT 1 FROM match_scoreboards s WHERE s.match_id = ? AND ${TEAMS_ONLY} AND s.id <> match_scoreboards.id)
     )
   `).run(matchId, reason, groupId, matchId);
+  syncMatchHeroStats(db, matchId);
 }
 
 /** The Summary map (roster name) of a group, or null. */

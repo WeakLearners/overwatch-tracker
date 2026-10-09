@@ -111,9 +111,19 @@ function DrawerForm({ match }: { match: TrendPoint }) {
   const [scoreUs, setScoreUs] = useState('');
   const [scoreThem, setScoreThem] = useState('');
   const [rowLoaded, setRowLoaded] = useState(false);
+  const [heroStats, setHeroStats] = useState<HeroStat[]>([]);
   const mapCounts = useTodayMapCounts();
   const heroCounts = useTodayHeroCounts();
   const dfMap = useDfHeroes();
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/matches/${match.id}/hero-stats`)
+      .then(res => res.json())
+      .then(data => { if (!cancelled) setHeroStats((data.rows ?? []) as HeroStat[]); })
+      .catch(() => { if (!cancelled) setHeroStats([]); });
+    return () => { cancelled = true; };
+  }, [match.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -468,6 +478,27 @@ function DrawerForm({ match }: { match: TrendPoint }) {
         />
       </div>
 
+      {/* Personal-page stats (match_hero_stats): every tile the Personal page showed, per hero */}
+      {heroStats.length > 0 && (
+        <div data-inspect-id="matchEditDrawer-hero-stats">
+          <div className="text-xs text-[var(--muted)] mb-1.5">Personal page stats</div>
+          {[...new Set(heroStats.map(r => r.hero))].map(hero => (
+            <div key={hero} className="mb-2 last:mb-0">
+              <div className="text-[10px] uppercase tracking-wide text-[var(--faint)] mb-0.5">{hero}</div>
+              <dl className="text-xs">
+                {heroStats.filter(r => r.hero === hero).map(r => (
+                  <div key={r.stat} className="flex items-baseline gap-2 py-0.5 border-b border-ow-border/50 last:border-0">
+                    <dt className="flex-1 text-[var(--muted)] truncate">{r.label.toLowerCase().replace(/\b\w/g, c => c.toUpperCase())}</dt>
+                    <dd className="font-semibold text-[var(--ink)]">{fmtStat(r)}{r.career_best ? <span className="ml-1 text-[10px] text-ow-accent">best</span> : null}</dd>
+                    <dd className="w-14 text-right text-[10px] text-[var(--faint)]">{r.per10 != null ? `${r.per10}/10m` : ''}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Actions */}
       <div className="pt-2 space-y-3">
         <button
@@ -518,6 +549,13 @@ function DrawerForm({ match }: { match: TrendPoint }) {
       </div>
     </div>
   );
+}
+
+interface HeroStat { hero: string; stat: string; label: string; value: number; unit: 'pct' | 'count' | 'amount'; per10: number | null; career_best: number }
+
+function fmtStat(r: HeroStat): string {
+  if (r.stat === 'play_time') return `${Math.floor(r.value / 60)}:${String(Math.round(r.value % 60)).padStart(2, '0')}`;
+  return r.unit === 'pct' ? `${r.value}%` : r.value.toLocaleString();
 }
 
 function getDayOfWeek(dateStr: string) {

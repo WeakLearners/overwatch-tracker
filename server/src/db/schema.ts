@@ -1103,6 +1103,26 @@ function initSchema(db: DatabaseSync) {
     CREATE INDEX IF NOT EXISTS idx_match_scoreboards_group ON match_scoreboards(group_id);
   `);
 
+  // Addendum 3 (2026-10-09): one row per Personal-page tile, written whenever a Personal
+  // page links to a match (lib/matchHeroStats.ts). stat = normalised snake_case label;
+  // label as shown; unit pct | count | amount; per10 = Blizzard's "AVG PER 10 MIN"
+  // (NULL when not shown); career_best = the green badge. A tile not on the page has
+  // NO row; 0 is never stored for a missing tile. aim_stats_heroes slots stay as they are.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS match_hero_stats (
+      match_id INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+      hero TEXT NOT NULL,
+      stat TEXT NOT NULL,
+      label TEXT NOT NULL,
+      value REAL NOT NULL,
+      unit TEXT NOT NULL CHECK(unit IN ('pct','count','amount')),
+      per10 REAL,
+      career_best INTEGER NOT NULL DEFAULT 0,
+      scoreboard_id INTEGER REFERENCES match_scoreboards(id),
+      PRIMARY KEY (match_id, hero, stat)
+    );
+  `);
+
     db.exec('COMMIT');
   } catch (err) {
     db.exec('ROLLBACK');

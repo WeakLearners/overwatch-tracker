@@ -12,6 +12,7 @@ import { getDb, closeDb } from '../db/schema';
 import { processFile, type ParsedScoreboard, type ParsedRow } from './scoreboard';
 import { parseSummaryDate, rosterHero, rosterMap, normSummary, buildFill, fillEmptyAim, finalizeGroups, findOpenGroup, linkGroup, PAGE_GAP_MS } from './scoreboardPages';
 import { HERO_TILE_MAP, slotValues, finalBlows, parseTileNumber } from './heroTileLabels';
+import { syncMatchHeroStats, tilesToRows, normStat } from './matchHeroStats';
 import { organizeBoard, pageSuffix } from './scoreboardOrganize';
 
 const T0 = Date.parse('2026-10-09T17:18:48.387Z'); // Screenshot (49) mtime
@@ -45,6 +46,15 @@ describe('page parsing helpers', () => {
     const n = normSummary(SUMMARY_49.summary!, T0);
     assert.deepEqual([n.map, n.result, n.scoreUs, n.scoreThem, n.lengthSec, n.elims, n.deaths], ['Nepal', 'defeat', 0, 2, 527, 11, 5]);
     assert.deepEqual(n.heroes.map(h => [h.hero, h.seconds]), [['Tracer', 328], ['Pharah', 156]]);
+  });
+});
+
+describe('tilesToRows', () => {
+  test('normalises labels, parses values, skips unreadable ones', () => {
+    assert.equal(normStat('Charged Shot Critical Accuracy'), 'charged_shot_critical_accuracy');
+    const r = tilesToRows([{ label: 'WEAPON ACCURACY', value: '33%' }, { label: 'JUNK', value: 'n/a' }, { label: 'AIRTIME', value: '54%', per10: '' }]);
+    assert.deepEqual(r.map(x => [x.stat, x.value, x.unit, x.per10, x.career_best]), [['weapon_accuracy', 33, 'pct', null, 0], ['airtime', 54, 'pct', null, 0]]);
+    assert.deepEqual(tilesToRows(undefined), []);
   });
 });
 
@@ -106,6 +116,26 @@ describe('groups on a temp DB (match 3842 is a recovery)', () => {
     assert.deepEqual(heroes.map(h => ({ ...h })), [{ hero: 'Pharah', overall_acc: 50, crit_acc: 21, extra_acc: null }, { hero: 'Tracer', overall_acc: 33, crit_acc: 10, extra_acc: 0 }]);
     assert.equal(finalizeGroups(db, T0 + 999_999), 0, 'filled once');
   });
+  test('match_hero_stats: one row per Personal tile, per10 and career_best kept, nothing stored for a missing tile', async () => {
+    const mid = addMatch('2026-10-09 16:35:14'); addAim(mid);
+    await feed(SUMMARY_49, '49', 0);
+    await feed(TRACER_51, '51', 5);
+    const withBadge = personal('PHARAH', [['WEAPON ACCURACY', '50%'], ['DAMAGE DEALT', '7,772'], ['FINAL BLOW', '1']]);
+    withBadge.personal!.tiles[1] = { label: 'DAMAGE DEALT', value: '7,772', per10: '9,100', career_best: true };
+    await feed(withBadge, '52', 6);
+    const rows = db.prepare(`SELECT hero, stat, label, value, unit, per10, career_best, scoreboard_id FROM match_hero_stats WHERE match_id = ? ORDER BY hero, rowid`).all(mid) as any[];
+    assert.equal(rows.filter(r => r.hero === 'Tracer').length, 9, 'all 9 Tracer tiles');
+    assert.deepEqual(rows.filter(r => r.hero === 'Tracer' && ['pulse_bomb_attach_rate', 'play_time', 'final_blows'].includes(r.stat)).map(r => [r.stat, r.value, r.unit]),
+      [['play_time', 328, 'amount'], ['final_blows', 5, 'count'], ['pulse_bomb_attach_rate', 0, 'pct']]);
+    const dmg = rows.find(r => r.hero === 'Pharah' && r.stat === 'damage_dealt');
+    assert.deepEqual([dmg.value, dmg.unit, dmg.per10, dmg.career_best], [7772, 'amount', 9100, 1]);
+    assert.equal(rows.find(r => r.hero === 'Tracer' && r.stat === 'weapon_accuracy').per10, null, 'per10 not shown is NULL, not 0');
+    assert.equal(rows.find(r => r.hero === 'Pharah' && r.stat === 'solo_kills'), undefined, 'a tile not on the page has no row');
+    // Idempotent re-sync, and the accuracy slots are untouched.
+    assert.equal(syncMatchHeroStats(db, mid), 12);
+    assert.equal((db.prepare(`SELECT COUNT(*) c FROM match_hero_stats`).get() as any).c, 12);
+  });
+
   test('recovery never overwrites: a typed final_blows stays, a typed 0 extra_acc stays', async () => {
     const mid = addMatch('2026-10-09 16:35:14'); addAim(mid);
     db.prepare(`UPDATE aim_stats SET final_blows = 9 WHERE match_id = ?`).run(mid);

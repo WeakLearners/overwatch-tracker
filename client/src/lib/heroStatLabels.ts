@@ -45,8 +45,9 @@ export const EXTRA_ACC_LABEL: Record<string, string> = {
 };
 
 // Heroes with no meaningful crit stat at all — the crit slot is dropped from
-// their row entirely rather than relabelled (Juno's kit has no crit reading).
-export const NO_CRIT_HEROES = new Set(['Juno']);
+// their row entirely rather than relabelled (Juno's kit has no crit reading;
+// Doctrine's Personal page has no crit tile, checked 2026-10-09).
+export const NO_CRIT_HEROES = new Set(['Juno', 'Doctrine']);
 
 // Per-hero raw-count fields (NOT percentages) — whole numbers read straight
 // off the endgame scoreboard, stored in their own columns rather than

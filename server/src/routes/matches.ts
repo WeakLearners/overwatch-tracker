@@ -333,6 +333,16 @@ router.get('/:id/heroes', (req: Request, res: Response) => {
   res.json({ rows });
 });
 
+// Every Personal-page tile for this match, grouped per hero by the client
+// (match_hero_stats, Addendum 3). Empty when no Personal page linked.
+router.get('/:id/hero-stats', (req: Request, res: Response) => {
+  const rows = getDb().prepare(`
+    SELECT hero, stat, label, value, unit, per10, career_best FROM match_hero_stats
+    WHERE match_id = :id ORDER BY hero, rowid
+  `).all({ id: req.params.id });
+  res.json({ rows });
+});
+
 // Last 5 matches played on this match's own (primary) hero, including this
 // match itself — id order as the "point in time" tiebreak, same convention
 // stats.ts's recent10 uses. Powers the win/mode history strip shown under a

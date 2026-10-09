@@ -30,7 +30,7 @@ export const HERO_TILE_MAP: Record<string, SlotTiles> = {
 /** Both spellings are real: Tracer's tile says "FINAL BLOWS", Pharah's says "FINAL BLOW". */
 export const FINAL_BLOWS_LABELS = ['final blows', 'final blow'];
 
-export interface Tile { label: string; value: string }
+export interface Tile { label: string; value: string; per10?: string; career_best?: boolean }
 
 const lc = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase();
 

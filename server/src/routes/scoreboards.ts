@@ -3,6 +3,7 @@ import { getDb } from '../db/schema';
 import { organizeBoard } from '../lib/scoreboardOrganize';
 import { DEFAULT_SCOREBOARD_DIR } from '../lib/scoreboardWatcher';
 import { REMATCH_GRACE_MIN } from '../lib/scoreboard';
+import { syncMatchHeroStats } from '../lib/matchHeroStats';
 import { buildFill, linkGroup, TEAMS_ONLY, type GroupRow } from '../lib/scoreboardPages';
 
 const root = () => process.env.SCOREBOARD_DIR || DEFAULT_SCOREBOARD_DIR;
@@ -85,6 +86,7 @@ router.post('/:id/attach', (req, res) => {
     return;
   }
   db.prepare(`UPDATE match_scoreboards SET match_id = ?, status = 'matched', reason = 'attached by hand' WHERE id = ?`).run(matchId, id);
+  syncMatchHeroStats(db, matchId);
   organizeBoard(db, id, root()); // moves to the date folder; skipped (and retried by the watcher) if the file is under 60 s old
   res.json({ ok: true });
 });

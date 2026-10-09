@@ -10,6 +10,7 @@
 //    approved 2026-10-09) but never deleted or overwritten.
 //  - Rule 1: a board whose rows equal a stored board is a copy -> 'dismissed'.
 //  - Rule 2: with zero candidates in the window, link by exact stats (one hit only).
+import { syncMatchHeroStats } from './matchHeroStats';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -209,6 +210,7 @@ export function storeScoreboard(db: DatabaseSync, args: StoreArgs): number {
       ins.run(id, r.team, slots[r.team]++, r.is_self ? 1 : 0, r.role, r.player_name, r.e, r.a, r.d, r.dmg, r.h, r.mit);
     }
     db.exec('COMMIT');
+    if (args.matchId != null && args.pageType === 'personal' && args.status === 'matched') syncMatchHeroStats(db, args.matchId);
     return id;
   } catch (err) {
     db.exec('ROLLBACK');
@@ -278,7 +280,7 @@ export function recomputeScoreboards(db: DatabaseSync): { id: number; status: st
 
 // ------------------------------------------------------------- vision call
 
-const TILE = { type: 'object', additionalProperties: false, required: ['label', 'value'], properties: { label: { type: 'string' }, value: { type: 'string' } } };
+const TILE = { type: 'object', additionalProperties: false, required: ['label', 'value', 'per10', 'career_best'], properties: { label: { type: 'string' }, value: { type: 'string' }, per10: { type: 'string' }, career_best: { type: 'boolean' } } };
 export const SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -351,7 +353,7 @@ export const SUMMARY_PROMPT = [
 export const PERSONAL_PROMPT = [
   'For a personal page, fill personal and leave rows empty.',
   'hero is the hero name in the first tile, or "ALL HEROES" when that tab is selected.',
-  'tiles has one entry per stat tile except the hero tile: label exactly as shown (leave out the AVG PER 10 MIN line and the NEW CAREER BEST badge), value exactly as shown with the % sign when present.',
+  'tiles has one entry per stat tile except the hero tile: label exactly as shown, value exactly as shown with the % sign when present, per10 the number on the tile\'s AVG PER 10 MIN line (empty string when the tile has no such line), career_best true only when the tile shows the green NEW CAREER BEST badge.',
 ].join('\n');
 
 export function systemPrompt(): string {

@@ -4853,7 +4853,7 @@ const DATA = {
           "kind": "radio-group",
           "description": "Three-button toggle for selecting the match's queue mode (Quickplay Role, Competitive Role, Competitive Open); clicking a button updates form.queue_mode for the edit.",
           "locate": {
-            "path": "client/src/components/MatchEditDrawer.tsx:277",
+            "path": "client/src/components/MatchEditDrawer.tsx:287",
             "grep": "grep -n -F -- 'mb-1.5\">Mode</label>' client/src/components/MatchEditDrawer.tsx"
           }
         },
@@ -4863,7 +4863,7 @@ const DATA = {
           "kind": "select",
           "description": "Dropdown grouped by role (DPS/Tank/Support) listing all heroes with today's pick counts, used to change which hero the match record shows.",
           "locate": {
-            "path": "client/src/components/MatchEditDrawer.tsx:301",
+            "path": "client/src/components/MatchEditDrawer.tsx:311",
             "grep": "grep -n -F -- 'mb-1.5\">Hero</label>' client/src/components/MatchEditDrawer.tsx"
           }
         },
@@ -4873,7 +4873,7 @@ const DATA = {
           "kind": "badge",
           "description": "Small colored pill under the Hero select that displays the currently selected hero's role (DPS/Tank/Support).",
           "locate": {
-            "path": "client/src/components/MatchEditDrawer.tsx:315",
+            "path": "client/src/components/MatchEditDrawer.tsx:325",
             "grep": "grep -n -F -- 'pill mt-1.5 ${ROLE_COLORS[heroRole]}' client/src/components/MatchEditDrawer.tsx"
           }
         },
@@ -4883,7 +4883,7 @@ const DATA = {
           "kind": "input",
           "description": "Added 2026-09-24. Editable number input prefilled from GET /api/matches/:id's `sens` column (matches.sens, mirrored to match_heroes slot 1) \u2014 the in-game sensitivity the primary hero was recorded at. Editing it and saving sends `sens` in the PUT body; the server stores it as sent rather than recomputing it from the active stage-test (matches.ts's `sensProvided` check), and it never touches blind_credits/blind_trial/games_on_stage. Positive numbers only (min 0.01, same bound SensLog/blind.ts use), enforced client-side; Save stays disabled until the initial GET has loaded and the field holds a valid value.",
           "locate": {
-            "path": "client/src/components/MatchEditDrawer.tsx:332",
+            "path": "client/src/components/MatchEditDrawer.tsx:342",
             "grep": "grep -n -F -- 'data-inspect-id=\"matchEditDrawer-slot1-sens-input\"' client/src/components/MatchEditDrawer.tsx"
           }
         },
@@ -4893,7 +4893,7 @@ const DATA = {
           "kind": "text",
           "description": "Added 2026-09-24. One-line, non-blocking notice ('Test game \u2014 credit stays on its stage.') shown under the slot 1 sens input only when this match's starting hero has a blind_credits row (GET /api/matches/:id/heroes' `credited` flag) AND the field's current value differs from the value the match was loaded with. Informational only \u2014 editing sens on a credited game never moves or removes its credit.",
           "locate": {
-            "path": "client/src/components/MatchEditDrawer.tsx:337",
+            "path": "client/src/components/MatchEditDrawer.tsx:347",
             "grep": "grep -n -F -- 'data-inspect-id=\"matchEditDrawer-slot1-sens-credit-warning\"' client/src/components/MatchEditDrawer.tsx"
           }
         },
@@ -4903,7 +4903,7 @@ const DATA = {
           "kind": "input",
           "description": "Added 2026-09-24. One editable number input per 'Also played' row (slot 2/3), prefilled from match_heroes.sens for that hero (GET /api/matches/:id/heroes). Placeholder 'Sens'; a blank field means 'don't touch this hero's sens' \u2014 on Save it's simply omitted rather than written as null. IMPORTANT ID NOTE: the wrapping 'Also played' card, its hero select, and its remove button (data-inspect-ids matchEditDrawer-extra-heroes / matchEditDrawer-extra-hero-select-${i} / matchEditDrawer-extra-hero-remove-${i}) already existed in the source before this session but were never added to this map \u2014 pre-existing drift, flagged here rather than silently backfilled. If the roster (which heroes are in slots 2/3) is unchanged, Save sends this value through `heroSens` (keyed by hero name \u2014 the same field SensLog.tsx's backfill form uses), which never touches match_heroes.hero/role and never re-runs the stage-credit recompute. If the roster DID change this save (a hero added/removed/swapped), Save instead sends the full `heroes` replace and this value rides along on that entry \u2014 existing behavior from before this feature, unchanged: a hero under an active stage-test can still have its sens recomputed by syncStageCredits in that case.",
           "locate": {
-            "path": "client/src/components/MatchEditDrawer.tsx:374",
+            "path": "client/src/components/MatchEditDrawer.tsx:384",
             "grep": "grep -n -F -- 'matchEditDrawer-extra-hero-sens-input-${i}' client/src/components/MatchEditDrawer.tsx"
           }
         },
@@ -4913,7 +4913,7 @@ const DATA = {
           "kind": "text",
           "description": "Added 2026-09-24. Same notice as matchEditDrawer-slot1-sens-credit-warning, per extra-hero row \u2014 shown when that row's `credited` flag is true and its sens value has changed from the loaded value. In practice this should never render: only the starting hero (slot 1) can ever earn a blind_credits row (2026-09-24 rule threaded through matches.ts), so GET /api/matches/:id/heroes should always return credited=false for slots 2/3. Kept as a real check against the server's actual join rather than assumed dead code, so it stays correct if that rule ever changes.",
           "locate": {
-            "path": "client/src/components/MatchEditDrawer.tsx:388",
+            "path": "client/src/components/MatchEditDrawer.tsx:398",
             "grep": "grep -n -F -- 'matchEditDrawer-extra-hero-sens-credit-warning-${i}' client/src/components/MatchEditDrawer.tsx"
           }
         },
@@ -4923,7 +4923,7 @@ const DATA = {
           "kind": "select",
           "description": "Dropdown listing all maps with today's play counts and game-type suffix, used to change which map the match record shows.",
           "locate": {
-            "path": "client/src/components/MatchEditDrawer.tsx:412",
+            "path": "client/src/components/MatchEditDrawer.tsx:422",
             "grep": "grep -n -F -- 'mb-1.5\">Map</label>' client/src/components/MatchEditDrawer.tsx"
           }
         },
@@ -4933,7 +4933,7 @@ const DATA = {
           "kind": "badge",
           "description": "Small colored pill under the Map select that displays the currently selected map's game type (e.g. Escort, Control).",
           "locate": {
-            "path": "client/src/components/MatchEditDrawer.tsx:422",
+            "path": "client/src/components/MatchEditDrawer.tsx:432",
             "grep": "grep -n -F -- 'pill mt-1.5 ${TYPE_COLORS[mapType] ?? '\"'\"''\"'\"'}' client/src/components/MatchEditDrawer.tsx"
           }
         },
@@ -4943,7 +4943,7 @@ const DATA = {
           "kind": "radio-group",
           "description": "Two-button Win/Loss toggle; clicking a button sets form.win for the match being edited.",
           "locate": {
-            "path": "client/src/components/MatchEditDrawer.tsx:427",
+            "path": "client/src/components/MatchEditDrawer.tsx:437",
             "grep": "grep -n -F -- 'mb-1.5\">Result</label>' client/src/components/MatchEditDrawer.tsx"
           }
         },
@@ -4953,7 +4953,7 @@ const DATA = {
           "kind": "button-group",
           "description": "Added 2026-09-24. Same sliver control as logmatch-leaver-side-toggle, rendered here by the shared LeaverSliver.tsx component with dataInspectPrefix=\"matchEditDrawer-leaver-side\". Prefilled from GET /api/matches/:id's leaver/leaver_side columns. Handles a case LogMatch never has to: a historical row logged before leaver_side existed (leaver=1, side never recorded) renders with NEITHER sliver selected and the label reading 'Leaver \u2014 side not recorded' instead of implying no leaver happened; the drawer's local `leaverUnknown` state tracks this and is cleared the moment the user actually taps a sliver, so an untouched Save preserves the original leaver=1/side=NULL row rather than silently clearing it.",
           "locate": {
-            "path": "client/src/components/MatchEditDrawer.tsx:452",
+            "path": "client/src/components/MatchEditDrawer.tsx:462",
             "grep": "grep -n -F -- 'dataInspectPrefix=\"matchEditDrawer-leaver-side\"' client/src/components/MatchEditDrawer.tsx"
           }
         },
@@ -4963,7 +4963,7 @@ const DATA = {
           "kind": "input",
           "description": "Added 2026-10-04. Two small number inputs for the final round score, shared ScoreInputs.tsx. Blank saves NULL; whole numbers 0-10 (server 400s otherwise). Writes matches.score_us / score_them via POST /api/matches (Log Match) or PUT /api/matches/:id (drawer, prefilled from GET /api/matches/:id). Hidden for a crashed game.",
           "locate": {
-            "path": "client/src/components/MatchEditDrawer.tsx:456",
+            "path": "client/src/components/MatchEditDrawer.tsx:466",
             "grep": "grep -n -F -- 'ScoreInputs us=' client/src/components/MatchEditDrawer.tsx"
           }
         },
@@ -4973,7 +4973,7 @@ const DATA = {
           "kind": "button",
           "description": "Added 2026-09-24. One of the two sliver buttons inside matchEditDrawer-leaver-side-toggle. Rendered by LeaverSliver.tsx \u2014 anchor points at the same MatchEditDrawer.tsx call site.",
           "locate": {
-            "path": "client/src/components/MatchEditDrawer.tsx:452",
+            "path": "client/src/components/MatchEditDrawer.tsx:462",
             "grep": "grep -n -F -- 'dataInspectPrefix=\"matchEditDrawer-leaver-side\"' client/src/components/MatchEditDrawer.tsx"
           }
         },
@@ -4983,7 +4983,7 @@ const DATA = {
           "kind": "text",
           "description": "Added 2026-09-24. One caption under each bar: 'Enemy Leaver - Free win?' (left) and 'Friendly Leaver - GG go next' (right); the picked side's caption is .lit-text, lit from above (brightest at the top, next to its bar). An untouched historical unknown-side row shows a single centred 'Leaver \u2014 side not recorded' instead (see matchEditDrawer-leaver-side-toggle). Rendered by LeaverSliver.tsx \u2014 anchor points at the same MatchEditDrawer.tsx call site.",
           "locate": {
-            "path": "client/src/components/MatchEditDrawer.tsx:452",
+            "path": "client/src/components/MatchEditDrawer.tsx:462",
             "grep": "grep -n -F -- 'dataInspectPrefix=\"matchEditDrawer-leaver-side\"' client/src/components/MatchEditDrawer.tsx"
           }
         },
@@ -4993,8 +4993,18 @@ const DATA = {
           "kind": "input",
           "description": "Native date picker for changing the date the match was logged on.",
           "locate": {
-            "path": "client/src/components/MatchEditDrawer.tsx:462",
+            "path": "client/src/components/MatchEditDrawer.tsx:472",
             "grep": "grep -n -F -- 'mb-1.5\">Date</label>' client/src/components/MatchEditDrawer.tsx"
+          }
+        },
+        {
+          "id": "matchEditDrawer-hero-stats",
+          "label": "Personal page stats list",
+          "kind": "card",
+          "description": "Added 2026-10-09 (Addendum 3). Per-hero list of every tile the Personal scoreboard page showed (label, value, AVG PER 10 MIN, career-best mark), read from match_hero_stats via GET /api/matches/:id/hero-stats. Absent when no Personal page linked to the match. Read-only; no chart.",
+          "locate": {
+            "path": "client/src/components/MatchEditDrawer.tsx:483",
+            "grep": "grep -n -F -- 'data-inspect-id=\"matchEditDrawer-hero-stats\"' client/src/components/MatchEditDrawer.tsx"
           }
         },
         {
@@ -5003,7 +5013,7 @@ const DATA = {
           "kind": "button",
           "description": "Primary submit button that PUTs the edited hero/map/result/date/mode to /api/matches/:id, revalidates data, and closes the drawer; disabled while saving or if hero/map is empty, showing 'Saving\u2026' mid-request.",
           "locate": {
-            "path": "client/src/components/MatchEditDrawer.tsx:484",
+            "path": "client/src/components/MatchEditDrawer.tsx:515",
             "grep": "grep -n -F -- ''\"'\"'Save Changes'\"'\"'' client/src/components/MatchEditDrawer.tsx"
           }
         },
@@ -5013,7 +5023,7 @@ const DATA = {
           "kind": "banner",
           "description": "Inline red error text that appears below the Save button when the PUT request to update the match fails.",
           "locate": {
-            "path": "client/src/components/MatchEditDrawer.tsx:486",
+            "path": "client/src/components/MatchEditDrawer.tsx:517",
             "grep": "grep -n -F -- 'Failed to save \u2014 is the server running?' client/src/components/MatchEditDrawer.tsx"
           }
         },
@@ -5023,7 +5033,7 @@ const DATA = {
           "kind": "button",
           "description": "Shown after clicking 'Delete this match'; confirms deletion by sending a DELETE request to /api/matches/:id, revalidating data, and closing the drawer.",
           "locate": {
-            "path": "client/src/components/MatchEditDrawer.tsx:497",
+            "path": "client/src/components/MatchEditDrawer.tsx:528",
             "grep": "grep -n -F -- 'Confirm delete' client/src/components/MatchEditDrawer.tsx"
           }
         },
@@ -5033,7 +5043,7 @@ const DATA = {
           "kind": "button",
           "description": "Appears alongside 'Confirm delete' and backs out of the delete confirmation state without deleting the match.",
           "locate": {
-            "path": "client/src/components/MatchEditDrawer.tsx:503",
+            "path": "client/src/components/MatchEditDrawer.tsx:534",
             "grep": "grep -n -F -- 'border-ow-border text-[var(--muted)] text-sm' client/src/components/MatchEditDrawer.tsx"
           }
         },
@@ -5043,7 +5053,7 @@ const DATA = {
           "kind": "button",
           "description": "Initial delete action for the match record; clicking it switches the panel into the Confirm delete/Cancel confirmation state rather than deleting immediately.",
           "locate": {
-            "path": "client/src/components/MatchEditDrawer.tsx:515",
+            "path": "client/src/components/MatchEditDrawer.tsx:546",
             "grep": "grep -n -F -- 'Delete this match' client/src/components/MatchEditDrawer.tsx"
           }
         },
@@ -5053,7 +5063,7 @@ const DATA = {
           "kind": "modal",
           "description": "Semi-transparent overlay behind the edit drawer; clicking it closes the drawer without saving any changes.",
           "locate": {
-            "path": "client/src/components/MatchEditDrawer.tsx:536",
+            "path": "client/src/components/MatchEditDrawer.tsx:574",
             "grep": "grep -n -F -- 'fixed inset-0 bg-black/50 z-40 transition-opacity' client/src/components/MatchEditDrawer.tsx"
           }
         },
@@ -5063,7 +5073,7 @@ const DATA = {
           "kind": "drawer",
           "description": "Slide-in side panel from the right edge containing the match edit form; visibility and slide position are driven by whether a match is being edited.",
           "locate": {
-            "path": "client/src/components/MatchEditDrawer.tsx:540",
+            "path": "client/src/components/MatchEditDrawer.tsx:578",
             "grep": "grep -n -F -- 'fixed inset-y-0 right-0 w-96 bg-ow-dark' client/src/components/MatchEditDrawer.tsx"
           }
         },
@@ -5073,7 +5083,7 @@ const DATA = {
           "kind": "header",
           "description": "Title heading at the top of the drawer identifying it as the match-editing panel.",
           "locate": {
-            "path": "client/src/components/MatchEditDrawer.tsx:543",
+            "path": "client/src/components/MatchEditDrawer.tsx:581",
             "grep": "grep -n -F -- 'Edit Match' client/src/components/MatchEditDrawer.tsx"
           }
         },
@@ -5083,7 +5093,7 @@ const DATA = {
           "kind": "badge",
           "description": "Small caption under the drawer title showing the formatted date the match currently being edited was originally logged on.",
           "locate": {
-            "path": "client/src/components/MatchEditDrawer.tsx:546",
+            "path": "client/src/components/MatchEditDrawer.tsx:584",
             "grep": "grep -n -F -- 'Logged {format(parseISO(editMatch.date)' client/src/components/MatchEditDrawer.tsx"
           }
         },
@@ -5093,7 +5103,7 @@ const DATA = {
           "kind": "icon-button",
           "description": "'\u00d7' icon button in the drawer header that closes the edit drawer without saving changes.",
           "locate": {
-            "path": "client/src/components/MatchEditDrawer.tsx:550",
+            "path": "client/src/components/MatchEditDrawer.tsx:588",
             "grep": "grep -n -F -- 'transition-colors text-2xl leading-none ml-4' client/src/components/MatchEditDrawer.tsx"
           }
         }
@@ -6243,6 +6253,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 
