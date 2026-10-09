@@ -17,14 +17,29 @@ const cand = (o: Partial<MatchCandidate> = {}): MatchCandidate =>
   ({ id: 1, created_at: at(5), account: 'Linx', role: 'Support', hero: 'Mizuki', hasScoreboard: false, ...o });
 
 describe('decideMatch window (fixed times)', () => {
-  test('window constant is 20 minutes', () => assert.equal(MATCH_WINDOW_MIN, 20));
+  test('window constant is 10 minutes', () => assert.equal(MATCH_WINDOW_MIN, 10));
   test('inside the window matches', () => assert.equal(decideMatch(MTIME, self, [cand()]).matchId, 1));
-  test('edges 0 and 20 min are inside', () => {
-    assert.equal(decideMatch(MTIME, self, [cand({ created_at: at(0) })]).matchId, 1);
-    assert.equal(decideMatch(MTIME, self, [cand({ created_at: at(20) })]).matchId, 1);
+  test('edges -10 and +10 min are inside', () => {
+    assert.equal(decideMatch(MTIME, self, [cand({ created_at: at(-10) })]).matchId, 1);
+    assert.equal(decideMatch(MTIME, self, [cand({ created_at: at(10) })]).matchId, 1);
   });
-  test('log time BEFORE the file is outside', () => assert.equal(decideMatch(MTIME, self, [cand({ created_at: at(-1) })]).matchId, null));
-  test('more than 20 min after is outside', () => assert.equal(decideMatch(MTIME, self, [cand({ created_at: at(21) })]).matchId, null));
+  test('log 5-21 s before the file matches (real 2026-10-09 pairs)', () => {
+    for (const s of [5, 16, 11, 21]) assert.equal(decideMatch(MTIME, self, [cand({ created_at: at(-s / 60) })]).matchId, 1);
+  });
+  test('log 9 min after matches', () => assert.equal(decideMatch(MTIME, self, [cand({ created_at: at(9) })]).matchId, 1));
+  test('11 min either side is outside', () => {
+    assert.equal(decideMatch(MTIME, self, [cand({ created_at: at(-11) })]).matchId, null);
+    assert.equal(decideMatch(MTIME, self, [cand({ created_at: at(11) })]).matchId, null);
+  });
+  test('two matches 13 min apart, screenshot 16 s after the second -> second', () => {
+    const second = at(0) ; const first = at(-13);
+    const d = decideMatch(MTIME + 16_000, self, [cand({ id: 1, created_at: first }), cand({ id: 2, created_at: second })]);
+    assert.equal(d.matchId, 2);
+  });
+  test('screenshot halfway between two matches -> unmatched, never nearest', () => {
+    const d = decideMatch(MTIME, self, [cand({ id: 1, created_at: at(-6) }), cand({ id: 2, created_at: at(6) })]);
+    assert.equal(d.matchId, null);
+  });
   test('other account is rejected', () => assert.equal(decideMatch(MTIME, self, [cand({ account: 'Pinx' })]).matchId, null));
   test('null account is never guessed', () => assert.equal(decideMatch(MTIME, self, [cand({ account: null })]).matchId, null));
   test('role mismatch is rejected', () => assert.equal(decideMatch(MTIME, self, [cand({ role: 'DPS' })]).matchId, null));

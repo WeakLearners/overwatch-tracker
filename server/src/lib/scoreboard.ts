@@ -16,8 +16,8 @@ import type { DatabaseSync } from 'node:sqlite';
 import { ALL_HEROES_BY_ROLE } from './heroes';
 
 export const SCOREBOARD_MODEL = 'claude-haiku-5-5';
-/** A match's created_at (the log time) must fall 0..20 min AFTER the file mtime. */
-export const MATCH_WINDOW_MIN = 20;
+/** A match's created_at (the log time) must fall within +/- this many minutes of the file mtime. Sean usually logs 5-21 s BEFORE the screenshot, but may log a few minutes after. */
+export const MATCH_WINDOW_MIN = 10;
 /** Unmatched rows younger than this are re-tried each poll (Sean may log late). */
 export const REMATCH_GRACE_MIN = 45;
 export const MAX_IMAGE_WIDTH = 1920;
@@ -46,7 +46,7 @@ export function parseDbUtc(s: string): number {
 }
 
 export function decideMatch(mtimeMs: number, self: SelfRow, candidates: MatchCandidate[]): MatchDecision {
-  const lo = mtimeMs;
+  const lo = mtimeMs - MATCH_WINDOW_MIN * 60_000;
   const hi = mtimeMs + MATCH_WINDOW_MIN * 60_000;
   const inWindow = candidates.filter(c => {
     const t = parseDbUtc(c.created_at);
@@ -54,7 +54,7 @@ export function decideMatch(mtimeMs: number, self: SelfRow, candidates: MatchCan
   });
   const sameAccount = inWindow.filter(c => c.account != null && c.account.toLowerCase() === self.name.toLowerCase());
   if (sameAccount.length === 0) {
-    return { matchId: null, reason: inWindow.length ? `no match in the window for account "${self.name}"` : `no match logged within ${MATCH_WINDOW_MIN} min after the screenshot` };
+    return { matchId: null, reason: inWindow.length ? `no match in the window for account "${self.name}"` : `no match logged within ${MATCH_WINDOW_MIN} min of the screenshot` };
   }
   const roleOk = sameAccount.filter(c => c.role.toLowerCase() === self.role.toLowerCase());
   if (roleOk.length === 0) return { matchId: null, reason: `role on the scoreboard (${self.role}) differs from the logged role` };
@@ -66,14 +66,14 @@ export function decideMatch(mtimeMs: number, self: SelfRow, candidates: MatchCan
 }
 
 function loadCandidates(db: DatabaseSync, mtimeMs: number): MatchCandidate[] {
-  // Coarse SQL bound (a minute of slack each side); decideMatch applies the exact window.
+  // Coarse SQL bound (a minute of slack each side); decideMatch applies the exact +/- window.
   const fmt = (ms: number) => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
   const rows = db.prepare(`
     SELECT m.id, m.created_at, m.account, m.role, m.hero,
            EXISTS(SELECT 1 FROM match_scoreboards s WHERE s.match_id = m.id) AS has_sb
     FROM matches m
     WHERE m.created_at BETWEEN ? AND ?
-  `).all(fmt(mtimeMs - 60_000), fmt(mtimeMs + (MATCH_WINDOW_MIN + 1) * 60_000)) as any[];
+  `).all(fmt(mtimeMs - (MATCH_WINDOW_MIN + 1) * 60_000), fmt(mtimeMs + (MATCH_WINDOW_MIN + 1) * 60_000)) as any[];
   return rows.map(r => ({ id: r.id, created_at: r.created_at, account: r.account, role: r.role, hero: r.hero, hasScoreboard: !!r.has_sb }));
 }
 
