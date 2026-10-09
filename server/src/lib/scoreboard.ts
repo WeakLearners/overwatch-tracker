@@ -17,6 +17,11 @@ import { execFile } from 'child_process';
 import Anthropic from '@anthropic-ai/sdk';
 import type { DatabaseSync } from 'node:sqlite';
 import { PATCH_BOUNDARIES } from './patchEra';
+import {
+  TEAMS_ONLY, parseDbUtc, normSummary, rosterHero, findOpenGroup, createGroup, touchGroup, linkGroup, groupSummaryMap,
+  adoptLoosePages, recoveryCandidates, type RawSummary, type RawPersonal, type PageType, type GroupRow,
+} from './scoreboardPages';
+export { parseDbUtc };
 
 export const SCOREBOARD_MODEL = 'claude-haiku-5-5';
 /** A match's created_at (the log time) must fall within +/- this many minutes of the file mtime. Sean usually logs 5-21 s BEFORE the screenshot, but may log a few minutes after. */
@@ -35,18 +40,21 @@ export interface ParsedRow {
   player_name: string;
   e: number; a: number; d: number; dmg: number; h: number; mit: number;
 }
-export interface ParsedScoreboard { is_scoreboard: boolean; rows: ParsedRow[] }
+/**
+ * One vision reading of one screenshot. page_type is the model's classification;
+ * older stored readings and test stubs carry only is_scoreboard, which means
+ * "teams" when true. summary and personal are filled for their page type only.
+ */
+export interface ParsedScoreboard {
+  is_scoreboard: boolean; rows: ParsedRow[];
+  page_type?: PageType; summary?: RawSummary; personal?: RawPersonal;
+}
 
 export interface MatchCandidate { id: number; created_at: string; account: string | null; role: string; hasScoreboard: boolean }
 export interface SelfRow { name: string; role: string }
 export interface MatchDecision { matchId: number | null; reason: string | null }
 
 // ---------------------------------------------------------------- matching
-
-/** SQLite datetime('now') is UTC without a zone marker. */
-export function parseDbUtc(s: string): number {
-  return Date.parse(s.replace(' ', 'T') + 'Z');
-}
 
 export function decideMatch(mtimeMs: number, self: SelfRow, candidates: MatchCandidate[]): MatchDecision {
   const lo = mtimeMs - MATCH_WINDOW_MIN * 60_000;
@@ -71,7 +79,7 @@ function loadCandidates(db: DatabaseSync, mtimeMs: number): MatchCandidate[] {
   const fmt = (ms: number) => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
   const rows = db.prepare(`
     SELECT m.id, m.created_at, m.account, m.role,
-           EXISTS(SELECT 1 FROM match_scoreboards s WHERE s.match_id = m.id) AS has_sb
+           EXISTS(SELECT 1 FROM match_scoreboards s WHERE s.match_id = m.id AND ${TEAMS_ONLY}) AS has_sb
     FROM matches m
     WHERE m.created_at BETWEEN ? AND ?
   `).all(fmt(mtimeMs - (MATCH_WINDOW_MIN + 1) * 60_000), fmt(mtimeMs + (MATCH_WINDOW_MIN + 1) * 60_000)) as any[];
@@ -99,7 +107,7 @@ export function decideByStats(db: DatabaseSync, mtimeMs: number, s: SelfStats): 
     WHERE LOWER(TRIM(m.account)) = ? AND m.date >= ?
       AND a.elims = ? AND a.deaths = ? AND a.damage = ?
       AND (a.assists IS NULL OR a.assists = ?) AND (a.healing IS NULL OR a.healing = ?)
-      AND NOT EXISTS (SELECT 1 FROM match_scoreboards s WHERE s.match_id = m.id)
+      AND NOT EXISTS (SELECT 1 FROM match_scoreboards s WHERE s.match_id = m.id AND ${TEAMS_ONLY})
   `).all(norm(s.name), since, s.e, s.d, s.dmg, s.a, s.h) as { id: number }[];
   return hits.length === 1 ? hits[0].id : null;
 }
@@ -163,17 +171,35 @@ export function validateParsed(p: ParsedScoreboard): string | null {
 
 // ----------------------------------------------------------------- storage
 
-export function storeScoreboard(
-  db: DatabaseSync,
-  args: { filePath: string; mtimeMs: number; status: 'matched' | 'unmatched' | 'not_scoreboard' | 'error' | 'dismissed'; reason: string | null; raw: unknown; matchId: number | null; rows: ParsedRow[] }, // rows: is_self already resolved by name; hero is never stored
-): number {
+export interface StoreArgs {
+  filePath: string; mtimeMs: number;
+  status: 'matched' | 'unmatched' | 'not_scoreboard' | 'error' | 'dismissed';
+  reason: string | null; raw: unknown; matchId: number | null;
+  rows: ParsedRow[]; // is_self already resolved by name; hero is never stored
+  pageType?: PageType | null; groupId?: number | null; pageHero?: string | null;
+  /** Re-read of a stored image (backfill): update that row in place, because file_path is UNIQUE and ids are referenced. */
+  replaceId?: number;
+}
+
+export function storeScoreboard(db: DatabaseSync, args: StoreArgs): number {
   db.exec('BEGIN');
   try {
-    const info = db.prepare(`
-      INSERT INTO match_scoreboards (match_id, file_path, file_mtime, status, reason, raw_json)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(args.matchId, args.filePath, new Date(args.mtimeMs).toISOString(), args.status, args.reason, args.raw == null ? null : JSON.stringify(args.raw));
-    const id = Number(info.lastInsertRowid);
+    const mtimeIso = new Date(args.mtimeMs).toISOString();
+    const raw = args.raw == null ? null : JSON.stringify(args.raw);
+    let id: number;
+    if (args.replaceId != null) {
+      id = args.replaceId;
+      db.prepare(`DELETE FROM scoreboard_rows WHERE scoreboard_id = ?`).run(id);
+      db.prepare(`
+        UPDATE match_scoreboards SET match_id = ?, file_mtime = ?, status = ?, reason = ?, raw_json = ?, page_type = ?, group_id = ?, page_hero = ? WHERE id = ?
+      `).run(args.matchId, mtimeIso, args.status, args.reason, raw, args.pageType ?? null, args.groupId ?? null, args.pageHero ?? null, id);
+    } else {
+      const info = db.prepare(`
+        INSERT INTO match_scoreboards (match_id, file_path, file_mtime, status, reason, raw_json, page_type, group_id, page_hero)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(args.matchId, args.filePath, mtimeIso, args.status, args.reason, raw, args.pageType ?? null, args.groupId ?? null, args.pageHero ?? null);
+      id = Number(info.lastInsertRowid);
+    }
     const ins = db.prepare(`
       INSERT INTO scoreboard_rows (scoreboard_id, team, slot, is_self, role, hero, player_name, e, a, d, dmg, h, mit)
       VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)
@@ -193,7 +219,7 @@ export function storeScoreboard(
 /** Re-run matching for recent unmatched scoreboards (the match may be logged after the file lands). */
 export function rematchRecent(db: DatabaseSync, nowMs: number = Date.now()): number {
   const cutoff = new Date(nowMs - REMATCH_GRACE_MIN * 60_000).toISOString();
-  const pending = db.prepare(`SELECT id, file_mtime FROM match_scoreboards WHERE status = 'unmatched' AND file_mtime >= ?`).all(cutoff) as { id: number; file_mtime: string }[];
+  const pending = db.prepare(`SELECT id, file_mtime FROM match_scoreboards WHERE status = 'unmatched' AND group_id IS NULL AND file_mtime >= ?`).all(cutoff) as { id: number; file_mtime: string }[];
   let n = 0;
   for (const sb of pending) {
     const rows = db.prepare(`SELECT team, is_self, role, player_name, e, a, d, dmg, h FROM scoreboard_rows WHERE scoreboard_id = ?`).all(sb.id) as any[];
@@ -218,7 +244,7 @@ export function rematchRecent(db: DatabaseSync, nowMs: number = Date.now()): num
  */
 export function recomputeScoreboards(db: DatabaseSync): { id: number; status: string; matchId: number | null; reason: string | null }[] {
   const accounts = loadAccounts(db);
-  const boards = db.prepare(`SELECT id, file_mtime FROM match_scoreboards WHERE status IN ('matched','unmatched') ORDER BY file_mtime, id`).all() as { id: number; file_mtime: string }[];
+  const boards = db.prepare(`SELECT id, file_mtime FROM match_scoreboards WHERE status IN ('matched','unmatched') AND group_id IS NULL AND (page_type IS NULL OR page_type = 'teams') ORDER BY file_mtime, id`).all() as { id: number; file_mtime: string }[];
   const out: { id: number; status: string; matchId: number | null; reason: string | null }[] = [];
   db.exec('BEGIN');
   try {
@@ -252,12 +278,14 @@ export function recomputeScoreboards(db: DatabaseSync): { id: number; status: st
 
 // ------------------------------------------------------------- vision call
 
+const TILE = { type: 'object', additionalProperties: false, required: ['label', 'value'], properties: { label: { type: 'string' }, value: { type: 'string' } } };
 export const SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['is_scoreboard', 'rows'],
+  required: ['page_type', 'rows', 'summary', 'personal'],
   properties: {
-    is_scoreboard: { type: 'boolean' },
+    page_type: { type: 'string', enum: ['summary', 'teams', 'personal', 'other'] },
+    // Teams page only. Empty array for every other page type.
     rows: {
       type: 'array',
       items: {
@@ -274,20 +302,68 @@ export const SCHEMA = {
         },
       },
     },
+    // Summary page only. Empty strings, zeros and an empty array otherwise.
+    summary: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['map', 'result', 'score_us', 'score_them', 'game_mode', 'date_text', 'game_length', 'heroes', 'elims', 'assists', 'deaths'],
+      properties: {
+        map: { type: 'string' }, result: { type: 'string' },
+        score_us: { type: 'integer' }, score_them: { type: 'integer' },
+        game_mode: { type: 'string' }, date_text: { type: 'string' }, game_length: { type: 'string' },
+        heroes: {
+          type: 'array',
+          items: { type: 'object', additionalProperties: false, required: ['hero', 'percent', 'play_time'], properties: { hero: { type: 'string' }, percent: { type: 'integer' }, play_time: { type: 'string' } } },
+        },
+        elims: { type: 'integer' }, assists: { type: 'integer' }, deaths: { type: 'integer' },
+      },
+    },
+    // Personal page only. Empty hero and empty tiles otherwise.
+    personal: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['hero', 'tiles'],
+      properties: { hero: { type: 'string' }, tiles: { type: 'array', items: TILE } },
+    },
   },
 };
 
+/** The Teams-page rules. No hero field: the hero of a Teams row comes from a portrait and is never reported. */
+export const TEAMS_PROMPT = [
+  'For a teams page, return one entry in rows per player row. Top block is team "us" (the viewer\'s team, yellow), bottom block is team "them" (red). Keep the on-screen order within each team.',
+  'Read the row count from the image: 6 per team in 6v6, 5 in 5v5. Do not assume it.',
+  'is_self is your best guess of the single brighter highlighted row of the viewer on the top team, false for every other row.',
+  'role comes from the role icon at the left of the row: tank, dps or support.',
+  'Do not report hero names.',
+  'player_name is the name text of the row. Numbers use thousands commas (7,772 is 7772). Return plain integers.',
+  'Win or loss is not on this screen; do not report it.',
+].join('\n');
+
+export const SUMMARY_PROMPT = [
+  'For a summary page, fill summary and leave rows empty.',
+  'map is the map title text as shown (for example NEPAL). result is "victory", "defeat" or "draw" in lower case.',
+  'score_us and score_them come from FINAL SCORE "A VS B"; A is the viewer\'s team.',
+  'game_mode, date_text and game_length are the values after those labels, exactly as shown (date_text for example "10/09/26 - 12:31").',
+  'heroes has one entry per hero in HEROES PLAYED: the hero name as shown, percent as an integer, play_time as shown (mm:ss).',
+  'elims, assists and deaths are the three TOTAL PERFORMANCE numbers.',
+].join('\n');
+
+export const PERSONAL_PROMPT = [
+  'For a personal page, fill personal and leave rows empty.',
+  'hero is the hero name in the first tile, or "ALL HEROES" when that tab is selected.',
+  'tiles has one entry per stat tile except the hero tile: label exactly as shown (leave out the AVG PER 10 MIN line and the NEW CAREER BEST badge), value exactly as shown with the % sign when present.',
+].join('\n');
+
 export function systemPrompt(): string {
   return [
-    'You read Overwatch 2 post-match scoreboard screenshots.',
-    'First decide is_scoreboard: true only for the post-match TEAMS tab with two teams of player rows and the columns E, A, D, DMG, H, MIT. Any other image (desktop, other game, web page, in-match HUD) is false, with rows as an empty array.',
-    'If it is a scoreboard, return one entry per player row. Top block is team "us" (the viewer\'s team, yellow), bottom block is team "them" (red). Keep the on-screen order within each team.',
-    'Read the row count from the image: 6 per team in 6v6, 5 in 5v5. Do not assume it.',
-    'is_self is your best guess of the single brighter highlighted row of the viewer on the top team, false for every other row.',
-    'role comes from the role icon at the left of the row: tank, dps or support.',
-    'Do not report hero names.',
-    'player_name is the name text of the row. Numbers use thousands commas (7,772 is 7772). Return plain integers.',
-    'Ignore any overlay at the top left (MSI Afterburner) and the stats bar at the top right. Win or loss is not on this screen; do not report it.',
+    'You read Overwatch 2 post-match screenshots. First decide page_type from the lit tab at the top left:',
+    '"teams" = the TEAMS tab: two teams of player rows with the columns E, A, D, DMG, H, MIT.',
+    '"summary" = the SUMMARY tab: HEROES PLAYED, TOTAL PERFORMANCE, and a map panel with the result, FINAL SCORE, DATE, GAME MODE and GAME LENGTH.',
+    '"personal" = the PERSONAL tab: a hero list at the left and stat tiles for one hero.',
+    '"other" = any other image (desktop, other game, web page, in-match HUD, match history list). Fill nothing else.',
+    'Fill the section of that page type only. Leave every other section empty (rows []; empty strings; zeros; empty arrays).',
+    TEAMS_PROMPT, SUMMARY_PROMPT, PERSONAL_PROMPT,
+    'Ignore any overlay at the top left (MSI Afterburner) and the stats bar at the top right.',
   ].join('\n');
 }
 
@@ -348,14 +424,17 @@ const attempts = new Map<string, number>();
 export function resetAttempts(): void { attempts.clear(); }
 
 /**
- * Process one image that is not yet in match_scoreboards. Returns the new
- * status, or null when the file was left for a retry on the next poll.
+ * Process one image. Returns the new status, or null when the file was left for
+ * a retry on the next poll. `replaceId` re-reads a stored image and updates its
+ * row in place (the backfill); callers feed images in file_mtime order so a
+ * Summary page opens its group before the pages that follow it.
  */
 export async function processFile(
   db: DatabaseSync,
   filePath: string,
   mtimeMs: number,
   vision: VisionFn = callVision,
+  replaceId?: number,
 ): Promise<string | null> {
   let parsed: ParsedScoreboard;
   try {
@@ -373,36 +452,104 @@ export async function processFile(
       console.warn(`[scoreboard] ${path.basename(filePath)}: attempt ${n} failed (${msg}); will retry`);
       return null;
     }
-    storeScoreboard(db, { filePath, mtimeMs, status: 'error', reason: `vision call failed ${n} times: ${msg}`, raw: null, matchId: null, rows: [] });
+    storeScoreboard(db, { filePath, mtimeMs, status: 'error', reason: `vision call failed ${n} times: ${msg}`, raw: null, matchId: null, rows: [], replaceId });
     return 'error';
   }
   attempts.delete(filePath);
 
-  if (!parsed.is_scoreboard) {
-    storeScoreboard(db, { filePath, mtimeMs, status: 'not_scoreboard', reason: null, raw: parsed, matchId: null, rows: [] });
-    return 'not_scoreboard';
+  const pageType: PageType = parsed.page_type ?? (parsed.is_scoreboard ? 'teams' : 'other');
+  const base = { filePath, mtimeMs, replaceId };
+  const store = (a: Omit<StoreArgs, 'filePath' | 'mtimeMs' | 'replaceId'>) => { storeScoreboard(db, { ...base, ...a }); return a.status; };
+
+  if (pageType === 'other') return store({ status: 'not_scoreboard', reason: null, raw: parsed, matchId: null, rows: [], pageType: 'other' });
+  if (pageType === 'summary') return processSummary(db, parsed, store, mtimeMs);
+  if (pageType === 'personal') return processPersonal(db, parsed, store, mtimeMs);
+  return processTeams(db, parsed, store, mtimeMs);
+}
+
+type Store = (a: Omit<StoreArgs, 'filePath' | 'mtimeMs' | 'replaceId'>) => StoreArgs['status'];
+
+/** A Summary page starts a group. A logged match on the same map whose created_at is within 10 min of the DATE makes it a recovery. */
+function processSummary(db: DatabaseSync, parsed: ParsedScoreboard, store: Store, mtimeMs: number): string {
+  const norm = parsed.summary ? normSummary(parsed.summary, mtimeMs) : null;
+  let state: GroupRow['state'] = 'ambiguous';
+  let matchId: number | null = null;
+  let reason: string | null = null;
+  if (!norm || !norm.map || norm.endMs == null) {
+    reason = `summary: ${!norm ? 'no summary read' : !norm.map ? `map "${norm.mapRaw}" is not in the roster` : 'DATE not readable'}`;
+  } else {
+    const cands = recoveryCandidates(db, norm.endMs, norm.map);
+    if (cands.length === 1) { state = 'recovery'; matchId = cands[0]; reason = `recovery of match ${matchId}`; }
+    else if (cands.length === 0) { state = 'live'; reason = 'waiting for the match log'; }
+    else reason = `${cands.length} logged matches fit the Summary DATE`;
   }
+  const gid = createGroup(db, mtimeMs, state, matchId);
+  store({ status: matchId != null ? 'matched' : 'unmatched', reason, raw: parsed, matchId, rows: [], pageType: 'summary', groupId: gid });
+  adoptLoosePages(db, gid);
+  return matchId != null ? 'matched' : 'unmatched';
+}
+
+/** A Personal page joins the open group. A second page for the same hero, or the ALL HEROES tab, is kept but never counted. */
+function processPersonal(db: DatabaseSync, parsed: ParsedScoreboard, store: Store, mtimeMs: number): string {
+  const hero = rosterHero(parsed.personal?.hero);
+  const g = findOpenGroup(db, mtimeMs);
+  if (!g) return store({ status: 'unmatched', reason: 'personal page with no summary page before it', raw: parsed, matchId: null, rows: [], pageType: 'personal', pageHero: hero });
+  touchGroup(db, g.id, mtimeMs);
+  const dup = hero && db.prepare(`SELECT id FROM match_scoreboards WHERE group_id = ? AND page_type = 'personal' AND page_hero = ? AND status <> 'dismissed' AND file_mtime <> ?`)
+    .get(g.id, hero, new Date(mtimeMs).toISOString()) as { id: number } | undefined;
+  if (dup) return store({ status: 'dismissed', reason: `second personal page for ${hero} (page ${dup.id})`, raw: parsed, matchId: null, rows: [], pageType: 'personal', groupId: g.id, pageHero: hero });
+  return store({
+    status: g.match_id != null ? 'matched' : 'unmatched',
+    reason: g.match_id != null ? (g.state === 'recovery' ? `recovery of match ${g.match_id}` : 'group page') : 'waiting for the match log',
+    raw: parsed, matchId: g.match_id, rows: [], pageType: 'personal', groupId: g.id, pageHero: hero,
+  });
+}
+
+/** Teams keeps today's path (rule 1 copies, window, rule 2 stats). Inside a group the group's match wins and a window or stats hit must agree with the Summary map. */
+function processTeams(db: DatabaseSync, parsed: ParsedScoreboard, store: Store, mtimeMs: number): string {
+  const g = findOpenGroup(db, mtimeMs);
+  const gid = g?.id ?? null;
+  const pageType: PageType = 'teams';
   const problem = validateParsed(parsed);
-  if (problem) {
-    storeScoreboard(db, { filePath, mtimeMs, status: 'error', reason: problem, raw: parsed, matchId: null, rows: [] });
-    return 'error';
-  }
+  if (problem) return store({ status: 'error', reason: problem, raw: parsed, matchId: null, rows: [], pageType, groupId: gid });
   const found = resolveSelf(parsed.rows, loadAccounts(db));
-  if ('error' in found) {
-    storeScoreboard(db, { filePath, mtimeMs, status: 'error', reason: `self row: ${found.error}`, raw: parsed, matchId: null, rows: [] });
-    return 'error';
-  }
+  if ('error' in found) return store({ status: 'error', reason: `self row: ${found.error}`, raw: parsed, matchId: null, rows: [], pageType, groupId: gid });
   const rows = parsed.rows.map((r, i) => ({ ...r, is_self: i === found.index }));
   const selfRow = rows[found.index];
+  if (g) touchGroup(db, g.id, mtimeMs);
+
+  const mapOk = (matchId: number) => {
+    const want = g ? groupSummaryMap(db, g.id) : null;
+    if (!want) return true;
+    return (db.prepare(`SELECT map FROM matches WHERE id = ?`).get(matchId) as { map: string } | undefined)?.map === want;
+  };
+  const becomeRecovery = (matchId: number, why: string) => {
+    if (g && g.state === 'live' && mapOk(matchId)) linkGroup(db, g.id, matchId, 'recovery', why);
+  };
+
   const copyOf = findCopyOf(db, rows);
   if (copyOf != null) {
-    storeScoreboard(db, { filePath, mtimeMs, status: 'dismissed', reason: `copy of board ${copyOf}`, raw: parsed, matchId: null, rows });
+    const of = db.prepare(`SELECT match_id FROM match_scoreboards WHERE id = ?`).get(copyOf) as { match_id: number | null } | undefined;
+    store({ status: 'dismissed', reason: `copy of board ${copyOf}`, raw: parsed, matchId: null, rows, pageType, groupId: gid });
+    if (of?.match_id != null) becomeRecovery(of.match_id, `recovery of match ${of.match_id}`);
     return 'dismissed';
   }
-  const decision = decideFull(db, mtimeMs, { name: selfRow.player_name, e: selfRow.e, a: selfRow.a, d: selfRow.d, dmg: selfRow.dmg, h: selfRow.h }, selfRow.role);
-  const status = decision.matchId != null ? 'matched' : 'unmatched';
-  storeScoreboard(db, { filePath, mtimeMs, status, reason: decision.reason, raw: parsed, matchId: decision.matchId, rows });
-  return status;
+
+  const stats = { name: selfRow.player_name, e: selfRow.e, a: selfRow.a, d: selfRow.d, dmg: selfRow.dmg, h: selfRow.h };
+  if (g && g.match_id != null) {
+    // The group is already linked: this page belongs to the group's match, unless that match has a Teams page.
+    const has = db.prepare(`SELECT 1 FROM match_scoreboards s WHERE s.match_id = ? AND ${TEAMS_ONLY}`).get(g.match_id);
+    if (has) return store({ status: 'unmatched', reason: 'that match already has a scoreboard', raw: parsed, matchId: null, rows, pageType, groupId: gid });
+    return store({ status: 'matched', reason: g.state === 'recovery' ? `recovery of match ${g.match_id}` : 'group page', raw: parsed, matchId: g.match_id, rows, pageType, groupId: gid });
+  }
+  const decision = decideFull(db, mtimeMs, stats, selfRow.role);
+  if (decision.matchId != null && mapOk(decision.matchId)) {
+    store({ status: 'matched', reason: decision.reason, raw: parsed, matchId: decision.matchId, rows, pageType, groupId: gid });
+    if (g && g.state === 'live') linkGroup(db, g.id, decision.matchId, 'recovery', 'recovery by teams page');
+    return 'matched';
+  }
+  const reason = g && g.state === 'live' ? 'waiting for the match log' : decision.reason;
+  return store({ status: 'unmatched', reason, raw: parsed, matchId: null, rows, pageType, groupId: gid });
 }
 
 export function isImageName(name: string): boolean {

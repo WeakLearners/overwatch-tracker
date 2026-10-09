@@ -4,6 +4,9 @@ import { getCurveParams } from '../lib/curveParams';
 import { getExperimentHooks } from '../lib/experimentHooks';
 import { saveAimStatsRows, validateAimStats, type AimStatsPayload } from '../lib/aimStatsWrite';
 import { CRASHED_HERO, CRASHED_EDITABLE } from '../lib/crashed';
+import { linkGroup } from '../lib/scoreboardPages';
+import { organizeBoard } from '../lib/scoreboardOrganize';
+import { DEFAULT_SCOREBOARD_DIR } from '../lib/scoreboardWatcher';
 
 const router = Router();
 
@@ -65,7 +68,7 @@ const validScore = (v: unknown) => v == null || (Number.isInteger(v) && (v as nu
 
 router.post('/', (req: Request, res: Response) => {
   const db = getDb();
-  const { date, time, day_of_week, hour, hero, role, map, game_type, win, queue_mode, sens, feel, team_rating, notes, heroes, curve_enabled, match_deaths, match_quality, result_driver, leaver, leaver_side, player_rank, player_rank_start, lobby_low, lobby_high, placement, account, aim_stats, crashed, score_us, score_them } = req.body;
+  const { date, time, day_of_week, hour, hero, role, map, game_type, win, queue_mode, sens, feel, team_rating, notes, heroes, curve_enabled, match_deaths, match_quality, result_driver, leaver, leaver_side, player_rank, player_rank_start, lobby_low, lobby_high, placement, account, aim_stats, crashed, score_us, score_them, scoreboard_group_id } = req.body;
   if (!validScore(score_us) || !validScore(score_them)) { res.status(400).json({ error: 'Score must be blank or a whole number from 0 to 10' }); return; }
   if (crashed === true || crashed === 1) { logCrashedMatch(db, req.body, res); return; }
 
@@ -153,6 +156,7 @@ router.post('/', (req: Request, res: Response) => {
   // matching blind_credits row (see blind.ts's set-creation insert for the
   // same rationale).
   let matchId: number;
+  let linkedGroup: number | null = null;
   db.exec('BEGIN');
   try {
     // revealed is a confirmed-dead leftover from an earlier hidden-DPI
@@ -253,12 +257,26 @@ router.post('/', (req: Request, res: Response) => {
     // slot-1 credit above so the play-time credit hook re-derives credits
     // from the real minutes — the one credit path the backlog form uses too.
     if (aimStatsIn) saveAimStatsRows(db, matchId, aimStatsIn);
+    // The log form was filled from a scoreboard group (GET /api/scoreboards/live).
+    // Linking rides in this transaction so a failed save leaves the group live and
+    // the light green. Only a live group links; a stale id is ignored, never an error.
+    if (Number.isInteger(scoreboard_group_id)) {
+      const g = db.prepare(`SELECT state FROM scoreboard_groups WHERE id = ?`).get(scoreboard_group_id) as { state: string } | undefined;
+      if (g?.state === 'live') { linkGroup(db, scoreboard_group_id, matchId, 'linked', 'linked at submit'); linkedGroup = scoreboard_group_id; }
+    }
     db.exec('COMMIT');
   } catch (err) {
     db.exec('ROLLBACK');
     throw err;
   }
 
+  // Move the group's files into the date folder. Moves only, never throws; the watcher retries each poll.
+  if (linkedGroup != null) {
+    try {
+      const root = process.env.SCOREBOARD_DIR || DEFAULT_SCOREBOARD_DIR;
+      for (const r of db.prepare(`SELECT id FROM match_scoreboards WHERE group_id = ? AND status = 'matched'`).all(linkedGroup) as { id: number }[]) organizeBoard(db, r.id, root);
+    } catch { /* retried by the watcher */ }
+  }
   res.json({ id: matchId });
 });
 

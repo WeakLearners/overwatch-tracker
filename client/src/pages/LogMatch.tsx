@@ -13,6 +13,8 @@ import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { useDfHeroes, dfSensForHeroName, withDfBadge } from '../hooks/useDfHeroes';
 import { format } from 'date-fns';
 import { useFieldConfig } from '../contexts/FieldConfigContext';
+import ScoreboardLight from '../components/ScoreboardLight';
+import { fillPatch, fillSignature, scoreboardFieldsEmpty, type LivePayload } from '../lib/scoreboardFill';
 import { StatFields, emptyStats, statsBody, statsTouched, statsValid, type StatFieldsT } from '../components/AimStatsFields';
 import ScoreInputs, { scoreOrNull } from '../components/ScoreInputs';
 import type { RankOutcomeValue, RankOutcomeChange } from '../components/RankOutcomeControl';
@@ -720,6 +722,42 @@ export default function LogMatch() {
   const aimFilled = showAimFold && aimOpen && statsTouched(aimStats);
   const aimIncomplete = aimFilled && !statsValid(aimStats);
 
+  // Scoreboard light + fill. The server reads the Summary/Teams/Personal screenshots
+  // and sends a ready payload (GET /api/scoreboards/live); the form takes it into
+  // BLANK fields only. Polled because nothing else tells this page a file arrived.
+  const { data: live, refetch: refetchLive } = useApi<LivePayload>('/api/scoreboards/live');
+  useEffect(() => {
+    const id = window.setInterval(refetchLive, 10_000);
+    return () => window.clearInterval(id);
+  }, [refetchLive]);
+  const appliedSig = useRef<string | null>(null);
+  const appliedGroup = useRef<number | null>(null);
+  const fillFromScoreboard = () => {
+    const fill = live?.light === 'green' ? live.fill : null;
+    if (!fill) return;
+    const patch = fillPatch({ hero: form.hero, switchHeroes, win: form.win, map, scoreUs, scoreThem, aimStats }, fill);
+    if (patch.map !== undefined) setMap(patch.map);
+    if (patch.hero !== undefined) setForm(f => ({ ...f, hero: patch.hero! }));
+    if (patch.win !== undefined) setForm(f => ({ ...f, win: patch.win! }));
+    if (patch.switchHeroes) setSwitchHeroes(patch.switchHeroes);
+    if (patch.scoreUs !== undefined) { setScoreUs(patch.scoreUs); setScoreThem(patch.scoreThem ?? ''); }
+    if (patch.aimStats) setAimStats(patch.aimStats);
+    if (patch.aimOpen) setAimOpen(true);
+    appliedGroup.current = fill.group_id;
+    appliedSig.current = fillSignature(fill);
+  };
+  // Auto-fill: once per group while the scoreboard fields are still empty, and again
+  // when a later page of that same group lands (blanks only, so typed values stay).
+  useEffect(() => {
+    const fill = live?.light === 'green' ? live.fill : null;
+    if (!fill || crashedGame) return;
+    const sig = fillSignature(fill);
+    if (appliedSig.current === sig) return;
+    const sameGroup = appliedGroup.current === fill.group_id;
+    if (sameGroup || scoreboardFieldsEmpty({ hero: form.hero, switchHeroes, win: form.win, map, scoreUs, scoreThem, aimStats }, statsTouched)) fillFromScoreboard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live]);
+
   // The date field defaults to the current day but stays editable for backfill.
   // Once the user manually picks a date we stop auto-advancing it so their choice
   // sticks; a successful log clears this back to "follow the clock".
@@ -1015,6 +1053,9 @@ export default function LogMatch() {
           // Saved in the same server transaction as the match, which then
           // never enters the backlog. Omitted entirely when the fold-out is
           // closed or blank.
+          // The scoreboard group the form was filled from (or whose map matches this
+          // match). The server links it inside the same transaction as the match.
+          ...(live?.light === 'green' && live.fill && live.group_id != null && (appliedGroup.current === live.group_id || live.fill.map === map) ? { scoreboard_group_id: live.group_id } : {}),
           ...(aimFilled ? { aim_stats: (({ match_id: _unused, ...rest }) => rest)(statsBody(0, aimStats)) } : {}),
         }),
       });
@@ -1146,7 +1187,10 @@ export default function LogMatch() {
       <div id="match-details" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card" data-inspect-id="logmatch-match-details-card">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm card-title">Match Details</h2>
+            <div className="flex items-baseline gap-3 min-w-0">
+              <h2 className="text-sm card-title">Match Details</h2>
+              <ScoreboardLight live={live} onFill={fillFromScoreboard} />
+            </div>
             <div className="flex items-center gap-2">
               {/* Game crashed: log the result only. The scoreboard resets on rejoin, so any
                   stats would cover just the tail of the match; this keeps the win/loss and

@@ -19,6 +19,8 @@
 // Per-hero override for the overall_acc slot.
 export const OVERALL_SLOT_LABEL: Record<string, { label: string; aria: string }> = {
   Ana: { label: 'Scoped Accuracy %', aria: 'scoped accuracy' },
+  // Ashe has no WEAPON ACCURACY tile; her overall slot is SCOPED ACCURACY (screenshot tile map, 2026-10-09).
+  Ashe: { label: 'Scoped Accuracy %', aria: 'scoped accuracy' },
 };
 
 // Per-hero override for the crit_acc slot — heroes whose kit doesn't map
@@ -30,6 +32,7 @@ export const CRIT_SLOT_LABEL: Record<string, { label: string; aria: string }> = 
   Zenyatta: { label: 'Charged Volley %', aria: 'charged volley accuracy' },
   Baptiste: { label: 'Healing %(+)', aria: 'healing accuracy' },
   Mizuki: { label: 'Binding Chain %', aria: 'binding chain accuracy' },
+  Ashe: { label: 'Scoped Crit %', aria: 'scoped critical hit accuracy' },
 };
 
 // Per-hero label for the optional 4th accuracy field (absent = this hero uses

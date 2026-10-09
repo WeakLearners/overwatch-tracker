@@ -10,6 +10,7 @@ import fs from 'fs';
 import path from 'path';
 import type { DatabaseSync } from 'node:sqlite';
 import { organizeAll } from './scoreboardOrganize';
+import { finalizeGroups } from './scoreboardPages';
 import { processFile, rematchRecent, isImageName, type VisionFn, callVision } from './scoreboard';
 
 export const POLL_MS = 60_000;
@@ -45,12 +46,22 @@ export async function pollOnce(
     }
     const known = new Set((db.prepare(`SELECT file_path FROM match_scoreboards`).all() as { file_path: string }[]).map(r => r.file_path));
     const byMove = db.prepare(`SELECT id, file_path FROM match_scoreboards WHERE file_mtime = ?`);
+    // New files go in file_mtime order, so a Summary page opens its group before the
+    // Teams and Personal pages taken after it (name order breaks at "(99)" -> "(100)").
+    const fresh: { name: string; full: string; st: fs.Stats }[] = [];
     for (const name of names.filter(isImageName).sort()) {
       const full = path.join(dir, name);
       if (known.has(full)) continue;
       try {
         const st = await withTimeout(fs.promises.stat(full), fsTimeoutMs, 'stat');
-        if (!st.isFile() || st.size === 0) continue;
+        if (st.isFile() && st.size > 0) fresh.push({ name, full, st });
+      } catch (e) {
+        console.warn(`[scoreboard] ${name}: ${(e as Error).message}; retry next poll`);
+      }
+    }
+    fresh.sort((a, b) => a.st.mtimeMs - b.st.mtimeMs || a.name.localeCompare(b.name));
+    for (const { name, full, st } of fresh) {
+      try {
         // Folder moved: same basename and mtime already stored, so only repoint file_path.
         const moved = (byMove.all(new Date(st.mtimeMs).toISOString()) as { id: number; file_path: string }[])
           .find(r => path.basename(r.file_path) === name);
@@ -66,6 +77,7 @@ export async function pollOnce(
         console.warn(`[scoreboard] ${name}: ${(e as Error).message}; retry next poll`);
       }
     }
+    try { finalizeGroups(db); } catch (e) { console.error('[scoreboard] group fill failed:', (e as Error).message); }
     try { organizeAll(db, dir); } catch (e) { console.error('[scoreboard] organize failed:', (e as Error).message); }
     return { processed, error: null };
   } catch (e) {

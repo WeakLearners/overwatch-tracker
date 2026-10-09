@@ -5,7 +5,7 @@ import os from 'os';
 import path from 'path';
 import { getDb, closeDb } from '../db/schema';
 import {
-  decideMatch, MATCH_WINDOW_MIN, processFile, rematchRecent, validateParsed, callVision, resolveSelf, recomputeScoreboards, storeScoreboard, systemPrompt, SCHEMA,
+  decideMatch, MATCH_WINDOW_MIN, processFile, rematchRecent, validateParsed, callVision, resolveSelf, recomputeScoreboards, storeScoreboard, systemPrompt, SCHEMA, TEAMS_PROMPT,
   type MatchCandidate, type ParsedRow, type ParsedScoreboard, type SelfRow,
 } from './scoreboard';
 import { pollOnce } from './scoreboardWatcher';
@@ -80,7 +80,9 @@ describe('self row by name, hero removed', () => {
   test('prompt and schema carry no hero field', () => {
     assert.ok(!('hero' in (SCHEMA as any).properties.rows.items.properties));
     assert.ok(!(SCHEMA as any).properties.rows.items.required.includes('hero'));
-    assert.ok(!/hero name|portrait|Wrecking/i.test(systemPrompt().replace('Do not report hero names.', '')));
+    // Only the Teams rules carry the no-hero guard; the Summary and Personal pages name heroes on purpose.
+    assert.ok(!/hero name|portrait|Wrecking/i.test(TEAMS_PROMPT.replace('Do not report hero names.', '')));
+    assert.ok(systemPrompt().includes(TEAMS_PROMPT));
   });
 });
 

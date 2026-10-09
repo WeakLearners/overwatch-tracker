@@ -1079,6 +1079,30 @@ function initSchema(db: DatabaseSync) {
     `);
   }
 
+  // Three page types (Addendum 2, 2026-10-09). page_type: summary | teams | personal | other;
+  // NULL on rows from before this change, which count as teams. group_id: the
+  // scoreboard_groups row a page belongs to. page_hero: the hero a Personal page shows.
+  const sbCols = (db.prepare(`PRAGMA table_info(match_scoreboards)`).all() as { name: string }[]).map(c => c.name);
+  if (!sbCols.includes('page_type')) db.exec(`ALTER TABLE match_scoreboards ADD COLUMN page_type TEXT`);
+  if (!sbCols.includes('group_id')) db.exec(`ALTER TABLE match_scoreboards ADD COLUMN group_id INTEGER`);
+  if (!sbCols.includes('page_hero')) db.exec(`ALTER TABLE match_scoreboards ADD COLUMN page_hero TEXT`);
+  // One group per Summary page. state: live (no logged match, waits for the log form),
+  // linked (the form linked it at submit), recovery (linked at ingest to a match that
+  // was already logged), ambiguous (2+ logged matches fit the Summary DATE; never lights the form).
+  // filled_at: when the empty-field fill ran for this group.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS scoreboard_groups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      state TEXT NOT NULL CHECK(state IN ('live','linked','recovery','ambiguous')),
+      match_id INTEGER REFERENCES matches(id),
+      summary_mtime TEXT NOT NULL,
+      last_mtime TEXT NOT NULL,
+      filled_at TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_match_scoreboards_group ON match_scoreboards(group_id);
+  `);
+
     db.exec('COMMIT');
   } catch (err) {
     db.exec('ROLLBACK');
