@@ -1,6 +1,6 @@
 # OW2 Match Tracker
 
-A full-stack match-tracking and analysis app for Overwatch 2 — built to log my own games and figure out what, if anything, in my play actually correlates with winning. It has been in daily use since November 2024. As of 2026-09-24 it holds **3,639 logged matches** (2024-11-28 to 2026-09-24), with an overall win rate of 48.42%.
+A full-stack match-tracking and analysis app for Overwatch 2 — built to log my own games and figure out what, if anything, in my play actually correlates with winning. It has been in daily use since November 2024. As of 2026-10-02 it holds **2,970 logged competitive matches** (2024-11-28 to 2026-10-02), with a competitive win rate of 47.81%. Every performance figure below is competitive only. Quick Play is where I practise new heroes, so it is not a measure of how I play.
 
 ## Why this exists
 
@@ -8,8 +8,8 @@ Most "OW2 stats" content is built on small samples dressed up as patterns. This 
 
 That happened here, concretely. An earlier pass over a partial dataset (~578 matches) surfaced a set of "key patterns" — specific maps and times of day with strong win rates. As the dataset grew roughly 6x, nearly every one of those patterns regressed to the baseline, which is exactly what you'd expect from noise on n≈18-per-bucket samples. Rather than quietly update the numbers, the app's stats layer now applies multiple-comparison correction before calling anything a finding:
 
-- Across 32 maps tested (n≥30), **none** clear Bonferroni correction. The best-looking outlier (Numbani, 35.9% WR, n=92, p≈0.016) is suggestive and still fails the corrected threshold at 32 comparisons. Its p-value has been getting worse as the sample grows, which is what noise does.
-- Across 12 hours of the day (n≥50), **none** clear correction either. Noon is the lowest hour (39.4% WR, n=208, p≈0.009) against a corrected threshold of about 0.004. Two weeks earlier, at n=200, noon did clear that bar. Eight more noon games and it stopped. I am leaving that in here on purpose.
+- Across 28 maps tested (n≥30), **none** clear Bonferroni correction. The lowest map (Numbani, 36.5% WR, n=74, p≈0.051) is suggestive and misses the corrected threshold of about 0.0018 by a wide margin.
+- Across 12 hours of the day (n≥50), **none** clear correction either. The two lowest are 7 AM (34.6% WR, n=78, p≈0.020) and noon (38.1% WR, n=155, p≈0.015), against a corrected threshold of about 0.004. In an earlier all-modes count, noon did clear that bar at n=200. A little more data and it stopped. I am leaving that in here on purpose.
 
 The result I care about is not any single win rate. It is knowing which of my own patterns are real, and which ones I would have bet on and lost. "Survives correction" describes one sample on one day. It is not a permanent property of the data, so a finding gets re-tested before it is published.
 
