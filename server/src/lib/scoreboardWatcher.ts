@@ -1,12 +1,15 @@
 // Polls the Drive "OW Game Logs" folder (My Drive, Drive for desktop, Stream
 // mode) every 60 s. It moved from "Other computers/My Computer" on 2026-10-09
-// because that path synced up to 2 hours late. Read-only: never moves, renames or deletes anything there. Listing a
+// because that path synced up to 2 hours late. After each poll it files processed
+// images into subfolders (scoreboardOrganize.ts: moves and renames, never deletes).
+// Only the TOP LEVEL is scanned for new files. Listing a
 // Drive tree can hang for minutes after sign-in, so every
 // filesystem call is raced against a timeout, caught, logged and retried on the
 // next poll. Nothing in here may throw out of a tick.
 import fs from 'fs';
 import path from 'path';
 import type { DatabaseSync } from 'node:sqlite';
+import { organizeAll } from './scoreboardOrganize';
 import { processFile, rematchRecent, isImageName, type VisionFn, callVision } from './scoreboard';
 
 export const POLL_MS = 60_000;
@@ -63,6 +66,7 @@ export async function pollOnce(
         console.warn(`[scoreboard] ${name}: ${(e as Error).message}; retry next poll`);
       }
     }
+    try { organizeAll(db, dir); } catch (e) { console.error('[scoreboard] organize failed:', (e as Error).message); }
     return { processed, error: null };
   } catch (e) {
     console.error('[scoreboard] poll failed:', (e as Error).message);

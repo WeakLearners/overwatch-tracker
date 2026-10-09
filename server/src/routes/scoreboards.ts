@@ -1,6 +1,11 @@
 import { Router } from 'express';
 import { getDb } from '../db/schema';
+import { organizeBoard } from '../lib/scoreboardOrganize';
+import { DEFAULT_SCOREBOARD_DIR } from '../lib/scoreboardWatcher';
 
+const root = () => process.env.SCOREBOARD_DIR || DEFAULT_SCOREBOARD_DIR;
+
+// Attach and dismiss also move the file (scoreboardOrganize.ts).
 // Scoreboard screenshot ingest, read side + the one manual write (attach an
 // unmatched image to a logged match). Never touches the matches table.
 const router = Router();
@@ -56,6 +61,7 @@ router.post('/:id/attach', (req, res) => {
   if (!db.prepare(`SELECT 1 FROM matches WHERE id = ?`).get(matchId)) { res.status(404).json({ error: 'Match not found' }); return; }
   if (db.prepare(`SELECT 1 FROM match_scoreboards WHERE match_id = ?`).get(matchId)) { res.status(409).json({ error: 'That match already has a scoreboard' }); return; }
   db.prepare(`UPDATE match_scoreboards SET match_id = ?, status = 'matched', reason = 'attached by hand' WHERE id = ?`).run(matchId, id);
+  organizeBoard(db, id, root()); // moves to the date folder; skipped (and retried by the watcher) if the file is under 60 s old
   res.json({ ok: true });
 });
 
@@ -69,6 +75,7 @@ router.post('/:id/dismiss', (req, res) => {
   if (!sb) { res.status(404).json({ error: 'Scoreboard not found' }); return; }
   if (sb.status !== 'unmatched' && sb.status !== 'error') { res.status(409).json({ error: `Scoreboard is ${sb.status}, only unmatched or error can be dismissed` }); return; }
   db.prepare(`UPDATE match_scoreboards SET status = 'dismissed', reason = 'dismissed by hand' WHERE id = ?`).run(id);
+  organizeBoard(db, id, root());
   res.json({ ok: true });
 });
 

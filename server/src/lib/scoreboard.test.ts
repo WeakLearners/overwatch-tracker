@@ -9,6 +9,8 @@ import {
   type MatchCandidate, type ParsedRow, type ParsedScoreboard, type SelfRow,
 } from './scoreboard';
 import { pollOnce } from './scoreboardWatcher';
+import { organizeBoard, organizeAll, windowsSafe, uniqueDest } from './scoreboardOrganize';
+import { PATCH_BOUNDARIES } from './patchEra';
 
 const MTIME = Date.parse('2026-10-09T13:08:54Z');
 const at = (minAfter: number) => new Date(MTIME + minAfter * 60_000).toISOString().slice(0, 19).replace('T', ' ');
@@ -262,6 +264,187 @@ describe('dismissed scoreboards', () => {
       assert.deepEqual({ ...row }, { status: 'dismissed', match_id: null, reason: 'dismissed by hand' });
       fs.rmSync(dir, { recursive: true });
     } finally { closeDb(); for (const x of [tmp, `${tmp}-wal`, `${tmp}-shm`]) if (fs.existsSync(x)) fs.unlinkSync(x); }
+  });
+});
+
+describe('rule 1 copies, rule 2 link by stats, file organizing', () => {
+  let db: ReturnType<typeof getDb>; let tmp: string; let root: string;
+  beforeEach(() => {
+    tmp = path.join(os.tmpdir(), `sb-org-${process.pid}-${Date.now()}.db`); db = getDb(tmp);
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-root-'));
+  });
+  afterEach(() => { closeDb(); fs.rmSync(root, { recursive: true, force: true }); for (const f of [tmp, `${tmp}-wal`, `${tmp}-shm`]) if (fs.existsSync(f)) fs.unlinkSync(f); });
+  const SINCE = PATCH_BOUNDARIES[PATCH_BOUNDARIES.length - 1];
+  const addMatch = (createdAt: string, o: { date?: string; hero?: string; map?: string; account?: string } = {}) => Number(db.prepare(
+    `INSERT INTO matches (date, hero, role, map, game_type, win, account, created_at) VALUES (?,?,'Support',?,'Competitive',1,?,?)`,
+  ).run(o.date ?? '2026-10-09', o.hero ?? 'Mizuki', o.map ?? 'Numbani', o.account ?? 'Linx', createdAt).lastInsertRowid);
+  // self row of board(): e1 a2 d3 dmg4 h5
+  const addAim = (matchId: number, v: { elims: number | null; deaths: number | null; damage: number | null; assists: number | null; healing: number | null }) =>
+    db.prepare(`INSERT INTO aim_stats (match_id, elims, deaths, damage, assists, healing) VALUES (?,?,?,?,?,?)`).run(matchId, v.elims, v.deaths, v.damage, v.assists, v.healing);
+  const FAR = at(600); // no match logged near MTIME
+  const mk = (name: string, ageMs = 5 * 60_000) => { const f = path.join(root, name); fs.writeFileSync(f, 'x'); const t = (Date.now() - ageMs) / 1000; fs.utimesSync(f, t, t); return f; };
+
+  test('rule 1: same multiset in a different row order is a copy -> dismissed, no match, reason names the original', async () => {
+    addMatch(at(5));
+    assert.equal(await processFile(db, '/x/a.png', MTIME, async () => board(6)), 'matched');
+    const b2 = board(6); b2.rows.reverse();
+    assert.equal(await processFile(db, '/x/b.png', MTIME + 1000, async () => b2), 'dismissed');
+    const sb = db.prepare(`SELECT status, reason, match_id FROM match_scoreboards WHERE file_path = '/x/b.png'`).get() as any;
+    assert.deepEqual({ ...sb }, { status: 'dismissed', reason: 'copy of board 1', match_id: null });
+  });
+  test('rule 1: one differing value is not a copy', async () => {
+    addMatch(at(5));
+    await processFile(db, '/x/a.png', MTIME, async () => board(6));
+    const b2 = board(6); b2.rows[0].dmg += 1;
+    assert.notEqual(await processFile(db, '/x/b.png', MTIME + 1000, async () => b2), 'dismissed');
+  });
+  test('rule 2: zero window candidates, exactly one stats hit -> matched, linked by stats', async () => {
+    const id = addMatch(FAR, { date: SINCE });
+    addAim(id, { elims: 1, deaths: 3, damage: 4, assists: 2, healing: 5 });
+    assert.equal(await processFile(db, '/x/a.png', MTIME, async () => board(6)), 'matched');
+    assert.deepEqual({ ...(db.prepare(`SELECT match_id, reason FROM match_scoreboards`).get() as any) }, { match_id: id, reason: 'linked by stats' });
+  });
+  test('rule 2: null assists and healing are not compared', async () => {
+    const id = addMatch(FAR, { date: SINCE });
+    addAim(id, { elims: 1, deaths: 3, damage: 4, assists: null, healing: null });
+    assert.equal(await processFile(db, '/x/a.png', MTIME, async () => board(6)), 'matched');
+    assert.equal((db.prepare(`SELECT match_id FROM match_scoreboards`).get() as any).match_id, id);
+  });
+  test('rule 2: non-null assists that differ -> unmatched', async () => {
+    const id = addMatch(FAR, { date: SINCE });
+    addAim(id, { elims: 1, deaths: 3, damage: 4, assists: 99, healing: 5 });
+    assert.equal(await processFile(db, '/x/a.png', MTIME, async () => board(6)), 'unmatched');
+  });
+  test('rule 2: zero hits -> unmatched', async () => {
+    addMatch(FAR, { date: SINCE }); // gives the account a name; no aim_stats row
+    assert.equal(await processFile(db, '/x/a.png', MTIME, async () => board(6)), 'unmatched');
+  });
+  test('rule 2: two hits -> unmatched, never nearest', async () => {
+    for (const t of [FAR, at(700)]) addAim(addMatch(t, { date: SINCE }), { elims: 1, deaths: 3, damage: 4, assists: 2, healing: 5 });
+    assert.equal(await processFile(db, '/x/a.png', MTIME, async () => board(6)), 'unmatched');
+  });
+  test('rule 2 ignores matches before the latest patch boundary and ones that already have a scoreboard', async () => {
+    const old = addMatch(FAR, { date: '2026-10-05' });
+    addAim(old, { elims: 1, deaths: 3, damage: 4, assists: 2, healing: 5 });
+    assert.equal(await processFile(db, '/x/a.png', MTIME, async () => board(6)), 'unmatched');
+    const ok = addMatch(at(700), { date: SINCE });
+    addAim(ok, { elims: 1, deaths: 3, damage: 4, assists: 2, healing: 5 });
+    db.prepare(`INSERT INTO match_scoreboards (match_id, file_path, file_mtime, status) VALUES (?, '/x/z.png', ?, 'matched')`).run(ok, new Date(MTIME).toISOString());
+    assert.equal(await processFile(db, '/x/b.png', MTIME + 5000, async () => { const b = board(6); b.rows[0].e = 5; return b; }), 'unmatched');
+  });
+  test('rule 2 applies in rematchRecent', async () => {
+    addMatch(at(900), { date: '2026-10-01' }); // gives the account a name
+    await processFile(db, '/x/a.png', MTIME, async () => board(6));
+    assert.equal((db.prepare(`SELECT status FROM match_scoreboards`).get() as any).status, 'unmatched');
+    const id = addMatch(FAR, { date: SINCE });
+    addAim(id, { elims: 1, deaths: 3, damage: 4, assists: 2, healing: 5 });
+    assert.equal(rematchRecent(db, MTIME + 60_000), 1);
+    assert.deepEqual({ ...(db.prepare(`SELECT match_id, reason FROM match_scoreboards`).get() as any) }, { match_id: id, reason: 'linked by stats' });
+  });
+
+  test('Windows-safe names and collision suffix', () => {
+    assert.equal(windowsSafe('3836 Numbani Soldier: 76'), '3836 Numbani Soldier- 76');
+    assert.equal(windowsSafe('a<b>c:d"e/f\\g|h?i*j'), 'a-b-c-d-e-f-g-h-i-j');
+    fs.writeFileSync(path.join(root, 'x.png'), '1');
+    assert.equal(path.basename(uniqueDest(root, 'x', '.png')), 'x (2).png');
+    fs.writeFileSync(path.join(root, 'x (2).png'), '1');
+    assert.equal(path.basename(uniqueDest(root, 'x', '.png')), 'x (3).png');
+  });
+  test('matched file moves to <match date>/<id> <Map> <Hero>.png and file_path follows', () => {
+    const m = addMatch(at(5), { hero: 'Soldier: 76', map: 'King\'s Row' });
+    const f = mk('Screenshot (1).png');
+    db.prepare(`INSERT INTO match_scoreboards (match_id, file_path, file_mtime, status) VALUES (?, ?, ?, 'matched')`).run(m, f, new Date(MTIME).toISOString());
+    const dest = organizeBoard(db, 1, root);
+    assert.equal(dest, path.join(root, '2026-10-09', `${m} King's Row Soldier- 76.png`));
+    assert.ok(fs.existsSync(dest!) && !fs.existsSync(f));
+    assert.equal((db.prepare(`SELECT file_path FROM match_scoreboards`).get() as any).file_path, dest);
+    assert.equal(organizeBoard(db, 1, root), null); // idempotent
+  });
+  test('name collision gets (2); statuses route to _other, _copies, _needs-attention', () => {
+    const m = addMatch(at(5)); const m2 = addMatch(at(6));
+    fs.mkdirSync(path.join(root, '2026-10-09'));
+    fs.writeFileSync(path.join(root, '2026-10-09', `${m} Numbani Mizuki.png`), 'taken');
+    const ins = (name: string, st: string, mid: number | null, mtime = new Date(MTIME).toISOString()) =>
+      db.prepare(`INSERT INTO match_scoreboards (match_id, file_path, file_mtime, status) VALUES (?, ?, ?, ?)`).run(mid, mk(name), mtime, st);
+    ins('a.png', 'matched', m); ins('b.png', 'not_scoreboard', null); ins('c.png', 'dismissed', null); ins('d.png', 'error', null);
+    ins('e.png', 'unmatched', null); // MTIME is past the grace window versus now
+    ins('f.png', 'unmatched', null, new Date().toISOString()); // fresh: stays on top
+    ins('g.png', 'matched', m2);
+    assert.equal(organizeAll(db, root), 6);
+    const find = (n: string) => path.relative(root, (db.prepare(`SELECT file_path p FROM match_scoreboards WHERE file_path LIKE ?`).get(`%${n}`) as any)?.p ?? '');
+    assert.equal(fs.readFileSync(path.join(root, '2026-10-09', `${m} Numbani Mizuki.png`), 'utf8'), 'taken');
+    assert.ok(fs.existsSync(path.join(root, '2026-10-09', `${m} Numbani Mizuki (2).png`)));
+    assert.ok(fs.existsSync(path.join(root, '2026-10-09', `${m2} Numbani Mizuki.png`)));
+    assert.ok(fs.existsSync(path.join(root, '_other', 'b.png')));
+    assert.ok(fs.existsSync(path.join(root, '_copies', 'c.png')));
+    assert.ok(fs.existsSync(path.join(root, '_needs-attention', 'd.png')));
+    assert.ok(fs.existsSync(path.join(root, '_needs-attention', 'e.png')));
+    assert.ok(fs.existsSync(path.join(root, 'f.png')));
+    assert.equal(find('f.png'), 'f.png');
+  });
+  test('move skipped when the file mtime is under 60 s', () => {
+    const m = addMatch(at(5));
+    const f = mk('fresh.png', 10_000);
+    db.prepare(`INSERT INTO match_scoreboards (match_id, file_path, file_mtime, status) VALUES (?, ?, ?, 'matched')`).run(m, f, new Date(MTIME).toISOString());
+    assert.equal(organizeBoard(db, 1, root), null);
+    assert.ok(fs.existsSync(f));
+    assert.equal((db.prepare(`SELECT file_path FROM match_scoreboards`).get() as any).file_path, f);
+  });
+  test('move failure leaves file and row unchanged', () => {
+    const m = addMatch(at(5));
+    const f = mk('stuck.png');
+    db.prepare(`INSERT INTO match_scoreboards (match_id, file_path, file_mtime, status) VALUES (?, ?, ?, 'matched')`).run(m, f, new Date(MTIME).toISOString());
+    fs.writeFileSync(path.join(root, '2026-10-09'), 'a file where the folder should be'); // mkdir/rename must fail
+    assert.equal(organizeBoard(db, 1, root), null);
+    assert.ok(fs.existsSync(f));
+    assert.equal((db.prepare(`SELECT file_path FROM match_scoreboards`).get() as any).file_path, f);
+  });
+  test('row update failure renames the file back', () => {
+    const m = addMatch(at(5));
+    const f = mk('back.png');
+    db.prepare(`INSERT INTO match_scoreboards (match_id, file_path, file_mtime, status) VALUES (?, ?, ?, 'matched')`).run(m, f, new Date(MTIME).toISOString());
+    db.prepare(`INSERT INTO match_scoreboards (match_id, file_path, file_mtime, status) VALUES (NULL, ?, ?, 'error')`).run(path.join(root, '2026-10-09', `${m} Numbani Mizuki.png`), new Date(MTIME).toISOString()); // UNIQUE clash on the new path
+    assert.equal(organizeBoard(db, 1, root), null);
+    assert.ok(fs.existsSync(f));
+    assert.equal((db.prepare(`SELECT file_path FROM match_scoreboards WHERE id = 1`).get() as any).file_path, f);
+  });
+  test('files outside the folder are never moved', () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-out-'));
+    const f = path.join(outside, 'o.png'); fs.writeFileSync(f, 'x'); fs.utimesSync(f, 1000, 1000);
+    db.prepare(`INSERT INTO match_scoreboards (file_path, file_mtime, status) VALUES (?, ?, 'error')`).run(f, new Date(MTIME).toISOString());
+    assert.equal(organizeBoard(db, 1, root), null);
+    assert.ok(fs.existsSync(f));
+    fs.rmSync(outside, { recursive: true });
+  });
+  test('watcher scans only the top level: an unknown image inside a subfolder is ignored', async () => {
+    fs.mkdirSync(path.join(root, '_other'));
+    const f = path.join(root, '_other', 'hidden.png'); fs.writeFileSync(f, 'x');
+    let calls = 0;
+    const r = await pollOnce(db, root, async () => { calls++; return { is_scoreboard: false, rows: [] }; });
+    assert.equal(r.processed, 0); assert.equal(calls, 0);
+  });
+  test('pollOnce files a processed image after it is old enough, and does not reprocess it', async () => {
+    const f = mk('Screenshot (9).png');
+    let calls = 0; const v = async () => { calls++; return { is_scoreboard: false, rows: [] }; };
+    assert.equal((await pollOnce(db, root, v)).processed, 1);
+    assert.ok(fs.existsSync(path.join(root, '_other', 'Screenshot (9).png')) && !fs.existsSync(f));
+    assert.equal((await pollOnce(db, root, v)).processed, 0);
+    assert.equal(calls, 1);
+  });
+  test('HTTP attach moves the file to the date folder; dismiss moves it to _copies', async () => {
+    process.env.SCOREBOARD_DIR = root;
+    const { startHarness } = await import('../test/httpHarness');
+    const h = await startHarness();
+    try {
+      const mid = Number(h.db.prepare(`INSERT INTO matches (date, hero, role, map, game_type, win, account, created_at) VALUES ('2026-10-09','Mizuki','Support','Numbani','Competitive',1,'Linx','2026-10-09 20:00:00')`).run().lastInsertRowid);
+      const f1 = mk('one.png'), f2 = mk('two.png');
+      const ins = (p: string) => Number(h.db.prepare(`INSERT INTO match_scoreboards (file_path, file_mtime, status) VALUES (?, ?, 'unmatched')`).run(p, new Date(MTIME).toISOString()).lastInsertRowid);
+      const a = ins(f1), d = ins(f2);
+      assert.equal((await h.post(`/api/scoreboards/${a}/attach`, { match_id: mid })).status, 200);
+      assert.ok(fs.existsSync(path.join(root, '2026-10-09', `${mid} Numbani Mizuki.png`)) && !fs.existsSync(f1));
+      assert.equal((await h.post(`/api/scoreboards/${d}/dismiss`, {})).status, 200);
+      assert.ok(fs.existsSync(path.join(root, '_copies', 'two.png')) && !fs.existsSync(f2));
+    } finally { delete process.env.SCOREBOARD_DIR; await h.close(); }
   });
 });
 

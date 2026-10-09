@@ -6,13 +6,17 @@
 //  - Nothing here ever creates, edits or deletes a matches row.
 //  - A scoreboard attaches to a match only when exactly ONE candidate passes
 //    every test. Zero or 2+ -> 'unmatched'. Never guess.
-//  - The Drive folder is read-only to us: no move, rename or delete.
+//  - Files in the Drive folder may be MOVED and renamed (scoreboardOrganize.ts,
+//    approved 2026-10-09) but never deleted or overwritten.
+//  - Rule 1: a board whose rows equal a stored board is a copy -> 'dismissed'.
+//  - Rule 2: with zero candidates in the window, link by exact stats (one hit only).
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { execFile } from 'child_process';
 import Anthropic from '@anthropic-ai/sdk';
 import type { DatabaseSync } from 'node:sqlite';
+import { PATCH_BOUNDARIES } from './patchEra';
 
 export const SCOREBOARD_MODEL = 'claude-haiku-5-5';
 /** A match's created_at (the log time) must fall within +/- this many minutes of the file mtime. Sean usually logs 5-21 s BEFORE the screenshot, but may log a few minutes after. */
@@ -74,6 +78,59 @@ function loadCandidates(db: DatabaseSync, mtimeMs: number): MatchCandidate[] {
   return rows.map(r => ({ id: r.id, created_at: r.created_at, account: r.account, role: r.role, hasScoreboard: !!r.has_sb }));
 }
 
+
+// ---------------------------------------------------- rule 2: link by stats
+
+export interface SelfStats { name: string; e: number; a: number; d: number; dmg: number; h: number }
+
+/**
+ * Rule 2 (2026-10-09). Only when NO logged match falls inside the +/- window:
+ * find matches on/after the latest patch boundary (History resets each patch)
+ * for the same account whose aim_stats elims/deaths/damage equal the board's
+ * self row, plus assists/healing when those logged values are non-null, and
+ * that have no scoreboard yet. Exactly one -> linked. Zero or 2+ -> null.
+ */
+export function decideByStats(db: DatabaseSync, mtimeMs: number, s: SelfStats): number | null {
+  const inWindow = loadCandidates(db, mtimeMs).filter(c => Math.abs(parseDbUtc(c.created_at) - mtimeMs) <= MATCH_WINDOW_MIN * 60_000);
+  if (inWindow.length > 0) return null;
+  const since = PATCH_BOUNDARIES[PATCH_BOUNDARIES.length - 1] ?? '0000-00-00';
+  const hits = db.prepare(`
+    SELECT m.id FROM matches m JOIN aim_stats a ON a.match_id = m.id
+    WHERE LOWER(TRIM(m.account)) = ? AND m.date >= ?
+      AND a.elims = ? AND a.deaths = ? AND a.damage = ?
+      AND (a.assists IS NULL OR a.assists = ?) AND (a.healing IS NULL OR a.healing = ?)
+      AND NOT EXISTS (SELECT 1 FROM match_scoreboards s WHERE s.match_id = m.id)
+  `).all(norm(s.name), since, s.e, s.d, s.dmg, s.a, s.h) as { id: number }[];
+  return hits.length === 1 ? hits[0].id : null;
+}
+
+/** Window decision first; rule 2 only when that finds nothing. */
+function decideFull(db: DatabaseSync, mtimeMs: number, s: SelfStats, role: string): MatchDecision {
+  const d = decideMatch(mtimeMs, { name: s.name, role }, loadCandidates(db, mtimeMs));
+  if (d.matchId != null) return d;
+  const id = decideByStats(db, mtimeMs, s);
+  return id != null ? { matchId: id, reason: 'linked by stats' } : d;
+}
+
+// ------------------------------------------------- rule 1: exact copies
+
+const rowKey = (r: { team: string; e: number; a: number; d: number; dmg: number; h: number; mit: number }) =>
+  `${r.team}|${r.e}|${r.a}|${r.d}|${r.dmg}|${r.h}|${r.mit}`;
+
+/** Id of a stored board whose multiset of (team,e,a,d,dmg,h,mit) equals these rows, else null. Slot order is ignored. */
+export function findCopyOf(db: DatabaseSync, rows: ParsedRow[]): number | null {
+  if (!rows.length) return null;
+  const want = rows.map(rowKey).sort().join(';');
+  const r0 = rows[0];
+  const cands = db.prepare(`SELECT DISTINCT scoreboard_id AS id FROM scoreboard_rows WHERE team = ? AND e = ? AND a = ? AND d = ? AND dmg = ? AND h = ? AND mit = ? ORDER BY scoreboard_id`)
+    .all(r0.team, r0.e, r0.a, r0.d, r0.dmg, r0.h, r0.mit) as { id: number }[];
+  for (const c of cands) {
+    const got = (db.prepare(`SELECT team, e, a, d, dmg, h, mit FROM scoreboard_rows WHERE scoreboard_id = ?`).all(c.id) as any[]).map(rowKey).sort().join(';');
+    if (got === want) return c.id;
+  }
+  return null;
+}
+
 /** Sean's account names: the distinct non-null matches.account values. */
 export function loadAccounts(db: DatabaseSync): string[] {
   return (db.prepare(`SELECT DISTINCT account FROM matches WHERE account IS NOT NULL AND TRIM(account) <> ''`).all() as { account: string }[]).map(r => r.account);
@@ -108,7 +165,7 @@ export function validateParsed(p: ParsedScoreboard): string | null {
 
 export function storeScoreboard(
   db: DatabaseSync,
-  args: { filePath: string; mtimeMs: number; status: 'matched' | 'unmatched' | 'not_scoreboard' | 'error'; reason: string | null; raw: unknown; matchId: number | null; rows: ParsedRow[] }, // rows: is_self already resolved by name; hero is never stored
+  args: { filePath: string; mtimeMs: number; status: 'matched' | 'unmatched' | 'not_scoreboard' | 'error' | 'dismissed'; reason: string | null; raw: unknown; matchId: number | null; rows: ParsedRow[] }, // rows: is_self already resolved by name; hero is never stored
 ): number {
   db.exec('BEGIN');
   try {
@@ -139,13 +196,13 @@ export function rematchRecent(db: DatabaseSync, nowMs: number = Date.now()): num
   const pending = db.prepare(`SELECT id, file_mtime FROM match_scoreboards WHERE status = 'unmatched' AND file_mtime >= ?`).all(cutoff) as { id: number; file_mtime: string }[];
   let n = 0;
   for (const sb of pending) {
-    const rows = db.prepare(`SELECT team, is_self, role, player_name FROM scoreboard_rows WHERE scoreboard_id = ?`).all(sb.id) as any[];
+    const rows = db.prepare(`SELECT team, is_self, role, player_name, e, a, d, dmg, h FROM scoreboard_rows WHERE scoreboard_id = ?`).all(sb.id) as any[];
     const self = rows.find(r => r.team === 'us' && r.is_self);
     if (!self) continue;
     const mtimeMs = Date.parse(sb.file_mtime);
-    const d = decideMatch(mtimeMs, { name: self.player_name, role: self.role }, loadCandidates(db, mtimeMs));
+    const d = decideFull(db, mtimeMs, { name: self.player_name, e: self.e, a: self.a, d: self.d, dmg: self.dmg, h: self.h }, self.role);
     if (d.matchId != null) {
-      db.prepare(`UPDATE match_scoreboards SET match_id = ?, status = 'matched', reason = NULL WHERE id = ?`).run(d.matchId, sb.id);
+      db.prepare(`UPDATE match_scoreboards SET match_id = ?, status = 'matched', reason = ? WHERE id = ?`).run(d.matchId, d.reason, sb.id);
       n++;
     } else {
       db.prepare(`UPDATE match_scoreboards SET reason = ? WHERE id = ?`).run(d.reason, sb.id);
@@ -169,7 +226,7 @@ export function recomputeScoreboards(db: DatabaseSync): { id: number; status: st
     for (const b of boards) db.prepare(`UPDATE match_scoreboards SET match_id = NULL, status = 'unmatched' WHERE id = ?`).run(b.id);
     for (const b of boards) {
       db.prepare(`UPDATE scoreboard_rows SET hero = NULL, is_self = 0 WHERE scoreboard_id = ?`).run(b.id);
-      const rows = db.prepare(`SELECT team, slot, role, player_name FROM scoreboard_rows WHERE scoreboard_id = ? ORDER BY team DESC, slot`).all(b.id) as any[];
+      const rows = db.prepare(`SELECT team, slot, role, player_name, e, a, d, dmg, h FROM scoreboard_rows WHERE scoreboard_id = ? ORDER BY team DESC, slot`).all(b.id) as any[];
       const found = resolveSelf(rows, accounts);
       if ('error' in found) {
         const reason = `self row: ${found.error}`;
@@ -180,8 +237,8 @@ export function recomputeScoreboards(db: DatabaseSync): { id: number; status: st
       const self = rows[found.index];
       db.prepare(`UPDATE scoreboard_rows SET is_self = 1 WHERE scoreboard_id = ? AND team = ? AND slot = ?`).run(b.id, self.team, self.slot);
       const mtimeMs = Date.parse(b.file_mtime);
-      const d = decideMatch(mtimeMs, { name: self.player_name, role: self.role }, loadCandidates(db, mtimeMs));
-      if (d.matchId != null) db.prepare(`UPDATE match_scoreboards SET match_id = ?, status = 'matched', reason = NULL WHERE id = ?`).run(d.matchId, b.id);
+      const d = decideFull(db, mtimeMs, { name: self.player_name, e: self.e, a: self.a, d: self.d, dmg: self.dmg, h: self.h }, self.role);
+      if (d.matchId != null) db.prepare(`UPDATE match_scoreboards SET match_id = ?, status = 'matched', reason = ? WHERE id = ?`).run(d.matchId, d.reason, b.id);
       else db.prepare(`UPDATE match_scoreboards SET reason = ? WHERE id = ?`).run(d.reason, b.id);
       out.push({ id: b.id, status: d.matchId != null ? 'matched' : 'unmatched', matchId: d.matchId, reason: d.reason });
     }
@@ -337,7 +394,12 @@ export async function processFile(
   }
   const rows = parsed.rows.map((r, i) => ({ ...r, is_self: i === found.index }));
   const selfRow = rows[found.index];
-  const decision = decideMatch(mtimeMs, { name: selfRow.player_name, role: selfRow.role }, loadCandidates(db, mtimeMs));
+  const copyOf = findCopyOf(db, rows);
+  if (copyOf != null) {
+    storeScoreboard(db, { filePath, mtimeMs, status: 'dismissed', reason: `copy of board ${copyOf}`, raw: parsed, matchId: null, rows });
+    return 'dismissed';
+  }
+  const decision = decideFull(db, mtimeMs, { name: selfRow.player_name, e: selfRow.e, a: selfRow.a, d: selfRow.d, dmg: selfRow.dmg, h: selfRow.h }, selfRow.role);
   const status = decision.matchId != null ? 'matched' : 'unmatched';
   storeScoreboard(db, { filePath, mtimeMs, status, reason: decision.reason, raw: parsed, matchId: decision.matchId, rows });
   return status;
