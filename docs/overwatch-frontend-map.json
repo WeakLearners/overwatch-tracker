@@ -3719,7 +3719,7 @@
           "kind": "section",
           "description": "Settings card listing scoreboard images not attached to a match (GET /api/scoreboards/unmatched), with a count of ignored non-scoreboard images.",
           "locate": {
-            "path": "client/src/components/ScoreboardInbox.tsx:33",
+            "path": "client/src/components/ScoreboardInbox.tsx:43",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-scoreboards\"' client/src/components/ScoreboardInbox.tsx"
           }
         },
@@ -3729,7 +3729,7 @@
           "kind": "text",
           "description": "Error text from POST /api/scoreboards/:id/attach.",
           "locate": {
-            "path": "client/src/components/ScoreboardInbox.tsx:39",
+            "path": "client/src/components/ScoreboardInbox.tsx:49",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-scoreboards-error\"' client/src/components/ScoreboardInbox.tsx"
           }
         },
@@ -3739,7 +3739,7 @@
           "kind": "section",
           "description": "One line per unmatched or error image: file name, file time, reason.",
           "locate": {
-            "path": "client/src/components/ScoreboardInbox.tsx:40",
+            "path": "client/src/components/ScoreboardInbox.tsx:50",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-scoreboards-list\"' client/src/components/ScoreboardInbox.tsx"
           }
         },
@@ -3749,7 +3749,7 @@
           "kind": "row",
           "description": "File name, time, reason, and the attach select (unmatched only).",
           "locate": {
-            "path": "client/src/components/ScoreboardInbox.tsx:42",
+            "path": "client/src/components/ScoreboardInbox.tsx:52",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-scoreboards-item\"' client/src/components/ScoreboardInbox.tsx"
           }
         },
@@ -3759,7 +3759,7 @@
           "kind": "input",
           "description": "Pick a logged match without a scoreboard (latest 40).",
           "locate": {
-            "path": "client/src/components/ScoreboardInbox.tsx:51",
+            "path": "client/src/components/ScoreboardInbox.tsx:61",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-scoreboards-select\"' client/src/components/ScoreboardInbox.tsx"
           }
         },
@@ -3769,8 +3769,18 @@
           "kind": "button",
           "description": "Writes match_id on the scoreboard row (POST /api/scoreboards/:id/attach). Never edits matches.",
           "locate": {
-            "path": "client/src/components/ScoreboardInbox.tsx:58",
+            "path": "client/src/components/ScoreboardInbox.tsx:68",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-scoreboards-attach\"' client/src/components/ScoreboardInbox.tsx"
+          }
+        },
+        {
+          "id": "settings-scoreboards-dismiss",
+          "label": "Dismiss button",
+          "kind": "button",
+          "description": "Hides an unmatched/error image by hand (POST /api/scoreboards/:id/dismiss). Row stays so the watcher never re-reads the file.",
+          "locate": {
+            "path": "client/src/components/ScoreboardInbox.tsx:71",
+            "grep": "grep -n -F -- 'data-inspect-id=\"settings-scoreboards-dismiss\"' client/src/components/ScoreboardInbox.tsx"
           }
         }
       ]

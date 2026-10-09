@@ -25,7 +25,7 @@ router.get('/unmatched', (_req, res) => {
     WHERE NOT EXISTS (SELECT 1 FROM match_scoreboards s WHERE s.match_id = m.id)
     ORDER BY m.id DESC LIMIT 40
   `).all();
-  const ignored = (db.prepare(`SELECT COUNT(*) n FROM match_scoreboards WHERE status = 'not_scoreboard'`).get() as { n: number }).n;
+  const ignored = (db.prepare(`SELECT COUNT(*) n FROM match_scoreboards WHERE status IN ('not_scoreboard', 'dismissed')`).get() as { n: number }).n;
   res.json({
     items: items.map(i => ({ ...i, file_name: String(i.file_path).split('/').pop() })),
     matches,
@@ -56,6 +56,19 @@ router.post('/:id/attach', (req, res) => {
   if (!db.prepare(`SELECT 1 FROM matches WHERE id = ?`).get(matchId)) { res.status(404).json({ error: 'Match not found' }); return; }
   if (db.prepare(`SELECT 1 FROM match_scoreboards WHERE match_id = ?`).get(matchId)) { res.status(409).json({ error: 'That match already has a scoreboard' }); return; }
   db.prepare(`UPDATE match_scoreboards SET match_id = ?, status = 'matched', reason = 'attached by hand' WHERE id = ?`).run(matchId, id);
+  res.json({ ok: true });
+});
+
+// Hide a duplicate / unwanted image. The row stays so the watcher (which skips
+// any file_path it has a row for) never spends a vision call on it again.
+router.post('/:id/dismiss', (req, res) => {
+  const db = getDb();
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: 'bad id' }); return; }
+  const sb = db.prepare(`SELECT id, status FROM match_scoreboards WHERE id = ?`).get(id) as any;
+  if (!sb) { res.status(404).json({ error: 'Scoreboard not found' }); return; }
+  if (sb.status !== 'unmatched' && sb.status !== 'error') { res.status(409).json({ error: `Scoreboard is ${sb.status}, only unmatched or error can be dismissed` }); return; }
+  db.prepare(`UPDATE match_scoreboards SET status = 'dismissed', reason = 'dismissed by hand' WHERE id = ?`).run(id);
   res.json({ ok: true });
 });
 

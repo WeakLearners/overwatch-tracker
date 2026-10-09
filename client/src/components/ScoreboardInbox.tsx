@@ -28,13 +28,23 @@ export default function ScoreboardInbox() {
     } catch (e) { setError((e as Error).message); }
   };
 
+  const dismiss = async (id: number) => {
+    setError(null);
+    try {
+      const res = await fetch(`/api/scoreboards/${id}/dismiss`, { method: 'POST' });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
+      revalidateAll();
+    } catch (e) { setError((e as Error).message); }
+  };
+
   const items = data?.items ?? [];
   return (
     <div className="card mt-6" data-inspect-id="settings-scoreboards">
       <div className="text-sm text-[var(--ink)] font-bold">Scoreboard screenshots</div>
       <div className="text-xs text-[var(--faint)]">
         {items.length ? `${items.length} not attached to a match.` : 'Every scoreboard is attached.'}
-        {data && data.ignored > 0 ? ` ${data.ignored} non-scoreboard image(s) ignored.` : ''}
+        {data && data.ignored > 0 ? ` ${data.ignored} image(s) ignored.` : ''}
       </div>
       {error && <p className="text-xs text-red-500 mt-1" data-inspect-id="settings-scoreboards-error">{error}</p>}
       <div className="space-y-2 mt-2" data-inspect-id="settings-scoreboards-list">
@@ -58,6 +68,7 @@ export default function ScoreboardInbox() {
                 <button type="button" disabled={!pick[it.id]} onClick={() => attach(it.id)} data-inspect-id="settings-scoreboards-attach">Attach</button>
               </>
             )}
+            <button type="button" onClick={() => dismiss(it.id)} data-inspect-id="settings-scoreboards-dismiss">Dismiss</button>
           </div>
         ))}
       </div>

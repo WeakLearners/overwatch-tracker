@@ -224,6 +224,47 @@ describe('GET/POST /api/scoreboards', () => {
   });
 });
 
+describe('dismissed scoreboards', () => {
+  test('POST dismiss: ok from unmatched/error, 409 from matched, hidden from list, counted as ignored', async () => {
+    const { startHarness } = await import('../test/httpHarness');
+    const h = await startHarness();
+    try {
+      const ins = (p: string, st: string) => Number(h.db.prepare(`INSERT INTO match_scoreboards (file_path, file_mtime, status) VALUES (?, ?, ?)`).run(p, new Date(MTIME).toISOString(), st).lastInsertRowid);
+      const u = ins('/x/u.png', 'unmatched'), e = ins('/x/e.png', 'error'), m = ins('/x/m.png', 'matched');
+      assert.equal((await h.post(`/api/scoreboards/${m}/dismiss`, {})).status, 409);
+      assert.equal((await h.post(`/api/scoreboards/${u}/dismiss`, {})).status, 200);
+      assert.equal((await h.post(`/api/scoreboards/${e}/dismiss`, {})).status, 200);
+      assert.equal((await h.post(`/api/scoreboards/${u}/dismiss`, {})).status, 409);
+      assert.equal((await h.post(`/api/scoreboards/9999/dismiss`, {})).status, 404);
+      const row = h.db.prepare(`SELECT status, reason FROM match_scoreboards WHERE id = ?`).get(u) as any;
+      assert.deepEqual({ ...row }, { status: 'dismissed', reason: 'dismissed by hand' });
+      const list = await h.get('/api/scoreboards/unmatched');
+      assert.equal(list.body.items.length, 0);
+      assert.equal(list.body.ignored, 2);
+    } finally { await h.close(); }
+  });
+  test('watcher skips a dismissed file; rematch and recompute leave it alone', async () => {
+    const tmp = path.join(os.tmpdir(), `sb-dis-${process.pid}-${Date.now()}.db`);
+    const db = getDb(tmp);
+    try {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-dis-dir-'));
+      const f = path.join(dir, 'Screenshot (44).png');
+      fs.writeFileSync(f, 'x');
+      const mt = new Date(fs.statSync(f).mtimeMs).toISOString();
+      const id = Number(db.prepare(`INSERT INTO match_scoreboards (file_path, file_mtime, status, reason) VALUES (?, ?, 'dismissed', 'dismissed by hand')`).run(f, mt).lastInsertRowid);
+      db.prepare(`INSERT INTO matches (date, hero, role, map, game_type, win, account, created_at) VALUES ('2026-10-09','Mizuki','Support','Numbani','Competitive',1,'Linx',?)`).run(mt.replace('T', ' ').slice(0, 19));
+      let calls = 0;
+      assert.equal((await pollOnce(db, dir, async () => { calls++; return board(6); })).processed, 0);
+      assert.equal(calls, 0);
+      rematchRecent(db);
+      recomputeScoreboards(db);
+      const row = db.prepare(`SELECT status, match_id, reason FROM match_scoreboards WHERE id = ?`).get(id) as any;
+      assert.deepEqual({ ...row }, { status: 'dismissed', match_id: null, reason: 'dismissed by hand' });
+      fs.rmSync(dir, { recursive: true });
+    } finally { closeDb(); for (const x of [tmp, `${tmp}-wal`, `${tmp}-shm`]) if (fs.existsSync(x)) fs.unlinkSync(x); }
+  });
+});
+
 // ------------------------------------------------------------ fixture test
 // Ground truth read off the real screenshot by Sean (spec 2026-10-09).
 const FIXTURE = path.join(__dirname, '../test/fixtures/scoreboard-36.png');

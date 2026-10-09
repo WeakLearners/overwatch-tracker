@@ -1029,7 +1029,7 @@ function initSchema(db: DatabaseSync) {
       match_id INTEGER REFERENCES matches(id),
       file_path TEXT NOT NULL UNIQUE,
       file_mtime TEXT NOT NULL,
-      status TEXT NOT NULL CHECK(status IN ('matched','unmatched','not_scoreboard','error')),
+      status TEXT NOT NULL CHECK(status IN ('matched','unmatched','not_scoreboard','error','dismissed')),
       reason TEXT,
       raw_json TEXT,
       created_at TEXT DEFAULT (datetime('now'))
@@ -1048,6 +1048,36 @@ function initSchema(db: DatabaseSync) {
       PRIMARY KEY (scoreboard_id, team, slot)
     );
   `);
+
+  // 'dismissed' status (2026-10-09): Sean hides duplicate images by hand. The row
+  // stays (file_path UNIQUE) so the watcher never re-processes the file. SQLite
+  // cannot alter a CHECK, so rebuild the table keeping every row and id.
+  // scoreboard_rows points at this table and FKs are on inside this transaction,
+  // so park its rows in a temp table while the parent is swapped, then restore.
+  const sbSql = (db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='match_scoreboards'`).get() as { sql: string }).sql;
+  if (!sbSql.includes("'dismissed'")) {
+    db.exec(`
+      CREATE TEMP TABLE sr_bak AS SELECT * FROM scoreboard_rows;
+      DELETE FROM scoreboard_rows;
+      CREATE TABLE match_scoreboards_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        match_id INTEGER REFERENCES matches(id),
+        file_path TEXT NOT NULL UNIQUE,
+        file_mtime TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('matched','unmatched','not_scoreboard','error','dismissed')),
+        reason TEXT,
+        raw_json TEXT,
+        created_at TEXT DEFAULT (datetime('now'))
+      );
+      INSERT INTO match_scoreboards_new (id, match_id, file_path, file_mtime, status, reason, raw_json, created_at)
+        SELECT id, match_id, file_path, file_mtime, status, reason, raw_json, created_at FROM match_scoreboards;
+      DROP TABLE match_scoreboards;
+      ALTER TABLE match_scoreboards_new RENAME TO match_scoreboards;
+      CREATE INDEX IF NOT EXISTS idx_match_scoreboards_match ON match_scoreboards(match_id);
+      INSERT INTO scoreboard_rows SELECT * FROM sr_bak;
+      DROP TABLE sr_bak;
+    `);
+  }
 
     db.exec('COMMIT');
   } catch (err) {
