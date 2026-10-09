@@ -1,6 +1,7 @@
-// Polls the Drive "OW Game Logs" folder (Drive for desktop, Stream mode) every
-// 60 s. Read-only: never moves, renames or deletes anything there. Listing the
-// "Other computers" tree can hang for minutes after sign-in, so every
+// Polls the Drive "OW Game Logs" folder (My Drive, Drive for desktop, Stream
+// mode) every 60 s. It moved from "Other computers/My Computer" on 2026-10-09
+// because that path synced up to 2 hours late. Read-only: never moves, renames or deletes anything there. Listing a
+// Drive tree can hang for minutes after sign-in, so every
 // filesystem call is raced against a timeout, caught, logged and retried on the
 // next poll. Nothing in here may throw out of a tick.
 import fs from 'fs';
@@ -11,7 +12,7 @@ import { processFile, rematchRecent, isImageName, type VisionFn, callVision } fr
 export const POLL_MS = 60_000;
 export const FS_TIMEOUT_MS = 30_000;
 export const DEFAULT_SCOREBOARD_DIR =
-  '/Users/Sean/Library/CloudStorage/GoogleDrive-skim2636@gmail.com/Other computers/My Computer/OW Game Logs';
+  '/Users/Sean/Library/CloudStorage/GoogleDrive-skim2636@gmail.com/My Drive/OW Game Logs';
 
 function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
   let t: NodeJS.Timeout;
@@ -40,12 +41,22 @@ export async function pollOnce(
       return { processed, error: msg };
     }
     const known = new Set((db.prepare(`SELECT file_path FROM match_scoreboards`).all() as { file_path: string }[]).map(r => r.file_path));
+    const byMove = db.prepare(`SELECT id, file_path FROM match_scoreboards WHERE file_mtime = ?`);
     for (const name of names.filter(isImageName).sort()) {
       const full = path.join(dir, name);
       if (known.has(full)) continue;
       try {
         const st = await withTimeout(fs.promises.stat(full), fsTimeoutMs, 'stat');
         if (!st.isFile() || st.size === 0) continue;
+        // Folder moved: same basename and mtime already stored, so only repoint file_path.
+        const moved = (byMove.all(new Date(st.mtimeMs).toISOString()) as { id: number; file_path: string }[])
+          .find(r => path.basename(r.file_path) === name);
+        if (moved) {
+          db.prepare(`UPDATE match_scoreboards SET file_path = ? WHERE id = ?`).run(full, moved.id);
+          known.add(full);
+          console.log(`[scoreboard] ${name}: already stored (id ${moved.id}); file_path updated`);
+          continue;
+        }
         const status = await processFile(db, full, st.mtimeMs, vision);
         if (status) { processed++; console.log(`[scoreboard] ${name}: ${status}`); }
       } catch (e) {

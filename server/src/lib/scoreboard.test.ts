@@ -178,6 +178,21 @@ describe('processFile + rematch on a temp DB', () => {
     assert.equal(calls, 1);
     fs.rmSync(dir, { recursive: true });
   });
+  test('pollOnce on a moved folder repoints file_path and makes no vision call', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-moved-'));
+    const f = path.join(dir, 'Screenshot (7).png');
+    fs.writeFileSync(f, 'x');
+    const mt = fs.statSync(f).mtimeMs;
+    db.prepare(`INSERT INTO match_scoreboards (match_id, file_path, file_mtime, status) VALUES (NULL, ?, ?, 'unmatched')`)
+      .run('/old/place/Screenshot (7).png', new Date(mt).toISOString());
+    let calls = 0; const v = async () => { calls++; return { is_scoreboard: false, rows: [] }; };
+    assert.equal((await pollOnce(db, dir, v)).processed, 0);
+    assert.equal(calls, 0);
+    const rows = db.prepare(`SELECT file_path FROM match_scoreboards`).all() as { file_path: string }[];
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].file_path, f);
+    fs.rmSync(dir, { recursive: true });
+  });
 });
 
 describe('GET/POST /api/scoreboards', () => {
