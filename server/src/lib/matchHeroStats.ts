@@ -8,16 +8,16 @@ export type StatUnit = 'pct' | 'count' | 'amount';
 export interface HeroStatRow { stat: string; label: string; value: number; unit: StatUnit; per10: number | null; career_best: 0 | 1 }
 
 // The game singularises a count label when the value is 1 ("FINAL BLOW" 1, "FINAL BLOWS" 5),
-// so one measure would get two keys. The stat key always uses the plural: the last word gets
-// an "s" unless it already ends in one or is a word that is never a count noun.
-// label keeps the text as shown. Add to NOT_A_COUNT only when the rule pluralises a word wrongly.
-const NOT_A_COUNT = /(accuracy|rate|time|percentage|percent|damage|healing|played|dealt|taken|hindered|slept|saved|ed|ept)$/;
+// so one measure would get two keys. For a count tile the stat key uses the plural: the last
+// word gets an "s" unless it already ends in one or is a past-participle tile ("ENEMY HINDERED").
+// A pct or amount tile keeps its words as they are. label keeps the text as shown.
+const NOT_A_COUNT = /(ed|ept)$/;
 
-/** "WEAPON ACCURACY" -> "weapon_accuracy"; "FINAL BLOW" and "FINAL BLOWS" -> "final_blows". */
-export function normStat(label: string): string {
+/** "WEAPON ACCURACY" -> "weapon_accuracy"; count tiles "FINAL BLOW" and "FINAL BLOWS" -> "final_blows". */
+export function normStat(label: string, unit: StatUnit): string {
   const words = label.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
   const last = words[words.length - 1];
-  if (last && !last.endsWith('s') && !NOT_A_COUNT.test(last)) words[words.length - 1] = last + 's';
+  if (unit === 'count' && last && !last.endsWith('s') && !NOT_A_COUNT.test(last)) words[words.length - 1] = last + 's';
   return words.join('_');
 }
 
@@ -48,11 +48,12 @@ export function tilesToRows(tiles: unknown): HeroStatRow[] {
   const out = new Map<string, HeroStatRow>();
   for (const t of tiles as RawTile[]) {
     const label = String(t?.label ?? '').trim();
-    const stat = normStat(label);
+    const unit = statUnit(label, t?.value);
+    const stat = normStat(label, unit);
     const value = parseStatValue(t?.value);
     if (!stat || value == null) continue;
     out.set(stat, {
-      stat, label, value, unit: statUnit(label, t.value),
+      stat, label, value, unit,
       per10: parseStatValue(t.per10),
       career_best: t.career_best === true ? 1 : 0,
     });
