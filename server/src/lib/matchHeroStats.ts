@@ -7,9 +7,18 @@ import type { DatabaseSync } from 'node:sqlite';
 export type StatUnit = 'pct' | 'count' | 'amount';
 export interface HeroStatRow { stat: string; label: string; value: number; unit: StatUnit; per10: number | null; career_best: 0 | 1 }
 
-/** "WEAPON ACCURACY" -> "weapon_accuracy". */
+// The game singularises a count label when the value is 1 ("FINAL BLOW" 1, "FINAL BLOWS" 5),
+// so one measure would get two keys. The stat key always uses the plural: the last word gets
+// an "s" unless it already ends in one or is a word that is never a count noun.
+// label keeps the text as shown. Add to NOT_A_COUNT only when the rule pluralises a word wrongly.
+const NOT_A_COUNT = /(accuracy|rate|time|percentage|percent|damage|healing|played|dealt|taken|hindered|slept|saved|ed|ept)$/;
+
+/** "WEAPON ACCURACY" -> "weapon_accuracy"; "FINAL BLOW" and "FINAL BLOWS" -> "final_blows". */
 export function normStat(label: string): string {
-  return label.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  const words = label.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const last = words[words.length - 1];
+  if (last && !last.endsWith('s') && !NOT_A_COUNT.test(last)) words[words.length - 1] = last + 's';
+  return words.join('_');
 }
 
 /** "33%" -> 33, "7,772" -> 7772, "12.4" -> 12.4, "05:28" -> 328 (seconds). Anything else -> null. */
@@ -62,6 +71,8 @@ export function syncMatchHeroStats(db: DatabaseSync, matchId: number): number {
     WHERE match_id = ? AND page_type = 'personal' AND status = 'matched' AND page_hero IS NOT NULL AND raw_json IS NOT NULL
     ORDER BY id
   `).all(matchId) as { id: number; page_hero: string; raw_json: string }[];
+  // A true rebuild: keys written under an older normalisation must not linger.
+  db.prepare(`DELETE FROM match_hero_stats WHERE match_id = ?`).run(matchId);
   const ins = db.prepare(`
     INSERT OR REPLACE INTO match_hero_stats (match_id, hero, stat, label, value, unit, per10, career_best, scoreboard_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)

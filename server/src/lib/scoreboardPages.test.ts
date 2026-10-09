@@ -56,6 +56,16 @@ describe('tilesToRows', () => {
     assert.deepEqual(r.map(x => [x.stat, x.value, x.unit, x.per10, x.career_best]), [['weapon_accuracy', 33, 'pct', null, 0], ['airtime', 54, 'pct', null, 0]]);
     assert.deepEqual(tilesToRows(undefined), []);
   });
+  test('singular and plural labels give one key (the game singularises at 1)', () => {
+    const pairs: [string, string][] = [['FINAL BLOW', 'final_blows'], ['FINAL BLOWS', 'final_blows'], ['SOLO KILL', 'solo_kills'], ['SOLO KILLS', 'solo_kills'],
+      ['PULSE BOMB KILL', 'pulse_bomb_kills'], ['PULSE BOMB KILLS', 'pulse_bomb_kills'], ['BARRAGE KILL', 'barrage_kills'], ['CHARGED SHOT KILL', 'charged_shot_kills'], ['CHARGED SHOT KILLS', 'charged_shot_kills'],
+      ['KNOCKBACK KILL', 'knockback_kills'], ['LOW HEALTH RECALL', 'low_health_recalls'], ['LOW HEALTH RECALLS', 'low_health_recalls']];
+    for (const [label, key] of pairs) assert.equal(normStat(label), key, label);
+    // Not count nouns: left as they are.
+    for (const [label, key] of [['ENEMY HINDERED', 'enemy_hindered'], ['ENEMY SLEPT', 'enemy_slept'], ['PLAYERS SAVED', 'players_saved'], ['WEAPON ACCURACY', 'weapon_accuracy'],
+      ['PULSE BOMB ATTACH RATE', 'pulse_bomb_attach_rate'], ['PLAY TIME', 'play_time'], ['PERCENT PLAYED', 'percent_played'], ['AIRTIME PERCENTAGE', 'airtime_percentage'], ['AIRTIME', 'airtime']])
+      assert.equal(normStat(label), key, label);
+  });
 });
 
 describe('tile map (confirmed heroes only)', () => {
