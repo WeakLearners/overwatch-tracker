@@ -68,7 +68,7 @@ export function organizeBoard(db: DatabaseSync, id: number, root: string, nowMs:
       if (t.stem == null || curBase === t.stem || curBase.replace(/ \(\d+\)$/, '') === t.stem) return null;
     }
     let st: fs.Stats;
-    try { st = fs.statSync(b.file_path); } catch { console.warn(`[scoreboard] organize: ${b.file_path} not found; board ${id} left as is`); return null; }
+    try { st = fs.statSync(b.file_path); } catch { return null; } // file gone: leave the row, stay quiet (this runs every poll)
     if (!st.isFile()) return null;
     if (nowMs - st.mtimeMs < MIN_FILE_AGE_MS) return null; // Drive may still be writing it
     fs.mkdirSync(t.dir, { recursive: true });
