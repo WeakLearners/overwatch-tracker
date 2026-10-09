@@ -255,6 +255,13 @@ async function prepareImage(filePath: string): Promise<{ data: Buffer; mediaType
 
 export type VisionFn = (filePath: string) => Promise<ParsedScoreboard>;
 
+/** Read errors from a file Drive has not finished syncing (EAGAIN = errno -11, ETIMEDOUT, EBUSY, FS timeout). */
+export function isFileNotReady(err: unknown): boolean {
+  const e = err as { code?: string; errno?: number; message?: string };
+  return e?.errno === -11 || ['EAGAIN', 'ETIMEDOUT', 'EBUSY'].includes(e?.code ?? '')
+    || /Unknown system error -11|timed out after/.test(e?.message ?? '');
+}
+
 export const callVision: VisionFn = async (filePath) => {
   if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY not set');
   const img = await prepareImage(filePath);
@@ -297,6 +304,11 @@ export async function processFile(
   try {
     parsed = await vision(filePath);
   } catch (err) {
+    if (isFileNotReady(err)) {
+      // Drive is still streaming the file. Not a vision failure: no attempt counted, nothing stored.
+      console.warn(`[scoreboard] ${path.basename(filePath)}: file not ready (${(err as Error).message}); retry next poll`);
+      return null;
+    }
     const n = (attempts.get(filePath) ?? 0) + 1;
     attempts.set(filePath, n);
     const msg = (err as Error).message;

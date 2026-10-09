@@ -164,6 +164,15 @@ describe('processFile + rematch on a temp DB', () => {
     assert.equal(await processFile(db, '/x/c.png', MTIME, boom), 'error');
     assert.equal((db.prepare(`SELECT status FROM match_scoreboards`).get() as any).status, 'error');
   });
+  test('file-not-ready read errors never count as vision attempts and store nothing', async () => {
+    const notReady = async () => { throw Object.assign(new Error('Unknown system error -11: Unknown system error -11, read'), { errno: -11, code: 'Unknown' }); };
+    for (let i = 0; i < 5; i++) assert.equal(await processFile(db, '/x/d.png', MTIME, notReady), null);
+    assert.equal((db.prepare(`SELECT count(*) n FROM match_scoreboards`).get() as any).n, 0);
+    const boom = async () => { throw new Error('api down'); };
+    assert.equal(await processFile(db, '/x/d.png', MTIME, boom), null);
+    assert.equal(await processFile(db, '/x/d.png', MTIME, boom), null);
+    assert.equal(await processFile(db, '/x/d.png', MTIME, boom), 'error');
+  });
   test('pollOnce on an unreachable folder returns an error and never throws', async () => {
     const r = await pollOnce(db, '/nonexistent/Other computers/x', async () => board(6), 50);
     assert.ok(r.error);
