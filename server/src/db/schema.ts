@@ -1017,6 +1017,38 @@ function initSchema(db: DatabaseSync) {
     INSERT OR IGNORE INTO df_heroes (role, hero, sens) VALUES ('DPS', 'Soldier: 76', 2.645)
   `);
 
+  // Scoreboard screenshot ingest (2026-10-09). One row per image file seen in
+  // the Drive "OW Game Logs" folder (lib/scoreboard.ts). match_id is NULL
+  // until a logged match is attached; the app never creates or edits matches
+  // rows from here. file_path is UNIQUE so a file is processed exactly once.
+  // reason is not in the spec's column list: it carries the plain-words cause
+  // shown in the unmatched list (the spec asks for a reason column in the UI).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS match_scoreboards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      match_id INTEGER REFERENCES matches(id),
+      file_path TEXT NOT NULL UNIQUE,
+      file_mtime TEXT NOT NULL,
+      status TEXT NOT NULL CHECK(status IN ('matched','unmatched','not_scoreboard','error')),
+      reason TEXT,
+      raw_json TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_match_scoreboards_match ON match_scoreboards(match_id);
+    CREATE TABLE IF NOT EXISTS scoreboard_rows (
+      scoreboard_id INTEGER NOT NULL REFERENCES match_scoreboards(id),
+      team TEXT NOT NULL CHECK(team IN ('us','them')),
+      slot INTEGER NOT NULL,
+      is_self INTEGER NOT NULL CHECK(is_self IN (0,1)),
+      role TEXT NOT NULL,
+      hero TEXT,
+      player_name TEXT NOT NULL,
+      e INTEGER NOT NULL, a INTEGER NOT NULL, d INTEGER NOT NULL,
+      dmg INTEGER NOT NULL, h INTEGER NOT NULL, mit INTEGER NOT NULL,
+      PRIMARY KEY (scoreboard_id, team, slot)
+    );
+  `);
+
     db.exec('COMMIT');
   } catch (err) {
     db.exec('ROLLBACK');

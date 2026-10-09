@@ -32,6 +32,7 @@ import advisorRouter, { setAdvisorCacheStore, type AdvisorCacheStore } from '../
 import v1Router from '../routes/v1';
 import rosterRouter from '../routes/roster';
 import customPhasesRouter from '../routes/customPhases';
+import scoreboardsRouter from '../routes/scoreboards';
 import { trackerWriteNotifier } from '../lib/trackerEvents';
 import { configureReplicaCache, resetReplicaCache, invalidateReplica } from '../lab/replicaCache';
 import { installExperiments } from '../experiments';
@@ -91,6 +92,7 @@ export async function startHarness(opts: { experiments?: boolean; freshReads?: b
   app.use('/api/v1', v1Router);
   app.use('/api/roster', rosterRouter);
   app.use('/api/custom-phases', customPhasesRouter);
+  app.use('/api/scoreboards', scoreboardsRouter);
 
   const server = http.createServer(app);
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));

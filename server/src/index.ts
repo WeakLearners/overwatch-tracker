@@ -20,6 +20,9 @@ import configRouter from './routes/config';
 import dfRouter from './routes/df';
 import roleTimerRouter from './routes/roleTimer';
 import v1Router from './routes/v1';
+import scoreboardsRouter from './routes/scoreboards';
+import { startScoreboardWatcher } from './lib/scoreboardWatcher';
+import { getDb } from './db/schema';
 import rosterRouter from './routes/roster';
 import { imagesEnabled, heroesAssetDir } from './lib/assets';
 import { installExperiments } from './experiments';
@@ -65,6 +68,7 @@ app.use('/api/df', dfRouter);
 app.use('/api/role-timer', roleTimerRouter);
 app.use('/api/v1', v1Router);
 app.use('/api/roster', rosterRouter);
+app.use('/api/scoreboards', scoreboardsRouter);
 // Cached Blizzard hero portraits (gitignored). A miss or the off switch is a
 // real 404, not the SPA fallback, so the client's <img> onError fires and the
 // text name shows.
@@ -112,4 +116,8 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
+  // Scoreboard watcher: prod (3001) only by default, so the 3002 dev server
+  // does not make a second vision call for the same file. SCOREBOARD_WATCHER=1/0 overrides.
+  const watch = process.env.SCOREBOARD_WATCHER ?? (PORT === 3001 ? '1' : '0');
+  if (watch === '1') startScoreboardWatcher(getDb());
 });

@@ -4002,7 +4002,9 @@ const DATA = {
       "description": "Field registry Phase 1's settings page (added 2026-09-23). One checkbox per category, not per field \u2014 a category is the toggle unit. Renders from useFieldConfig()/GET /api/config; disables and captions a row when it's alwaysOn (core) or locked (sens-study mid-experiment). Deliberately plain \u2014 Phase 3 owns onboarding-preset polish.",
       "calls": [
         "GET /api/config",
-        "PUT /api/config"
+        "PUT /api/config",
+        "GET /api/scoreboards/unmatched",
+        "POST /api/scoreboards/:id/attach"
       ],
       "uiElements": [
         {
@@ -4011,7 +4013,7 @@ const DATA = {
           "kind": "text",
           "description": "Plain 'Loading\u2026' text shown while the initial GET /api/config is in flight.",
           "locate": {
-            "path": "client/src/pages/Settings.tsx:14",
+            "path": "client/src/pages/Settings.tsx:15",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-loading\"' client/src/pages/Settings.tsx"
           }
         },
@@ -4021,7 +4023,7 @@ const DATA = {
           "kind": "section",
           "description": "Top-level wrapper for the whole /settings route.",
           "locate": {
-            "path": "client/src/pages/Settings.tsx:17",
+            "path": "client/src/pages/Settings.tsx:18",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-page\"' client/src/pages/Settings.tsx"
           }
         },
@@ -4031,7 +4033,7 @@ const DATA = {
           "kind": "header",
           "description": "PageHeader titled 'Settings' with subtitle 'Turn tracking categories on or off.'",
           "locate": {
-            "path": "client/src/pages/Settings.tsx:18",
+            "path": "client/src/pages/Settings.tsx:19",
             "grep": "grep -n -F -- 'dataInspectId=\"settings-header\"' client/src/pages/Settings.tsx"
           }
         },
@@ -4041,7 +4043,7 @@ const DATA = {
           "kind": "text",
           "description": "Shows the server's error string when a PUT /api/config call is refused (a locked category, or a dependency rule) \u2014 the exact reason, not a generic failure message.",
           "locate": {
-            "path": "client/src/pages/Settings.tsx:20",
+            "path": "client/src/pages/Settings.tsx:21",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-refusal-message\"' client/src/pages/Settings.tsx"
           }
         },
@@ -4051,7 +4053,7 @@ const DATA = {
           "kind": "list",
           "description": "One row per entry in CATEGORY_REGISTRY, from GET /config's `categories`.",
           "locate": {
-            "path": "client/src/pages/Settings.tsx:22",
+            "path": "client/src/pages/Settings.tsx:23",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-category-list\"' client/src/pages/Settings.tsx"
           }
         },
@@ -4061,7 +4063,7 @@ const DATA = {
           "kind": "card",
           "description": "One category's label, description, and checkbox. Shows 'Always on' for core, or a locked reason instead of a plain switch when the category is currently locked.",
           "locate": {
-            "path": "client/src/pages/Settings.tsx:30",
+            "path": "client/src/pages/Settings.tsx:31",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-category-row\"' client/src/pages/Settings.tsx"
           }
         },
@@ -4071,7 +4073,7 @@ const DATA = {
           "kind": "checkbox",
           "description": "Toggles one category on/off via setCategoryEnabled -> PUT /api/config. Disabled (not just unchecked) when the category is alwaysOn or locked.",
           "locate": {
-            "path": "client/src/pages/Settings.tsx:37",
+            "path": "client/src/pages/Settings.tsx:38",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-category-checkbox\"' client/src/pages/Settings.tsx"
           }
         },
@@ -4081,7 +4083,7 @@ const DATA = {
           "kind": "text",
           "description": "'Always on' caption shown under core \u2014 the one category with no disable control at all.",
           "locate": {
-            "path": "client/src/pages/Settings.tsx:52",
+            "path": "client/src/pages/Settings.tsx:53",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-always-on-note\"' client/src/pages/Settings.tsx"
           }
         },
@@ -4091,7 +4093,7 @@ const DATA = {
           "kind": "text",
           "description": "One-line reason shown under a category GET /config reports as locked (e.g. 'locked \u2014 a sensitivity study stage is running' for sens-study while a blind stage set is open).",
           "locate": {
-            "path": "client/src/pages/Settings.tsx:55",
+            "path": "client/src/pages/Settings.tsx:56",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-locked-reason\"' client/src/pages/Settings.tsx"
           }
         },
@@ -4203,6 +4205,66 @@ const DATA = {
           "locate": {
             "path": "client/src/components/GameUpdateCheck.tsx:151",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-game-updates-apply\"' client/src/components/GameUpdateCheck.tsx"
+          }
+        },
+        {
+          "id": "settings-scoreboards",
+          "label": "Scoreboard screenshots card",
+          "kind": "section",
+          "description": "Settings card listing scoreboard images not attached to a match (GET /api/scoreboards/unmatched), with a count of ignored non-scoreboard images.",
+          "locate": {
+            "path": "client/src/components/ScoreboardInbox.tsx:33",
+            "grep": "grep -n -F -- 'data-inspect-id=\"settings-scoreboards\"' client/src/components/ScoreboardInbox.tsx"
+          }
+        },
+        {
+          "id": "settings-scoreboards-error",
+          "label": "Attach error",
+          "kind": "text",
+          "description": "Error text from POST /api/scoreboards/:id/attach.",
+          "locate": {
+            "path": "client/src/components/ScoreboardInbox.tsx:39",
+            "grep": "grep -n -F -- 'data-inspect-id=\"settings-scoreboards-error\"' client/src/components/ScoreboardInbox.tsx"
+          }
+        },
+        {
+          "id": "settings-scoreboards-list",
+          "label": "Unmatched list",
+          "kind": "section",
+          "description": "One line per unmatched or error image: file name, file time, reason.",
+          "locate": {
+            "path": "client/src/components/ScoreboardInbox.tsx:40",
+            "grep": "grep -n -F -- 'data-inspect-id=\"settings-scoreboards-list\"' client/src/components/ScoreboardInbox.tsx"
+          }
+        },
+        {
+          "id": "settings-scoreboards-item",
+          "label": "Unmatched image row",
+          "kind": "row",
+          "description": "File name, time, reason, and the attach select (unmatched only).",
+          "locate": {
+            "path": "client/src/components/ScoreboardInbox.tsx:42",
+            "grep": "grep -n -F -- 'data-inspect-id=\"settings-scoreboards-item\"' client/src/components/ScoreboardInbox.tsx"
+          }
+        },
+        {
+          "id": "settings-scoreboards-select",
+          "label": "Attach to match select",
+          "kind": "input",
+          "description": "Pick a logged match without a scoreboard (latest 40).",
+          "locate": {
+            "path": "client/src/components/ScoreboardInbox.tsx:51",
+            "grep": "grep -n -F -- 'data-inspect-id=\"settings-scoreboards-select\"' client/src/components/ScoreboardInbox.tsx"
+          }
+        },
+        {
+          "id": "settings-scoreboards-attach",
+          "label": "Attach button",
+          "kind": "button",
+          "description": "Writes match_id on the scoreboard row (POST /api/scoreboards/:id/attach). Never edits matches.",
+          "locate": {
+            "path": "client/src/components/ScoreboardInbox.tsx:58",
+            "grep": "grep -n -F -- 'data-inspect-id=\"settings-scoreboards-attach\"' client/src/components/ScoreboardInbox.tsx"
           }
         }
       ]
@@ -6141,6 +6203,8 @@ const DATA = {
     }
   ]
 };
+
+
 
 
 
