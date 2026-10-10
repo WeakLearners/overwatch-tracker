@@ -694,6 +694,15 @@
   @keyframes stage-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
   @media (prefers-reduced-motion: reduce) { .stage-pulse { animation: none; } }
 
+  /* Scoreboard light text: fixed-width viewport; overflowing text slides left and back
+     (keyframes sb-marq are written by ScoreboardLight with the hold percentages;
+     --marq-dist / --marq-dur come from its measurement). Reduced motion: ellipsis. */
+  .sb-marq-run { animation: sb-marq var(--marq-dur) linear 0.75s infinite alternate; will-change: transform; }
+  @media (prefers-reduced-motion: reduce) {
+    .sb-marq-view { text-overflow: ellipsis; }
+    .sb-marq-text { display: inline; animation: none; }
+  }
+
   /* Pulsing glow on the rank strip's current account/role line. Set on the
      overlay <svg> (an html box, so the blur isn't stretched with the chart).
      Tight radii keep the edge sharp; --glow is the line's own colour. */
