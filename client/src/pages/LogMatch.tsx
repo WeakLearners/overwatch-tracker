@@ -758,7 +758,7 @@ export default function LogMatch() {
       if (res.ok) {
         const fresh = await res.json() as LivePayload;
         if (fresh.light === 'green' && fresh.fill) fillFromScoreboard(fresh.fill, true);
-        refetchLive();
+        revalidateAll();
       }
     } finally { setRechecking(false); }
   };
