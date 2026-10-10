@@ -14,7 +14,7 @@ import { useDfHeroes, dfSensForHeroName, withDfBadge } from '../hooks/useDfHeroe
 import { format } from 'date-fns';
 import { useFieldConfig } from '../contexts/FieldConfigContext';
 import ScoreboardLight from '../components/ScoreboardLight';
-import { fillPatch, fillSignature, scoreboardFieldsEmpty, type LivePayload } from '../lib/scoreboardFill';
+import { fillPatch, fillSignature, type LivePayload } from '../lib/scoreboardFill';
 import { StatFields, emptyStats, statsBody, statsTouched, statsValid, type StatFieldsT } from '../components/AimStatsFields';
 import ScoreInputs, { scoreOrNull } from '../components/ScoreInputs';
 import type { RankOutcomeValue, RankOutcomeChange } from '../components/RankOutcomeControl';
@@ -746,17 +746,17 @@ export default function LogMatch() {
     appliedGroup.current = fill.group_id;
     appliedSig.current = fillSignature(fill);
   };
-  // Auto-fill: once per group while the scoreboard fields are still empty, and again
-  // when a later page of that same group lands (blanks only, so typed values stay).
+  // Auto-fill: whenever the green payload's signature is new (a new group, or a later
+  // page of the same group) and the game is not marked crashed. fillPatch writes BLANK
+  // fields only, so typed values stay. Also runs when crashedGame turns off.
   useEffect(() => {
     const fill = live?.light === 'green' ? live.fill : null;
     if (!fill || crashedGame) return;
     const sig = fillSignature(fill);
     if (appliedSig.current === sig) return;
-    const sameGroup = appliedGroup.current === fill.group_id;
-    if (sameGroup || scoreboardFieldsEmpty({ hero: form.hero, switchHeroes, win: form.win, map, scoreUs, scoreThem, aimStats }, statsTouched)) fillFromScoreboard();
+    fillFromScoreboard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [live]);
+  }, [live, crashedGame]);
 
   // The date field defaults to the current day but stays editable for backfill.
   // Once the user manually picks a date we stop auto-advancing it so their choice
@@ -1189,7 +1189,6 @@ export default function LogMatch() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-baseline gap-3 min-w-0">
               <h2 className="text-sm card-title">Match Details</h2>
-              <ScoreboardLight live={live} onFill={fillFromScoreboard} />
             </div>
             <div className="flex items-center gap-2">
               {/* Game crashed: log the result only. The scoreboard resets on rejoin, so any
@@ -1260,6 +1259,7 @@ export default function LogMatch() {
               >
                 change
               </button>
+              <ScoreboardLight live={live} />
             </div>
 
             <div className={`grid gap-3 ${crashedGame ? 'grid-cols-2' : 'grid-cols-3'}`}>

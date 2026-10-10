@@ -1819,7 +1819,7 @@ const DATA = {
           "kind": "button",
           "description": "Cancels the match currently being built: clears hero, notes, map, feel, team rating, and the death buffer (with a confirm prompt if any deaths were already tracked), and calls notifyMatchLogged() with no args so Prematch's Map Voting picks reset too (bumps matchLoggedSignal without setting lastLog, so it doesn't also trigger the win/loss flash overlay). Sits top-right in the Match Details card header, paired with the Game crashed toggle (same pill size and style); it also clears the win/loss result and the death buffer. Then smooth-scrolls the window to the very top of the page and focuses the map search input with preventScroll, so focus doesn't pull the page back down.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1234",
+            "path": "client/src/pages/LogMatch.tsx:1233",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-cancel-match-button\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1829,7 +1829,7 @@ const DATA = {
           "kind": "form",
           "description": "The full match-logging form (date, time, sensitivity display, hero, map, mode, result, notes, feel) that POSTs a new match to /api/matches on submit.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1241",
+            "path": "client/src/pages/LogMatch.tsx:1240",
             "grep": "grep -n -F -- 'onSubmit={submit}' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1929,7 +1929,7 @@ const DATA = {
           "kind": "container",
           "description": "Read-only \"Recording as {queue}\" line at the top of the Match Details form (2026-09-29): the queue is chosen once on the mode tiles and the log form no longer re-asks it (design-language section 7). Holds logmatch-recording-as-chip and logmatch-mode-change-link. The sens-test explainer paragraph that sat under the old toggle moved to prematch-experiment-card.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1246",
+            "path": "client/src/pages/LogMatch.tsx:1245",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-mode-toggle\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1939,7 +1939,7 @@ const DATA = {
           "kind": "badge",
           "description": "Read-only chip inside logmatch-mode-toggle showing the queue this match will be recorded as, in that queue's own wash (QUEUE_MODE_SEL_RGB). Reads MatchContext.queueMode, which only the mode tiles set.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1251",
+            "path": "client/src/pages/LogMatch.tsx:1250",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-recording-as-chip\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1949,7 +1949,7 @@ const DATA = {
           "kind": "link",
           "description": "The \"change\" link next to the Recording as chip. Scrolls back to the mode tiles (#sec-mode) where the queue is chosen.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1259",
+            "path": "client/src/pages/LogMatch.tsx:1258",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-mode-change-link\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1957,7 +1957,7 @@ const DATA = {
           "id": "logmatch-scoreboard-light",
           "label": "Scoreboard received light",
           "kind": "container",
-          "description": "Right of the Match Details title (2026-10-09). Green dot and 'Scoreboard received (summary, teams, N personal)' while a screenshot group waits for its match; grey 'No scoreboard waiting' otherwise. Polls GET /api/scoreboards/live every 10 s. A recovery group (the match was already logged) never lights it.",
+          "description": "In the Recording as row, after the 'change' link (moved 2026-10-10). The form fills itself from the group; typed values stay. Green dot and 'Scoreboard received (summary, teams, N personal)' while a screenshot group waits for its match; grey 'No scoreboard waiting' otherwise. Polls GET /api/scoreboards/live every 10 s. A recovery group (the match was already logged) never lights it.",
           "locate": {
             "path": "client/src/components/ScoreboardLight.tsx:12",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-scoreboard-light\"' client/src/components/ScoreboardLight.tsx"
@@ -1974,22 +1974,12 @@ const DATA = {
           }
         },
         {
-          "id": "logmatch-scoreboard-fill-button",
-          "label": "Fill form button",
-          "kind": "button",
-          "description": "Shown only while the light is green. Fills the BLANK form fields (map, hero, switch heroes, result, score, aim stats) from the scoreboard group. Auto-fill already runs once when the scoreboard fields are empty; this covers a form that was not empty.",
-          "locate": {
-            "path": "client/src/components/ScoreboardLight.tsx:25",
-            "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-scoreboard-fill-button\"' client/src/components/ScoreboardLight.tsx"
-          }
-        },
-        {
           "id": "logmatch-game-crashed-toggle",
           "label": "Game crashed toggle",
           "kind": "button",
           "description": "Pill on the right of the Recording as line (2026-10-02). On = the match is logged result-only: hero, sens, feel, team, match quality, result driver, aim-stats fold-out and the Deaths card are hidden and not sent; role comes from Playing As. Server writes crashed=1 with no match_heroes/blind_credits rows, so the match counts in W/L, streaks, Form chart, map/hour and the role timer, but never in any by-hero view or the sens study. Resets after each log. Since 2026-10-02 it sits top-right in the Match Details card header, beside Match Cancelled, as a matched pair.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1203",
+            "path": "client/src/pages/LogMatch.tsx:1202",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-game-crashed-toggle\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -6253,6 +6243,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 

@@ -29,10 +29,6 @@ export interface FormPatch {
 
 const s = (v: number | null) => (v == null ? '' : String(v));
 
-/** True when none of the fields the scoreboard supplies has been touched (auto-fill runs only then). */
-export const scoreboardFieldsEmpty = (f: FormSnapshot, touched: (a: StatFieldsT) => boolean) =>
-  f.win === '' && !f.scoreUs && !f.scoreThem && !touched(f.aimStats);
-
 export function fillPatch(f: FormSnapshot, fill: FormFill): FormPatch {
   const patch: FormPatch = {};
   const first = fill.heroes[0]?.hero;
