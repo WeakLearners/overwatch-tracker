@@ -755,3 +755,8 @@
   }
 }
 
+
+/* Scoreboard refresh icon: slow spin while the re-read runs; still under reduced motion. */
+@keyframes sb-spin { to { transform: rotate(360deg); } }
+.sb-spin { animation: sb-spin 1.6s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .sb-spin { animation: none; } }

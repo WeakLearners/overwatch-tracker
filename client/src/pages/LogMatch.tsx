@@ -14,7 +14,7 @@ import { useDfHeroes, dfSensForHeroName, withDfBadge } from '../hooks/useDfHeroe
 import { format } from 'date-fns';
 import { useFieldConfig } from '../contexts/FieldConfigContext';
 import ScoreboardLight from '../components/ScoreboardLight';
-import { fillPatch, fillSignature, type LivePayload } from '../lib/scoreboardFill';
+import { fillPatch, fillSignature, heroMismatch, type FormFill, type LivePayload } from '../lib/scoreboardFill';
 import { StatFields, emptyStats, statsBody, statsTouched, statsValid, type StatFieldsT } from '../components/AimStatsFields';
 import ScoreInputs, { scoreOrNull } from '../components/ScoreInputs';
 import type { RankOutcomeValue, RankOutcomeChange } from '../components/RankOutcomeControl';
@@ -733,10 +733,10 @@ export default function LogMatch() {
   }, [refetchLive]);
   const appliedSig = useRef<string | null>(null);
   const appliedGroup = useRef<number | null>(null);
-  const fillFromScoreboard = () => {
-    const fill = live?.light === 'green' ? live.fill : null;
+  const fillFromScoreboard = (src: FormFill | null = live?.light === 'green' ? live.fill : null, overwrite = false) => {
+    const fill = src;
     if (!fill) return;
-    const patch = fillPatch({ hero: form.hero, switchHeroes, win: form.win, map, scoreUs, scoreThem, aimStats }, fill);
+    const patch = fillPatch({ hero: form.hero, switchHeroes, win: form.win, map, scoreUs, scoreThem, aimStats }, fill, { overwrite });
     if (patch.map !== undefined) setMap(patch.map);
     if (patch.hero !== undefined) setForm(f => ({ ...f, hero: patch.hero! }));
     if (patch.win !== undefined) setForm(f => ({ ...f, win: patch.win! }));
@@ -747,6 +747,29 @@ export default function LogMatch() {
     appliedGroup.current = fill.group_id;
     appliedSig.current = fillSignature(fill);
   };
+  // Refresh button: re-read the stored group on the server (no vision call), then re-apply the
+  // fill in overwrite mode for scoreboard-sourced fields only.
+  const [rechecking, setRechecking] = useState(false);
+  const recheck = async () => {
+    if (live?.light !== 'green' || live.group_id == null || rechecking) return;
+    setRechecking(true);
+    try {
+      const res = await fetch(`/api/scoreboards/groups/${live.group_id}/recheck`, { method: 'POST' });
+      if (res.ok) {
+        const fresh = await res.json() as LivePayload;
+        if (fresh.light === 'green' && fresh.fill) fillFromScoreboard(fresh.fill, true);
+        refetchLive();
+      }
+    } finally { setRechecking(false); }
+  };
+  // Hero pickers vs scoreboard heroes, judged on the form as it is now.
+  const heroMis = !crashedGame && live?.light === 'green' && live.fill ? heroMismatch([form.hero, ...switchHeroes], live.fill) : null;
+  const heroMisTitle = heroMis ? [
+    heroMis.notOnBoard.length ? `Picked but not on the scoreboard: ${heroMis.notOnBoard.join(', ')}.` : '',
+    heroMis.notPicked.length ? `On the scoreboard but not picked: ${heroMis.notPicked.join(', ')}.` : '',
+    'Stats were filled from the scoreboard heroes.',
+  ].filter(Boolean).join(' ') : '';
+  const ringFor = (h: string) => (heroMis && h && heroMis.notOnBoard.includes(h) ? ' ring-2 ring-amber-500' : '');
   // Auto-fill: whenever the green payload's signature is new (a new group, or a later
   // page of the same group) and the game is not marked crashed. fillPatch writes BLANK
   // fields only, so typed values stay. Also runs when crashedGame turns off.
@@ -1262,7 +1285,7 @@ export default function LogMatch() {
                 change
               </button>
               </div>
-              <ScoreboardLight live={live} />
+              <ScoreboardLight live={live} onRefresh={recheck} refreshing={rechecking} />
             </div>
 
             <div className={`grid gap-3 ${crashedGame ? 'grid-cols-2' : 'grid-cols-3'}`}>
@@ -1310,6 +1333,11 @@ export default function LogMatch() {
             <div>
               <label className="block text-xs text-[var(--muted)] mb-1.5">
                 Hero <span className="text-[var(--faint-2)]">— 2nd/3rd only if you switched mid-match</span>
+                {heroMis && (
+                  <span className="ml-2 text-[11px] text-amber-500" title={heroMisTitle} data-inspect-id="logmatch-hero-mismatch-marker">
+                    Scoreboard: {heroMis.board.map(b => `${b.hero} ${Math.round(b.percent)}%`).join(', ')}
+                  </span>
+                )}
               </label>
               {/* Three columns: 1st is the match's starting hero (pre-filled
                   from the Pre-Match picker above), 2nd/3rd are optional
@@ -1321,7 +1349,7 @@ export default function LogMatch() {
                     value={form.hero}
                     onChange={set('hero')}
                     data-inspect-id="logmatch-hero-select"
-                    className="w-full field px-2 py-2 text-sm"
+                    className={`w-full field px-2 py-2 text-sm${ringFor(form.hero)}`}
                   >
                     <option value="">— 1st hero —</option>
                     {(['DPS', 'Tank', 'Support'] as const).map(role => (
@@ -1348,7 +1376,7 @@ export default function LogMatch() {
                         value={h}
                         onChange={setSwitchHero(i)}
                         data-inspect-id={`logmatch-hero-switch-select-${i + 2}`}
-                        className="w-full field px-2 py-2 text-sm"
+                        className={`w-full field px-2 py-2 text-sm${ringFor(h)}`}
                       >
                         <option value="">— {i === 0 ? '2nd' : '3rd'} hero —</option>
                         {(['DPS', 'Tank', 'Support'] as const).map(role => (

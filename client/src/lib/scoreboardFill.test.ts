@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { fillPatch, fillSignature, type FormFill, type FormSnapshot } from './scoreboardFill';
+import { fillPatch, fillSignature, heroMismatch, type FormFill, type FormSnapshot } from './scoreboardFill';
 import { emptyStats } from '../components/AimStatsFields';
 
 const hero = (h: string, o: object = {}) => ({ hero: h, percent: 50, seconds: 100, duration: '1:40', overall_acc: null, crit_acc: null, extra_acc: null, torpedo_damage: null, torpedo_healing: null, mapped: false, ...o });
@@ -35,9 +35,40 @@ describe('fillPatch', () => {
     assert.equal(p.aimStats!.elims, '9'); assert.equal(p.aimStats!.heroAcc[0].extra_acc, '3');
     assert.equal(p.win, undefined); assert.equal(p.scoreUs, undefined);
   });
-  test('a different picked hero blocks the roster and aim rows', () => {
+  test('3847: picker Ashe, scoreboard Pharah 97 / Ashe 3 fills both heroes, Pharah takes a switch slot, no marker', () => {
+    const f3: FormFill = { ...fill, heroes: [hero('Pharah', { percent: 97, duration: '8:00', overall_acc: 40, mapped: true }), hero('Ashe', { percent: 3, duration: '0:15' })] };
+    const p = fillPatch(blank({ hero: 'Ashe' }), f3);
+    assert.equal(p.hero, undefined, 'start hero stays');
+    assert.deepEqual(p.switchHeroes, ['Pharah', '']);
+    assert.equal(p.aimStats!.elims, '11');
+    assert.deepEqual(p.aimStats!.heroAcc.map(r => [r.hero, r.duration_min]), [['Ashe', '0:15'], ['Pharah', '8:00']]);
+    assert.equal(heroMismatch(['Ashe', ...p.switchHeroes!], f3), null);
+  });
+  test('a picked hero missing from the scoreboard still fills stats and raises the marker', () => {
     const p = fillPatch(blank({ hero: 'Reaper' }), fill);
-    assert.equal(p.aimStats, undefined); assert.equal(p.switchHeroes, undefined); assert.equal(p.win, '0');
+    assert.equal(p.hero, undefined); assert.equal(p.aimStats!.elims, '11'); assert.equal(p.win, '0');
+    assert.deepEqual(p.switchHeroes, ['Tracer', 'Pharah']);
+    const m = heroMismatch(['Reaper', ...p.switchHeroes!], fill)!;
+    assert.deepEqual([m.notOnBoard, m.notPicked], [['Reaper'], []]);
+  });
+  test('scoreboard hero with no free slot gets no accuracy row and is named by the marker', () => {
+    const p = fillPatch(blank({ hero: 'Reaper', switchHeroes: ['Genji', 'Sombra'] }), fill);
+    assert.equal(p.switchHeroes, undefined);
+    assert.deepEqual(p.aimStats!.heroAcc.map(r => r.hero), ['Reaper', 'Genji', 'Sombra']);
+    assert.deepEqual(heroMismatch(['Reaper', 'Genji', 'Sombra'], fill)!.notPicked, ['Tracer', 'Pharah']);
+  });
+  test('filled switch slots are never overwritten by the auto-fill', () => {
+    const p = fillPatch(blank({ hero: 'Tracer', switchHeroes: ['Genji', ''] }), fill);
+    assert.deepEqual(p.switchHeroes, ['Genji', 'Pharah']);
+  });
+  test('overwrite: scoreboard fields replace typed ones, start hero stays, nothing outside the scoreboard is in the patch', () => {
+    const a = emptyStats([{ hero: 'Tracer' }, { hero: 'Pharah' }]); a.elims = '9'; a.heroAcc[0].extra_acc = '3'; a.heroAcc[0].overall_acc = '99';
+    const p = fillPatch(blank({ hero: 'Tracer', switchHeroes: ['Genji', ''], aimStats: a, map: 'Numbani', win: '1', scoreUs: '1', scoreThem: '1' }), fill, { overwrite: true });
+    assert.equal(p.hero, undefined);
+    assert.deepEqual(p.switchHeroes, ['Pharah', '']);
+    assert.equal(p.map, 'Nepal'); assert.equal(p.win, '0'); assert.deepEqual([p.scoreUs, p.scoreThem], ['0', '2']);
+    assert.equal(p.aimStats!.elims, '11'); assert.equal(p.aimStats!.heroAcc[0].extra_acc, '0'); assert.equal(p.aimStats!.heroAcc[0].overall_acc, '33');
+    assert.deepEqual(Object.keys(p).sort(), ['aimOpen', 'aimStats', 'map', 'scoreThem', 'scoreUs', 'switchHeroes', 'win']);
   });
   test('a hero outside the tile map keeps blank accuracy slots', () => {
     const f2: FormFill = { ...fill, heroes: [hero('Reaper', { duration: '4:00' })] };

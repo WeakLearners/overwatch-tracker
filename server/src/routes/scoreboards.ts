@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { getDb } from '../db/schema';
 import { organizeBoard } from '../lib/scoreboardOrganize';
 import { scoreboardDir } from '../lib/scoreboardWatcher';
-import { REMATCH_GRACE_MIN } from '../lib/scoreboard';
+import { REMATCH_GRACE_MIN, recheckGroup } from '../lib/scoreboard';
 import { syncMatchHeroStats } from '../lib/matchHeroStats';
 import { computeStage } from '../lib/scoreboardStage';
 import { buildFill, linkGroup, TEAMS_ONLY, type GroupRow } from '../lib/scoreboardPages';
@@ -21,14 +21,27 @@ const router = Router();
 // payload for the log form: the server owns the tile map, the client only applies it.
 // `stage` (+ reading, pages, reason, ignored) is the pipeline stage for the light's
 // dot and text (lib/scoreboardStage.ts); it never changes `light` or `fill`.
-router.get('/live', (_req, res) => {
-  const db = getDb();
+function livePayload(db: ReturnType<typeof getDb>) {
   const cutoff = new Date(Date.now() - REMATCH_GRACE_MIN * 60_000).toISOString();
   const g = db.prepare(`SELECT * FROM scoreboard_groups WHERE state = 'live' AND last_mtime >= ? ORDER BY summary_mtime DESC, id DESC LIMIT 1`).get(cutoff) as unknown as GroupRow | undefined;
   const fill = g ? buildFill(db, g.id) : null;
   const stage = computeStage(db, g ?? null, fill?.pages ? { summary: fill.pages.summary, teams: fill.pages.teams, personal: fill.pages.personal.length } : null);
-  if (!g) { res.json({ light: 'off', group_id: null, fill: null, ...stage }); return; }
-  res.json({ light: 'green', group_id: g.id, fill, ...stage });
+  if (!g) return { light: 'off', group_id: null, fill: null, ...stage };
+  return { light: 'green', group_id: g.id, fill, ...stage };
+}
+router.get('/live', (_req, res) => { res.json(livePayload(getDb())); });
+
+// "Re-read the scoreboard" button. Re-decides the stored group from its saved Summary
+// reading (recheckGroup, one transaction, no vision call, no backup) and returns the
+// fresh /live payload. A group already linked to a logged match is refused.
+router.post('/groups/:id/recheck', (req, res) => {
+  const db = getDb();
+  const id = Number(req.params.id);
+  const g = Number.isInteger(id) ? db.prepare(`SELECT state FROM scoreboard_groups WHERE id = ?`).get(id) as { state: string } | undefined : undefined;
+  if (!g) { res.status(404).json({ error: 'Group not found' }); return; }
+  if (g.state === 'linked') { res.status(409).json({ error: 'That group is already linked to a logged match' }); return; }
+  try { recheckGroup(db, id); } catch (e) { res.status(409).json({ error: (e as Error).message }); return; }
+  res.json(livePayload(db));
 });
 
 // Unmatched / error images plus a count of ignored non-scoreboard images, and

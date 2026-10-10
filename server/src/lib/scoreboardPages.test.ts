@@ -338,5 +338,25 @@ describe('HTTP: light and submit link', () => {
       // a stale or unknown id never fails the log
       assert.equal((await h.post('/api/matches', { date: '2026-10-09', hero: 'Tracer', role: 'DPS', map: 'Nepal', game_type: 'Control', win: false, scoreboard_group_id: 9999 })).status, 200);
     } finally { await h.close(); }
+  test('POST /groups/:id/recheck returns the live payload, makes no network call, 404 unknown, 409 linked', async () => {
+    const { startHarness } = await import('../test/httpHarness');
+    const h = await startHarness();
+    const realFetch = globalThis.fetch;
+    try {
+      const nowMs = Date.now();
+      const feedNow = async (r: ParsedScoreboard, f: string, off: number) => processFile(h.db, `/x/${f}.png`, nowMs - 120_000 + off * 1000, async () => r);
+      await feedNow(SUMMARY_49, 'r49', 0); await feedNow(TRACER_51, 'r51', 5);
+      const live = (await h.get('/api/scoreboards/live')).body;
+      assert.equal(live.light, 'green');
+      globalThis.fetch = ((u: any, i: any) => { if (!/^https?:\/\/(127\.0\.0\.1|localhost)[:/]/.test(String(u))) throw new Error('outside call during recheck: ' + u); return realFetch(u, i); }) as typeof fetch;
+      const r = await h.post(`/api/scoreboards/groups/${live.group_id}/recheck`, {});
+      globalThis.fetch = realFetch;
+      assert.equal(r.status, 200);
+      assert.equal(r.body.light, 'green'); assert.equal(r.body.group_id, live.group_id); assert.equal(r.body.fill.map, live.fill.map);
+      assert.equal((await h.post('/api/scoreboards/groups/9999/recheck', {})).status, 404);
+      await h.post('/api/matches', { date: '2026-10-09', hero: 'Tracer', role: 'DPS', map: 'Nepal', game_type: 'Control', win: false, scoreboard_group_id: live.group_id });
+      assert.equal((await h.post(`/api/scoreboards/groups/${live.group_id}/recheck`, {})).status, 409);
+    } finally { globalThis.fetch = realFetch; await h.close(); }
+  });
   });
 });

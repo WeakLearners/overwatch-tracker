@@ -3,6 +3,7 @@ import type { LivePayload } from '../lib/scoreboardFill';
 
 // Pipeline light in column 3 of the Recording-as grid, so the dot lines up with the
 // left edge of the Sensitivity label below. Width = column width, never follows the text.
+// A refresh button (circle arrow) sits left of the dot; it re-reads the stored group (LogMatch).
 // Text wider than that scrolls as a slow marquee (.sb-marq-run in index.css, CSS
 // transform only); under reduced motion it truncates with an ellipsis instead.
 // The server decides the stage (GET /api/scoreboards/live, lib/scoreboardStage.ts);
@@ -31,7 +32,7 @@ export function lightText(live: LivePayload | null): { stage: string; text: stri
 const SPEED = 30; // px per second
 const HOLD = 0.75; // seconds per side; the reverse leg doubles it to 1.5 s at each end
 
-export default function ScoreboardLight({ live }: { live: LivePayload | null }) {
+export default function ScoreboardLight({ live, onRefresh, refreshing = false }: { live: LivePayload | null; onRefresh?: () => void; refreshing?: boolean }) {
   const { stage, text } = lightText(live);
   const viewRef = useRef<HTMLSpanElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
@@ -54,6 +55,19 @@ export default function ScoreboardLight({ live }: { live: LivePayload | null }) 
   const pct = Math.round((HOLD / dur) * 1000) / 10;
   return (
     <div className="flex items-center gap-2 min-w-0 w-full" data-inspect-id="logmatch-scoreboard-light">
+      <button
+        type="button"
+        onClick={onRefresh}
+        disabled={!onRefresh || live?.light !== 'green' || refreshing}
+        aria-label="Re-read the scoreboard"
+        title="Re-read the scoreboard"
+        data-inspect-id="logmatch-scoreboard-refresh"
+        className="shrink-0 text-[var(--faint)] hover:text-ow-accent disabled:opacity-40 disabled:hover:text-[var(--faint)] disabled:cursor-not-allowed transition-colors"
+      >
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={refreshing ? 'sb-spin' : undefined}>
+          <path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v6h-6" />
+        </svg>
+      </button>
       <span
         aria-hidden="true"
         className={`inline-block w-2 h-2 rounded-full shrink-0 ${DOT[stage]}${stage === 'detected' || stage === 'partial' ? ' stage-pulse' : ''}`}
