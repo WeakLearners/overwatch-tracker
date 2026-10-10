@@ -726,13 +726,11 @@ export default function LogMatch() {
   // and sends a ready payload (GET /api/scoreboards/live); the form takes it into
   // BLANK fields only. Polled because nothing else tells this page a file arrived.
   const { data: live, refetch: refetchLive } = useApi<LivePayload>('/api/scoreboards/live');
-  // 10 s when idle; 3 s while a file is being read or pages wait for a Summary, so the dot moves.
-  const liveStage = live?.stage;
-  const liveMs = liveStage === 'detected' || liveStage === 'partial' ? 3_000 : 10_000;
+  // Constant 3 s: the server holds `detected` for 15 s after a file finishes, so every poll sees it.
   useEffect(() => {
-    const id = window.setInterval(refetchLive, liveMs);
+    const id = window.setInterval(refetchLive, 3_000);
     return () => window.clearInterval(id);
-  }, [refetchLive, liveMs]);
+  }, [refetchLive]);
   const appliedSig = useRef<string | null>(null);
   const appliedGroup = useRef<number | null>(null);
   const fillFromScoreboard = () => {

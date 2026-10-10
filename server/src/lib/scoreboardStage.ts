@@ -1,12 +1,15 @@
 // The stage of the screenshot pipeline, for the light in the Recording-as row.
 // GET /api/scoreboards/live sends it; the client only draws it. Rules:
-//   detected  a file is queued or being read by the vision model right now
+//   detected  a file is queued or being read by the vision model right now, and
+//             for DETECTED_HOLD_MS after the last file finishes
 //   problem   the newest real screenshot in the grace window ended as `error`
 //   ready     a live group with a Summary page is waiting (the green light)
 //   partial   Teams/Personal pages are read but no Summary page opened a group
 //   idle      none of the above
-// The watcher only looks at the folder once a poll (every 10 s), so `detected`
-// shows for the length of one poll's vision calls, not for the wait before it.
+// The watcher only looks at the folder once a poll (every 10 s), so the reading
+// itself lasts a few seconds. `detected` therefore holds for at least 15 s after
+// the last file finishes, so a page that polls every 3 s always sees it. A problem
+// still shows at once, and `light` and `fill` in the payload never wait for the hold.
 import type { DatabaseSync } from 'node:sqlite';
 import { REMATCH_GRACE_MIN } from './scoreboard';
 
@@ -29,8 +32,17 @@ export const PARTIAL_WINDOW_MIN = 10;
 // Module-level set of files the watcher has queued or is reading. Nothing else
 // records an in-flight file: a row is only written after the vision call ends.
 const inFlight = new Set<string>();
-export const markInFlight = (paths: string[]) => { for (const p of paths) inFlight.add(p); };
-export const clearInFlight = (path: string) => { inFlight.delete(path); };
+/** How long `detected` holds after the last file finishes. */
+export const DETECTED_HOLD_MS = 15_000;
+let lastActivityMs = 0;
+let lastBatchSize = 0;
+export const markInFlight = (paths: string[]) => {
+  for (const p of paths) inFlight.add(p);
+  if (paths.length > 0) { lastActivityMs = Date.now(); lastBatchSize = paths.length; }
+};
+export const clearInFlight = (path: string) => { inFlight.delete(path); lastActivityMs = Date.now(); };
+/** Test only: forget the hold. */
+export const resetStageActivity = () => { inFlight.clear(); lastActivityMs = 0; lastBatchSize = 0; };
 export const inFlightCount = () => inFlight.size;
 
 export function computeStage(db: DatabaseSync, readyGroup: { id: number } | null, readyPages: StageInfo['pages'], nowMs: number = Date.now()): StageInfo {
@@ -42,6 +54,8 @@ export function computeStage(db: DatabaseSync, readyGroup: { id: number } | null
 
   const last = db.prepare(`SELECT status, reason FROM match_scoreboards WHERE file_mtime >= ? AND status NOT IN ('not_scoreboard', 'dismissed') ORDER BY file_mtime DESC, id DESC LIMIT 1`).get(graceIso) as { status: string; reason: string | null } | undefined;
   if (last?.status === 'error') return { ...base, stage: 'problem', reason: last.reason ?? 'unreadable screenshot' };
+
+  if (nowMs - lastActivityMs < DETECTED_HOLD_MS) return { ...base, stage: 'detected', reading: lastBatchSize };
 
   if (readyGroup) return { ...base, stage: 'ready', pages: readyPages };
 

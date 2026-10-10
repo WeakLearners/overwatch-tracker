@@ -7,14 +7,14 @@ import path from 'path';
 import { getDb, closeDb } from '../db/schema';
 import { storeScoreboard, type StoreArgs } from './scoreboard';
 import { createGroup } from './scoreboardPages';
-import { computeStage, markInFlight, clearInFlight, inFlightCount } from './scoreboardStage';
+import { computeStage, markInFlight, clearInFlight, inFlightCount, resetStageActivity, DETECTED_HOLD_MS } from './scoreboardStage';
 
 const NOW = Date.parse('2026-10-10T15:00:00Z');
 const min = (m: number) => NOW - m * 60_000;
 
 describe('computeStage', () => {
   let db: ReturnType<typeof getDb>; let tmp: string; let n = 0;
-  beforeEach(() => { tmp = path.join(os.tmpdir(), `sbs-test-${process.pid}-${Date.now()}.db`); db = getDb(tmp); });
+  beforeEach(() => { resetStageActivity(); tmp = path.join(os.tmpdir(), `sbs-test-${process.pid}-${Date.now()}.db`); db = getDb(tmp); });
   afterEach(() => {
     closeDb(); for (const f of [tmp, `${tmp}-wal`, `${tmp}-shm`]) if (fs.existsSync(f)) fs.unlinkSync(f);
     clearInFlight('/x/a.png'); clearInFlight('/x/b.png');
@@ -33,7 +33,24 @@ describe('computeStage', () => {
     const s = computeStage(db, { id: 1 }, ready, NOW);
     assert.equal(s.stage, 'detected'); assert.equal(s.reading, 2);
     clearInFlight('/x/a.png'); clearInFlight('/x/b.png');
+    resetStageActivity(); // drop the hold; the hold has its own tests below
     assert.equal(computeStage(db, null, null, NOW).stage, 'problem');
+  });
+  test('detected holds for 15 s after the last file finishes, with the batch size', () => {
+    markInFlight(['/x/a.png', '/x/b.png']);
+    clearInFlight('/x/a.png'); clearInFlight('/x/b.png');
+    const t = Date.now();
+    const s = computeStage(db, { id: 1 }, ready, t + 1_000);
+    assert.equal(s.stage, 'detected'); assert.equal(s.reading, 2);
+    assert.equal(computeStage(db, { id: 1 }, ready, t + DETECTED_HOLD_MS + 1_000).stage, 'ready');
+    assert.equal(computeStage(db, null, null, t + DETECTED_HOLD_MS + 1_000).stage, 'idle');
+  });
+  test('a problem wins over the hold', () => {
+    const t = Date.now();
+    store({ status: 'error', mtimeMs: t - 1_000, reason: 'boom' });
+    markInFlight(['/x/a.png']); clearInFlight('/x/a.png');
+    const s = computeStage(db, null, null, t + 1_000);
+    assert.equal(s.stage, 'problem'); assert.equal(s.reason, 'boom');
   });
   test('a live group -> ready, pages passed through', () => {
     assert.deepEqual(computeStage(db, { id: 1 }, ready, NOW).pages, ready);
