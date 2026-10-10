@@ -1959,7 +1959,7 @@ const DATA = {
           "kind": "container",
           "description": "At the right edge of the Recording as row (ml-auto; moved 2026-10-10). Fixed width (w-64) so the dot never moves; stage text that does not fit scrolls as a slow marquee (30 px/s, 1.5 s holds, CSS transform; ellipsis under reduced motion). The form fills itself from the group; typed values stay. Shows the pipeline stage from GET /api/scoreboards/live (`stage`, lib/scoreboardStage.ts): idle grey 'No scoreboard waiting'; detected amber 'Reading N screenshots\u2026' (a file is queued or in the vision call); partial sky 'teams, 1 personal read, waiting for Summary'; ready green 'Scoreboard filled (summary, teams, N personal)'; problem red 'Screenshot failed: reason' (newest screenshot in the 45-min window ended as error). Polls every 10 s, every 3 s while detected or partial. A recovery group (the match was already logged) never lights it.",
           "locate": {
-            "path": "client/src/components/ScoreboardLight.tsx:30",
+            "path": "client/src/components/ScoreboardLight.tsx:56",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-scoreboard-light\"' client/src/components/ScoreboardLight.tsx"
           }
         },
@@ -1969,7 +1969,7 @@ const DATA = {
           "kind": "indicator",
           "description": "The dot pulses slowly (2.8 s opacity, off under prefers-reduced-motion) while detected or partial. Colour = stage: faint grey idle, amber-500 detected, sky-500 partial, emerald-500 ready, red-500 problem. All colours already used elsewhere in the app.",
           "locate": {
-            "path": "client/src/components/ScoreboardLight.tsx:34",
+            "path": "client/src/components/ScoreboardLight.tsx:60",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-scoreboard-light-dot\"' client/src/components/ScoreboardLight.tsx"
           }
         },
@@ -6243,6 +6243,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 
