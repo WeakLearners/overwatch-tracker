@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import type { LivePayload } from '../lib/scoreboardFill';
 
 // Pipeline light at the right edge of the Recording-as row (ml-auto, Sean's request).
-// Width follows the text up to 256 px (max-w-64), so the right end always touches the row edge.
+// Fixed 256 px box (w-64), never resizes. Dot and text sit at its left.
 // Text wider than that scrolls as a slow marquee (.sb-marq-run in index.css, CSS
 // transform only); under reduced motion it truncates with an ellipsis instead.
 // The server decides the stage (GET /api/scoreboards/live, lib/scoreboardStage.ts);
@@ -53,14 +53,14 @@ export default function ScoreboardLight({ live }: { live: LivePayload | null }) 
   const dur = travel + 2 * HOLD;
   const pct = Math.round((HOLD / dur) * 1000) / 10;
   return (
-    <div className="flex items-center gap-2 ml-auto min-w-0 max-w-64" data-inspect-id="logmatch-scoreboard-light">
+    <div className="flex items-center gap-2 w-64 shrink-0 ml-auto" data-inspect-id="logmatch-scoreboard-light">
       <span
         aria-hidden="true"
         className={`inline-block w-2 h-2 rounded-full shrink-0 ${DOT[stage]}${stage === 'detected' || stage === 'partial' ? ' stage-pulse' : ''}`}
         data-inspect-id="logmatch-scoreboard-light-dot"
       />
       {dist > 0 && <style>{`@keyframes sb-marq{0%,${pct}%{transform:translateX(0)}${100 - pct}%,100%{transform:translateX(calc(var(--marq-dist) * -1))}}`}</style>}
-      <span ref={viewRef} className="sb-marq-view min-w-0 overflow-hidden whitespace-nowrap text-xs text-[var(--faint)]" role="status" title={text}>
+      <span ref={viewRef} className="sb-marq-view flex-1 min-w-0 overflow-hidden whitespace-nowrap text-xs text-[var(--faint)]" role="status" title={text}>
         <span
           ref={textRef}
           className={`sb-marq-text inline-block${dist > 0 ? ' sb-marq-run' : ''}`}
