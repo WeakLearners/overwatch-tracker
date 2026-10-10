@@ -66,8 +66,8 @@ const mss = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStar
 // ------------------------------------------------------------------ the DATE
 
 /**
- * Summary DATE is MM/DD/YY - hh:mm in the server's local time, 12-hour clock with
- * no AM/PM. Both readings of the hour are tried and the one closest to the file
+ * Summary DATE is MM/DD/YY - hh:mm in the server's local time, 12-hour or 24-hour clock with
+ * no AM/PM. Hours 0 and 13-23 are read as 24-hour. For hours 1-12 both readings are tried and the one closest to the file
  * mtime wins. Returns epoch ms, or null when the text does not parse.
  */
 export function parseSummaryDate(text: string, mtimeMs: number): number | null {
@@ -75,8 +75,11 @@ export function parseSummaryDate(text: string, mtimeMs: number): number | null {
   if (!m) return null;
   const mo = Number(m[1]), d = Number(m[2]);
   const y = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
-  const h12 = Number(m[4]) % 12, min = Number(m[5]);
-  if (mo < 1 || mo > 12 || d < 1 || d > 31 || Number(m[4]) > 12 || min > 59) return null;
+  const hr = Number(m[4]), min = Number(m[5]);
+  if (mo < 1 || mo > 12 || d < 1 || d > 31 || hr > 23 || min > 59) return null;
+  // 0 or 13-23 can only be a 24-hour time: use it directly.
+  if (hr === 0 || hr >= 13) return new Date(y, mo - 1, d, hr, min).getTime();
+  const h12 = hr % 12;
   const a = new Date(y, mo - 1, d, h12, min).getTime();
   const b = new Date(y, mo - 1, d, h12 + 12, min).getTime();
   return Math.abs(a - mtimeMs) <= Math.abs(b - mtimeMs) ? a : b;

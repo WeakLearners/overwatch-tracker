@@ -33,6 +33,14 @@ describe('page parsing helpers', () => {
     assert.equal(new Date(parseSummaryDate('10/09/26 - 12:31', Date.parse('2026-10-09T05:00:00Z'))!).getHours(), 0); // mtime 01:00 local -> 00:31
     assert.equal(parseSummaryDate('10/09/26 - 12:31', T0), parseSummaryDate('10/09/2026 - 12:31', T0));
   });
+  test('24-hour DATE: hour 13-23 and 0 are read directly', () => {
+    const t = new Date(2026, 9, 10, 15, 30).getTime();
+    const a = new Date(parseSummaryDate('10/10/26 - 15:08', t)!);
+    assert.deepEqual([a.getDate(), a.getHours(), a.getMinutes()], [10, 15, 8]);
+    const b = new Date(parseSummaryDate('10/10/26 - 00:05', new Date(2026, 9, 10, 0, 10).getTime())!);
+    assert.deepEqual([b.getDate(), b.getHours(), b.getMinutes()], [10, 0, 5]);
+    assert.equal(parseSummaryDate('10/10/26 - 24:05', t), null);
+  });
   test('a day-first reading is never taken (10/09 is October 9, 09/10 would be September 10)', () => {
     assert.equal(new Date(parseSummaryDate('09/10/26 - 3:05', T0)!).getMonth(), 8);
   });
