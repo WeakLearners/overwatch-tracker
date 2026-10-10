@@ -9,7 +9,7 @@ import { computeNextTest, pickQueueRole, annotateHeroes, projectPhaseFinish, pro
 import { loadRoleTimerReplay } from './roleTimer';
 import { HEROES_BY_ROLE } from '../lib/heroes';
 import { isDfHero } from '../lib/df';
-import { eraCounts } from '../lib/patchEra';
+import { eraCounts, spannedPatchNotes } from '../lib/patchEra';
 
 const router = Router();
 
@@ -600,6 +600,7 @@ router.get('/sets/:id', (req: Request, res: Response) => {
       win: number; date: string; overall_acc: number | null; elims: number | null; damage: number | null; duration_min: number | null;
     }[];
     const winRate = perf.length ? Math.round((perf.filter(p => p.win).length / perf.length) * 1000) / 10 : null;
+    const stageEraN = eraCounts(perf.map(p => p.date));
     const accVals = perf.map(p => p.overall_acc).filter((v): v is number => v != null);
     const accMean = accVals.length ? Math.round((accVals.reduce((a, b) => a + b, 0) / accVals.length) * 10) / 10 : null;
     const rateRows = perf.filter((p): p is typeof p & { elims: number; damage: number; duration_min: number } =>
@@ -638,9 +639,10 @@ router.get('/sets/:id', (req: Request, res: Response) => {
       stage_index: st.stage_index, dpi: st.dpi, sens: st.sens, pct_delta: st.pct_delta,
       eDPI: eDPI(stageSens, st.dpi), cm360: Math.round(cm360(stageSens, st.dpi) * 100) / 100,
       n: trials.length, feelMean, feelVar,
-      // Matches before / on-or-after the 2026-10-06 patch (lib/patchEra.ts). accMean
-      // is a single-stage descriptive; compare stages only within an era.
-      eraN: eraCounts(perf.map(p => p.date)),
+      // Matches before / on-or-after the 2026-10-06 patch (lib/patchEra.ts).
+      // Informational only: stages are compared pooled, as one period.
+      eraN: stageEraN,
+      eraNotes: spannedPatchNotes(stageEraN),
       games: perf.length, winRate, accMean, elimsPer10, dmgPer10,
       switchedOut, switchedOutRate,
     };

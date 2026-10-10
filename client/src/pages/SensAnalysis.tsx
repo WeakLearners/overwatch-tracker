@@ -12,17 +12,18 @@ import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 // this page printed Ana's sleep dart hit rate under a column headed "Crit".
 import { critSlotShort, extraSlotShort, hasCrit } from '../lib/heroStatLabels';
 
-// Matches before / on-or-after the 2026-10-06 game patch ([pre, post]). Accuracy
-// differences on this page are computed inside one patch era only (server:
-// lib/patchEra.ts), so this shows how much post-patch data exists.
-const EraSplit = ({ eraN }: { eraN: number[] }) => (
-  <span className="text-[10px] font-normal text-[var(--faint-2)] ml-1" title="Matches before / after the 2026-10-06 patch. Accuracy is only compared within one patch era.">
-    {eraN.join('/')} pre/post
+// Matches before / on-or-after the 2026-10-06 game patch ([pre, post]). A note,
+// not a gate (Sean, 2026-10-10): every comparison on this page pools all
+// matches as one period. eraNotes is non-empty when the matches span a patch,
+// and carries the patch description (server: lib/patchEra.ts PATCH_LABELS).
+const EraSplit = ({ eraN, eraNotes }: { eraN: number[]; eraNotes: string[] }) => (
+  <span className="text-[10px] font-normal text-[var(--faint-2)] ml-1" title="Matches before / after the 2026-10-06 patch. All matches are pooled in the comparisons.">
+    {eraN.join('/')} pre/post{eraNotes.length > 0 && <> · {eraNotes.join('; ')}</>}
   </span>
 );
 
 interface ScaleRow {
-  cm360: number; eDPI: number; sens: number; n: number; eraN: number[];
+  cm360: number; eDPI: number; sens: number; n: number; eraN: number[]; eraNotes: string[];
   avgOverall: number | null; avgCrit: number | null;
   // avgCritDelta was computed and sent by the server all along but never
   // declared here — nothing on this page could read it. Declaring it now so
@@ -61,7 +62,7 @@ interface CurveVariant {
   // Jump curve (2026-09-20). A variant has one or the other, never both: Jump
   // rows predate the move and carry smooth/input/output, LUT rows carry this.
   lut: [number, number][] | null;
-  n: number; eraN: number[]; avgOverall: number | null; avgDelta: number | null;
+  n: number; eraN: number[]; eraNotes: string[]; avgOverall: number | null; avgDelta: number | null;
 }
 
 interface Bucket {
@@ -91,7 +92,7 @@ interface TimelinePoint {
   date: string; hero: string; win: 0 | 1; eDPI: number; cm360: number; delta: number;
 }
 interface HeroRow {
-  hero: string; archetype: string; n: number; eraN: number[];
+  hero: string; archetype: string; n: number; eraN: number[]; eraNotes: string[];
   avgOverall: number | null; avgCrit: number | null; winRate: number | null;
   bestScaleEDPI: number | null; bestScaleN: number; bestScaleReliable: boolean;
   bestScaleOverallDelta: number | null; bestScaleCritDelta: number | null; bestScaleWinRate: number | null;
@@ -1344,7 +1345,7 @@ export default function SensAnalysis() {
                   <td className="py-1.5 pr-3">{r.eDPI}</td>
                   <td className="py-1.5 pr-3">{r.sens}</td>
                   <td className="py-1.5 pr-3">
-                    {r.n}<EraSplit eraN={r.eraN} />
+                    {r.n}<EraSplit eraN={r.eraN} eraNotes={r.eraNotes} />
                     {!r.reliable && (
                       <span className="text-[10px] font-normal ml-1">thin — not used in picks/fits</span>
                     )}
@@ -1398,7 +1399,7 @@ export default function SensAnalysis() {
                 <tr key={h.hero} className="border-t border-ow-border text-[var(--ink-2)]">
                   <td className="py-1.5 pr-3 text-xs hero-name text-[var(--ink)]">{withHeroCount(h.hero, heroCounts)}</td>
                   <td className="py-1.5 pr-3 capitalize text-[var(--faint)]">{h.archetype}</td>
-                  <td className="py-1.5 pr-3 font-bold">{h.n}<EraSplit eraN={h.eraN} /></td>
+                  <td className="py-1.5 pr-3 font-bold">{h.n}<EraSplit eraN={h.eraN} eraNotes={h.eraNotes} /></td>
                   <td className="py-1.5 pr-3 font-normal text-[var(--faint-2)]">{f1(h.winRate)}%</td>
                   <td className="py-1.5 pr-3 font-bold">{f1(h.avgOverall)}%</td>
                   {/* The crit_acc column is a different stat per hero — Ana's
@@ -1985,7 +1986,7 @@ export default function SensAnalysis() {
                   {curveOffVariant && (
                     <tr className="border-t border-ow-border text-[var(--ink-2)]">
                       <td className="py-1.5 pr-3 text-[var(--ink)] font-bold">Off</td>
-                      <td className="py-1.5 pr-3 font-bold">{curveOffVariant.n}<EraSplit eraN={curveOffVariant.eraN} /></td>
+                      <td className="py-1.5 pr-3 font-bold">{curveOffVariant.n}<EraSplit eraN={curveOffVariant.eraN} eraNotes={curveOffVariant.eraNotes} /></td>
                       <td className="py-1.5 pr-3">{f1(curveOffVariant.avgOverall)}%</td>
                       <td className={`py-1.5 ${deltaColor(curveOffVariant.avgDelta)}`}>{signed(curveOffVariant.avgDelta)}</td>
                     </tr>
@@ -2009,7 +2010,7 @@ export default function SensAnalysis() {
                           </>
                         )}
                       </td>
-                      <td className="py-1.5 pr-3 font-bold">{v.n}<EraSplit eraN={v.eraN} /></td>
+                      <td className="py-1.5 pr-3 font-bold">{v.n}<EraSplit eraN={v.eraN} eraNotes={v.eraNotes} /></td>
                       <td className="py-1.5 pr-3">{f1(v.avgOverall)}%</td>
                       <td className={`py-1.5 ${deltaColor(v.avgDelta)}`}>{signed(v.avgDelta)}</td>
                     </tr>

@@ -469,7 +469,10 @@ describe('rule 1 copies, rule 2 link by stats, file organizing', () => {
 });
 
 // ------------------------------------------------------------ fixture test
-// Ground truth read off the real screenshot by Sean (spec 2026-10-09).
+// Ground truth read off the real screenshot by Sean (spec 2026-10-09). The fixture is
+// public, so the 11 other players' names are covered with black boxes (2026-10-10).
+// Only the self row (LINX) keeps a readable name; the test compares names for that
+// row only and compares team and stats for all 12.
 const FIXTURE = path.join(__dirname, '../test/fixtures/scoreboard-36.png');
 const TRUTH: [string, string, number, number, number, number, number, number][] = [
   ['us', 'RAY', 22, 9, 3, 7772, 0, 6284], ['us', 'XDD', 21, 15, 2, 10082, 0, 4712],
@@ -491,8 +494,8 @@ describe('scoreboard fixture (Screenshot (36).png)', () => {
     console.log('LIVE_PARSE ' + JSON.stringify(p));
     assert.equal(p.is_scoreboard, true);
     assert.equal(validateParsed(p), null);
-    const got = p.rows.map(r => [r.team, r.player_name.toUpperCase(), r.e, r.a, r.d, r.dmg, r.h, r.mit]);
-    assert.deepEqual(got, TRUTH);
+    const got = p.rows.map(r => [r.team, r.e, r.a, r.d, r.dmg, r.h, r.mit]);
+    assert.deepEqual(got, TRUTH.map(([team, , ...stats]) => [team, ...stats]));
     assert.ok(p.rows.every(r => !('hero' in r)), 'no hero field is requested any more');
     const found = resolveSelf(p.rows, ['Linx']);
     assert.ok('index' in found && p.rows[found.index].player_name.toUpperCase() === 'LINX');

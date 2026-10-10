@@ -6,7 +6,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   welchT, readBracket, describeBracket, StagePoint,
-  MIN_GAMES_PER_STAGE, MIN_TOTAL_FOR_READ,
+  MIN_GAMES_PER_STAGE, MIN_TOTAL_FOR_READ, eraNoteFor,
 } from './nightlyAnalysis';
 
 const pt = (stage_index: number, sens: number, n: number, meanAcc: number): StagePoint =>
@@ -162,26 +162,21 @@ describe('describeBracket wording', () => {
   });
 });
 
-// ── Patch eras (2026-10-09): stage comparison never crosses the 10-06 patch ──
+// ── Patch eras (Sean, 2026-10-10): pooled, with a note ──
 
-test('readBracket 2-stage: a patch-wide accuracy drop does not leak into the stage difference', () => {
-  // Stage A is mostly pre-patch, stage B mostly post-patch. The patch shifts
-  // everyone down by 10 points. The true A-B gap is +2 in both eras.
-  const mk = (era: number, vals: number[]) => vals.map(v => ({ era, v }));
-  const A = [...mk(0, [32, 32, 32, 32, 32, 32]), ...mk(1, [22, 22, 22])];
-  const B = [...mk(0, [30, 30, 30]), ...mk(1, [20, 20, 20, 20, 20, 20])];
-  const rawMean = (xs: { v: number }[]) => xs.reduce((s, o) => s + o.v, 0) / xs.length;
-  const pt = (i: number, xs: { v: number }[]): StagePoint => ({
-    stage_index: i, sens: 2 + i / 10, dpi: 1600, n: xs.length, meanAcc: rawMean(xs), winRate: null,
-  });
-  const points = [pt(1, A), pt(2, B)];
-  // Without eras the raw means say A beats B by ~5.3 points.
-  const naive = readBracket(points);
-  assert.equal(naive.kind, 'head2head');
-  assert.ok(Math.abs(((naive as any).hi.meanAcc - (naive as any).lo.meanAcc) - 5.33) < 0.1);
-  // With era samples the gap is the within-era 2.0.
-  const v = readBracket(points, undefined, { 1: A, 2: B });
+test('readBracket 2-stage: stages are compared pooled across the 10-06 patch', () => {
+  // Stage A is mostly pre-patch, stage B mostly post-patch. The pooled raw
+  // means are compared as-is: no era gate (Sean, 2026-10-10).
+  const v = readBracket([pt(1, 2.1, 9, 30.6), pt(2, 2.2, 9, 25.3)]);
   assert.equal(v.kind, 'head2head');
   assert.equal((v as any).hi.stage_index, 1);
-  assert.equal((v as any).gap, 2);
+});
+
+test('eraNoteFor adds the patch note only when matches span the boundary', () => {
+  const pe = (eraN: number[]): StagePoint => ({ ...pt(1, 2, 5, 30), eraN });
+  assert.equal(eraNoteFor([pe([5, 0]), pe([5, 0])]), ' [before/after 10-06: 10/0]');
+  assert.equal(
+    eraNoteFor([pe([5, 0]), pe([2, 3])]),
+    ' [before/after 10-06: 7/3; Spans the 10-06 patch (hitbox and projectile size change)]',
+  );
 });
