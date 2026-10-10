@@ -1,13 +1,14 @@
 import { Router } from 'express';
 import { getDb } from '../db/schema';
 import { organizeBoard } from '../lib/scoreboardOrganize';
-import { DEFAULT_SCOREBOARD_DIR } from '../lib/scoreboardWatcher';
+import { scoreboardDir } from '../lib/scoreboardWatcher';
 import { REMATCH_GRACE_MIN } from '../lib/scoreboard';
 import { syncMatchHeroStats } from '../lib/matchHeroStats';
 import { computeStage } from '../lib/scoreboardStage';
 import { buildFill, linkGroup, TEAMS_ONLY, type GroupRow } from '../lib/scoreboardPages';
 
-const root = () => process.env.SCOREBOARD_DIR || DEFAULT_SCOREBOARD_DIR;
+/** Folder to file images into; null (SCOREBOARD_DIR unset) skips filing. */
+const organize = (db: ReturnType<typeof getDb>, id: number) => { const r = scoreboardDir(); if (r) organizeBoard(db, id, r); };
 
 // Attach and dismiss also move the file (scoreboardOrganize.ts).
 // Scoreboard screenshot ingest, read side + the one manual write (attach an
@@ -86,13 +87,13 @@ router.post('/:id/attach', (req, res) => {
     // Any page of a group moves the whole group: Summary, Teams and every Personal page.
     linkGroup(db, sb.group_id, matchId, 'linked', 'attached by hand');
     const ids = db.prepare(`SELECT id FROM match_scoreboards WHERE group_id = ? AND status = 'matched'`).all(sb.group_id) as { id: number }[];
-    for (const r of ids) organizeBoard(db, r.id, root());
+    for (const r of ids) organize(db, r.id);
     res.json({ ok: true });
     return;
   }
   db.prepare(`UPDATE match_scoreboards SET match_id = ?, status = 'matched', reason = 'attached by hand' WHERE id = ?`).run(matchId, id);
   syncMatchHeroStats(db, matchId);
-  organizeBoard(db, id, root()); // moves to the date folder; skipped (and retried by the watcher) if the file is under 60 s old
+  organize(db, id); // moves to the date folder; skipped (and retried by the watcher) if the file is under 60 s old
   res.json({ ok: true });
 });
 
@@ -106,7 +107,7 @@ router.post('/:id/dismiss', (req, res) => {
   if (!sb) { res.status(404).json({ error: 'Scoreboard not found' }); return; }
   if (sb.status !== 'unmatched' && sb.status !== 'error') { res.status(409).json({ error: `Scoreboard is ${sb.status}, only unmatched or error can be dismissed` }); return; }
   db.prepare(`UPDATE match_scoreboards SET status = 'dismissed', reason = 'dismissed by hand' WHERE id = ?`).run(id);
-  organizeBoard(db, id, root());
+  organize(db, id);
   res.json({ ok: true });
 });
 

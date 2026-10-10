@@ -6,7 +6,7 @@ import { saveAimStatsRows, validateAimStats, type AimStatsPayload } from '../lib
 import { CRASHED_HERO, CRASHED_EDITABLE } from '../lib/crashed';
 import { linkGroup } from '../lib/scoreboardPages';
 import { organizeBoard } from '../lib/scoreboardOrganize';
-import { DEFAULT_SCOREBOARD_DIR } from '../lib/scoreboardWatcher';
+import { scoreboardDir } from '../lib/scoreboardWatcher';
 
 const router = Router();
 
@@ -273,8 +273,8 @@ router.post('/', (req: Request, res: Response) => {
   // Move the group's files into the date folder. Moves only, never throws; the watcher retries each poll.
   if (linkedGroup != null) {
     try {
-      const root = process.env.SCOREBOARD_DIR || DEFAULT_SCOREBOARD_DIR;
-      for (const r of db.prepare(`SELECT id FROM match_scoreboards WHERE group_id = ? AND status = 'matched'`).all(linkedGroup) as { id: number }[]) organizeBoard(db, r.id, root);
+      const root = scoreboardDir();
+      if (root) for (const r of db.prepare(`SELECT id FROM match_scoreboards WHERE group_id = ? AND status = 'matched'`).all(linkedGroup) as { id: number }[]) organizeBoard(db, r.id, root);
     } catch { /* retried by the watcher */ }
   }
   res.json({ id: matchId });

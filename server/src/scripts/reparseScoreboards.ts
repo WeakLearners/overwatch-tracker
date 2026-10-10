@@ -14,7 +14,7 @@ import { getDb } from '../db/schema';
 import { processFile, callVision } from '../lib/scoreboard';
 import { finalizeGroups } from '../lib/scoreboardPages';
 import { organizeAll } from '../lib/scoreboardOrganize';
-import { DEFAULT_SCOREBOARD_DIR } from '../lib/scoreboardWatcher';
+import { scoreboardDir } from '../lib/scoreboardWatcher';
 
 async function main() {
   const ids = process.argv.slice(2).map(Number).filter(Number.isInteger);
@@ -29,6 +29,7 @@ async function main() {
   }
   // The groups are old enough now: fill the empty aim fields and file the pages.
   console.log('groups filled:', finalizeGroups(db, Date.now()));
-  console.log('files moved:', organizeAll(db, process.env.SCOREBOARD_DIR || DEFAULT_SCOREBOARD_DIR));
+  const dir = scoreboardDir();
+  console.log('files moved:', dir ? organizeAll(db, dir) : 'skipped (SCOREBOARD_DIR unset)');
 }
 main().catch(e => { console.error(e); process.exit(1); });

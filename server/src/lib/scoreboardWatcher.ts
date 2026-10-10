@@ -22,8 +22,8 @@ export const MIN_INTAKE_AGE_MS = 5_000;
 export const RETRY_BACKOFF_MS = 60_000;
 const retryAfter = new Map<string, number>();
 export const FS_TIMEOUT_MS = 30_000;
-export const DEFAULT_SCOREBOARD_DIR =
-  '/Users/Sean/Library/CloudStorage/GoogleDrive-skim2636@gmail.com/My Drive/OW Game Logs';
+/** Scoreboard folder, from SCOREBOARD_DIR in the gitignored server/.env. Unset means the watcher stays off. */
+export const scoreboardDir = (): string | null => process.env.SCOREBOARD_DIR || null;
 
 function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
   let t: NodeJS.Timeout;
@@ -98,7 +98,8 @@ export async function pollOnce(
   }
 }
 
-export function startScoreboardWatcher(db: DatabaseSync, dir: string = process.env.SCOREBOARD_DIR || DEFAULT_SCOREBOARD_DIR): NodeJS.Timeout {
+export function startScoreboardWatcher(db: DatabaseSync, dir: string | null = scoreboardDir()): NodeJS.Timeout | null {
+  if (!dir) { console.log('[scoreboard] SCOREBOARD_DIR not set; watcher off'); return null; }
   console.log(`[scoreboard] watching ${dir} every ${POLL_MS / 1000}s`);
   const tick = () => {
     if (running) return;
