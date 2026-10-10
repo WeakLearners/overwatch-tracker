@@ -57,7 +57,7 @@
           "kind": "link",
           "description": "The header wordmark (slash mark + OVERWATCH / MATCH TRACKER) is a link to the Dashboard (/). Added 2026-09-26: Settings and the Sens pages had no way back.",
           "locate": {
-            "path": "client/src/App.tsx:68",
+            "path": "client/src/App.tsx:73",
             "grep": "grep -n -F -- 'data-inspect-id=\"app-home-wordmark\"' client/src/App.tsx"
           }
         },

@@ -94,7 +94,10 @@ describe('GET /api/stats/by-map min_games', () => {
 
 describe('session.loss_streak', () => {
   test('counts consecutive losses ending today, from the data', async () => {
-    const today = new Date().toISOString().slice(0, 10);
+    // Local date, as the route computes it. toISOString() is UTC, so this test
+    // failed every evening after 20:00 US Eastern, when UTC had already rolled over.
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const mk = (win: boolean, t: string) => h.post('/api/matches', {
       date: today, time: `${today}T${t}`, hour: 1, day_of_week: 'Monday', map: 'Ilios', game_type: 'Control',
       queue_mode: 'comp_role', role: 'DPS', hero: 'Ashe', win,

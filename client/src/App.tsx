@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useLocation, Link } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Routes, Route, useLocation, Link } from 'react-router-dom';
 import AppTools, { ThemeProvider } from './components/AppTools';
 import Dashboard from './pages/Dashboard';
 import SensLog from './pages/SensLog';
@@ -17,6 +17,10 @@ import { MatchEditDrawerProvider } from './contexts/MatchEditDrawerContext';
 import MatchEditDrawer from './components/MatchEditDrawer';
 import InspectorOverlay from './debug/InspectorOverlay';
 import DevWatermark from './components/DevWatermark';
+import DemoBanner from './demo/DemoBanner';
+
+// The static demo has no server to rewrite deep links, so it routes on the hash.
+const Router = import.meta.env.VITE_DEMO === '1' ? HashRouter : BrowserRouter;
 
 /**
  * Root application component. Sets up context providers (hero/map drawers),
@@ -50,8 +54,9 @@ export default function App() {
     <DeathBufferProvider>
     <MatchEditDrawerProvider>
     <FieldConfigProvider>
-    <BrowserRouter>
+    <Router>
       <DevWatermark />
+      <DemoBanner />
       <div className="min-h-screen">
         {/* HUD top bar: sticky, chamfered wordmark tile with the orange/cyan
             split-tone underglow — the header's own signature slash instead of
@@ -105,7 +110,7 @@ export default function App() {
           </Routes>
         </main>
       </div>
-    </BrowserRouter>
+    </Router>
     <MapDrawer />
     <HeroDrawer />
     <MatchEditDrawer />
