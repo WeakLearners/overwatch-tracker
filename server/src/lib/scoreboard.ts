@@ -20,7 +20,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { PATCH_BOUNDARIES } from './patchEra';
 import {
   TEAMS_ONLY, parseDbUtc, normSummary, rosterHero, findOpenGroup, createGroup, touchGroup, linkGroup, groupSummaryMap,
-  adoptLoosePages, recoveryCandidates, type RawSummary, type RawPersonal, type PageType, type GroupRow,
+  adoptLoosePages, recoveryCandidates, finalizeGroups, type RawSummary, type RawPersonal, type PageType, type GroupRow,
 } from './scoreboardPages';
 export { parseDbUtc };
 
@@ -471,24 +471,58 @@ export async function processFile(
 
 type Store = (a: Omit<StoreArgs, 'filePath' | 'mtimeMs' | 'replaceId'>) => StoreArgs['status'];
 
-/** A Summary page starts a group. A logged match on the same map whose created_at is within 10 min of the DATE makes it a recovery. */
-function processSummary(db: DatabaseSync, parsed: ParsedScoreboard, store: Store, mtimeMs: number): string {
+/** The one Summary decision, shared by a fresh read and a re-check. A logged match on the same map whose created_at is within 10 min of the DATE makes it a recovery. */
+function decideSummary(db: DatabaseSync, parsed: ParsedScoreboard, mtimeMs: number): { state: GroupRow['state']; matchId: number | null; reason: string } {
   const norm = parsed.summary ? normSummary(parsed.summary, mtimeMs) : null;
-  let state: GroupRow['state'] = 'ambiguous';
-  let matchId: number | null = null;
-  let reason: string | null = null;
   if (!norm || !norm.map || norm.endMs == null) {
-    reason = `summary: ${!norm ? 'no summary read' : !norm.map ? `map "${norm.mapRaw}" is not in the roster` : 'DATE not readable'}`;
-  } else {
-    const cands = recoveryCandidates(db, norm.endMs, norm.map);
-    if (cands.length === 1) { state = 'recovery'; matchId = cands[0]; reason = `recovery of match ${matchId}`; }
-    else if (cands.length === 0) { state = 'live'; reason = 'waiting for the match log'; }
-    else reason = `${cands.length} logged matches fit the Summary DATE`;
+    return { state: 'ambiguous', matchId: null, reason: `summary: ${!norm ? 'no summary read' : !norm.map ? `map "${norm.mapRaw}" is not in the roster` : 'DATE not readable'}` };
   }
-  const gid = createGroup(db, mtimeMs, state, matchId);
-  store({ status: matchId != null ? 'matched' : 'unmatched', reason, raw: parsed, matchId, rows: [], pageType: 'summary', groupId: gid });
+  const cands = recoveryCandidates(db, norm.endMs, norm.map);
+  if (cands.length === 1) return { state: 'recovery', matchId: cands[0], reason: `recovery of match ${cands[0]}` };
+  if (cands.length === 0) return { state: 'live', matchId: null, reason: 'waiting for the match log' };
+  return { state: 'ambiguous', matchId: null, reason: `${cands.length} logged matches fit the Summary DATE` };
+}
+
+/** A Summary page starts a group. */
+function processSummary(db: DatabaseSync, parsed: ParsedScoreboard, store: Store, mtimeMs: number): string {
+  const d = decideSummary(db, parsed, mtimeMs);
+  const gid = createGroup(db, mtimeMs, d.state, d.matchId);
+  store({ status: d.matchId != null ? 'matched' : 'unmatched', reason: d.reason, raw: parsed, matchId: d.matchId, rows: [], pageType: 'summary', groupId: gid });
   adoptLoosePages(db, gid);
-  return matchId != null ? 'matched' : 'unmatched';
+  return d.matchId != null ? 'matched' : 'unmatched';
+}
+
+export interface RecheckResult { groupId: number; oldState: string; newState: string; matchId: number | null; changedRows: number[]; dryRun: boolean }
+
+/**
+ * Free re-check of a group from its stored Summary reading (no vision call, no new group).
+ * Same decision as processSummary, applied in place, then the group's other pages follow it.
+ * dryRun runs everything and rolls back.
+ */
+export function recheckGroup(db: DatabaseSync, groupId: number, dryRun = false, nowMs: number = Date.now()): RecheckResult {
+  const g = db.prepare(`SELECT * FROM scoreboard_groups WHERE id = ?`).get(groupId) as GroupRow | undefined;
+  if (!g) throw new Error(`group ${groupId} not found`);
+  const sum = db.prepare(`SELECT id, raw_json, file_mtime FROM match_scoreboards WHERE group_id = ? AND page_type = 'summary' AND raw_json IS NOT NULL ORDER BY id LIMIT 1`).get(groupId) as { id: number; raw_json: string; file_mtime: string } | undefined;
+  if (!sum) throw new Error(`group ${groupId} has no stored summary reading`);
+  const snap = () => db.prepare(`SELECT id, status, match_id, reason FROM match_scoreboards WHERE group_id = ? ORDER BY id`).all(groupId) as { id: number }[];
+  const before = JSON.stringify(snap());
+  const beforeById = new Map(JSON.parse(before).map((r: { id: number }) => [r.id, JSON.stringify(r)]));
+  db.exec('BEGIN');
+  try {
+    const d = decideSummary(db, JSON.parse(sum.raw_json), Date.parse(sum.file_mtime));
+    db.prepare(`UPDATE scoreboard_groups SET state = ?, match_id = ? WHERE id = ?`).run(d.state, d.matchId, groupId);
+    db.prepare(`UPDATE match_scoreboards SET status = ?, match_id = ?, reason = ? WHERE id = ?`).run(d.matchId != null ? 'matched' : 'unmatched', d.matchId, d.reason, sum.id);
+    if (d.matchId != null) {
+      linkGroup(db, groupId, d.matchId, 'recovery', 'recovery of match ' + d.matchId);
+      if (!dryRun) finalizeGroups(db, nowMs, groupId);
+    } else if (d.state === 'live') {
+      db.prepare(`UPDATE match_scoreboards SET reason = 'waiting for the match log' WHERE group_id = ? AND status = 'unmatched' AND id <> ?`).run(groupId, sum.id);
+    }
+    const changedRows = snap().filter(r => beforeById.get(r.id) !== JSON.stringify(r)).map(r => r.id);
+    const res: RecheckResult = { groupId, oldState: g.state, newState: d.state, matchId: d.matchId, changedRows, dryRun };
+    db.exec(dryRun ? 'ROLLBACK' : 'COMMIT');
+    return res;
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
 }
 
 /** A Personal page joins the open group. A second page for the same hero, or the ALL HEROES tab, is kept but never counted. */

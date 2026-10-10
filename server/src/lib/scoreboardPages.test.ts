@@ -9,7 +9,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { getDb, closeDb } from '../db/schema';
-import { processFile, type ParsedScoreboard, type ParsedRow } from './scoreboard';
+import { processFile, recheckGroup, type ParsedScoreboard, type ParsedRow } from './scoreboard';
 import { parseSummaryDate, rosterHero, rosterMap, normSummary, buildFill, fillEmptyAim, finalizeGroups, findOpenGroup, linkGroup, PAGE_GAP_MS } from './scoreboardPages';
 import { HERO_TILE_MAP, slotValues, finalBlows, parseTileNumber } from './heroTileLabels';
 import { syncMatchHeroStats, tilesToRows, normStat, statUnit } from './matchHeroStats';
@@ -136,6 +136,37 @@ describe('groups on a temp DB (match 3842 is a recovery)', () => {
     const heroes = db.prepare(`SELECT hero, overall_acc, crit_acc, extra_acc FROM aim_stats_heroes WHERE match_id = ? ORDER BY hero`).all(mid);
     assert.deepEqual(heroes.map(h => ({ ...h })), [{ hero: 'Pharah', overall_acc: 50, crit_acc: 21, extra_acc: null }, { hero: 'Tracer', overall_acc: 33, crit_acc: 10, extra_acc: 0 }]);
     assert.equal(finalizeGroups(db, T0 + 999_999), 0, 'filled once');
+  });
+  describe('recheckGroup', () => {
+    // A group stored as ambiguous (as before the 24-hour date fix) with a good Summary reading.
+    const stored = async () => {
+      await feed(SUMMARY_49, '49', 0); await feed(TRACER_51, '51', 5);
+      db.prepare(`UPDATE scoreboard_groups SET state = 'ambiguous', match_id = NULL`).run();
+      db.prepare(`UPDATE match_scoreboards SET status = 'unmatched', match_id = NULL, reason = 'summary: DATE not readable'`).run();
+      return (db.prepare(`SELECT id FROM scoreboard_groups`).get() as any).id as number;
+    };
+    test('no match fits: ambiguous becomes live, nothing new is created', async () => {
+      const gid = await stored();
+      const r = recheckGroup(db, gid);
+      assert.deepEqual([r.oldState, r.newState, r.matchId], ['ambiguous', 'live', null]);
+      assert.equal((db.prepare(`SELECT COUNT(*) n FROM scoreboard_groups`).get() as any).n, 1);
+      assert.equal((db.prepare(`SELECT COUNT(*) n FROM match_scoreboards`).get() as any).n, 2);
+      assert.deepEqual(pages().map(p => p.status), ['unmatched', 'unmatched']);
+    });
+    test('one logged match fits: becomes recovery with the match id, pages follow', async () => {
+      const gid = await stored();
+      const mid = addMatch('2026-10-09 16:35:14'); addAim(mid);
+      const r = recheckGroup(db, gid);
+      assert.deepEqual([r.newState, r.matchId, r.changedRows.length], ['recovery', mid, 2]);
+      assert.deepEqual(pages().map(p => [p.status, p.match_id, p.group_id]), [['matched', mid, gid], ['matched', mid, gid]]);
+      assert.equal((db.prepare(`SELECT COUNT(*) n FROM scoreboard_groups`).get() as any).n, 1);
+    });
+    test('dry run changes nothing', async () => {
+      const gid = await stored(); addMatch('2026-10-09 16:35:14');
+      const r = recheckGroup(db, gid, true);
+      assert.equal(r.newState, 'recovery');
+      assert.equal((db.prepare(`SELECT state FROM scoreboard_groups`).get() as any).state, 'ambiguous');
+    });
   });
   test('match_hero_stats: one row per Personal tile, per10 and career_best kept, nothing stored for a missing tile', async () => {
     const mid = addMatch('2026-10-09 16:35:14'); addAim(mid);

@@ -307,8 +307,8 @@ export function fillEmptyAim(db: DatabaseSync, matchId: number, fill: FormFill, 
  * allows; a group the form linked at submit fills final_blows only (the form
  * already sent the rest, and it has no field for final blows).
  */
-export function finalizeGroups(db: DatabaseSync, nowMs: number = Date.now()): number {
-  const due = db.prepare(`SELECT * FROM scoreboard_groups WHERE state IN ('recovery', 'linked') AND match_id IS NOT NULL AND filled_at IS NULL`).all() as unknown as GroupRow[];
+export function finalizeGroups(db: DatabaseSync, nowMs: number = Date.now(), onlyGroup?: number): number {
+  const due = (db.prepare(`SELECT * FROM scoreboard_groups WHERE state IN ('recovery', 'linked') AND match_id IS NOT NULL AND filled_at IS NULL`).all() as unknown as GroupRow[]).filter(g => onlyGroup == null || g.id === onlyGroup);
   let n = 0, wrote = false;
   for (const g of due) {
     if (nowMs - Date.parse(g.last_mtime) < PAGE_GAP_MS) continue;
