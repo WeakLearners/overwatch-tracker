@@ -1,5 +1,5 @@
 // Polls the Drive "OW Game Logs" folder (My Drive, Drive for desktop, Stream
-// mode) every 60 s. It moved from "Other computers/My Computer" on 2026-10-09
+// mode) every 10 s (was 60 s until 2026-10-10). It moved from "Other computers/My Computer" on 2026-10-09
 // because that path synced up to 2 hours late. After each poll it files processed
 // images into subfolders (scoreboardOrganize.ts: moves and renames, never deletes).
 // Only the TOP LEVEL is scanned for new files. Listing a
@@ -14,7 +14,13 @@ import { markInFlight, clearInFlight } from './scoreboardStage';
 import { finalizeGroups } from './scoreboardPages';
 import { processFile, rematchRecent, isImageName, type VisionFn, callVision } from './scoreboard';
 
-export const POLL_MS = 60_000;
+export const POLL_MS = 10_000;
+/** A file whose mtime is younger than this is left for the next tick (Drive may still be writing it). */
+export const MIN_INTAKE_AGE_MS = 5_000;
+/** After a failed vision call (processFile returned null) the same file waits this long, so the 3-attempt cap in
+ *  scoreboard.ts still spans about 3 minutes at a 10 s poll instead of 30 s. */
+export const RETRY_BACKOFF_MS = 60_000;
+const retryAfter = new Map<string, number>();
 export const FS_TIMEOUT_MS = 30_000;
 export const DEFAULT_SCOREBOARD_DIR =
   '/Users/Sean/Library/CloudStorage/GoogleDrive-skim2636@gmail.com/My Drive/OW Game Logs';
@@ -33,6 +39,8 @@ export async function pollOnce(
   dir: string,
   vision: VisionFn = callVision,
   fsTimeoutMs: number = FS_TIMEOUT_MS,
+  minAgeMs: number = 0,
+  nowMs: number = Date.now(),
 ): Promise<{ processed: number; error: string | null }> {
   let processed = 0;
   try {
@@ -53,9 +61,10 @@ export async function pollOnce(
     for (const name of names.filter(isImageName).sort()) {
       const full = path.join(dir, name);
       if (known.has(full)) continue;
+      if ((retryAfter.get(full) ?? 0) > nowMs) continue;
       try {
         const st = await withTimeout(fs.promises.stat(full), fsTimeoutMs, 'stat');
-        if (st.isFile() && st.size > 0) fresh.push({ name, full, st });
+        if (st.isFile() && st.size > 0 && (minAgeMs <= 0 || nowMs - st.mtimeMs >= minAgeMs)) fresh.push({ name, full, st });
       } catch (e) {
         console.warn(`[scoreboard] ${name}: ${(e as Error).message}; retry next poll`);
       }
@@ -74,7 +83,8 @@ export async function pollOnce(
           continue;
         }
         const status = await processFile(db, full, st.mtimeMs, vision);
-        if (status) { processed++; console.log(`[scoreboard] ${name}: ${status}`); }
+        if (status) { processed++; retryAfter.delete(full); console.log(`[scoreboard] ${name}: ${status}`); }
+        else retryAfter.set(full, Date.now() + RETRY_BACKOFF_MS);
       } catch (e) {
         console.warn(`[scoreboard] ${name}: ${(e as Error).message}; retry next poll`);
       } finally { clearInFlight(full); }
@@ -93,7 +103,7 @@ export function startScoreboardWatcher(db: DatabaseSync, dir: string = process.e
   const tick = () => {
     if (running) return;
     running = true;
-    pollOnce(db, dir).catch(e => console.error('[scoreboard] tick failed:', (e as Error).message)).finally(() => { running = false; });
+    pollOnce(db, dir, callVision, FS_TIMEOUT_MS, MIN_INTAKE_AGE_MS).catch(e => console.error('[scoreboard] tick failed:', (e as Error).message)).finally(() => { running = false; });
   };
   tick();
   return setInterval(tick, POLL_MS);

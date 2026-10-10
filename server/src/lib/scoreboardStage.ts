@@ -5,7 +5,7 @@
 //   ready     a live group with a Summary page is waiting (the green light)
 //   partial   Teams/Personal pages are read but no Summary page opened a group
 //   idle      none of the above
-// The watcher only looks at the folder once a poll (every 60 s), so `detected`
+// The watcher only looks at the folder once a poll (every 10 s), so `detected`
 // shows for the length of one poll's vision calls, not for the wait before it.
 import type { DatabaseSync } from 'node:sqlite';
 import { REMATCH_GRACE_MIN } from './scoreboard';

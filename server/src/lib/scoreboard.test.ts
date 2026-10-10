@@ -191,6 +191,24 @@ describe('processFile + rematch on a temp DB', () => {
     assert.equal(calls, 1);
     fs.rmSync(dir, { recursive: true });
   });
+  test('pollOnce leaves a file younger than minAgeMs for a later tick (Drive may still be writing it)', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-dir-'));
+    fs.writeFileSync(path.join(dir, 'Screenshot (1).png'), 'x');
+    let calls = 0; const v = async () => { calls++; return { is_scoreboard: false, rows: [] }; };
+    assert.equal((await pollOnce(db, dir, v, 50, 5_000)).processed, 0);
+    assert.equal(calls, 0);
+    assert.equal((await pollOnce(db, dir, v, 50, 5_000, Date.now() + 6_000)).processed, 1);
+    fs.rmSync(dir, { recursive: true });
+  });
+  test('pollOnce does not retry a file whose vision call failed until the backoff has passed', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-dir-'));
+    fs.writeFileSync(path.join(dir, 'Screenshot (1).png'), 'x');
+    let calls = 0; const bad = async () => { calls++; throw new Error('api down'); };
+    await pollOnce(db, dir, bad); assert.equal(calls, 1);
+    await pollOnce(db, dir, bad); assert.equal(calls, 1, 'second tick inside the backoff makes no vision call');
+    await pollOnce(db, dir, bad, 50, 0, Date.now() + 61_000); assert.equal(calls, 2);
+    fs.rmSync(dir, { recursive: true });
+  });
   test('pollOnce on a moved folder repoints file_path and makes no vision call', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-moved-'));
     const f = path.join(dir, 'Screenshot (7).png');
