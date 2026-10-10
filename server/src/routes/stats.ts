@@ -2,6 +2,19 @@ import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
 import statsLab from './statsLab';
 import { seasonRange } from '../lib/seasons';
+import { ensureHeroCredit, CREDIT_COLS } from '../lib/heroShares';
+
+// Per-hero PERFORMANCE readers weight each match by play-time share (lib/heroShares.ts):
+// matches_by_hero_credit carries a `share` column, games = SUM(share), wins = SUM(share * win).
+// Readers that judge the advisor's start pick keep matches.hero and do not use it.
+function creditDb() {
+  const db = getDb();
+  ensureHeroCredit(db);
+  return db;
+}
+// Weighted form of AVG(CASE WHEN <cond> THEN win END) * 100 and COUNT(CASE WHEN <cond> THEN 1 END).
+const wAvg = (cond: string) => `ROUND(SUM(CASE WHEN ${cond} THEN share * win END) * 100.0 / SUM(CASE WHEN ${cond} THEN share END), 1)`;
+const wGames = (cond: string) => `ROUND(SUM(CASE WHEN ${cond} THEN share END), 1)`;
 
 // Descriptive stats (W/L, by-hero, by-map, by-hour, streaks, trends) stay here,
 // on db/schema. The inferential endpoints (/split, /insights) are the lab's:
@@ -87,18 +100,14 @@ router.get('/overview', (req: Request, res: Response) => {
 });
 
 router.get('/by-hero', (req: Request, res: Response) => {
-  const db = getDb();
+  const db = creditDb();
   const [where, params] = whereClause(req.query as Record<string, string>);
   const rows = db.prepare(`
-    SELECT
-      hero, role,
-      COUNT(*) as games,
-      SUM(win) as wins,
-      ROUND(AVG(win) * 100, 1) as win_rate
-    FROM matches_by_hero ${where}
+    SELECT hero, role, ${CREDIT_COLS}
+    FROM matches_by_hero_credit ${where}
     GROUP BY hero, role
-    HAVING games >= 3
-    ORDER BY games DESC
+    HAVING SUM(share) >= 3
+    ORDER BY SUM(share) DESC
   `).all(params);
   res.json(rows);
 });
@@ -249,7 +258,7 @@ router.get('/trends', (req: Request, res: Response) => {
 });
 
 router.get('/prematch', (req: Request, res: Response) => {
-  const db = getDb();
+  const db = creditDb();
   const { map, game_type, hour, day_of_week } = req.query as Record<string, string>;
 
   // With a map: that map's numbers. Without one: every map's (2026-09-28),
@@ -257,9 +266,8 @@ router.get('/prematch', (req: Request, res: Response) => {
   // is chosen.
   const where = [map ? 'map = :map' : '', game_type ? 'game_type = :game_type' : ''].filter(Boolean);
   const byHero = db.prepare(`
-    SELECT hero, role, COUNT(*) as games, SUM(win) as wins,
-           ROUND(AVG(win) * 100, 1) as win_rate
-    FROM matches_by_hero ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+    SELECT hero, role, ${CREDIT_COLS}
+    FROM matches_by_hero_credit ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
     GROUP BY hero ORDER BY win_rate DESC
   `).all({ ...(map ? { map } : {}), ...(game_type ? { game_type } : {}) });
 
@@ -273,9 +281,8 @@ router.get('/prematch', (req: Request, res: Response) => {
   `).get({ hour: parseInt(hour ?? '-1'), day: day_of_week ?? '' });
 
   const bestHeroesRaw = db.prepare(`
-    SELECT hero, role, COUNT(*) as games, SUM(win) as wins,
-           ROUND(AVG(win) * 100, 1) as win_rate
-    FROM matches_by_hero GROUP BY hero HAVING games >= 5
+    SELECT hero, role, ${CREDIT_COLS}
+    FROM matches_by_hero_credit GROUP BY hero HAVING SUM(share) >= 5
     ORDER BY role, win_rate DESC
   `).all({}) as any[];
   const roleCounts: Record<string, number> = {};
@@ -331,9 +338,9 @@ router.get('/prematch', (req: Request, res: Response) => {
 
   // Best hero for the current game type (cross-type optimizer)
   const bestByGameType = game_type ? db.prepare(`
-    SELECT hero, role, COUNT(*) as games, ROUND(AVG(win)*100,1) as win_rate
-    FROM matches_by_hero WHERE game_type = :game_type
-    GROUP BY hero HAVING games >= 5
+    SELECT hero, role, ${CREDIT_COLS}
+    FROM matches_by_hero_credit WHERE game_type = :game_type
+    GROUP BY hero HAVING SUM(share) >= 5
     ORDER BY win_rate DESC LIMIT 1
   `).get({ game_type }) : null;
 
@@ -341,7 +348,7 @@ router.get('/prematch', (req: Request, res: Response) => {
 });
 
 router.get('/momentum', (req: Request, res: Response) => {
-  const db = getDb();
+  const db = creditDb();
 
   // "Recent" = last 30 days. "Previous" = the 90 days before that (31-120 days ago).
   // Minimum 5 games in a window before we report it.
@@ -360,14 +367,14 @@ router.get('/momentum', (req: Request, res: Response) => {
   // Established heroes (real before/after) sort first by trajectory delta.
   const byHero = db.prepare(`
     SELECT hero, role,
-      ROUND(AVG(CASE WHEN date >= date('now','-30 days') THEN win END)*100,1)                                              AS recent_wr,
-      ROUND(AVG(CASE WHEN date >= date('now','-120 days') AND date < date('now','-30 days') THEN win END)*100,1)           AS prev_wr,
-      COUNT(CASE WHEN date >= date('now','-30 days') THEN 1 END)                                                           AS recent_games,
-      COUNT(CASE WHEN date >= date('now','-120 days') AND date < date('now','-30 days') THEN 1 END)                        AS prev_games,
-      CASE WHEN COUNT(CASE WHEN date >= date('now','-120 days') AND date < date('now','-30 days') THEN 1 END) >= 5 THEN 0 ELSE 1 END AS is_new
-    FROM matches_by_hero
+      ${wAvg("date >= date('now','-30 days')")}                                              AS recent_wr,
+      ${wAvg("date >= date('now','-120 days') AND date < date('now','-30 days')")}           AS prev_wr,
+      ${wGames("date >= date('now','-30 days')")}                                            AS recent_games,
+      ${wGames("date >= date('now','-120 days') AND date < date('now','-30 days')")}         AS prev_games,
+      CASE WHEN SUM(CASE WHEN date >= date('now','-120 days') AND date < date('now','-30 days') THEN share END) >= 5 THEN 0 ELSE 1 END AS is_new
+    FROM matches_by_hero_credit
     GROUP BY hero
-    HAVING recent_games >= 5
+    HAVING SUM(CASE WHEN date >= date('now','-30 days') THEN share END) >= 5
     ORDER BY is_new ASC, (COALESCE(recent_wr,0) - COALESCE(prev_wr,0)) DESC, recent_wr DESC
   `).all({});
 
@@ -519,32 +526,34 @@ router.get('/map-voting', (req: Request, res: Response) => {
 });
 
 router.get('/hero-cards', (_req: Request, res: Response) => {
-  const db = getDb();
+  const db = creditDb();
 
   const heroes = db.prepare(`
-    SELECT hero, role, COUNT(*) as games, ROUND(AVG(win)*100,1) as win_rate
-    FROM matches_by_hero GROUP BY hero HAVING games >= 3 ORDER BY games DESC
+    SELECT hero, role, ROUND(SUM(share), 1) as games, ROUND(SUM(share * win) * 100.0 / SUM(share), 1) as win_rate
+    FROM matches_by_hero_credit GROUP BY hero HAVING SUM(share) >= 3 ORDER BY SUM(share) DESC
   `).all({}) as any[];
 
   const maps = db.prepare(`
-    SELECT hero, map, game_type, COUNT(*) as games, ROUND(AVG(win)*100,1) as win_rate
-    FROM matches_by_hero GROUP BY hero, map HAVING games >= 3
+    SELECT hero, map, game_type, ROUND(SUM(share), 1) as games, ROUND(SUM(share * win) * 100.0 / SUM(share), 1) as win_rate
+    FROM matches_by_hero_credit GROUP BY hero, map HAVING SUM(share) >= 3
   `).all({}) as any[];
 
   const types = db.prepare(`
-    SELECT hero, game_type, COUNT(*) as games, ROUND(AVG(win)*100,1) as win_rate
-    FROM matches_by_hero GROUP BY hero, game_type HAVING games >= 5
+    SELECT hero, game_type, ROUND(SUM(share), 1) as games, ROUND(SUM(share * win) * 100.0 / SUM(share), 1) as win_rate
+    FROM matches_by_hero_credit GROUP BY hero, game_type HAVING SUM(share) >= 5
   `).all({}) as any[];
 
   // Per-queue-mode win rate for each hero (no min — column shows "—" when thin).
   const modes = db.prepare(`
-    SELECT hero, queue_mode, COUNT(*) as games, ROUND(AVG(win)*100,1) as win_rate
-    FROM matches_by_hero WHERE queue_mode IS NOT NULL GROUP BY hero, queue_mode
+    SELECT hero, queue_mode, ROUND(SUM(share), 1) as games, ROUND(SUM(share * win) * 100.0 / SUM(share), 1) as win_rate
+    FROM matches_by_hero_credit WHERE queue_mode IS NOT NULL GROUP BY hero, queue_mode
   `).all({}) as any[];
 
-  // Last 60 matches per hero in chronological order for sparkline
+  // Matches per hero in chronological order for the sparkline. A cameo under a third of
+  // the match is not a match "on" the hero, so it stays out of the strip (it still counts,
+  // weighted, in the totals above).
   const history = db.prepare(`
-    SELECT hero, win FROM matches_by_hero ORDER BY date, time
+    SELECT hero, win FROM matches_by_hero_credit WHERE share >= 1.0 / 3 ORDER BY date, time
   `).all({}) as any[];
 
   const historyByHero: Record<string, number[]> = {};
@@ -591,39 +600,40 @@ router.get('/hero-cards', (_req: Request, res: Response) => {
 });
 
 router.get('/hero-detail/:hero', (req: Request, res: Response) => {
-  const db   = getDb();
+  const db   = creditDb();
   const hero = req.params.hero;
 
   const overall = db.prepare(`
-    SELECT COUNT(*) as games, SUM(win) as wins, SUM(1 - win) as losses,
-           ROUND(AVG(win) * 100, 1) as win_rate
-    FROM matches_by_hero WHERE hero = :hero
+    SELECT ROUND(SUM(share), 1) as games, ROUND(SUM(share * win), 1) as wins,
+           ROUND(SUM(share * (1 - win)), 1) as losses,
+           ROUND(SUM(share * win) * 100.0 / SUM(share), 1) as win_rate
+    FROM matches_by_hero_credit WHERE hero = :hero
   `).get({ hero }) as any;
 
   const momentum = db.prepare(`
     SELECT
-      ROUND(AVG(CASE WHEN date >= date('now','-30 days') THEN win END) * 100, 1)                                    AS recent_wr,
-      ROUND(AVG(CASE WHEN date >= date('now','-120 days') AND date < date('now','-30 days') THEN win END) * 100, 1) AS prev_wr,
-      COUNT(CASE WHEN date >= date('now','-30 days') THEN 1 END)                                                    AS recent_games,
-      COUNT(CASE WHEN date >= date('now','-120 days') AND date < date('now','-30 days') THEN 1 END)                 AS prev_games
-    FROM matches_by_hero WHERE hero = :hero
+      ${wAvg("date >= date('now','-30 days')")}                                    AS recent_wr,
+      ${wAvg("date >= date('now','-120 days') AND date < date('now','-30 days')")} AS prev_wr,
+      ${wGames("date >= date('now','-30 days')")}                                  AS recent_games,
+      ${wGames("date >= date('now','-120 days') AND date < date('now','-30 days')")} AS prev_games
+    FROM matches_by_hero_credit WHERE hero = :hero
   `).get({ hero }) as any;
 
   const maps = db.prepare(`
-    SELECT map, game_type, COUNT(*) as games, ROUND(AVG(win) * 100, 1) as win_rate
-    FROM matches_by_hero WHERE hero = :hero GROUP BY map HAVING COUNT(*) >= 3
+    SELECT map, game_type, ROUND(SUM(share), 1) as games, ROUND(SUM(share * win) * 100.0 / SUM(share), 1) as win_rate
+    FROM matches_by_hero_credit WHERE hero = :hero GROUP BY map HAVING SUM(share) >= 3
     ORDER BY win_rate DESC
   `).all({ hero }) as any[];
 
   const types = db.prepare(`
-    SELECT game_type, COUNT(*) as games, ROUND(AVG(win) * 100, 1) as win_rate
-    FROM matches_by_hero WHERE hero = :hero GROUP BY game_type HAVING COUNT(*) >= 5
+    SELECT game_type, ROUND(SUM(share), 1) as games, ROUND(SUM(share * win) * 100.0 / SUM(share), 1) as win_rate
+    FROM matches_by_hero_credit WHERE hero = :hero GROUP BY game_type HAVING SUM(share) >= 5
     ORDER BY win_rate DESC
   `).all({ hero }) as any[];
 
   const recent10 = db.prepare(`
-    SELECT win, map, date FROM matches_by_hero
-    WHERE hero = :hero ORDER BY date DESC, id DESC LIMIT 10
+    SELECT win, map, date FROM matches_by_hero_credit
+    WHERE hero = :hero AND share >= 1.0 / 3 ORDER BY date DESC, id DESC LIMIT 10
   `).all({ hero }) as any[];
 
   res.json({
@@ -637,7 +647,7 @@ router.get('/hero-detail/:hero', (req: Request, res: Response) => {
 });
 
 router.get('/map-detail/:map', (req: Request, res: Response) => {
-  const db  = getDb();
+  const db  = creditDb();
   const map = req.params.map;
 
   const overall = db.prepare(`
@@ -656,9 +666,9 @@ router.get('/map-detail/:map', (req: Request, res: Response) => {
   `).get({ map }) as any;
 
   const heroRows = db.prepare(`
-    SELECT hero, role, COUNT(*) as games, ROUND(AVG(win) * 100, 1) as win_rate
-    FROM matches_by_hero WHERE map = :map
-    GROUP BY hero, role HAVING COUNT(*) >= 3
+    SELECT hero, role, ROUND(SUM(share), 1) as games, ROUND(SUM(share * win) * 100.0 / SUM(share), 1) as win_rate
+    FROM matches_by_hero_credit WHERE map = :map
+    GROUP BY hero, role HAVING SUM(share) >= 3
     ORDER BY win_rate DESC
   `).all({ map }) as any[];
 
@@ -679,7 +689,7 @@ router.get('/map-detail/:map', (req: Request, res: Response) => {
 // Per-queue-mode summary for the side-by-side mode comparison.
 // One row per mode the user has actually played, plus that mode's most-played hero.
 router.get('/mode-comparison', (req: Request, res: Response) => {
-  const db = getDb();
+  const db = creditDb();
   // Optional ?season= narrows every figure on the cards, including the
   // trailing 10-day recent window (which is then empty for a past season).
   const [sClauses, sParams] = seasonClauses(req.query as Record<string, string>);
@@ -710,12 +720,12 @@ router.get('/mode-comparison', (req: Request, res: Response) => {
     SELECT queue_mode, hero, role, games, win_rate FROM (
       SELECT
         queue_mode, hero, role,
-        COUNT(*) as games,
-        ROUND(AVG(win) * 100, 1) as win_rate,
+        ROUND(SUM(share), 1) as games,
+        ROUND(SUM(share * win) * 100.0 / SUM(share), 1) as win_rate,
         ROW_NUMBER() OVER (
-          PARTITION BY queue_mode ORDER BY COUNT(*) DESC, AVG(win) DESC
+          PARTITION BY queue_mode ORDER BY SUM(share) DESC, SUM(share * win) / SUM(share) DESC
         ) as rn
-      FROM matches_by_hero
+      FROM matches_by_hero_credit
       WHERE queue_mode IS NOT NULL${sAnd}
       GROUP BY queue_mode, hero
     ) WHERE rn = 1
