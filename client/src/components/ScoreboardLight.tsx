@@ -1,8 +1,8 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { LivePayload } from '../lib/scoreboardFill';
 
-// Pipeline light at the right edge of the Recording-as row (ml-auto, Sean's request).
-// Fixed 256 px box (w-64), never resizes. Dot and text sit at its left.
+// Pipeline light in column 3 of the Recording-as grid, so the dot lines up with the
+// left edge of the Sensitivity label below. Width = column width, never follows the text.
 // Text wider than that scrolls as a slow marquee (.sb-marq-run in index.css, CSS
 // transform only); under reduced motion it truncates with an ellipsis instead.
 // The server decides the stage (GET /api/scoreboards/live, lib/scoreboardStage.ts);
@@ -53,7 +53,7 @@ export default function ScoreboardLight({ live }: { live: LivePayload | null }) 
   const dur = travel + 2 * HOLD;
   const pct = Math.round((HOLD / dur) * 1000) / 10;
   return (
-    <div className="flex items-center gap-2 w-64 shrink-0 ml-auto" data-inspect-id="logmatch-scoreboard-light">
+    <div className="flex items-center gap-2 min-w-0 w-full" data-inspect-id="logmatch-scoreboard-light">
       <span
         aria-hidden="true"
         className={`inline-block w-2 h-2 rounded-full shrink-0 ${DOT[stage]}${stage === 'detected' || stage === 'partial' ? ' stage-pulse' : ''}`}
