@@ -688,6 +688,12 @@
     .test-glow::after { animation: none; box-shadow: 0 0 0 2px rgb(var(--sel, 247 147 30) / 0.8); }
   }
 
+  /* Scoreboard light dot while the pipeline is working (reading, or pages waiting
+     for a Summary). Slow opacity pulse, slower than Tailwind's animate-pulse. */
+  .stage-pulse { animation: stage-pulse 2.8s ease-in-out infinite; }
+  @keyframes stage-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  @media (prefers-reduced-motion: reduce) { .stage-pulse { animation: none; } }
+
   /* Pulsing glow on the rank strip's current account/role line. Set on the
      overlay <svg> (an html box, so the blur isn't stretched with the chart).
      Tight radii keep the edge sharp; --glow is the line's own colour. */

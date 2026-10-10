@@ -289,13 +289,13 @@ describe('HTTP: light and submit link', () => {
       // The Summary DATE must be near now to avoid a recovery; match none are logged, so it is live regardless.
       await feedNow(SUMMARY_49, 'h49', 0); await feedNow(TRACER_51, 'h51', 5); await feedNow(PHARAH_52, 'h52', 6);
       const live = (await h.get('/api/scoreboards/live')).body;
-      assert.equal(live.light, 'green'); assert.equal(live.fill.final_blows, 6); assert.equal(live.fill.map, 'Nepal');
+      assert.equal(live.light, 'green'); assert.equal(live.stage, 'ready'); assert.deepEqual(live.pages, { summary: true, teams: false, personal: 2 }); assert.equal(live.fill.final_blows, 6); assert.equal(live.fill.map, 'Nepal');
       assert.equal((await h.get('/api/scoreboards/unmatched')).body.items.length, 0, 'live group pages stay out of the inbox');
       const res = await h.post('/api/matches', { date: '2026-10-09', hero: 'Tracer', role: 'DPS', map: 'Nepal', game_type: 'Control', win: false, scoreboard_group_id: live.group_id });
       assert.equal(res.status, 200);
       const rows = h.db.prepare(`SELECT status, match_id FROM match_scoreboards`).all() as any[];
       assert.ok(rows.every(r => r.status === 'matched' && r.match_id === res.body.id));
-      assert.equal((await h.get('/api/scoreboards/live')).body.light, 'off');
+      { const off = (await h.get('/api/scoreboards/live')).body; assert.equal(off.light, 'off'); assert.equal(off.stage, 'idle'); }
       // a stale or unknown id never fails the log
       assert.equal((await h.post('/api/matches', { date: '2026-10-09', hero: 'Tracer', role: 'DPS', map: 'Nepal', game_type: 'Control', win: false, scoreboard_group_id: 9999 })).status, 200);
     } finally { await h.close(); }

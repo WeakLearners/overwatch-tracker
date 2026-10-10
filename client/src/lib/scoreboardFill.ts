@@ -16,7 +16,13 @@ export interface FormFill {
   damage: number | null; healing: number | null;
   pages: { summary: boolean; teams: boolean; personal: string[] };
 }
-export interface LivePayload { light: 'green' | 'off'; group_id: number | null; fill: FormFill | null }
+export type ScoreboardStage = 'idle' | 'detected' | 'partial' | 'ready' | 'problem';
+export interface LivePayload {
+  light: 'green' | 'off'; group_id: number | null; fill: FormFill | null;
+  /** Pipeline stage from the server (lib/scoreboardStage.ts); drives the light's dot and text only. */
+  stage?: ScoreboardStage; reading?: number; reason?: string | null; ignored?: number;
+  pages?: { summary: boolean; teams: boolean; personal: number } | null;
+}
 
 export interface FormSnapshot {
   hero: string; switchHeroes: [string, string]; win: '' | '1' | '0'; map: string;

@@ -10,6 +10,7 @@ import fs from 'fs';
 import path from 'path';
 import type { DatabaseSync } from 'node:sqlite';
 import { organizeAll } from './scoreboardOrganize';
+import { markInFlight, clearInFlight } from './scoreboardStage';
 import { finalizeGroups } from './scoreboardPages';
 import { processFile, rematchRecent, isImageName, type VisionFn, callVision } from './scoreboard';
 
@@ -60,6 +61,7 @@ export async function pollOnce(
       }
     }
     fresh.sort((a, b) => a.st.mtimeMs - b.st.mtimeMs || a.name.localeCompare(b.name));
+    markInFlight(fresh.map(f => f.full));
     for (const { name, full, st } of fresh) {
       try {
         // Folder moved: same basename and mtime already stored, so only repoint file_path.
@@ -75,7 +77,7 @@ export async function pollOnce(
         if (status) { processed++; console.log(`[scoreboard] ${name}: ${status}`); }
       } catch (e) {
         console.warn(`[scoreboard] ${name}: ${(e as Error).message}; retry next poll`);
-      }
+      } finally { clearInFlight(full); }
     }
     try { finalizeGroups(db); } catch (e) { console.error('[scoreboard] group fill failed:', (e as Error).message); }
     try { organizeAll(db, dir); } catch (e) { console.error('[scoreboard] organize failed:', (e as Error).message); }

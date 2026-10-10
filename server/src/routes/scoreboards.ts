@@ -4,6 +4,7 @@ import { organizeBoard } from '../lib/scoreboardOrganize';
 import { DEFAULT_SCOREBOARD_DIR } from '../lib/scoreboardWatcher';
 import { REMATCH_GRACE_MIN } from '../lib/scoreboard';
 import { syncMatchHeroStats } from '../lib/matchHeroStats';
+import { computeStage } from '../lib/scoreboardStage';
 import { buildFill, linkGroup, TEAMS_ONLY, type GroupRow } from '../lib/scoreboardPages';
 
 const root = () => process.env.SCOREBOARD_DIR || DEFAULT_SCOREBOARD_DIR;
@@ -17,12 +18,16 @@ const router = Router();
 // page arrived, no logged match fits it) and its last page is younger than
 // REMATCH_GRACE_MIN, the same grace the unmatched list uses. `fill` is the ready
 // payload for the log form: the server owns the tile map, the client only applies it.
+// `stage` (+ reading, pages, reason, ignored) is the pipeline stage for the light's
+// dot and text (lib/scoreboardStage.ts); it never changes `light` or `fill`.
 router.get('/live', (_req, res) => {
   const db = getDb();
   const cutoff = new Date(Date.now() - REMATCH_GRACE_MIN * 60_000).toISOString();
   const g = db.prepare(`SELECT * FROM scoreboard_groups WHERE state = 'live' AND last_mtime >= ? ORDER BY summary_mtime DESC, id DESC LIMIT 1`).get(cutoff) as unknown as GroupRow | undefined;
-  if (!g) { res.json({ light: 'off', group_id: null, fill: null }); return; }
-  res.json({ light: 'green', group_id: g.id, fill: buildFill(db, g.id) });
+  const fill = g ? buildFill(db, g.id) : null;
+  const stage = computeStage(db, g ?? null, fill?.pages ? { summary: fill.pages.summary, teams: fill.pages.teams, personal: fill.pages.personal.length } : null);
+  if (!g) { res.json({ light: 'off', group_id: null, fill: null, ...stage }); return; }
+  res.json({ light: 'green', group_id: g.id, fill, ...stage });
 });
 
 // Unmatched / error images plus a count of ignored non-scoreboard images, and
