@@ -1361,7 +1361,7 @@ export default function Prematch() {
                           <span
                             aria-hidden="true"
                             title={`Pick #${clickIndex + 1} this match`}
-                            className="absolute inset-0 -z-10 overflow-hidden rounded-[2px] flex items-center justify-center num-display italic font-black leading-none tracking-[-0.07em] text-[4.41rem] translate-x-[0.15em] translate-y-[0.007em] whitespace-nowrap opacity-[0.225] pointer-events-none"
+                            className="absolute inset-0 -z-10 overflow-hidden rounded-[2px] flex items-center justify-center num-display italic font-black leading-none tracking-[-0.07em] text-[4.41rem] translate-x-[0.15em] translate-y-[0.007em] whitespace-nowrap opacity-[0.35] pointer-events-none"
                             data-inspect-id="prematch-hero-picker-pick-watermark"
                           >
                             <span
