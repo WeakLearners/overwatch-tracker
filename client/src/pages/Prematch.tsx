@@ -1318,14 +1318,14 @@ export default function Prematch() {
                           // 1px padding makes up the width gap with the 2px
                           // selected border, so selecting doesn't shift the row.
                           isClicked
-                            ? 'border-2 px-3 py-3.5 is-selected mode-fill'
-                            : 'hero-pane px-[13px] py-[15px] hover-sel'
+                            ? 'border-2 pl-[18px] pr-3 py-3.5 is-selected mode-fill'
+                            : 'hero-pane pl-[19px] pr-[13px] py-[15px] hover-sel'
                         }`}
                       >
                         <HeroPortraitBg hero={h.hero} opacity={0.22} position="50% 43%" inspectId="prematch-hero-picker-portrait-bg" />
                         {!isDfHero && stageLetterFor(h.hero) && (
                           // Stage tab (2026-10-11): stacked A / B on the row's left
-                          // edge, inside the padding box (10px of the 12-13px
+                          // edge, inside the padding box (10px of the 18-19px
                           // padding) so row size and name alignment do not change.
                           // Current stage = filled in the role colour; the other =
                           // the same letter, unfilled (fill is the only differentiator). Resting rows draw at half strength,
