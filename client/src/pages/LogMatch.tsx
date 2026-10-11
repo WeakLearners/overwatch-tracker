@@ -664,7 +664,17 @@ export default function LogMatch() {
   // Switching the result after answering would leave a promotion standing on
   // a loss. Clear the answer and hand the rank back to where it started.
   const winValue = form.win;
+  // The scoreboard fill sets the result and the rank in one go. Its rank answer must survive the
+  // reset below, which exists for a hand switch of the result. Set only when the fill changes win.
+  const rankFillWin = useRef<string | null>(null);
+  // Start rank derived from the rank page; submitted as player_rank_start while set. Any hand change
+  // to the rank answer, and every submit, clears it so the form's own rankAtLastLog applies again.
+  const [rankStartFill, setRankStartFill] = useState<number | null>(null);
   useEffect(() => {
+    const keep = rankFillWin.current === winValue;
+    rankFillWin.current = null;
+    if (keep) return;
+    setRankStartFill(null);
     setRankOutcome(null);
     if (rankAtLastLog != null && playerRank !== rankAtLastLog) setPlayerRank(rankAtLastLog);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -736,7 +746,13 @@ export default function LogMatch() {
   const fillFromScoreboard = (src: FormFill | null = live?.light === 'green' ? live.fill : null, overwrite = false) => {
     const fill = src;
     if (!fill) return;
-    const patch = fillPatch({ hero: form.hero, switchHeroes, win: form.win, map, scoreUs, scoreThem, aimStats }, fill, { overwrite });
+    const patch = fillPatch({ hero: form.hero, switchHeroes, win: form.win, map, scoreUs, scoreThem, aimStats, rankFillable: !isQP && !(placement && !isQP) && isFieldEnabled('player_rank'), rankOutcome, rankAtLastLog }, fill, { overwrite });
+    if (patch.playerRank !== undefined) {
+      if (patch.win !== undefined && patch.win !== form.win) rankFillWin.current = patch.win;
+      setPlayerRank(patch.playerRank);
+      setRankOutcome(patch.rankOutcome ?? null);
+      setRankStartFill(patch.rankStart ?? null);
+    }
     if (patch.map !== undefined) setMap(patch.map);
     if (patch.hero !== undefined) setForm(f => ({ ...f, hero: patch.hero! }));
     if (patch.win !== undefined) setForm(f => ({ ...f, win: patch.win! }));
@@ -1027,7 +1043,7 @@ export default function LogMatch() {
         leaver: leaverSide !== null,
         leaver_side: leaverSide,
         player_rank: isQP || isPlacement ? null : playerRank,
-        player_rank_start: isQP || isPlacement ? null : rankAtLastLog,
+        player_rank_start: isQP || isPlacement ? null : rankStartFill ?? rankAtLastLog,
         lobby_low: isQP || isPlacement ? null : lobbyLow,
         lobby_high: isQP || isPlacement ? null : lobbyHigh,
         placement: isPlacement,
@@ -1066,7 +1082,7 @@ export default function LogMatch() {
           // match on this account+role ended at, so the row records the move
           // itself rather than leaving the chart to infer one by comparing
           // against whichever earlier row it can find.
-          player_rank_start: isQP || isPlacement ? null : rankAtLastLog,
+          player_rank_start: isQP || isPlacement ? null : rankStartFill ?? rankAtLastLog,
           lobby_low: isQP || isPlacement ? null : lobbyLow,
           lobby_high: isQP || isPlacement ? null : lobbyHigh,
           placement: isPlacement,
@@ -1093,6 +1109,7 @@ export default function LogMatch() {
       // match must not start from last season's.
       if (!isQP) commitRankAtLastLog(isPlacement ? null : playerRank);
       setRankOutcome(null);
+      setRankStartFill(null);
       clearDeathBuffer();
       setFeelByHero({});
       setTeamRating(0);
@@ -1556,6 +1573,7 @@ export default function LogMatch() {
                 onChange={(v) => {
                   const { rankOutcome: ro, playerRank: pr } = v as RankOutcomeChange;
                   setRankOutcome(ro);
+                  setRankStartFill(null);
                   if (pr != null) setPlayerRank(pr);
                 }}
               />

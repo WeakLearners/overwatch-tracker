@@ -1130,6 +1130,37 @@ function initSchema(db: DatabaseSync) {
     );
   `);
 
+  // Rank progress page (2026-10-11, Phase 1 of the rank system). The screen Overwatch shows right after
+  // a competitive match, before the Summary (lib/scoreboardPages.ts normRank). One row per rank page,
+  // keyed by the page id like scoreboard_rows, so the data exists before a match is linked. rank_int is
+  // the 1-45 ladder of matches.player_rank AFTER the match; progress_pct is the progress inside that
+  // division after the match; delta_pct is the change bar (negative on a loss), NULL when none is shown.
+  // cp_* are competitive points, reward_* the "n/30" reward track, modifiers a JSON array of chip names.
+  // Any value the model could not read is NULL, never 0. Heroes: one row per SR entry in the right
+  // column; hero is the roster name or NULL, raw_name the text as read; sr_delta NULL = no change shown.
+  // No migration: both tables are new, so CREATE IF NOT EXISTS needs no user_version step.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS scoreboard_ranks (
+      scoreboard_id INTEGER PRIMARY KEY REFERENCES match_scoreboards(id),
+      rank_int INTEGER, tier TEXT, division INTEGER,
+      progress_pct INTEGER, delta_pct INTEGER,
+      result TEXT CHECK(result IN ('victory','defeat','draw')),
+      percentile INTEGER,
+      cp_total INTEGER, cp_delta INTEGER,
+      reward_progress INTEGER, reward_total INTEGER,
+      modifiers TEXT NOT NULL DEFAULT '[]'
+    );
+    CREATE TABLE IF NOT EXISTS scoreboard_rank_heroes (
+      scoreboard_id INTEGER NOT NULL REFERENCES match_scoreboards(id),
+      slot INTEGER NOT NULL,
+      hero TEXT,
+      raw_name TEXT NOT NULL,
+      sr INTEGER NOT NULL,
+      sr_delta INTEGER,
+      PRIMARY KEY (scoreboard_id, slot)
+    );
+  `);
+
     db.exec('COMMIT');
   } catch (err) {
     db.exec('ROLLBACK');

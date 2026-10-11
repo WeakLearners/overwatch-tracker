@@ -16,6 +16,13 @@ export interface FormFill {
   heroes: FillHero[]; elims: number | null; assists: number | null; deaths: number | null;
   damage: number | null; healing: number | null;
   pages: { summary: boolean; teams: boolean; personal: string[] };
+  /** The rank progress page of the group (server: scoreboardPages.ts buildFill), or null. */
+  rank?: FillRank | null;
+}
+export interface FillRank {
+  rank_int: number; progress_pct: number | null; delta_pct: number | null; result: 'victory' | 'defeat' | 'draw' | null;
+  /** Derived by the server from rank_int, progress_pct and delta_pct (a division crossing included); null when it cannot be. */
+  start_rank_int: number | null; start_progress_pct: number | null;
 }
 export type ScoreboardStage = 'idle' | 'detected' | 'partial' | 'ready' | 'problem';
 export interface LivePayload {
@@ -28,8 +35,14 @@ export interface LivePayload {
 export interface FormSnapshot {
   hero: string; switchHeroes: [string, string]; win: '' | '1' | '0'; map: string;
   scoreUs: string; scoreThem: string; aimStats: StatFieldsT;
+  /** Rank block (optional so older callers stay valid). rankFillable is false on QP, placement or with the rank field off. */
+  rankFillable?: boolean; rankOutcome?: 'moved' | 'none' | null; rankAtLastLog?: number | null;
 }
 export interface FormPatch {
+  /** Rank selector value (matches.player_rank). */
+  playerRank?: number; rankOutcome?: 'moved' | 'none';
+  /** The start rank to submit as player_rank_start; set together with playerRank, null when the screenshot could not give one. */
+  rankStart?: number | null;
   hero?: string; switchHeroes?: [string, string]; win?: '1' | '0'; map?: string;
   scoreUs?: string; scoreThem?: string; aimStats?: StatFieldsT; aimOpen?: true;
 }
@@ -97,7 +110,23 @@ export function fillPatch(f: FormSnapshot, fill: FormFill, opts: FillOptions = {
     return next;
   });
   if (JSON.stringify(a) !== JSON.stringify(f.aimStats)) { patch.aimStats = a; patch.aimOpen = true; }
+  Object.assign(patch, rankPatch(f, fill, ow));
   return patch;
+}
+
+/**
+ * Rank from the rank page. End rank -> the selector; start -> outcome 'moved' when it differs from the end
+ * (Plat 4 81% -> Plat 3 25% is a promotion), else 'none'. Taken only while Sean has not answered the outcome
+ * question (or in overwrite mode), and never on QP/placement. A rank page whose result disagrees with the
+ * scoreboard's win/loss is a wrong link, so it is ignored. Without a derivable start the form's own rank
+ * base decides the outcome and the start is left to the form (rankStart null).
+ */
+function rankPatch(f: FormSnapshot, fill: FormFill, ow: boolean): Pick<FormPatch, 'playerRank' | 'rankOutcome' | 'rankStart'> {
+  const r = fill.rank;
+  if (!r || !f.rankFillable || (!ow && f.rankOutcome != null)) return {};
+  if (r.result && fill.win != null && (r.result === 'victory') !== (fill.win === 1) && r.result !== 'draw') return {};
+  const start = r.start_rank_int ?? f.rankAtLastLog ?? null;
+  return { playerRank: r.rank_int, rankOutcome: start != null && start !== r.rank_int ? 'moved' : 'none', rankStart: r.start_rank_int };
 }
 
 export interface HeroMismatch {
@@ -121,4 +150,4 @@ export function heroMismatch(picked: (string | undefined)[], fill: FormFill): He
 
 /** Changes whenever a page lands in the group, so late Personal pages fill their blanks too. */
 export const fillSignature = (fill: FormFill) =>
-  `${fill.group_id}:${fill.pages.summary ? 1 : 0}${fill.pages.teams ? 1 : 0}:${fill.pages.personal.join(',')}`;
+  `${fill.group_id}:${fill.pages.summary ? 1 : 0}${fill.pages.teams ? 1 : 0}:${fill.pages.personal.join(',')}:${fill.rank ? fill.rank.rank_int : ''}`;

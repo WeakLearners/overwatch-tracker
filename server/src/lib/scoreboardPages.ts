@@ -2,6 +2,8 @@
 // three pages that Sean captures one after the other: SUMMARY, TEAMS and one
 // PERSONAL page per hero. A Summary page opens a group; the Teams and Personal
 // pages that follow within PAGE_GAP_MS of the group's last page join it.
+// A competitive match also shows a RANK page (2026-10-11) BEFORE the Summary. It joins
+// the group of the Summary that follows it within PAGE_GAP_MS, in either arrival order.
 //
 // This module holds the pure parts (name matching, the DATE parse, the fill
 // payload) and the group queries. It never imports scoreboard.ts, so the two
@@ -9,11 +11,13 @@
 //  - A name that is not exactly in the roster becomes null. Never fuzzy-match.
 //  - Accuracy slots fill only for heroes in HERO_TILE_MAP (heroTileLabels.ts).
 //  - Recovery and submit fills only write NULL columns of rows that already exist.
+//  - A rank page fills matches.player_rank / player_rank_start only where they are NULL.
 import { syncMatchHeroStats } from './matchHeroStats';
 import type { DatabaseSync } from 'node:sqlite';
 import { HEROES_BY_ROLE, MAPS_BY_NAME } from './roster';
 import { slotValues, finalBlows, type Tile } from './heroTileLabels';
 import { emitTrackerWrite } from './trackerEvents';
+
 
 export const PAGE_GAP_MS = 90_000;
 /** A Summary DATE counts as the end of a logged match when created_at is within this many minutes. */
@@ -21,7 +25,7 @@ export const DATE_WINDOW_MIN = 10;
 /** SQL fragment for the scoreboard table aliased `s`: only Teams pages count as "the match's scoreboard". Old rows have a NULL page_type and are Teams pages. */
 export const TEAMS_ONLY = `(s.page_type IS NULL OR s.page_type = 'teams')`;
 
-export type PageType = 'summary' | 'teams' | 'personal' | 'other';
+export type PageType = 'summary' | 'teams' | 'personal' | 'rank' | 'other';
 
 /** SQLite datetime('now') is UTC without a zone marker. */
 export function parseDbUtc(s: string): number {
@@ -38,6 +42,12 @@ export interface RawSummary {
   elims: number; assists: number; deaths: number;
 }
 export interface RawPersonal { hero: string; tiles: Tile[] }
+/** The rank progress screen, every value as shown (strings are parsed in normRank). */
+export interface RawRank {
+  result: string; rank_text: string; progress_text: string; change_text: string; percentile_text: string;
+  modifiers: string[]; points_total: string; points_change: string; reward_progress: string;
+  heroes: { name: string; sr: string; change: string }[];
+}
 
 // -------------------------------------------------------------- name matching
 
@@ -111,6 +121,107 @@ export function normSummary(raw: RawSummary, mtimeMs: number): NormSummary {
   };
 }
 
+// ------------------------------------------------------------------ rank page
+
+/** Tier order of the 1-45 ladder. Must stay in step with RANK_TIERS in client/src/types/index.ts. */
+export const RANK_TIERS = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Emerald', 'Diamond', 'Master', 'Grandmaster', 'Champion'] as const;
+export const RANK_MAX = RANK_TIERS.length * 5;
+
+/** Bronze 5 = 1 ... Champion 1 = 45 (client rankFromParts). Null when the tier or division is not on the ladder. */
+export function rankInt(tier: string, division: number): number | null {
+  const i = RANK_TIERS.findIndex(t => fold(t) === fold(tier));
+  return i < 0 || !Number.isInteger(division) || division < 1 || division > 5 ? null : i * 5 + (5 - division) + 1;
+}
+
+export interface NormRankHero { hero: string | null; rawName: string; sr: number; srDelta: number | null }
+export interface NormRank {
+  rankInt: number | null; tier: string | null; division: number | null;
+  progressPct: number | null; deltaPct: number | null; result: 'victory' | 'defeat' | 'draw' | null; percentile: number | null;
+  cpTotal: number | null; cpDelta: number | null; rewardProgress: number | null; rewardTotal: number | null;
+  modifiers: string[]; heroes: NormRankHero[];
+}
+/** "+44%", "-12", "−12", "76" -> number; no digits -> null. */
+function signedInt(s: unknown): number | null {
+  const m = String(s ?? '').replace(/[−–—]/g, '-').match(/([+-])?\s*(\d[\d,]*)/);
+  if (!m) return null;
+  const n = Number(m[2].replace(/,/g, ''));
+  return m[1] === '-' ? -n : n;
+}
+
+export function normRank(raw: RawRank): NormRank {
+  const rt = String(raw.rank_text ?? '').match(/([A-Za-z]+)\s*([1-5])\b/);
+  const tierName = rt ? RANK_TIERS.find(t => fold(t) === fold(rt[1])) ?? null : null;
+  const division = rt && tierName ? Number(rt[2]) : null;
+  const res = fold(raw.result ?? '').match(/victory|defeat|draw/)?.[0] as NormRank['result'] | undefined;
+  const reward = String(raw.reward_progress ?? '').match(/(\d+)\s*\/\s*(\d+)/);
+  const pct = (s: unknown) => { const n = signedInt(s); return n != null && n >= 0 && n <= 100 ? n : null; };
+  return {
+    rankInt: tierName && division ? rankInt(tierName, division) : null, tier: tierName, division,
+    progressPct: pct(raw.progress_text), deltaPct: signedInt(raw.change_text), result: res ?? null, percentile: pct(raw.percentile_text),
+    cpTotal: signedInt(raw.points_total), cpDelta: signedInt(raw.points_change),
+    rewardProgress: reward ? Number(reward[1]) : null, rewardTotal: reward ? Number(reward[2]) : null,
+    modifiers: (raw.modifiers ?? []).map(m => String(m).trim().replace(/\s+/g, ' ')).filter(Boolean),
+    heroes: (raw.heroes ?? []).map(h => ({ hero: rosterHero(h.name), rawName: String(h.name ?? '').trim(), sr: signedInt(h.sr) as number, srDelta: signedInt(h.change) }))
+      .filter(h => h.rawName && Number.isFinite(h.sr)),
+  };
+}
+
+/**
+ * The rank and progress the match STARTED at, from the end rank (rankInt), end progress and the change bar.
+ * progress - change < 0 on a gain: it began in the division below, at 100 + that value.
+ * progress - change > 100 on a loss: it began in the division above, at that value - 100.
+ * Null when a value is missing, the readings disagree (a gain that "started" above 100) or the ladder ends.
+ */
+export function deriveStartRank(endRank: number | null, progressPct: number | null, deltaPct: number | null): { rankInt: number; progressPct: number } | null {
+  if (endRank == null || progressPct == null || deltaPct == null) return null;
+  const start = progressPct - deltaPct;
+  let r = endRank, p = start;
+  if (start < 0) { if (deltaPct <= 0) return null; r = endRank - 1; p = 100 + start; }
+  else if (start > 100) { if (deltaPct >= 0) return null; r = endRank + 1; p = start - 100; }
+  return r < 1 || r > RANK_MAX || p < 0 || p > 100 ? null : { rankInt: r, progressPct: p };
+}
+
+/** Write (or rewrite) the rank rows of one rank page. Keyed by the page id, so they exist before any match is linked. */
+export function storeRank(db: DatabaseSync, scoreboardId: number, n: NormRank): void {
+  db.prepare(`DELETE FROM scoreboard_rank_heroes WHERE scoreboard_id = ?`).run(scoreboardId);
+  db.prepare(`DELETE FROM scoreboard_ranks WHERE scoreboard_id = ?`).run(scoreboardId);
+  db.prepare(`
+    INSERT INTO scoreboard_ranks (scoreboard_id, rank_int, tier, division, progress_pct, delta_pct, result, percentile, cp_total, cp_delta, reward_progress, reward_total, modifiers)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(scoreboardId, n.rankInt, n.tier, n.division, n.progressPct, n.deltaPct, n.result, n.percentile, n.cpTotal, n.cpDelta, n.rewardProgress, n.rewardTotal, JSON.stringify(n.modifiers));
+  const ins = db.prepare(`INSERT INTO scoreboard_rank_heroes (scoreboard_id, slot, hero, raw_name, sr, sr_delta) VALUES (?, ?, ?, ?, ?, ?)`);
+  n.heroes.forEach((h, i) => ins.run(scoreboardId, i, h.hero, h.rawName, h.sr, h.srDelta));
+}
+
+/** The Summary group a rank page taken at mtimeMs belongs to: the earliest Summary within PAGE_GAP_MS AFTER it that has no other rank page. */
+export function findGroupAfterRank(db: DatabaseSync, mtimeMs: number): GroupRow | null {
+  return (db.prepare(`
+    SELECT * FROM scoreboard_groups g WHERE summary_mtime >= ? AND summary_mtime <= ?
+      AND NOT EXISTS (SELECT 1 FROM match_scoreboards s WHERE s.group_id = g.id AND s.page_type = 'rank' AND s.status <> 'dismissed' AND s.file_mtime <> ?)
+    ORDER BY summary_mtime, id LIMIT 1
+  `).get(new Date(mtimeMs).toISOString(), new Date(mtimeMs + PAGE_GAP_MS).toISOString(), new Date(mtimeMs).toISOString()) as GroupRow | undefined) ?? null;
+}
+
+/**
+ * Fill matches.player_rank and player_rank_start from the group's rank page, each ONLY where it is NULL
+ * (a hand-entered rank is never overwritten). Skips a match that is not competitive or whose win/loss
+ * disagrees with the rank page's result (a wrong link must not write a rank). Returns true when a column changed.
+ */
+export function fillRankFromGroup(db: DatabaseSync, groupId: number, matchId: number): boolean {
+  const r = db.prepare(`
+    SELECT r.rank_int, r.progress_pct, r.delta_pct, r.result FROM scoreboard_ranks r JOIN match_scoreboards s ON s.id = r.scoreboard_id
+    WHERE s.group_id = ? AND s.page_type = 'rank' AND s.status <> 'dismissed' ORDER BY s.file_mtime DESC, s.id DESC LIMIT 1
+  `).get(groupId) as { rank_int: number | null; progress_pct: number | null; delta_pct: number | null; result: string | null } | undefined;
+  if (!r || r.rank_int == null) return false;
+  const m = db.prepare(`SELECT queue_mode, win FROM matches WHERE id = ?`).get(matchId) as { queue_mode: string | null; win: number | null } | undefined;
+  if (!m || !String(m.queue_mode ?? '').startsWith('comp')) return false;
+  if ((r.result === 'victory' && m.win !== 1) || (r.result === 'defeat' && m.win !== 0)) return false;
+  const start = deriveStartRank(r.rank_int, r.progress_pct, r.delta_pct);
+  let wrote = db.prepare(`UPDATE matches SET player_rank = ? WHERE id = ? AND player_rank IS NULL`).run(r.rank_int, matchId).changes > 0;
+  if (start) wrote = db.prepare(`UPDATE matches SET player_rank_start = ? WHERE id = ? AND player_rank_start IS NULL`).run(start.rankInt, matchId).changes > 0 || wrote;
+  return wrote;
+}
+
 // ----------------------------------------------------------------- groups
 
 export interface GroupRow { id: number; state: 'live' | 'linked' | 'recovery' | 'ambiguous'; match_id: number | null; summary_mtime: string; last_mtime: string; filled_at: string | null }
@@ -141,18 +252,19 @@ export function recoveryCandidates(db: DatabaseSync, endMs: number, map: string)
 
 /**
  * Link a group to a logged match and move its waiting pages with it. Teams pages
- * link only when the match has no Teams page yet; Summary and Personal pages always do.
+ * link only when the match has no Teams page yet; Summary, Personal and Rank pages always do. A Rank page also fills the match's NULL rank columns.
  */
 export function linkGroup(db: DatabaseSync, groupId: number, matchId: number, state: 'linked' | 'recovery', reason: string): void {
   db.prepare(`UPDATE scoreboard_groups SET state = ?, match_id = ? WHERE id = ?`).run(state, matchId, groupId);
   db.prepare(`
     UPDATE match_scoreboards SET match_id = ?, status = 'matched', reason = ?
     WHERE group_id = ? AND status = 'unmatched' AND (
-      page_type IN ('summary', 'personal')
+      page_type IN ('summary', 'personal', 'rank')
       OR NOT EXISTS (SELECT 1 FROM match_scoreboards s WHERE s.match_id = ? AND ${TEAMS_ONLY} AND s.id <> match_scoreboards.id)
     )
   `).run(matchId, reason, groupId, matchId);
   syncMatchHeroStats(db, matchId);
+  if (fillRankFromGroup(db, groupId, matchId)) emitTrackerWrite();
 }
 
 /** The Summary map (roster name) of a group, or null. */
@@ -183,6 +295,13 @@ export function adoptLoosePages(db: DatabaseSync, groupId: number): number {
     last = Math.max(last, t); n++;
   }
   if (n) touchGroup(db, groupId, last);
+  // A rank page comes BEFORE the Summary: the latest loose one within PAGE_GAP_MS before it. It never moves last_mtime.
+  const hasRank = db.prepare(`SELECT 1 FROM match_scoreboards WHERE group_id = ? AND page_type = 'rank' AND status <> 'dismissed'`).get(groupId);
+  const rank = hasRank ? undefined : db.prepare(`
+    SELECT id FROM match_scoreboards WHERE group_id IS NULL AND page_type = 'rank' AND status <> 'not_scoreboard' AND file_mtime <= ? AND file_mtime >= ?
+    ORDER BY file_mtime DESC, id DESC LIMIT 1
+  `).get(g.summary_mtime, new Date(Date.parse(g.summary_mtime) - PAGE_GAP_MS).toISOString()) as { id: number } | undefined;
+  if (rank) { db.prepare(`UPDATE match_scoreboards SET group_id = ? WHERE id = ?`).run(groupId, rank.id); n++; }
   if (n && g.match_id != null) linkGroup(db, groupId, g.match_id, g.state === 'linked' ? 'linked' : 'recovery', 'group page');
   return n;
 }
@@ -208,6 +327,8 @@ export interface FormFill {
   duration_min: number | null;
   game_length_sec: number | null;
   pages: { summary: boolean; teams: boolean; personal: string[] };
+  /** The group's rank page (the form fills the rank selector and outcome from it), or null. start_* come from deriveStartRank. */
+  rank: { rank_int: number; progress_pct: number | null; delta_pct: number | null; result: 'victory' | 'defeat' | 'draw' | null; start_rank_int: number | null; start_progress_pct: number | null } | null;
 }
 
 interface PageRow { id: number; page_type: string | null; page_hero: string | null; status: string; raw_json: string | null; file_mtime: string }
@@ -243,6 +364,13 @@ export function buildFill(db: DatabaseSync, groupId: number): FormFill | null {
       mapped: slots != null, final_blows: tiles ? finalBlows(tiles) : null, has_personal: !!tiles,
     };
   });
+  const rk = db.prepare(`
+    SELECT r.rank_int, r.progress_pct, r.delta_pct, r.result FROM scoreboard_ranks r JOIN match_scoreboards s ON s.id = r.scoreboard_id
+    WHERE s.group_id = ? AND s.page_type = 'rank' AND s.status NOT IN ('dismissed', 'error') ORDER BY s.file_mtime DESC, s.id DESC LIMIT 1
+  `).get(groupId) as { rank_int: number | null; progress_pct: number | null; delta_pct: number | null; result: 'victory' | 'defeat' | 'draw' | null } | undefined;
+  const start = rk ? deriveStartRank(rk.rank_int, rk.progress_pct, rk.delta_pct) : null;
+  const rank: FormFill['rank'] = rk && rk.rank_int != null
+    ? { rank_int: rk.rank_int, progress_pct: rk.progress_pct, delta_pct: rk.delta_pct, result: rk.result, start_rank_int: start?.rankInt ?? null, start_progress_pct: start?.progressPct ?? null } : null;
   const everyFb = heroes.length > 0 && heroes.every(h => h.final_blows != null);
   const secs = heroes.map(h => h.seconds);
   return {
@@ -257,6 +385,7 @@ export function buildFill(db: DatabaseSync, groupId: number): FormFill | null {
     duration_min: heroes.length && secs.every(s => s != null) ? secs.reduce((a, s) => a + (s as number), 0) / 60 : null,
     game_length_sec: sum?.lengthSec ?? null,
     pages: { summary: !!sum, teams: !!self, personal: [...personal.keys()] },
+    rank,
   };
 }
 

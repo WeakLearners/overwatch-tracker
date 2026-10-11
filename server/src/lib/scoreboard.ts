@@ -3,7 +3,8 @@
 // scoreboardWatcher.ts polls the folder and calls processFile() below.
 //
 // Rules that must not drift:
-//  - Nothing here ever creates, edits or deletes a matches row.
+//  - Nothing here ever creates or deletes a matches row. The one edit is the rank page's
+//    fill of player_rank / player_rank_start where they are NULL (2026-10-11).
 //  - A scoreboard attaches to a match only when exactly ONE candidate passes
 //    every test. Zero or 2+ -> 'unmatched'. Never guess.
 //  - Files in the Drive folder may be MOVED and renamed (scoreboardOrganize.ts,
@@ -11,6 +12,7 @@
 //  - Rule 1: a board whose rows equal a stored board is a copy -> 'dismissed'.
 //  - Rule 2: with zero candidates in the window, link by exact stats (one hit only).
 import { syncMatchHeroStats } from './matchHeroStats';
+import { emitTrackerWrite } from './trackerEvents';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -20,7 +22,8 @@ import type { DatabaseSync } from 'node:sqlite';
 import { PATCH_BOUNDARIES } from './patchEra';
 import {
   TEAMS_ONLY, parseDbUtc, normSummary, rosterHero, findOpenGroup, createGroup, touchGroup, linkGroup, groupSummaryMap,
-  adoptLoosePages, recoveryCandidates, finalizeGroups, type RawSummary, type RawPersonal, type PageType, type GroupRow,
+  adoptLoosePages, recoveryCandidates, finalizeGroups, normRank, storeRank, findGroupAfterRank, fillRankFromGroup,
+  type RawSummary, type RawPersonal, type RawRank, type PageType, type GroupRow,
 } from './scoreboardPages';
 export { parseDbUtc };
 
@@ -48,7 +51,7 @@ export interface ParsedRow {
  */
 export interface ParsedScoreboard {
   is_scoreboard: boolean; rows: ParsedRow[];
-  page_type?: PageType; summary?: RawSummary; personal?: RawPersonal;
+  page_type?: PageType; summary?: RawSummary; personal?: RawPersonal; rank?: RawRank;
 }
 
 export interface MatchCandidate { id: number; created_at: string; account: string | null; role: string; hasScoreboard: boolean }
@@ -191,6 +194,8 @@ export function storeScoreboard(db: DatabaseSync, args: StoreArgs): number {
     if (args.replaceId != null) {
       id = args.replaceId;
       db.prepare(`DELETE FROM scoreboard_rows WHERE scoreboard_id = ?`).run(id);
+      db.prepare(`DELETE FROM scoreboard_rank_heroes WHERE scoreboard_id = ?`).run(id);
+      db.prepare(`DELETE FROM scoreboard_ranks WHERE scoreboard_id = ?`).run(id);
       db.prepare(`
         UPDATE match_scoreboards SET match_id = ?, file_mtime = ?, status = ?, reason = ?, raw_json = ?, page_type = ?, group_id = ?, page_hero = ? WHERE id = ?
       `).run(args.matchId, mtimeIso, args.status, args.reason, raw, args.pageType ?? null, args.groupId ?? null, args.pageHero ?? null, id);
@@ -284,9 +289,9 @@ const TILE = { type: 'object', additionalProperties: false, required: ['label', 
 export const SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['page_type', 'rows', 'summary', 'personal'],
+  required: ['page_type', 'rows', 'summary', 'personal', 'rank'],
   properties: {
-    page_type: { type: 'string', enum: ['summary', 'teams', 'personal', 'other'] },
+    page_type: { type: 'string', enum: ['summary', 'teams', 'personal', 'rank', 'other'] },
     // Teams page only. Empty array for every other page type.
     rows: {
       type: 'array',
@@ -327,6 +332,18 @@ export const SCHEMA = {
       required: ['hero', 'tiles'],
       properties: { hero: { type: 'string' }, tiles: { type: 'array', items: TILE } },
     },
+    // Rank page only. Empty strings and an empty array otherwise.
+    rank: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['result', 'rank_text', 'progress_text', 'change_text', 'percentile_text', 'modifiers', 'points_total', 'points_change', 'reward_progress', 'heroes'],
+      properties: {
+        result: { type: 'string' }, rank_text: { type: 'string' }, progress_text: { type: 'string' }, change_text: { type: 'string' }, percentile_text: { type: 'string' },
+        modifiers: { type: 'array', items: { type: 'string' } },
+        points_total: { type: 'string' }, points_change: { type: 'string' }, reward_progress: { type: 'string' },
+        heroes: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['name', 'sr', 'change'], properties: { name: { type: 'string' }, sr: { type: 'string' }, change: { type: 'string' } } } },
+      },
+    },
   },
 };
 
@@ -356,15 +373,26 @@ export const PERSONAL_PROMPT = [
   'tiles has one entry per stat tile except the hero tile: label exactly as shown, value exactly as shown with the % sign when present, per10 the number on the tile\'s AVG PER 10 MIN line (empty string when the tile has no such line), career_best true only when the tile shows the green NEW CAREER BEST badge.',
 ].join('\n');
 
+export const RANK_PROMPT = [
+  'For a rank page, fill rank and leave rows empty.',
+  'result is the headline word as shown (VICTORY, DEFEAT or DRAW). rank_text is the rank name under the big centre badge (for example "PLATINUM 3").',
+  'progress_text is the value after RANK PROGRESS (for example "25%"). change_text is the text on the green or red change bar inside the progress bar (for example "+44%" or "-12%"), empty when no bar change is shown.',
+  'percentile_text is the percent in HIGHER RANKED THAN n% OF PLAYERS (for example "50%").',
+  'modifiers lists the chip names under the bar, one string each, exactly as shown (for example "VARIANCE", "UPHILL BATTLE", "VICTORY").',
+  'points_total is the large competitive points number at the top right. points_change is the signed number in the red tag beside it (for example "+10" or "-8"). reward_progress is the "n/m" before PROGRESS under it (for example "3/30").',
+  'heroes has one entry per hero in the right column: name is the hero name before " SR" exactly as shown (for example "SOLDIER: 76"), sr is the SR number, change is the signed number next to the up or down arrow ("+96" for an up arrow, "-12" for a down arrow), empty when no change is shown.',
+].join('\n');
+
 export function systemPrompt(): string {
   return [
     'You read Overwatch 2 post-match screenshots. First decide page_type from the lit tab at the top left:',
     '"teams" = the TEAMS tab: two teams of player rows with the columns E, A, D, DMG, H, MIT.',
     '"summary" = the SUMMARY tab: HEROES PLAYED, TOTAL PERFORMANCE, and a map panel with the result, FINAL SCORE, DATE, GAME MODE and GAME LENGTH.',
     '"personal" = the PERSONAL tab: a hero list at the left and stat tiles for one hero.',
+    '"rank" = the RANK PROGRESS screen shown right after a competitive match, before the Summary: a big rank badge, the RANK PROGRESS bar, modifier chips, and a hero SR list at the right. It has no SUMMARY, TEAMS or PERSONAL page content.',
     '"other" = any other image (desktop, other game, web page, in-match HUD, match history list). Fill nothing else.',
     'Fill the section of that page type only. Leave every other section empty (rows []; empty strings; zeros; empty arrays).',
-    TEAMS_PROMPT, SUMMARY_PROMPT, PERSONAL_PROMPT,
+    TEAMS_PROMPT, SUMMARY_PROMPT, PERSONAL_PROMPT, RANK_PROMPT,
     'Ignore any overlay at the top left (MSI Afterburner) and the stats bar at the top right.',
   ].join('\n');
 }
@@ -461,11 +489,13 @@ export async function processFile(
 
   const pageType: PageType = parsed.page_type ?? (parsed.is_scoreboard ? 'teams' : 'other');
   const base = { filePath, mtimeMs, replaceId };
-  const store = (a: Omit<StoreArgs, 'filePath' | 'mtimeMs' | 'replaceId'>) => { storeScoreboard(db, { ...base, ...a }); return a.status; };
+  let lastId = 0;
+  const store = (a: Omit<StoreArgs, 'filePath' | 'mtimeMs' | 'replaceId'>) => { lastId = storeScoreboard(db, { ...base, ...a }); return a.status; };
 
   if (pageType === 'other') return store({ status: 'not_scoreboard', reason: null, raw: parsed, matchId: null, rows: [], pageType: 'other' });
   if (pageType === 'summary') return processSummary(db, parsed, store, mtimeMs);
   if (pageType === 'personal') return processPersonal(db, parsed, store, mtimeMs);
+  if (pageType === 'rank') return processRank(db, parsed, store, mtimeMs, () => lastId);
   return processTeams(db, parsed, store, mtimeMs);
 }
 
@@ -523,6 +553,27 @@ export function recheckGroup(db: DatabaseSync, groupId: number, dryRun = false, 
     db.exec(dryRun ? 'ROLLBACK' : 'COMMIT');
     return res;
   } catch (e) { db.exec('ROLLBACK'); throw e; }
+}
+
+/**
+ * A Rank page comes BEFORE its Summary. If that Summary's group already exists (Drive delivered
+ * out of order) the page joins it now, and when the group is linked the match's NULL rank columns
+ * fill. Otherwise it waits loose and adoptLoosePages takes it when the Summary arrives.
+ * The rank rows are stored by page id either way.
+ */
+function processRank(db: DatabaseSync, parsed: ParsedScoreboard, store: Store, mtimeMs: number, lastId: () => number): string {
+  const norm = parsed.rank ? normRank(parsed.rank) : null;
+  if (!norm) return store({ status: 'error', reason: 'rank: no rank reading', raw: parsed, matchId: null, rows: [], pageType: 'rank' });
+  const g = findGroupAfterRank(db, mtimeMs);
+  const linked = g?.match_id != null;
+  const status = store({
+    status: linked ? 'matched' : 'unmatched',
+    reason: g ? (linked ? (g.state === 'recovery' ? `recovery of match ${g.match_id}` : 'group page') : 'waiting for the match log') : 'rank page with no summary page after it yet',
+    raw: parsed, matchId: g?.match_id ?? null, rows: [], pageType: 'rank', groupId: g?.id ?? null,
+  });
+  storeRank(db, lastId(), norm);
+  if (g && linked && fillRankFromGroup(db, g.id, g.match_id!)) emitTrackerWrite();
+  return status;
 }
 
 /** A Personal page joins the open group. A second page for the same hero, or the ALL HEROES tab, is kept but never counted. */

@@ -3,7 +3,7 @@
 // and never overwrites. Layout:
 //   top level          unprocessed files, and unmatched files inside the rematch grace
 //   YYYY-MM-DD/        matched: "<matchId> <Map> <Hero> - <page>.<ext>" (the match's local date),
-//                      page = summary | teams | personal-<hero>. A board from before page types
+//                      page = summary | teams | rank | personal-<hero>. A board from before page types
 //                      existed (NULL page_type) keeps "<matchId> <Map> <Hero>.<ext>".
 //   _needs-attention/  unmatched past the grace window, and error rows
 //   _copies/           exact copies and hand-dismissed rows
@@ -33,7 +33,7 @@ interface BoardRow { id: number; match_id: number | null; file_path: string; fil
 
 /** The page part of a matched file name, or '' for a board from before page types existed. */
 export function pageSuffix(pageType: string | null, pageHero: string | null): string {
-  if (pageType === 'summary' || pageType === 'teams') return ` - ${pageType}`;
+  if (pageType === 'summary' || pageType === 'teams' || pageType === 'rank') return ` - ${pageType}`;
   if (pageType === 'personal') return ` - personal-${pageHero ?? 'unknown'}`;
   return '';
 }
