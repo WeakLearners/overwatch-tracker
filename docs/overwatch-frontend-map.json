@@ -835,21 +835,10 @@
           }
         },
         {
-          "id": "prematch-hero-picker-selected-overlay",
-          "label": "Hero picker selected overlay",
-          "kind": "card",
-          "description": "Top layer of a selected hero row: the role colour at 60% over the whole card (portrait, tab, text and gauge show through). Replaces the old bottom-lit fill.",
-          "locate": {
-            "path": "client/src/pages/Prematch.tsx:1366",
-            "grep": "grep -n -F -- 'prematch-hero-picker-selected-overlay' client/src/pages/Prematch.tsx"
-          },
-          "expectedMatches": 1
-        },
-        {
           "id": "prematch-hero-picker-pick-watermark",
           "label": "Hero picker pick-number watermark",
           "kind": "badge",
-          "description": "Large white pick-order number (1, 2 or 3) centred on a selected hero row's overlay, mix-blend overlay at 55% opacity. Replaces the small corner order badge.",
+          "description": "Large faded pick-order number (1, 2 or 3) centred behind a selected hero row, in the slot the stage watermark used to fill. Lit like the name, following the gauge. Selected rows only.\",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:1372",
             "grep": "grep -n -F -- 'prematch-hero-picker-pick-watermark' client/src/pages/Prematch.tsx"

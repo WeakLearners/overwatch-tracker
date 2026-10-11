@@ -1310,7 +1310,6 @@ export default function Prematch() {
                         // only as far as the block's minutes reach.
                         style={{
                           '--sel': ROLE_SEL_RGB[role],
-                          ...(isClicked ? { borderColor: 'rgb(var(--sel))' } : {}),
                           ...(litFill ? { '--fill': fill } : {}),
                           ...(isClicked && !isDfHero && (testGaugeFor(h.hero) != null || chunkFor(h.hero)) ? { boxShadow: 'none' } : {}),
                         } as React.CSSProperties}
@@ -1319,7 +1318,7 @@ export default function Prematch() {
                           // 1px padding makes up the width gap with the 2px
                           // selected border, so selecting doesn't shift the row.
                           isClicked
-                            ? 'border-2 pl-[18px] pr-3 py-3.5'
+                            ? 'border-2 pl-[18px] pr-3 py-3.5 is-selected mode-fill'
                             : 'hero-pane pl-[19px] pr-[13px] py-[15px] hover-sel'
                         }`}
                       >
@@ -1353,25 +1352,23 @@ export default function Prematch() {
                           </span>
                         )}
                         {isClicked && (
-                          // Selected = true overlay (2026-10-11): the role colour
-                          // at 60% over the whole card, on top of every child, so
-                          // portrait, tab, text and gauge show through it. The pick
-                          // number (1st/2nd/3rd, feeds Log Match's form.hero + 2
-                          // switch-hero slots in this order) is a watermark on it.
-                          <>
+                          // Pick number (1st/2nd/3rd, feeds Log Match's form.hero + 2
+                          // switch-hero slots in this order) as a watermark behind the
+                          // text, centred, in the slot the stage watermark used to fill.
+                          // Its own -z-10 layer (before the gauge in DOM order, so
+                          // behind it) so rows without a gauge show it too; clipped
+                          // to the card. Lit like the name, following the gauge.
+                          <span
+                            aria-hidden="true"
+                            title={`Pick #${clickIndex + 1} this match`}
+                            className="absolute inset-0 -z-10 overflow-hidden rounded-[2px] flex items-center justify-center num-display italic font-black leading-none tracking-[-0.07em] text-[4.2rem] translate-x-[0.15em] translate-y-[0.007em] whitespace-nowrap opacity-[0.225] pointer-events-none"
+                            data-inspect-id="prematch-hero-picker-pick-watermark"
+                          >
                             <span
-                              aria-hidden="true"
-                              className="absolute inset-0 rounded-[2px] pointer-events-none z-20"
-                              style={{ background: 'rgb(var(--sel) / 0.6)' }}
-                              data-inspect-id="prematch-hero-picker-selected-overlay"
-                            />
-                            <span
-                              aria-hidden="true"
-                              title={`Pick #${clickIndex + 1} this match`}
-                              className="absolute inset-0 z-30 overflow-hidden rounded-[2px] flex items-center justify-center num-display italic font-black leading-none tracking-[-0.07em] text-[4.6rem] translate-x-[0.15em] text-white opacity-55 mix-blend-overlay pointer-events-none"
-                              data-inspect-id="prematch-hero-picker-pick-watermark"
+                              className={`flex-1 text-center lit-text lit-strong ${fill != null ? 'lit-fill' : ''}`}
+                              style={fill != null ? { '--lit-x': 'calc(var(--fill) * (100cqw + 24px) - 0.15em)' } as React.CSSProperties : undefined}
                             >{clickIndex + 1}</span>
-                          </>
+                          </span>
                         )}
                         <span ref={litArrow?.ref} style={litArrow?.style} className={`text-[15px] font-bold ${showNums ? '' : 'invisible'} ${litArrow ? litArrow.cls : h.win_rate >= 50 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>{h.win_rate >= 50 ? '↑' : '↓'}</span>
                         <span
