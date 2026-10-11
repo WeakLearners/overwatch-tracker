@@ -62,7 +62,7 @@ export default function App() {
             style={{ background: 'linear-gradient(90deg, var(--hud-glow-1), transparent 40%, transparent 60%, var(--hud-glow-2))' }}
             aria-hidden="true"
           />
-          <div className="relative max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+          <div className="relative max-w-[79.2rem] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
             {/* The wordmark is the home button (2026-09-26): Settings and the
                 Sens pages had no way back to the Dashboard. */}
             <Link to="/" aria-label="Overwatch Match Tracker — home" data-inspect-id="app-home-wordmark" className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -88,7 +88,7 @@ export default function App() {
             <HeaderTools />
           </div>
         </header>
-        <main className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 pt-6 pb-10">
+        <main className="relative z-10 max-w-[79.2rem] mx-auto px-4 sm:px-6 pt-6 pb-10">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             {/* Aliases: Pre-Match, Log Match and Trends now live as sections on
