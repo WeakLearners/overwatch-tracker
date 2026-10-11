@@ -1314,7 +1314,7 @@ export default function Prematch() {
                           ...(litFill ? { '--fill': fill } : {}),
                           ...(isClicked && !isDfHero && (testGaugeFor(h.hero) != null || chunkFor(h.hero)) ? { boxShadow: 'none' } : {}),
                         } as React.CSSProperties}
-                        className={`relative isolate [container-type:inline-size] flex items-center gap-3 w-full text-left rounded cursor-pointer active:scale-[0.98] transition-all group ${isTestHero ? 'test-glow' : ''} ${
+                        className={`hero-pick relative isolate [container-type:inline-size] flex items-center gap-3 w-full text-left rounded cursor-pointer active:scale-[0.98] transition-all group ${isTestHero ? 'test-glow' : ''} ${
                           // Resting wears the lobby slider's unlit rank-pane border; the extra
                           // 1px padding makes up the width gap with the 2px
                           // selected border, so selecting doesn't shift the row.
@@ -1368,7 +1368,7 @@ export default function Prematch() {
                             <span
                               aria-hidden="true"
                               title={`Pick #${clickIndex + 1} this match`}
-                              className="absolute inset-0 z-30 flex items-center justify-center num-display italic font-black leading-none tracking-[-0.07em] text-[4.6rem] translate-x-[0.15em] text-white opacity-55 mix-blend-overlay pointer-events-none"
+                              className="absolute inset-0 z-30 overflow-hidden rounded-[2px] flex items-center justify-center num-display italic font-black leading-none tracking-[-0.07em] text-[4.6rem] translate-x-[0.15em] text-white opacity-55 mix-blend-overlay pointer-events-none"
                               data-inspect-id="prematch-hero-picker-pick-watermark"
                             >{clickIndex + 1}</span>
                           </>

@@ -592,6 +592,16 @@
     --lit-near: color-mix(in srgb, oklch(from rgb(var(--sel)) calc(l * 1.15) calc(c * 1.2) h) 88%, #fff);
     --lit-far: oklch(from rgb(var(--sel)) calc(l * 0.72) calc(c * 0.9) h);
   }
+  /* Hero picker rows (2026-10-11): the unlit part of the text (past the gauge's
+     end) must stay readable. The global far ends are near-black in dark theme.
+     Dark -> white; light -> black. These are the extremes, because the selected
+     row's 60% overlay sits ABOVE the text and cuts any text-to-card contrast
+     to 40% of itself (measured 2.7-3.6:1 even at pure white/black; resting
+     rows are 13-21:1). Hue text (arrow, sens tag) keeps a tint of its hue. */
+  .hero-pick .lit-text.lit-strong { --lit-far: #000; }
+  html.dark .hero-pick .lit-text.lit-strong { --lit-far: #fff; }
+  .hero-pick .lit-text.lit-hue { --lit-far: color-mix(in srgb, rgb(var(--sel)) 55%, #000); }
+  html.dark .hero-pick .lit-text.lit-hue { --lit-far: color-mix(in srgb, rgb(var(--sel)) 45%, #fff); }
   .rank-pane .lit-text {
     --lit-near: color-mix(in srgb, rgb(var(--lamp-deep)) 55%, #000);
     --lit-far: #14161c;
