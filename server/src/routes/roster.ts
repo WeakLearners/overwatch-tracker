@@ -39,7 +39,7 @@ router.post('/check', async (_req: Request, res: Response) => {
   }
 });
 
-// Body: { heroes?: [{name, role}], maps?: [{name, mode}], retireMaps?: string[],
+// Body: { heroes?: [{name, role}], roleChanges?: [{name, role}], maps?: [{name, mode}], retireMaps?: string[],
 //         season?: {label, start}, images?: boolean }. images:true also downloads
 //         the missing hero portraits (the only other Blizzard call, same button). All-or-nothing: any invalid item rejects the
 // whole request before anything is written.
@@ -70,6 +70,15 @@ router.post('/apply', async (req: Request, res: Response) => {
     mapKeys.add(nameKey(name));
     newMaps.push({ name, short: name, mode: m.mode as string, retired: false });
   }
+  // Role changes edit the roster only. Historical rows (match_deaths.killer_role etc.) are never touched.
+  const roleChanges = new Map<string, string>();
+  for (const c of body.roleChanges ?? []) {
+    const name = typeof c?.name === 'string' ? c.name : '';
+    const hero = roster.heroes.find(x => x.name === name);
+    if (!hero) return bad(`${name || 'A hero'} is not in the roster.`);
+    if (!ROLES.includes(c.role)) return bad(`Pick a valid role for ${name}.`);
+    roleChanges.set(name, c.role);
+  }
   const retire = new Set<string>(body.retireMaps ?? []);
   for (const n of retire) if (!roster.maps.some(m => m.name === n)) return bad(`${n} is not a known map.`);
   if (season) {
@@ -79,9 +88,9 @@ router.post('/apply', async (req: Request, res: Response) => {
     if (last && season.start! <= last.start) return bad(`The start date must be after ${last.label} starts (${last.start}).`);
   }
 
-  roster.heroes.push(...newHeroes);
+  roster.heroes = [...roster.heroes.map(x => (roleChanges.has(x.name) ? { ...x, role: roleChanges.get(x.name)! } : x)), ...newHeroes];
   roster.maps = [...roster.maps.map(m => (retire.has(m.name) ? { ...m, retired: true } : m)), ...newMaps];
-  if (newHeroes.length || newMaps.length || retire.size) writeRoster(roster);
+  if (newHeroes.length || newMaps.length || retire.size || roleChanges.size) writeRoster(roster);
   if (season) appendSeason(season.label!, season.start!);
   let images = null;
   if (body.images === true && imagesEnabled()) {
@@ -92,7 +101,7 @@ router.post('/apply', async (req: Request, res: Response) => {
       images = { error: `Could not read portraits: ${(e as Error).message}` };
     }
   }
-  res.json({ applied: { heroes: newHeroes.length, maps: newMaps.length, retired: retire.size, season: season?.label ?? null }, images, ...readRoster(), seasons: SEASONS, imageInfo: imageInfo() });
+  res.json({ applied: { heroes: newHeroes.length, roleChanges: roleChanges.size, maps: newMaps.length, retired: retire.size, season: season?.label ?? null }, images, ...readRoster(), seasons: SEASONS, imageInfo: imageInfo() });
 });
 
 export default router;

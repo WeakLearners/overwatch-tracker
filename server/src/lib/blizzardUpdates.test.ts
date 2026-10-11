@@ -57,6 +57,15 @@ describe('buildDiff', () => {
     assert.deepEqual(d.absentMaps, ['Gone Map']);
     assert.equal(d.newSeason, null);
   });
+  test('reports a roster hero whose page role differs, and ignores an unreadable page role', () => {
+    const p = page(null);
+    const d = buildDiff(roster, seasons, p, '2026-10-06');
+    assert.deepEqual(d.roleChanges[0], { name: 'Hero0', from: 'DPS', to: 'Tank' });   // roster says DPS, page says Tank
+    const same = { ...roster, heroes: roster.heroes.map(h => ({ ...h, role: p.heroes.find(x => x.name === h.name)!.role! })) };
+    assert.deepEqual(buildDiff(same, seasons, p, '2026-10-06').roleChanges, []);
+    const unreadable = { ...p, heroes: p.heroes.map(h => ({ ...h, role: null })) };
+    assert.deepEqual(buildDiff(roster, seasons, unreadable, '2026-10-06').roleChanges, []);
+  });
   test('a retired map is not reported as absent', () => {
     const r = { ...roster, maps: roster.maps.map(m => (m.name === 'Gone Map' ? { ...m, retired: true } : m)) };
     assert.deepEqual(buildDiff(r, seasons, page(null), '2026-10-06').absentMaps, []);

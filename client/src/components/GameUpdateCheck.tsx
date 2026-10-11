@@ -11,6 +11,7 @@ const MODES = ['Control', 'Hybrid', 'Escort', 'Push', 'Flashpoint', 'Clash'];
 interface Diff {
   counts: { heroesOnPage: number; mapsOnPage: number; heroesKnown: number; mapsKnown: number };
   newHeroes: { name: string; role: string | null }[];
+  roleChanges: { name: string; from: string; to: string }[];
   newMaps: { name: string; mode: string | null }[];
   absentMaps: string[];
   newSeason: { label: string; name: string; start: string } | null;
@@ -25,6 +26,7 @@ export default function GameUpdateCheck() {
   const [done, setDone] = useState<string | null>(null);
   const [heroPick, setHeroPick] = useState<Record<string, { on: boolean; role: string }>>({});
   const [mapPick, setMapPick] = useState<Record<string, { on: boolean; mode: string }>>({});
+  const [roleOn, setRoleOn] = useState<Record<string, boolean>>({});
   const [retire, setRetire] = useState<Record<string, boolean>>({});
   const [seasonOn, setSeasonOn] = useState(false);
   const [seasonLabel, setSeasonLabel] = useState('');
@@ -42,6 +44,7 @@ export default function GameUpdateCheck() {
       setHeroPick(Object.fromEntries(d.newHeroes.map(h => [h.name, { on: true, role: h.role ?? '' }])));
       setMapPick(Object.fromEntries(d.newMaps.map(m => [m.name, { on: true, mode: m.mode ?? '' }])));
       setRetire({});
+      setRoleOn(Object.fromEntries((d.roleChanges ?? []).map(c => [c.name, true])));
       setSeasonOn(!!d.newSeason); setSeasonLabel(d.newSeason?.label ?? ''); setSeasonStart(d.newSeason?.start ?? localToday());
       setImages(true);
     } catch (e) { setError((e as Error).message); }
@@ -50,9 +53,10 @@ export default function GameUpdateCheck() {
 
   const heroes = Object.entries(heroPick).filter(([, v]) => v.on);
   const maps = Object.entries(mapPick).filter(([, v]) => v.on);
+  const roleTicked = (diff?.roleChanges ?? []).filter(c => roleOn[c.name]);
   const retired = Object.keys(retire).filter(k => retire[k]);
   const wantImages = images && (diff?.imagesMissing ?? 0) > 0;
-  const nothing = !heroes.length && !maps.length && !retired.length && !seasonOn && !wantImages;
+  const nothing = !heroes.length && !roleTicked.length && !maps.length && !retired.length && !seasonOn && !wantImages;
   const incomplete = heroes.some(([, v]) => !v.role) || maps.some(([, v]) => !v.mode) || (seasonOn && !(seasonLabel && /^\d{4}-\d{2}-\d{2}$/.test(seasonStart)));
 
   const apply = async () => {
@@ -62,6 +66,7 @@ export default function GameUpdateCheck() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           heroes: heroes.map(([name, v]) => ({ name, role: v.role })),
+          roleChanges: roleTicked.map(c => ({ name: c.name, role: c.to })),
           maps: maps.map(([name, v]) => ({ name, mode: v.mode })),
           retireMaps: retired,
           season: seasonOn ? { label: seasonLabel, start: seasonStart } : undefined,
@@ -73,7 +78,7 @@ export default function GameUpdateCheck() {
       applyRosterPayload({ ...body, images: body.imageInfo });
       revalidateAll();
       const parts = [
-        body.applied.heroes && `${body.applied.heroes} hero(es)`, body.applied.maps && `${body.applied.maps} map(s)`,
+        body.applied.heroes && `${body.applied.heroes} hero(es)`, body.applied.roleChanges && `${body.applied.roleChanges} role change(s)`, body.applied.maps && `${body.applied.maps} map(s)`,
         body.applied.retired && `${body.applied.retired} map(s) retired`, body.applied.season && `season ${body.applied.season}`,
       ].filter(Boolean);
       const img = body.images?.error ?? (body.images ? `portraits: ${body.images.downloaded} downloaded, ${body.images.matched}/${body.images.total} heroes have one${body.images.failed.length ? `, ${body.images.failed.length} failed` : ''}` : null);
@@ -83,7 +88,7 @@ export default function GameUpdateCheck() {
     setBusy(false);
   };
 
-  const empty = diff && !diff.newHeroes.length && !diff.newMaps.length && !diff.absentMaps.length && !diff.newSeason && !(diff.imagesMissing ?? 0);
+  const empty = diff && !diff.newHeroes.length && !(diff.roleChanges ?? []).length && !diff.newMaps.length && !diff.absentMaps.length && !diff.newSeason && !(diff.imagesMissing ?? 0);
 
   return (
     <div className="card mt-6" data-inspect-id="settings-game-updates">
@@ -113,6 +118,13 @@ export default function GameUpdateCheck() {
                 {ROLES.map(r => <option key={r}>{r}</option>)}
               </select>
               {h.role && <span className="text-xs text-[var(--faint)]">(Blizzard: {h.role})</span>}
+            </label>
+          ))}
+          {(diff.roleChanges ?? []).map(c => (
+            <label key={c.name} className="flex items-center gap-2" data-inspect-id="settings-game-updates-role-row">
+              <input type="checkbox" checked={!!roleOn[c.name]} onChange={e => setRoleOn(p => ({ ...p, [c.name]: e.target.checked }))} />
+              <span><b>{c.name}</b> is {c.to} on Blizzard, {c.from} here</span>
+              <span className="text-xs text-[var(--faint)]">tick to change the roster only (old matches keep the role they had)</span>
             </label>
           ))}
           {diff.newMaps.map(m => (

@@ -3639,7 +3639,7 @@
           "kind": "section",
           "description": "Settings card: Check for game updates (POST /api/roster/check), then Apply ticked items (POST /api/roster/apply).",
           "locate": {
-            "path": "client/src/components/GameUpdateCheck.tsx:89",
+            "path": "client/src/components/GameUpdateCheck.tsx:94",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-game-updates\"' client/src/components/GameUpdateCheck.tsx"
           }
         },
@@ -3649,7 +3649,7 @@
           "kind": "button",
           "description": "Reads Blizzard hero, map and season pages; shows a diff, writes nothing.",
           "locate": {
-            "path": "client/src/components/GameUpdateCheck.tsx:95",
+            "path": "client/src/components/GameUpdateCheck.tsx:100",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-game-updates-check\"' client/src/components/GameUpdateCheck.tsx"
           }
         },
@@ -3659,7 +3659,7 @@
           "kind": "text",
           "description": "Error text, e.g. \"Blizzard page layout changed - no updates read\".",
           "locate": {
-            "path": "client/src/components/GameUpdateCheck.tsx:99",
+            "path": "client/src/components/GameUpdateCheck.tsx:104",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-game-updates-error\"' client/src/components/GameUpdateCheck.tsx"
           }
         },
@@ -3669,7 +3669,7 @@
           "kind": "text",
           "description": "Summary of what Apply wrote and the portrait download counts.",
           "locate": {
-            "path": "client/src/components/GameUpdateCheck.tsx:100",
+            "path": "client/src/components/GameUpdateCheck.tsx:105",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-game-updates-done\"' client/src/components/GameUpdateCheck.tsx"
           }
         },
@@ -3679,7 +3679,7 @@
           "kind": "section",
           "description": "The diff: new heroes, new maps, maps not in Blizzard's list, new season, missing portraits.",
           "locate": {
-            "path": "client/src/components/GameUpdateCheck.tsx:102",
+            "path": "client/src/components/GameUpdateCheck.tsx:107",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-game-updates-diff\"' client/src/components/GameUpdateCheck.tsx"
           }
         },
@@ -3689,8 +3689,18 @@
           "kind": "row",
           "description": "Tick box, hero name, role select (pre-filled from the page).",
           "locate": {
-            "path": "client/src/components/GameUpdateCheck.tsx:108",
+            "path": "client/src/components/GameUpdateCheck.tsx:113",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-game-updates-hero-row\"' client/src/components/GameUpdateCheck.tsx"
+          }
+        },
+        {
+          "id": "settings-game-updates-role-row",
+          "label": "Role change row",
+          "kind": "row",
+          "description": "Tick box for a hero whose role on Blizzard differs from the roster. Apply changes the roster only.",
+          "locate": {
+            "path": "client/src/components/GameUpdateCheck.tsx:124",
+            "grep": "grep -n -F -- 'data-inspect-id=\"settings-game-updates-role-row\"' client/src/components/GameUpdateCheck.tsx"
           }
         },
         {
@@ -3699,7 +3709,7 @@
           "kind": "row",
           "description": "Tick box, map name, mode select.",
           "locate": {
-            "path": "client/src/components/GameUpdateCheck.tsx:119",
+            "path": "client/src/components/GameUpdateCheck.tsx:131",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-game-updates-map-row\"' client/src/components/GameUpdateCheck.tsx"
           }
         },
@@ -3709,7 +3719,7 @@
           "kind": "row",
           "description": "Tick to retire the map from the log picker. Never automatic.",
           "locate": {
-            "path": "client/src/components/GameUpdateCheck.tsx:129",
+            "path": "client/src/components/GameUpdateCheck.tsx:141",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-game-updates-absent-row\"' client/src/components/GameUpdateCheck.tsx"
           }
         },
@@ -3719,7 +3729,7 @@
           "kind": "row",
           "description": "Tick box, editable label, start date pre-filled with today.",
           "locate": {
-            "path": "client/src/components/GameUpdateCheck.tsx:136",
+            "path": "client/src/components/GameUpdateCheck.tsx:148",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-game-updates-season-row\"' client/src/components/GameUpdateCheck.tsx"
           }
         },
@@ -3729,7 +3739,7 @@
           "kind": "row",
           "description": "Tick to download missing hero portraits to server/data/assets (gitignored).",
           "locate": {
-            "path": "client/src/components/GameUpdateCheck.tsx:145",
+            "path": "client/src/components/GameUpdateCheck.tsx:157",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-game-updates-images-row\"' client/src/components/GameUpdateCheck.tsx"
           }
         },
@@ -3739,7 +3749,7 @@
           "kind": "button",
           "description": "Writes roster.json / seasons.json from the ticked items only.",
           "locate": {
-            "path": "client/src/components/GameUpdateCheck.tsx:151",
+            "path": "client/src/components/GameUpdateCheck.tsx:163",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-game-updates-apply\"' client/src/components/GameUpdateCheck.tsx"
           }
         },
