@@ -512,8 +512,8 @@ describe('slots 2/3 never earn test credit, on insert or on edit', () => {
 });
 
 // ── Designated Fallback (df_heroes) ─────────────────────────────────────────
-// Soldier: 76 @ 2.645 is seeded by schema.ts's migration, so every test DB
-// (a fresh temp file per test, per httpHarness) already carries the real row.
+// Soldier: 76 @ 2.645 is seeded once by schema.ts's migration on a fresh DB, so
+// every test DB (a fresh temp file per test, per httpHarness) carries the row.
 describe('Designated Fallback: Soldier: 76 never earns credit, always shows its own sens', () => {
   test('POST: an ad-hoc hero-less active set must not sweep the DF hero in', async () => {
     // Without the DF gate, findActiveStage's hero-IS-NULL fallback branch

@@ -1010,12 +1010,19 @@ function initSchema(db: DatabaseSync) {
       sens REAL NOT NULL
     )
   `);
-  // Seeded once — Soldier: 76 at 2.645, his last tested sens (set 135,
-  // 2026-09-15). INSERT OR IGNORE so re-running this migration never
-  // clobbers a value Sean changes later via the settings endpoint.
-  db.exec(`
-    INSERT OR IGNORE INTO df_heroes (role, hero, sens) VALUES ('DPS', 'Soldier: 76', 2.645)
-  `);
+  // Seeded ONE TIME EVER — Soldier: 76 at 2.645, his last tested sens (set
+  // 135, 2026-09-15). Guarded by PRAGMA user_version (< 2), not INSERT OR
+  // IGNORE alone, because this migration runs on every server start: a bare
+  // INSERT OR IGNORE would resurrect the row after it is cleared. Clearing a
+  // role's DF via PUT /api/df {role, hero: null} is therefore permanent
+  // (Sean removed Soldier from DF 2026-10-11).
+  const dfSeedVersion = (db.prepare(`PRAGMA user_version`).get() as { user_version: number }).user_version;
+  if (dfSeedVersion < 2) {
+    db.exec(`
+      INSERT OR IGNORE INTO df_heroes (role, hero, sens) VALUES ('DPS', 'Soldier: 76', 2.645)
+    `);
+    db.exec(`PRAGMA user_version = 2`);
+  }
 
   // Scoreboard screenshot ingest (2026-10-09). One row per image file seen in
   // the Drive "OW Game Logs" folder (lib/scoreboard.ts). match_id is NULL
