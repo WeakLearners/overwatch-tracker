@@ -1332,7 +1332,7 @@ export default function Prematch() {
                           // like the gauge.
                           <span
                             aria-hidden="true"
-                            className="absolute inset-y-0 left-0 w-[10px] flex flex-col gap-px py-px pointer-events-none"
+                            className="absolute inset-y-0 left-0 w-[10px] flex flex-col gap-px pointer-events-none"
                             title={`Stage ${stageLetterFor(h.hero)}`}
                             data-inspect-id="prematch-hero-picker-stage-tab"
                           >
@@ -1342,7 +1342,7 @@ export default function Prematch() {
                               return (
                                 <span
                                   key={L}
-                                  className={`flex-1 flex items-center justify-center text-[8px] font-black leading-none ${L === 'A' ? 'rounded-tl-[3px]' : 'rounded-bl-[3px]'}`}
+                                  className={`flex-1 flex items-center justify-center text-[8px] font-black leading-none ${L === 'A' ? (isClicked ? 'rounded-tl-[2px]' : 'rounded-tl-[3px]') : (isClicked ? 'rounded-bl-[2px]' : 'rounded-bl-[3px]')}`}
                                   style={cur
                                     ? { background: `rgb(var(--sel) / ${k})`, color: '#14161c' }
                                     : { color: `rgb(var(--sel) / ${k})` }}
