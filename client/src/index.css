@@ -598,8 +598,8 @@
      row's 60% overlay sits ABOVE the text and cuts any text-to-card contrast
      to 40% of itself (measured 2.7-3.6:1 even at pure white/black; resting
      rows are 13-21:1). Hue text (arrow, sens tag) keeps a tint of its hue. */
-  .hero-pick .lit-text.lit-strong { --lit-far: #000; }
-  html.dark .hero-pick .lit-text.lit-strong { --lit-far: #fff; }
+  .hero-pick .lit-text.lit-strong:not(.pick-wm) { --lit-far: #000; }
+  html.dark .hero-pick .lit-text.lit-strong:not(.pick-wm) { --lit-far: #fff; }
   .hero-pick .lit-text.lit-hue { --lit-far: color-mix(in srgb, rgb(var(--sel)) 55%, #000); }
   html.dark .hero-pick .lit-text.lit-hue { --lit-far: color-mix(in srgb, rgb(var(--sel)) 45%, #fff); }
   .rank-pane .lit-text {
