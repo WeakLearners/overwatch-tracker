@@ -468,6 +468,17 @@ export default function Prematch() {
   // encircled-stage-number badge and stage-wide gauge exactly as before.
   const chunkFor = (hero: string) => btActives.find(a => a.hero === hero)?.chunk ?? null;
 
+  // A/B tab for a 2-stage test, or null (no 2-stage test, or not active).
+  // A = stage_index 1, B = stage_index 2 (server lib/blind.ts block-model
+  // comment). Chunked set: the chunk label's letter ("B2" -> B). Legacy
+  // unchunked set: cur_stage 1/2.
+  const stageLetterFor = (hero: string): 'A' | 'B' | null => {
+    const c = chunkFor(hero);
+    if (c) return c.label.startsWith('B') ? 'B' : 'A';
+    const st = testStageFor(hero);
+    return st && st.total === 2 ? (st.cur === 2 ? 'B' : 'A') : null;
+  };
+
   // How far the hero's gauge has filled, 0..1, or null for a hero with no
   // gauge. Shared by the gauge and by the lit letters above it, which only
   // glow as far as the gauge reaches (2026-09-28).
@@ -1312,6 +1323,34 @@ export default function Prematch() {
                         }`}
                       >
                         <HeroPortraitBg hero={h.hero} opacity={0.22} position="50% 43%" inspectId="prematch-hero-picker-portrait-bg" />
+                        {!isDfHero && stageLetterFor(h.hero) && (
+                          // Stage tab (2026-10-11): stacked A / B on the row's left
+                          // edge, inside the padding box (10px of the 12-13px
+                          // padding) so row size and name alignment do not change.
+                          // Current stage = filled in the role colour; the other =
+                          // the same letter, unfilled (fill is the only differentiator). Resting rows draw at half strength,
+                          // like the gauge.
+                          <span
+                            aria-hidden="true"
+                            className="absolute inset-y-0 left-0 w-[10px] flex flex-col gap-px py-px pointer-events-none"
+                            title={`Stage ${stageLetterFor(h.hero)}`}
+                            data-inspect-id="prematch-hero-picker-stage-tab"
+                          >
+                            {(['A', 'B'] as const).map(L => {
+                              const cur = stageLetterFor(h.hero) === L;
+                              const k = isClicked ? 1 : 0.5;
+                              return (
+                                <span
+                                  key={L}
+                                  className={`flex-1 flex items-center justify-center text-[8px] font-black leading-none ${L === 'A' ? 'rounded-tl-[3px]' : 'rounded-bl-[3px]'}`}
+                                  style={cur
+                                    ? { background: `rgb(var(--sel) / ${k})`, color: '#14161c' }
+                                    : { color: `rgb(var(--sel) / ${k})` }}
+                                >{L}</span>
+                              );
+                            })}
+                          </span>
+                        )}
                         {isClicked && (
                           // Click order (1st/2nd/3rd) — feeds Log Match's
                           // form.hero + 2 switch-hero slots in this same order.
