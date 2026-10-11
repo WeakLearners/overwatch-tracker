@@ -9,7 +9,7 @@ import { activeMapNames, MAPS, mapShort, heroShort, QUEUE_MODES, ROLE_COLORS, RO
 import AdvisorCard from '../components/AdvisorCard';
 import EmptyState from '../components/EmptyState';
 import { useMapDrawer } from '../contexts/MapDrawerContext';
-import HeroPortraitBg, { PortraitFallback } from '../components/HeroPortraitBg';
+import HeroPortraitBg from '../components/HeroPortraitBg';
 import { useHeroDrawer } from '../contexts/HeroDrawerContext';
 import { useMatch } from '../contexts/MatchContext';
 import { useAdvisor, refreshRec } from '../contexts/AdvisorContext';
@@ -1310,6 +1310,7 @@ export default function Prematch() {
                         // only as far as the block's minutes reach.
                         style={{
                           '--sel': ROLE_SEL_RGB[role],
+                          ...(isClicked ? { borderColor: 'rgb(var(--sel))' } : {}),
                           ...(litFill ? { '--fill': fill } : {}),
                           ...(isClicked && !isDfHero && (testGaugeFor(h.hero) != null || chunkFor(h.hero)) ? { boxShadow: 'none' } : {}),
                         } as React.CSSProperties}
@@ -1318,7 +1319,7 @@ export default function Prematch() {
                           // 1px padding makes up the width gap with the 2px
                           // selected border, so selecting doesn't shift the row.
                           isClicked
-                            ? 'border-2 pl-[18px] pr-3 py-3.5 is-selected mode-fill'
+                            ? 'border-2 pl-[18px] pr-3 py-3.5'
                             : 'hero-pane pl-[19px] pr-[13px] py-[15px] hover-sel'
                         }`}
                       >
@@ -1352,19 +1353,25 @@ export default function Prematch() {
                           </span>
                         )}
                         {isClicked && (
-                          // Click order (1st/2nd/3rd) — feeds Log Match's
-                          // form.hero + 2 switch-hero slots in this same order.
-                          // Colored by the hero's own role (ROLE_PILL_CLASS —
-                          // the same DPS/Tank/Support convention used for role
-                          // badges/pills elsewhere) rather than a generic accent
-                          // color, so the badge reads as "this role's Nth pick."
-                          <span
-                            className={`absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full text-white text-[11px] font-bold flex items-center justify-center pointer-events-none z-10 ${ROLE_PILL_CLASS[role]}`}
-                            title={`Pick #${clickIndex + 1} this match`}
-                            data-inspect-id="prematch-hero-picker-order-badge"
-                          >
-                            {clickIndex + 1}
-                          </span>
+                          // Selected = true overlay (2026-10-11): the role colour
+                          // at 60% over the whole card, on top of every child, so
+                          // portrait, tab, text and gauge show through it. The pick
+                          // number (1st/2nd/3rd, feeds Log Match's form.hero + 2
+                          // switch-hero slots in this order) is a watermark on it.
+                          <>
+                            <span
+                              aria-hidden="true"
+                              className="absolute inset-0 rounded-[2px] pointer-events-none z-20"
+                              style={{ background: 'rgb(var(--sel) / 0.6)' }}
+                              data-inspect-id="prematch-hero-picker-selected-overlay"
+                            />
+                            <span
+                              aria-hidden="true"
+                              title={`Pick #${clickIndex + 1} this match`}
+                              className="absolute inset-0 z-30 flex items-center justify-center num-display italic font-black leading-none tracking-[-0.07em] text-[4.6rem] translate-x-[0.15em] text-white opacity-55 mix-blend-overlay pointer-events-none"
+                              data-inspect-id="prematch-hero-picker-pick-watermark"
+                            >{clickIndex + 1}</span>
+                          </>
                         )}
                         <span ref={litArrow?.ref} style={litArrow?.style} className={`text-[15px] font-bold ${showNums ? '' : 'invisible'} ${litArrow ? litArrow.cls : h.win_rate >= 50 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>{h.win_rate >= 50 ? '↑' : '↓'}</span>
                         <span
@@ -1393,9 +1400,6 @@ export default function Prematch() {
                           // as far as the hero's open 60-min block has filled
                           // (legacy unchunked set: games played at this sens).
                           // Full strength on a selected card, half at rest.
-                          // Behind it, the stage/chunk label ("A1".."B4") as an
-                          // oversized watermark, sized and set like the mode
-                          // tiles' QP/V5/V6 (ModeWatermark "selector" variant).
                           // -z-10 + the card's `isolate` puts this layer above
                           // the card's own fill but under its text.
                           const c = chunkFor(h.hero);
@@ -1403,40 +1407,18 @@ export default function Prematch() {
                           const done = fill ?? 0;
                           const hue = ROLE_SEL_RGB[role];
                           const a = isClicked ? 1 : 0.5;
-                          const label = c ? c.label : String(testStageFor(h.hero)?.cur ?? '');
                           return (
                             <span
                               // Reach down over the card's bottom border (2px
                               // selected, 1px at rest) so the lit edge sits ON
                               // the border; otherwise the border's dimmer tint
-                              // shows as a thin line under it. The watermark
-                              // takes the same px back so it stays centred.
+                              // shows as a thin line under it.
                               className={`absolute inset-x-0 top-0 -z-10 overflow-hidden pointer-events-none ${isClicked ? '-bottom-[2px] rounded-t-[2px] rounded-b-[4px]' : '-bottom-[1px] rounded-t-[3px] rounded-b-[4px]'}`}
                               title={c
                                 ? `${c.label} · ${Math.floor(c.openMinutes)} minutes played`
                                 : `${r?.left ?? 0} of ${r?.total ?? 0} games left at this sens`}
                               data-inspect-id="prematch-hero-picker-gauge"
                             >
-                              <PortraitFallback hero={h.hero}>
-                              <span
-                                aria-hidden="true"
-                                className={`absolute inset-x-0 top-0 ${isClicked ? 'bottom-[2px]' : 'bottom-[1px]'} flex items-center justify-center num-display italic font-black leading-none tracking-[-0.07em] text-[4.2rem] translate-x-[0.15em] translate-y-[0.007em] whitespace-nowrap ${isClicked ? 'opacity-[0.225]' : 'opacity-15'}`}
-                                style={isClicked ? undefined : { color: `rgb(${hue})` }}
-                                data-inspect-id="prematch-hero-picker-stage-badge"
-                              >
-                                {isClicked ? (
-                                  // Centred (2026-09-30). The span is the card's
-                                  // full width with the text centred in it, so
-                                  // its left edge is the card's left edge, the
-                                  // same origin as the fill. --lit-x is then the
-                                  // fill's end, less the parent's 0.15em nudge.
-                                  <span
-                                    className="flex-1 text-center lit-text lit-strong lit-fill"
-                                    style={{ '--lit-x': 'calc(var(--fill) * (100cqw + 24px) - 0.15em)' } as React.CSSProperties}
-                                  >{label}</span>
-                                ) : label}
-                              </span>
-                              </PortraitFallback>
                               <span
                                 className={`absolute inset-y-0 left-0 transition-opacity ${isClicked ? '' : 'opacity-0 group-hover:opacity-100'}`}
                                 style={{
