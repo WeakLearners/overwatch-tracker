@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { makeFinding, FINDING_MIN_N } from '../lib/finding';
 import { getDb } from '../db/schema';
 import statsLab from './statsLab';
 import { seasonRange } from '../lib/seasons';
@@ -610,13 +611,13 @@ router.get('/hero-detail/:hero', (req: Request, res: Response) => {
   `).get({ hero }) as any;
 
   const maps = db.prepare(`
-    SELECT map, game_type, COUNT(*) as games, ROUND(AVG(win) * 100, 1) as win_rate
+    SELECT map, game_type, COUNT(*) as games, SUM(win) as wins, ROUND(AVG(win) * 100, 1) as win_rate
     FROM matches_by_hero WHERE hero = :hero GROUP BY map HAVING COUNT(*) >= 3
     ORDER BY win_rate DESC
   `).all({ hero }) as any[];
 
   const types = db.prepare(`
-    SELECT game_type, COUNT(*) as games, ROUND(AVG(win) * 100, 1) as win_rate
+    SELECT game_type, COUNT(*) as games, SUM(win) as wins, ROUND(AVG(win) * 100, 1) as win_rate
     FROM matches_by_hero WHERE hero = :hero GROUP BY game_type HAVING COUNT(*) >= 5
     ORDER BY win_rate DESC
   `).all({ hero }) as any[];
@@ -626,12 +627,24 @@ router.get('/hero-detail/:hero', (req: Request, res: Response) => {
     WHERE hero = :hero ORDER BY date DESC, id DESC LIMIT 10
   `).all({ hero }) as any[];
 
+  // Each listed group is judged against the hero's other games. The
+  // Bonferroni count is the groups big enough to test, not the 3 shown.
+  const total = { wins: overall.wins ?? 0, n: overall.games ?? 0 };
+  const withFinding = <T extends { games: number; wins: number }>(rows: T[], g: T) => ({
+    ...g,
+    finding: makeFinding(
+      { wins: g.wins, n: g.games },
+      { wins: total.wins - g.wins, n: total.n - g.games },
+      rows.filter(r => r.games >= FINDING_MIN_N).length,
+    ),
+  });
+
   res.json({
     overall, momentum,
-    bestMaps:  maps.slice(0, 3),
-    worstMaps: [...maps].reverse().slice(0, 3),
-    bestType:  types[0] ?? null,
-    worstType: types[types.length - 1] ?? null,
+    bestMaps:  maps.slice(0, 3).map(m => withFinding(maps, m)),
+    worstMaps: [...maps].reverse().slice(0, 3).map(m => withFinding(maps, m)),
+    bestType:  types[0] ? withFinding(types, types[0]) : null,
+    worstType: types.length ? withFinding(types, types[types.length - 1]) : null,
     recent10,
   });
 });
