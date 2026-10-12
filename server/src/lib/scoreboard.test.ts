@@ -1,3 +1,4 @@
+import { shortBoardConflicts } from './scoreboardPages';
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs';
@@ -157,6 +158,46 @@ describe('processFile + rematch on a temp DB', () => {
     const sb = db.prepare(`SELECT match_id, short FROM match_scoreboards`).get() as any;
     assert.deepEqual([sb.match_id, sb.short], [m, 1]);
     assert.equal((db.prepare(`SELECT COUNT(*) n FROM scoreboard_rows`).get() as any).n, 5);
+  });
+  describe('leaver from a short board', () => {
+    const shortBoard = (u: number, t: number): ParsedScoreboard => ({ is_scoreboard: true, rows: [...Array(u)].map((_, i) => row('us', i, i === 0, { player_name: i === 0 ? 'LINX' : `Pu${i}` })).concat([...Array(t)].map((_, i) => row('them', i))) });
+    const leaverOf = (id: number) => { const r = db.prepare(`SELECT leaver, leaver_side FROM matches WHERE id = ?`).get(id) as any; return { leaver: r.leaver, leaver_side: r.leaver_side }; };
+    const sideCases: [number, number, string | null][] = [[5, 0, 'theirs'], [5, 4, 'theirs'], [4, 5, 'mine'], [4, 3, 'theirs'], [3, 4, 'mine'], [4, 4, null]];
+    for (const [u, t, side] of sideCases) {
+      test(`${u}v${t} on a NULL match -> leaver 1, side ${side}`, async () => {
+        const m = addMatch(at(1));
+        await processFile(db, '/x/s.png', MTIME, async () => shortBoard(u, t));
+        assert.deepEqual(leaverOf(m), { leaver: 1, leaver_side: side });
+      });
+    }
+    test('a full board leaves leaver NULL', async () => {
+      const m = addMatch(at(1));
+      await processFile(db, '/x/f.png', MTIME, async () => board(5));
+      assert.deepEqual(leaverOf(m), { leaver: null, leaver_side: null });
+    });
+    test('rematch path: a board that links later still sets the leaver', async () => {
+      addMatch(at(120));
+      await processFile(db, '/x/late.png', MTIME, async () => shortBoard(5, 0));
+      const m = addMatch(at(8));
+      assert.equal(rematchRecent(db, MTIME + 10 * 60_000), 1);
+      assert.deepEqual(leaverOf(m), { leaver: 1, leaver_side: 'theirs' });
+    });
+    test("Sean's answers are never overwritten", async () => {
+      const kept = addMatch(at(1)); db.prepare(`UPDATE matches SET leaver = 1, leaver_side = 'mine' WHERE id = ?`).run(kept);
+      await processFile(db, '/x/k.png', MTIME, async () => shortBoard(5, 0));
+      assert.deepEqual(leaverOf(kept), { leaver: 1, leaver_side: 'mine' });
+    });
+    test('leaver 1 with no side gets the side filled', async () => {
+      const m = addMatch(at(1)); db.prepare(`UPDATE matches SET leaver = 1 WHERE id = ?`).run(m);
+      await processFile(db, '/x/n.png', MTIME, async () => shortBoard(5, 0));
+      assert.deepEqual(leaverOf(m), { leaver: 1, leaver_side: 'theirs' });
+    });
+    test('leaver 0 is not flipped; the conflict is reported for the note', async () => {
+      const m = addMatch(at(1)); db.prepare(`UPDATE matches SET leaver = 0 WHERE id = ?`).run(m);
+      await processFile(db, '/x/z.png', MTIME, async () => shortBoard(5, 0));
+      assert.deepEqual(leaverOf(m), { leaver: 0, leaver_side: null });
+      assert.deepEqual([...shortBoardConflicts(db, [m])], [m]);
+    });
   });
   test('a full 5v5 board is not short', async () => {
     addMatch(at(1));

@@ -58,6 +58,8 @@ interface TodayMatchRow {
   // just weren't declared here until the edit form needed them 2026-09-24.
   leaver: 0 | 1 | null;
   leaver_side: 'mine' | 'theirs' | null;
+  /** 1 when a short Teams board is linked but Sean saved leaver = 0 (list route, shortBoardConflicts). */
+  short_board_conflict?: 0 | 1;
   // Also already on every row via SELECT *; declared 2026-09-26 for the
   // card's promotion/demotion fix.
   role: string;
@@ -410,6 +412,11 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueM
           dataInspectPrefix="logmatch-inline-edit-leaver-side"
           gapClass="gap-3"
         />
+        {match.short_board_conflict === 1 && !leaverSide && !leaverUnknown && (
+          <p data-inspect-id="logmatch-inline-edit-short-board-note" className="mt-1.5 text-[10px] text-ow-accent">
+            Scoreboard shows a short team.
+          </p>
+        )}
       </div>
 
       {showRankFix && (
@@ -746,13 +753,14 @@ export default function LogMatch() {
   const fillFromScoreboard = (src: FormFill | null = live?.light === 'green' ? live.fill : null, overwrite = false) => {
     const fill = src;
     if (!fill) return;
-    const patch = fillPatch({ hero: form.hero, switchHeroes, win: form.win, map, scoreUs, scoreThem, aimStats, rankFillable: !isQP && !(placement && !isQP) && isFieldEnabled('player_rank'), rankOutcome, rankAtLastLog }, fill, { overwrite });
+    const patch = fillPatch({ hero: form.hero, switchHeroes, win: form.win, map, scoreUs, scoreThem, aimStats, leaverSide, rankFillable: !isQP && !(placement && !isQP) && isFieldEnabled('player_rank'), rankOutcome, rankAtLastLog }, fill, { overwrite });
     if (patch.playerRank !== undefined) {
       if (patch.win !== undefined && patch.win !== form.win) rankFillWin.current = patch.win;
       setPlayerRank(patch.playerRank);
       setRankOutcome(patch.rankOutcome ?? null);
       setRankStartFill(patch.rankStart ?? null);
     }
+    if (patch.leaverSide) setLeaverSide(patch.leaverSide);
     if (patch.map !== undefined) setMap(patch.map);
     if (patch.hero !== undefined) setForm(f => ({ ...f, hero: patch.hero! }));
     if (patch.win !== undefined) setForm(f => ({ ...f, win: patch.win! }));

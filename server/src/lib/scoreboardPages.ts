@@ -254,7 +254,7 @@ export function recoveryCandidates(db: DatabaseSync, endMs: number, map: string)
  * Link a group to a logged match and move its waiting pages with it. Teams pages
  * link only when the match has no Teams page yet; Summary, Personal and Rank pages always do. A Rank page also fills the match's NULL rank columns.
  */
-export function linkGroup(db: DatabaseSync, groupId: number, matchId: number, state: 'linked' | 'recovery', reason: string): void {
+export function linkGroup(db: DatabaseSync, groupId: number, matchId: number, state: 'linked' | 'recovery', reason: string, syncLeaver = true): void {
   db.prepare(`UPDATE scoreboard_groups SET state = ?, match_id = ? WHERE id = ?`).run(state, matchId, groupId);
   db.prepare(`
     UPDATE match_scoreboards SET match_id = ?, status = 'matched', reason = ?
@@ -265,6 +265,62 @@ export function linkGroup(db: DatabaseSync, groupId: number, matchId: number, st
   `).run(matchId, reason, groupId, matchId);
   syncMatchHeroStats(db, matchId);
   if (fillRankFromGroup(db, groupId, matchId)) emitTrackerWrite();
+  // The log form always answers the leaver question (an unticked box is Sean's "no"), so the submit path passes syncLeaver=false.
+  if (syncLeaver) syncLeaverFromBoard(db, matchId);
+}
+
+
+// ------------------------------------------------ leaver from a short board
+
+/** Side of the leaver from Teams row counts. Comp has no backfill: the game removes a leaver's row. A side is short when it holds fewer than 5 rows or fewer than the other side. Both short -> the side with fewer rows; equal -> null (unknowable). */
+export function leaverSideFromCounts(us: number, them: number): 'mine' | 'theirs' | null {
+  const usShort = us < Math.max(5, them), themShort = them < Math.max(5, us);
+  if (usShort && themShort) return us === them ? null : us < them ? 'mine' : 'theirs';
+  if (usShort) return 'mine';
+  if (themShort) return 'theirs';
+  return null;
+}
+
+/** Leaver implied by a stored Teams board, or null when the board is not short. side is null when both sides are equally short. */
+export function leaverFromBoard(db: DatabaseSync, scoreboardId: number): { side: 'mine' | 'theirs' | null } | null {
+  const sb = db.prepare(`SELECT short FROM match_scoreboards WHERE id = ?`).get(scoreboardId) as { short: number } | undefined;
+  if (!sb || !sb.short) return null;
+  const c = db.prepare(`SELECT SUM(team = 'us') AS us, SUM(team = 'them') AS them FROM scoreboard_rows WHERE scoreboard_id = ?`).get(scoreboardId) as { us: number | null; them: number | null };
+  return { side: leaverSideFromCounts(c.us ?? 0, c.them ?? 0) };
+}
+
+/**
+ * Called wherever a Teams board gets a match. Sets matches.leaver / leaver_side from a short
+ * board, but never overrides an answer: leaver NULL -> set; leaver 1 with no side -> fill the side;
+ * leaver 1 with a side, or leaver 0 (Sean's own answer) -> untouched (the UI shows a note for 0).
+ * Returns what happened.
+ */
+export function syncLeaverFromBoard(db: DatabaseSync, matchId: number): 'set' | 'kept' | 'conflict' | 'none' {
+  const sb = db.prepare(`SELECT s.id FROM match_scoreboards s WHERE s.match_id = ? AND s.status = 'matched' AND ${TEAMS_ONLY} AND s.short = 1 ORDER BY s.id DESC LIMIT 1`).get(matchId) as { id: number } | undefined;
+  if (!sb) return 'none';
+  const lv = leaverFromBoard(db, sb.id);
+  if (!lv) return 'none';
+  const m = db.prepare(`SELECT leaver, leaver_side FROM matches WHERE id = ?`).get(matchId) as { leaver: number | null; leaver_side: string | null } | undefined;
+  if (!m) return 'none';
+  if (m.leaver === 0) return 'conflict';
+  if (m.leaver == null) {
+    db.prepare(`UPDATE matches SET leaver = 1, leaver_side = ? WHERE id = ?`).run(lv.side, matchId);
+    emitTrackerWrite();
+    return 'set';
+  }
+  if (m.leaver_side == null && lv.side) {
+    db.prepare(`UPDATE matches SET leaver_side = ? WHERE id = ?`).run(lv.side, matchId);
+    emitTrackerWrite();
+    return 'set';
+  }
+  return 'kept';
+}
+
+/** Ids among these matches that have a short Teams board while Sean's saved answer is leaver = 0 (drives the note on the match). */
+export function shortBoardConflicts(db: DatabaseSync, ids: number[]): Set<number> {
+  if (!ids.length) return new Set();
+  const rows = db.prepare(`SELECT DISTINCT m.id FROM matches m JOIN match_scoreboards s ON s.match_id = m.id AND s.status = 'matched' AND s.short = 1 AND ${TEAMS_ONLY} WHERE m.leaver = 0 AND m.id IN (${ids.map(() => '?').join(',')})`).all(...ids) as { id: number }[];
+  return new Set(rows.map(r => r.id));
 }
 
 /** The Summary map (roster name) of a group, or null. */
@@ -321,6 +377,8 @@ export interface FormFill {
   heroes: FillHero[];
   elims: number | null; assists: number | null; deaths: number | null;
   damage: number | null; healing: number | null; mitigation: number | null;
+  /** Leaver implied by a short Teams board (comp: the game removes the leaver's row); short_board true with a null side means both sides are equally short. */
+  leaver_side: 'mine' | 'theirs' | null; short_board: boolean;
   /** Sum over the heroes played; null unless every hero played has a Personal page with a final-blows tile. */
   final_blows: number | null;
   /** aim_stats.duration_min: the sum of hero play times in minutes, NOT the game length. */
@@ -354,6 +412,7 @@ export function buildFill(db: DatabaseSync, groupId: number): FormFill | null {
   const tp = [...pages].reverse().find(p => (p.page_type === 'teams' || p.page_type == null) && db.prepare(`SELECT 1 FROM scoreboard_rows WHERE scoreboard_id = ? AND is_self = 1`).get(p.id));
   const self = tp ? db.prepare(`SELECT dmg, h, mit FROM scoreboard_rows WHERE scoreboard_id = ? AND is_self = 1`).get(tp.id) as { dmg: number; h: number; mit: number } | undefined : undefined;
 
+  const boardLeaver = tp ? leaverFromBoard(db, tp.id) : null;
   const heroes: FillHero[] = (sum?.heroes ?? []).filter(h => h.hero).slice(0, 3).map(h => {
     const tiles = personal.get(h.hero!);
     const slots = tiles ? slotValues(h.hero!, tiles) : null;
@@ -386,6 +445,7 @@ export function buildFill(db: DatabaseSync, groupId: number): FormFill | null {
     game_length_sec: sum?.lengthSec ?? null,
     pages: { summary: !!sum, teams: !!self, personal: [...personal.keys()] },
     rank,
+    leaver_side: boardLeaver?.side ?? null, short_board: !!boardLeaver,
   };
 }
 

@@ -16,6 +16,8 @@ export interface FormFill {
   heroes: FillHero[]; elims: number | null; assists: number | null; deaths: number | null;
   damage: number | null; healing: number | null;
   pages: { summary: boolean; teams: boolean; personal: string[] };
+  /** Leaver implied by a short Teams board (the game removes a leaver's row in comp). short_board with a null side: both sides equally short, so the side is left to Sean. */
+  leaver_side?: 'mine' | 'theirs' | null; short_board?: boolean;
   /** The rank progress page of the group (server: scoreboardPages.ts buildFill), or null. */
   rank?: FillRank | null;
 }
@@ -36,6 +38,8 @@ export interface FormSnapshot {
   hero: string; switchHeroes: [string, string]; win: '' | '1' | '0'; map: string;
   scoreUs: string; scoreThem: string; aimStats: StatFieldsT;
   /** Rank block (optional so older callers stay valid). rankFillable is false on QP, placement or with the rank field off. */
+  /** The leaver side the form holds now; the board fills it only while null. */
+  leaverSide?: 'mine' | 'theirs' | null;
   rankFillable?: boolean; rankOutcome?: 'moved' | 'none' | null; rankAtLastLog?: number | null;
 }
 export interface FormPatch {
@@ -43,6 +47,8 @@ export interface FormPatch {
   playerRank?: number; rankOutcome?: 'moved' | 'none';
   /** The start rank to submit as player_rank_start; set together with playerRank, null when the screenshot could not give one. */
   rankStart?: number | null;
+  /** Leaver side from a short Teams board; set only while the form's side is blank (Sean's own pick is never overwritten, not even in overwrite mode). */
+  leaverSide?: 'mine' | 'theirs';
   hero?: string; switchHeroes?: [string, string]; win?: '1' | '0'; map?: string;
   scoreUs?: string; scoreThem?: string; aimStats?: StatFieldsT; aimOpen?: true;
 }
@@ -68,6 +74,8 @@ export function fillPatch(f: FormSnapshot, fill: FormFill, opts: FillOptions = {
   if (fill.score_us != null && fill.score_them != null && (ow || (!f.scoreUs && !f.scoreThem))) {
     patch.scoreUs = String(fill.score_us); patch.scoreThem = String(fill.score_them);
   }
+
+  if (fill.leaver_side && !f.leaverSide) patch.leaverSide = fill.leaver_side;
 
   // Pickers. The start hero records the advisor's pick: filled only when blank.
   // Switch slots take the other scoreboard heroes in play-time order: blank slots only,

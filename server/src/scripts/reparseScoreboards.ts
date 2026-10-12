@@ -1,7 +1,7 @@
 // One-off backfill (2026-10-09, Addendum 2): re-read stored 'not_scoreboard' images
 // with the three-page classifier. Rows are updated IN PLACE (file_path is UNIQUE and
 // ids are referenced), in file_mtime order so a Summary page opens its group before
-// the pages that follow. Only rows whose status is 'not_scoreboard' are touched, and
+// the pages that follow. Only rows whose status is 'not_scoreboard' or 'error' are touched, and
 // never a matches row.
 //
 // Usage (from server/, needs ANTHROPIC_API_KEY from server/.env; back up the DB first):
@@ -22,7 +22,7 @@ async function main() {
   const db = getDb();
   const rows = (db.prepare(`SELECT id, file_path, file_mtime, status FROM match_scoreboards WHERE id IN (${ids.map(() => '?').join(',')}) ORDER BY file_mtime, id`).all(...ids) as unknown as { id: number; file_path: string; file_mtime: string; status: string }[]);
   for (const r of rows) {
-    if (r.status !== 'not_scoreboard') { console.log(`board ${r.id}: status ${r.status}, skipped`); continue; }
+    if (r.status !== 'not_scoreboard' && r.status !== 'error') { console.log(`board ${r.id}: status ${r.status}, skipped`); continue; }
     if (!fs.existsSync(r.file_path)) { console.log(`board ${r.id}: file missing, skipped`); continue; }
     const out = await processFile(db, r.file_path, Date.parse(r.file_mtime), callVision, r.id);
     console.log(`board ${r.id}: ${out}`);

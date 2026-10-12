@@ -4,7 +4,7 @@ import { getCurveParams } from '../lib/curveParams';
 import { getExperimentHooks } from '../lib/experimentHooks';
 import { saveAimStatsRows, validateAimStats, type AimStatsPayload } from '../lib/aimStatsWrite';
 import { CRASHED_HERO, CRASHED_EDITABLE } from '../lib/crashed';
-import { linkGroup } from '../lib/scoreboardPages';
+import { linkGroup, shortBoardConflicts } from '../lib/scoreboardPages';
 import { organizeBoard } from '../lib/scoreboardOrganize';
 import { scoreboardDir } from '../lib/scoreboardWatcher';
 
@@ -33,6 +33,8 @@ router.get('/', (req: Request, res: Response) => {
   params[`${idx + 1}`] = parseInt(offset);
 
   const rows = db.prepare(sql).all(params) as Record<string, unknown>[];
+  const conflict = shortBoardConflicts(db, rows.map(r => Number(r.id)));
+  for (const r of rows) r.short_board_conflict = conflict.has(Number(r.id)) ? 1 : 0;
   res.json({ rows, total });
 });
 
@@ -262,7 +264,7 @@ router.post('/', (req: Request, res: Response) => {
     // the light green. Only a live group links; a stale id is ignored, never an error.
     if (Number.isInteger(scoreboard_group_id)) {
       const g = db.prepare(`SELECT state FROM scoreboard_groups WHERE id = ?`).get(scoreboard_group_id) as { state: string } | undefined;
-      if (g?.state === 'live') { linkGroup(db, scoreboard_group_id, matchId, 'linked', 'linked at submit'); linkedGroup = scoreboard_group_id; }
+      if (g?.state === 'live') { linkGroup(db, scoreboard_group_id, matchId, 'linked', 'linked at submit', false); linkedGroup = scoreboard_group_id; }
     }
     db.exec('COMMIT');
   } catch (err) {

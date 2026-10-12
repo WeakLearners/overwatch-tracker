@@ -13,6 +13,19 @@ const fill: FormFill = {
 };
 const blank = (o: Partial<FormSnapshot> = {}): FormSnapshot => ({ hero: '', switchHeroes: ['', ''], win: '', map: '', scoreUs: '', scoreThem: '', aimStats: emptyStats([]), ...o });
 
+describe('fillPatch leaver side', () => {
+  const sb = { ...fill, leaver_side: 'theirs' as const, short_board: true };
+  test('a short board ticks the side on a blank form', () => assert.equal(fillPatch(blank(), sb).leaverSide, 'theirs'));
+  test("Sean's pick is never replaced, even in overwrite mode", () => {
+    assert.equal(fillPatch(blank({ leaverSide: 'mine' }), sb).leaverSide, undefined);
+    assert.equal(fillPatch(blank({ leaverSide: 'mine' }), sb, { overwrite: true }).leaverSide, undefined);
+  });
+  test('no side from the board (full board, or both sides equally short) leaves the form alone', () => {
+    assert.equal(fillPatch(blank(), fill).leaverSide, undefined);
+    assert.equal(fillPatch(blank(), { ...fill, leaver_side: null, short_board: true }).leaverSide, undefined);
+  });
+});
+
 describe('fillPatch', () => {
   test('empty form takes everything', () => {
     const p = fillPatch(blank(), fill);

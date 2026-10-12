@@ -5,7 +5,7 @@ import { scoreboardDir } from '../lib/scoreboardWatcher';
 import { REMATCH_GRACE_MIN, recheckGroup } from '../lib/scoreboard';
 import { syncMatchHeroStats } from '../lib/matchHeroStats';
 import { computeStage } from '../lib/scoreboardStage';
-import { buildFill, linkGroup, TEAMS_ONLY, type GroupRow } from '../lib/scoreboardPages';
+import { buildFill, linkGroup, syncLeaverFromBoard, TEAMS_ONLY, type GroupRow } from '../lib/scoreboardPages';
 
 /** Folder to file images into; null (SCOREBOARD_DIR unset) skips filing. */
 const organize = (db: ReturnType<typeof getDb>, id: number) => { const r = scoreboardDir(); if (r) organizeBoard(db, id, r); };
@@ -106,6 +106,7 @@ router.post('/:id/attach', (req, res) => {
   }
   db.prepare(`UPDATE match_scoreboards SET match_id = ?, status = 'matched', reason = 'attached by hand' WHERE id = ?`).run(matchId, id);
   syncMatchHeroStats(db, matchId);
+  syncLeaverFromBoard(db, matchId);
   organize(db, id); // moves to the date folder; skipped (and retried by the watcher) if the file is under 60 s old
   res.json({ ok: true });
 });

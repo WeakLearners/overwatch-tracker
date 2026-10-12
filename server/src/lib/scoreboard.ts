@@ -21,7 +21,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { DatabaseSync } from 'node:sqlite';
 import { PATCH_BOUNDARIES } from './patchEra';
 import {
-  TEAMS_ONLY, parseDbUtc, normSummary, rosterHero, findOpenGroup, createGroup, touchGroup, linkGroup, groupSummaryMap,
+  TEAMS_ONLY, parseDbUtc, normSummary, rosterHero, findOpenGroup, createGroup, touchGroup, linkGroup, groupSummaryMap, syncLeaverFromBoard,
   adoptLoosePages, recoveryCandidates, finalizeGroups, normRank, storeRank, findGroupAfterRank, fillRankFromGroup,
   type RawSummary, type RawPersonal, type RawRank, type PageType, type GroupRow,
 } from './scoreboardPages';
@@ -226,6 +226,7 @@ export function storeScoreboard(db: DatabaseSync, args: StoreArgs): number {
       ins.run(id, r.team, slots[r.team]++, r.is_self ? 1 : 0, r.role, r.player_name, r.e, r.a, r.d, r.dmg, r.h, r.mit);
     }
     db.exec('COMMIT');
+    if (args.matchId != null && args.status === 'matched') syncLeaverFromBoard(db, args.matchId);
     if (args.matchId != null && args.pageType === 'personal' && args.status === 'matched') syncMatchHeroStats(db, args.matchId);
     return id;
   } catch (err) {
@@ -247,6 +248,7 @@ export function rematchRecent(db: DatabaseSync, nowMs: number = Date.now()): num
     const d = decideFull(db, mtimeMs, { name: self.player_name, e: self.e, a: self.a, d: self.d, dmg: self.dmg, h: self.h }, self.role);
     if (d.matchId != null) {
       db.prepare(`UPDATE match_scoreboards SET match_id = ?, status = 'matched', reason = ? WHERE id = ?`).run(d.matchId, d.reason, sb.id);
+      syncLeaverFromBoard(db, d.matchId);
       n++;
     } else {
       db.prepare(`UPDATE match_scoreboards SET reason = ? WHERE id = ?`).run(d.reason, sb.id);
@@ -282,7 +284,7 @@ export function recomputeScoreboards(db: DatabaseSync): { id: number; status: st
       db.prepare(`UPDATE scoreboard_rows SET is_self = 1 WHERE scoreboard_id = ? AND team = ? AND slot = ?`).run(b.id, self.team, self.slot);
       const mtimeMs = Date.parse(b.file_mtime);
       const d = decideFull(db, mtimeMs, { name: self.player_name, e: self.e, a: self.a, d: self.d, dmg: self.dmg, h: self.h }, self.role);
-      if (d.matchId != null) db.prepare(`UPDATE match_scoreboards SET match_id = ?, status = 'matched', reason = ? WHERE id = ?`).run(d.matchId, d.reason, b.id);
+      if (d.matchId != null) { db.prepare(`UPDATE match_scoreboards SET match_id = ?, status = 'matched', reason = ? WHERE id = ?`).run(d.matchId, d.reason, b.id); syncLeaverFromBoard(db, d.matchId); }
       else db.prepare(`UPDATE match_scoreboards SET reason = ? WHERE id = ?`).run(d.reason, b.id);
       out.push({ id: b.id, status: d.matchId != null ? 'matched' : 'unmatched', matchId: d.matchId, reason: d.reason });
     }
