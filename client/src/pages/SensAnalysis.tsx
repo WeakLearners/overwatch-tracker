@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   ResponsiveContainer, ScatterChart, Scatter, LabelList,
   ComposedChart, Bar, Line,
@@ -40,7 +41,7 @@ interface ScaleRow {
   avgHeal10: number | null; avgHeal10Delta: number | null;
   avgElims10: number | null; avgElims10Delta: number | null;
   avgDeaths10: number | null; avgDeaths10Delta: number | null;
-  avgFeel: number | null; avgDelta: number | null; winRate: number | null;
+  avgFeel: number | null; avgDelta: number | null; seDelta: number | null; winRate: number | null;
   min: number | null; q1: number | null; median: number | null; q3: number | null; max: number | null;
   absorbedN: number; distinctDates: number; dateSpanDays: number;
   // n >= MIN_SCALE_N (5) on the server. A bucket below this is still
@@ -194,22 +195,6 @@ function QuadrantTooltip({ active, payload }: { active?: boolean; payload?: { pa
       <div style={{ fontWeight: 700 }}>{p.sensAt1600.toFixed(2)} sens @ {MOUSE_DPI} DPI</div>
       <div>Felt speed: <b style={{ fontWeight: 700 }}>{f1(p.avgFeel)}</b>/100 <span style={{ opacity: 0.7 }}>({f1(p.feelOff)} from neutral)</span></div>
       <div>Accuracy vs. your average: <b style={{ fontWeight: 700 }}>{signed(p.avgDelta)}</b></div>
-      <div style={{ opacity: 0.7 }}>{p.n} game{p.n === 1 ? '' : 's'}</div>
-    </div>
-  );
-}
-
-// Tooltip for the Peak Sens by Category chart — each point is a different
-// category (Overall/Hitscan/Projectile/hero), so its label carries the
-// identity neither axis does.
-function SpreadTooltip({ active, payload }: { active?: boolean; payload?: { payload: SpreadPoint }[] }) {
-  if (!active || !payload?.length) return null;
-  const p = payload[0].payload;
-  return (
-    <div style={{ background: 'rgb(var(--ow-card))', border: '1px solid rgb(var(--ow-border))', borderRadius: 8, fontSize: 12, padding: '6px 10px' }}>
-      <div style={{ fontWeight: 700 }}>{p.label}{p.archetype ? ` (${p.archetype})` : ''}</div>
-      <div><b style={{ fontWeight: 700 }}>{p.sens.toFixed(2)}</b> sens @ {MOUSE_DPI} DPI</div>
-      <div>Accuracy: <b style={{ fontWeight: 700 }}>{f1(p.raw)}</b>% (<b style={{ fontWeight: 700 }}>{signed(p.delta)}</b> vs. your average)</div>
       <div style={{ opacity: 0.7 }}>{p.n} game{p.n === 1 ? '' : 's'}</div>
     </div>
   );
@@ -613,6 +598,14 @@ interface Recommendation {
 // the edge of what's been tried (no bracketed peak yet), is still thin (n <
 // CONFIDENT_N), or is only narrowly ahead of a runner-up. "Narrow" only fires
 // once a scale is beaten on both sides by worse-but-reliable neighbors.
+// 95% interval on a scale's accuracy delta (mean +/- 1.96 standard errors),
+// written in points. Empty when the server sent no standard error (n < 2).
+function intervalText(r: ScaleRow): string {
+  if (r.avgDelta == null || r.seDelta == null) return '';
+  const half = 1.96 * r.seDelta;
+  return `, 95% range ${signed(r.avgDelta - half)} to ${signed(r.avgDelta + half)}`;
+}
+
 function buildRecommendation(data: Analysis, spread: SensSpread): Recommendation {
   // .reliable is the server's MIN_SCALE_N (5) guard — a below-threshold
   // scale is never dropped from the payload (see the By Scale table, where
@@ -685,11 +678,11 @@ function buildRecommendation(data: Analysis, spread: SensSpread): Recommendation
   // would otherwise look.
   if (spread.verdict === 'scattered') {
     points.unshift(
-      `${spread.headline} A single pooled DPI may not fit every hero yet — see "Peak Sens by Category" below before committing.`,
+      `${spread.headline} A single pooled DPI may not fit every hero yet — see the per-category curves below before committing.`,
     );
     return {
       verdict: 'continue',
-      headline: `No single best DPI yet — heroes are peaking at different scales. Overall best guess (accuracy and hero stats weighed equally) is ${fmtScale(best)} (${signed(best.avgDelta)}% accuracy, ${best.n} games), but treat it as provisional.`,
+      headline: `No single best DPI yet — heroes are peaking at different scales. Overall best guess (accuracy and hero stats weighed equally) is ${fmtScale(best)} (${signed(best.avgDelta)}% accuracy${intervalText(best)}, ${best.n} games), but treat it as provisional.`,
       points,
     };
   }
@@ -703,7 +696,7 @@ function buildRecommendation(data: Analysis, spread: SensSpread): Recommendation
 
   return {
     verdict,
-    headline: `Best guess right now (accuracy and hero stats weighed equally): ${fmtScale(best)} (tested at DPI ${dpi}) — ${signed(best.avgDelta)}% accuracy vs. your average, over ${best.n} games.`,
+    headline: `Best guess right now (accuracy and hero stats weighed equally): ${fmtScale(best)} (tested at DPI ${dpi}) — ${signed(best.avgDelta)}% accuracy vs. your average${intervalText(best)}, over ${best.n} games.`,
     points,
   };
 }
@@ -912,15 +905,9 @@ function buildInsights(data: Analysis, heroCounts: Record<string, number>): stri
 // it here (2026-09-17, Sean's request) means no server change: it's already
 // correct and already used for exactly this purpose, just not visible
 // anywhere someone reading FINDINGS would think to look for it.
-interface ActiveStudySet {
-  set_id: number; hero: string | null; phase: string | null;
-  cur_stage: number; n_stages: number; games_on_stage: number; batch_size: number;
-  totalGames: number; completed: boolean; curveEnabled: boolean;
-}
-
 export default function SensAnalysis() {
   const { data, loading } = useApi<Analysis>('/api/aim/analysis');
-  const { data: blindState } = useApi<{ actives: ActiveStudySet[] }>('/api/blind/state');
+  const [miniGrid, setMiniGrid] = useState<'accuracy' | 'hero-stat'>('accuracy');
   const heroCounts = useTodayHeroCounts();
 
   const wrap = (children: React.ReactNode) => (
@@ -958,34 +945,9 @@ export default function SensAnalysis() {
   // DPI — see the sensAt1600/fmtScale note above for why.
   const byScaleSpeed = bySpeed(byScale);
 
-  // Peak Sens by Category: one point per category, positioned by its own
-  // best-performing scale — see buildSensSpread for why only peaks (not
-  // every tested scale) are plotted.
+  // Overall vs per-hero peak spread. Feeds the recommendation's "scattered"
+  // verdict; the Peak Sens by Category chart itself was cut (audit A5).
   const spread = buildSensSpread(data);
-  const spreadSensValues = spread.points.map(p => p.sens);
-  // X domain hugs the tested points exactly (±0.05 sens) instead of an
-  // auto-padded range — ticks are drawn only at each point's own sens value
-  // (see the XAxis `ticks` prop below), so there's no "arbitrary" tick to pad for.
-  const spreadXDomain: [number, number] = spreadSensValues.length
-    ? [Math.min(...spreadSensValues) - 0.05, Math.max(...spreadSensValues) + 0.05]
-    : [0, 1];
-  // Y domain hugs the actual raw-accuracy values (plus the baseline, so the
-  // reference line is always in view) instead of starting from 0 — these are
-  // real percentages that cluster in a narrow band, not deltas anchored at a
-  // fixed origin.
-  const spreadRawValues = [...spread.points.map(p => p.raw), spread.baseline].filter((v): v is number => v != null);
-  const spreadYDomain: [number, number] = spreadRawValues.length
-    ? (() => {
-        const lo = Math.min(...spreadRawValues);
-        const hi = Math.max(...spreadRawValues);
-        const pad = (hi - lo) * 0.15 || 1;
-        return [lo - pad, hi + pad];
-      })()
-    : [0, 1];
-  // Gridlines every 0.1 sens / 5 accuracy points — denser than the sparse,
-  // label-driven axis ticks (one per category), so the plot area isn't bare.
-  const spreadGridX = gridTicks(spreadXDomain[0], spreadXDomain[1], 0.1);
-  const spreadGridY = gridTicks(spreadYDomain[0], spreadYDomain[1], 5);
 
   // Feel vs. Data quadrant: each scale plotted at (how far its felt speed sat
   // from neutral, accuracy delta).
@@ -1052,11 +1014,6 @@ export default function SensAnalysis() {
   const curveOffVariant = data.curveBreakdown.find(v => !v.curveEnabled) ?? null;
   const curveIsConfounded = curveOnVariants.length > 1;
 
-  // Study progress (2026-09-17) — the same /api/blind/state feed the testing
-  // page already shows, just not previously visible anywhere on the page
-  // someone reads findings from.
-  const activeStudySets = blindState?.actives ?? [];
-
   return wrap(
     <div className="space-y-6">
       <p className="text-xs text-[var(--faint)]" data-inspect-id="sensAnalysis-summary-banner">
@@ -1077,36 +1034,10 @@ export default function SensAnalysis() {
         {MOUSE_DPI} DPI once you commit to a result — so this is the number you'd actually dial in.
       </p>
 
-      {/* Phase 10 (and any other active stage-test) progress — previously
-          only visible on the Testing page, never here where findings are
-          actually read (2026-09-17, Sean's request). */}
-      {activeStudySets.length > 0 && (
-        <Section
-          title="Study Progress"
-          hint="Active stage-test sets right now — same feed the Testing page's HUD reads. A finding above drawn from a stage that's still filling in is provisional by definition."
-          dataInspectId="sensAnalysis-study-progress"
-        >
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {activeStudySets.map(s => (
-              <div key={s.set_id} className="chamfer bg-ow-darker border border-ow-border p-3" data-inspect-id="sensAnalysis-study-progress-set">
-                <div className="text-xs hero-name text-[var(--ink)] font-bold">{s.hero ?? 'Roster set'}</div>
-                <div className="text-[11px] text-[var(--faint)] mt-0.5">
-                  Stage <b className="text-[var(--ink)]">{s.cur_stage}</b> of <b className="text-[var(--ink)]">{s.n_stages}</b>
-                  {' · '}{s.games_on_stage}/{s.batch_size} games on stage
-                </div>
-                <div className="text-[11px] text-[var(--faint-2)] mt-1">
-                  {s.totalGames} games total{s.curveEnabled ? ' · curve on' : ''}{s.completed ? ' · complete' : ''}
-                </div>
-              </div>
-            ))}
-          </div>
-        </Section>
-      )}
-
       {/* DPI recommendation + continue-vs-narrow call */}
       <Section
         title="Recommendation"
-        hint="A DPI suggestion plus a call on whether to keep exploring or start converging — recomputed from the same scale data below."
+        hint="A DPI suggestion with its 95% range, a call on whether to keep exploring or start converging, and a plain-language read of the charts below — all recomputed every time you log a match."
         dataInspectId="sensAnalysis-recommendation-card"
       >
         <div className="flex items-start gap-3 flex-wrap">
@@ -1120,25 +1051,18 @@ export default function SensAnalysis() {
             {recommendation.points.map((p, i) => <li key={i}>{p}</li>)}
           </ul>
         )}
-      </Section>
-
-      {/* Plain-language read of the charts below */}
-      <Section
-        title="What the Data Shows"
-        hint="Auto-generated from the same numbers as the charts below — recomputed every time you log a match."
-        dataInspectId="sensAnalysis-data-shows-card"
-      >
-        {insights.length > 0 ? (
-          <ul className="space-y-2.5 text-sm text-[var(--ink-2)] list-disc list-inside marker:text-ow-accent" data-inspect-id="sensAnalysis-insights-list">
+        {/* What the charts say, folded in from the old "What the Data Shows"
+            card (audit A3): a second list of auto sentences on the same numbers. */}
+        {insights.length > 0 && (
+          <ul className="space-y-2 text-sm text-[var(--ink-2)] list-disc list-inside marker:text-ow-accent mt-3 pt-3 border-t border-ow-border" data-inspect-id="sensAnalysis-insights-list">
             {insights.map((note, i) => <li key={i}>{note}</li>)}
           </ul>
-        ) : (
-          <p className="text-xs text-[var(--faint)]">Not enough data yet for a confident read — keep logging.</p>
         )}
       </Section>
 
-      {/* Feel vs Data + Peak Sens by Category, side by side */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Feel vs Data. Peak Sens by Category was cut (audit A5): the peaks are
+          already marked on the per-category curve grid below. */}
+      <div>
         <Section
           title="Feel vs. Data"
           hint={`Each dot is a tested scale. Left/right is how far its felt speed sat from neutral — a scale you rated 25 and one you rated 75 both read as equally far off, one slow and one fast. Up/down is how well you actually aimed on it. The crosshair marks your own averages for both. Bottom-right = the scales that felt furthest from neutral are also the ones you aim worst on. Top-right = a scale feels strongly one way and you aim better on it anyway, so the feeling is worth keeping.`}
@@ -1168,85 +1092,6 @@ export default function SensAnalysis() {
               </div>
             </div>
           </div>
-        </Section>
-
-        {/* Peak Sens by Category — one point per category (Overall, Hitscan,
-            Projectile, each hero) at that category's own best-performing scale.
-            Tight cluster = one sens fits everything; scattered = worth splitting. */}
-        <Section
-          title="Peak Sens by Category"
-          hint={`One point per category — Overall, Hitscan, Projectile, and each hero — placed at that category's own best-performing scale (not every tested scale, just the peak). The shaded band marks "close enough" to Overall${Number.isFinite(spread.threshold) ? ` (±${spread.threshold.toFixed(2)} sens)` : ''}; points inside it don't need their own sens, points outside might.`}
-          dataInspectId="sensAnalysis-peak-sens-by-category-chart sensAnalysis-peak-sens-card"
-        >
-          <div className="flex items-start gap-3 flex-wrap mb-3">
-            <span data-inspect-id="sensAnalysis-peak-sens-verdict-badge" className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${spread.verdict === 'scattered' ? 'bg-amber-500/15 text-amber-500' : spread.verdict === 'grouped' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-ow-accent/15 text-ow-accent'}`}>
-              <span data-inspect-id="sensAnalysis-peak-sens-badge">{spread.verdict === 'scattered' ? 'Split may help' : spread.verdict === 'grouped' ? 'One sens fits all' : 'Not enough data'}</span>
-            </span>
-            <p className="text-sm text-[var(--ink)] font-semibold flex-1 min-w-[200px]">{spread.headline}</p>
-          </div>
-          {spread.points.length >= 2 ? (
-            <div className="flex-1 min-w-0" data-inspect-id="sensAnalysis-peak-sens-chart">
-              <ResponsiveContainer width="100%" height={280}>
-                <ScatterChart data={spread.points} margin={{ top: 16, right: 16, bottom: 24, left: 10 }}>
-                  <CartesianGrid stroke="rgb(var(--ow-border))" strokeOpacity={0.5} strokeDasharray="3 3" verticalValues={spreadGridX} horizontalValues={spreadGridY} />
-                  <XAxis
-                    dataKey="sens" type="number" name="Sens" domain={spreadXDomain}
-                    ticks={spreadSensValues} tickFormatter={(v: number) => v.toFixed(2)}
-                    tick={axisStyle} tickLine={{ stroke: 'rgb(var(--ow-border))' }} axisLine={{ stroke: 'rgb(var(--ow-border))' }}
-                    label={{ value: `In-game Sens (@${MOUSE_DPI} dpi)`, position: 'insideBottom', offset: -8, style: { fill: 'var(--faint)', fontSize: 11 } }}
-                  />
-                  {/* tick={false} would hide the numbers, but it also silently
-                      drops CartesianGrid's horizontalValues lines entirely in
-                      this Recharts version — render an empty tick instead. */}
-                  <YAxis
-                    dataKey="raw" type="number" domain={spreadYDomain} tick={() => <g />}
-                    tickLine={{ stroke: 'rgb(var(--ow-border))' }} axisLine={{ stroke: 'rgb(var(--ow-border))' }} width={60}
-                    label={{ value: 'Accuracy (%)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: 'var(--faint)', fontSize: 11 } }}
-                  />
-                  <Tooltip content={<SpreadTooltip />} cursor={{ strokeDasharray: '3 3' }} />
-                  {spread.anchor != null && Number.isFinite(spread.threshold) && (
-                    <ReferenceArea x1={spread.anchor - spread.threshold} x2={spread.anchor + spread.threshold} fill={FEEL} fillOpacity={0.08} stroke="none" />
-                  )}
-                  {spread.anchor != null && <ReferenceLine x={spread.anchor} stroke="var(--faint-2)" strokeDasharray="4 4" />}
-                  {/* Baseline = the overall mean accuracy across every logged
-                      point (n-weighted across heroes) — the reference every
-                      category's peak is measured against. */}
-                  {spread.baseline != null && (
-                    <ReferenceLine
-                      y={spread.baseline} stroke="var(--faint-2)" strokeDasharray="4 4"
-                      label={{ value: `Your average: ${f1(spread.baseline)}%`, position: 'insideBottomLeft', fill: 'var(--faint)', fontSize: 10 }}
-                    />
-                  )}
-                  {/* Drop line from each point down to the baseline, so its
-                      x-axis tick reads as "this category's peak lands here." */}
-                  {spread.points.map((p, i) => p.raw != null && spread.baseline != null && (
-                    <ReferenceLine key={i} segment={[{ x: p.sens, y: spread.baseline }, { x: p.sens, y: p.raw }]} stroke="var(--faint-2)" strokeOpacity={0.5} strokeDasharray="3 3" />
-                  ))}
-                  <Scatter dataKey="raw" fill={FEEL}>
-                    {/* Points are identified by name label rather than color —
-                        with a dozen-plus categories/heroes, distinct colors
-                        stopped being distinguishable at a glance. */}
-                    <LabelList
-                      dataKey="raw"
-                      content={(props: any) => {
-                        const { x, y, index } = props;
-                        const p = spread.points[index];
-                        if (p?.raw == null) return null;
-                        return (
-                          <g>
-                            <text x={x + 8} y={y - 8} textAnchor="start" fontSize={10} fontWeight={600} fill="var(--ink)">{p.label}</text>
-                            <text x={x + 8} y={y + 4} textAnchor="start" fontSize={9} fontWeight={700} fill="var(--faint)">{p.raw.toFixed(1)}%</text>
-                          </g>
-                        );
-                      }}
-                    />
-                  </Scatter>
-                </ScatterChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <p className="text-xs text-[var(--faint)]">Not enough categories yet to plot — keep logging.</p>
-          )}
         </Section>
       </div>
 
@@ -1744,8 +1589,24 @@ export default function SensAnalysis() {
                 <p className="text-[10px] text-[var(--faint-2)] mt-1">Orange line: the estimated curve. Dark dots: your actual tested scales it's based on (Overall only).</p>
               </div>
             )}
-            <h3 className="text-xs font-bold text-[var(--ink)] mb-2">Every Category's Curve — Accuracy</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6" data-inspect-id="sensAnalysis-mini-curve-grid-accuracy">
+            {/* One grid, two states (audit A8): accuracy curves, or the
+                co-primary hero-specific stat curves (2026-09-17). Units in the
+                hero-stat state vary per hero (a percentage for crit/extra,
+                sometimes a raw per-match count for a signature stat) — read
+                each tile against its own name. */}
+            <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+              <h3 className="text-xs font-bold text-[var(--ink)]">Every Category's Curve</h3>
+              <div className="inline-flex rounded-md border border-ow-border overflow-hidden text-[11px]" data-inspect-id="sensAnalysis-mini-curve-grid-toggle">
+                {([['accuracy', 'Accuracy'], ['hero-stat', 'Hero-specific stat']] as const).map(([k, label]) => (
+                  <button
+                    key={k} type="button" onClick={() => setMiniGrid(k)} aria-pressed={miniGrid === k}
+                    className={`px-2.5 py-1 font-semibold ${miniGrid === k ? 'bg-ow-accent/15 text-ow-accent' : 'text-[var(--faint)]'}`}
+                  >{label}</button>
+                ))}
+              </div>
+            </div>
+            {miniGrid === 'accuracy' && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6" data-inspect-id="sensAnalysis-mini-curve-grid-accuracy">
               {rows.map(r => (
                 <MiniCurveChart
                   key={r.label}
@@ -1755,6 +1616,19 @@ export default function SensAnalysis() {
                 />
               ))}
             </div>
+            )}
+            {miniGrid === 'hero-stat' && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6" data-inspect-id="sensAnalysis-mini-curve-grid-hero-stat">
+              {heroStatRows.map(r => (
+                <MiniCurveChart
+                  key={r.label}
+                  fit={r.fit}
+                  points={r.hero ? testedPointsFor(r.hero.scales, heroStatChannelValueOf(r.hero.heroStatCurveChannel)) : testedPointsFor(byScale, s => s.avgCritDelta)}
+                  label={r.label}
+                />
+              ))}
+            </div>
+            )}
 
             <h3 className="text-xs font-bold text-[var(--ink)] mb-2">By Accuracy</h3>
             {withFit.length ? (
@@ -1799,24 +1673,6 @@ export default function SensAnalysis() {
             ) : (
               <p className="text-xs text-[var(--faint)] mb-6">No category has 3+ reliable tested scales yet — keep spreading games across scales.</p>
             )}
-
-            {/* Co-primary companion (2026-09-17): same kind of curve, same
-                table shape, same section — hero-specific stats get equal
-                standing, not a scroll below. Units vary per hero (a
-                percentage for crit/extra, sometimes a raw per-match count
-                for a signature stat) — read each row against its own name,
-                not against the accuracy table above it. */}
-            <h3 className="text-xs font-bold text-[var(--ink)] mb-2">Every Category's Curve — Hero-Specific Stat</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6" data-inspect-id="sensAnalysis-mini-curve-grid-hero-stat">
-              {heroStatRows.map(r => (
-                <MiniCurveChart
-                  key={r.label}
-                  fit={r.fit}
-                  points={r.hero ? testedPointsFor(r.hero.scales, heroStatChannelValueOf(r.hero.heroStatCurveChannel)) : testedPointsFor(byScale, s => s.avgCritDelta)}
-                  label={r.label}
-                />
-              ))}
-            </div>
 
             <h3 className="text-xs font-bold text-[var(--ink)] mb-2">By Hero-Specific Stat</h3>
             {heroStatWithFit.length ? (
@@ -2027,45 +1883,6 @@ export default function SensAnalysis() {
           flag that they were weaker inputs. Zenyatta is the concrete case:
           heroStatLabel is null for him, so his co-primary pick falls back to
           crit alone — one channel instead of two, same as every hero below. */}
-      {(() => {
-        const coverage = heroes.map(h => {
-          const crit = hasCrit(h.hero) ? critSlotShort(h.hero) : null;
-          const extra = extraSlotShort(h.hero);
-          const sig = h.heroStatLabel;
-          const none = crit == null && extra == null && sig == null;
-          return { h, crit, extra, sig, none };
-        });
-        const missing = coverage.filter(c => c.none);
-        return (
-          <Section
-            title="Hero-Stat Coverage"
-            hint={`Which heroes have a crit/extra/signature stat logged at all — the co-primary picks above weigh hero stats equally with accuracy, but only for heroes that HAVE one. ${missing.length} of ${heroes.length} heroes have no hero-stat channel${missing.length ? ` (${missing.map(m => m.h.hero).join(', ')})` : ''} — their best-sens pick and curve fit are accuracy-only, a weaker version of the same analysis, with no other flag on the page saying so.`}
-            dataInspectId="sensAnalysis-hero-stat-coverage"
-          >
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
-                    <th className="py-1.5 pr-3">Hero</th><th className="py-1.5 pr-3">Crit slot</th><th className="py-1.5 pr-3">Extra slot</th><th className="py-1.5 pr-3">Signature stat</th><th className="py-1.5">Co-primary basis</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {coverage.map(c => (
-                    <tr key={c.h.hero} className={`border-t border-ow-border ${c.none ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--ink-2)]'}`}>
-                      <td className="py-1.5 pr-3 text-xs hero-name text-[var(--ink)]">{withHeroCount(c.h.hero, heroCounts)}</td>
-                      <td className="py-1.5 pr-3">{c.crit ?? '—'}</td>
-                      <td className="py-1.5 pr-3">{c.extra ?? '—'}</td>
-                      <td className="py-1.5 pr-3">{c.sig ? `${c.sig} (${c.h.nHeroStat} games)` : '—'}</td>
-                      <td className="py-1.5 font-bold">{c.none ? 'Accuracy only' : 'Accuracy + hero stat'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Section>
-        );
-      })()}
-
       {/* Where the minimum-n guard is biting (2026-09-17) — RELIABLE_N (5)
           excludes a scale from every pick/fit/finding on this page, but
           nothing previously said how MANY of a hero's tested scales actually
@@ -2075,21 +1892,26 @@ export default function SensAnalysis() {
         const rows = heroes.map(h => {
           const total = h.scales.length;
           const reliable = h.scales.filter(s => s.reliable).length;
-          return { hero: h.hero, total, reliable, thin: total - reliable };
+          // Hero-stat coverage, folded in from the old "Hero-Stat Coverage" card
+          // (audit A17): a hero with no crit/extra/signature channel gets an
+          // accuracy-only pick and curve fit, a weaker version of the analysis.
+          const accuracyOnly = !(hasCrit(h.hero) ? critSlotShort(h.hero) : null) && extraSlotShort(h.hero) == null && h.heroStatLabel == null;
+          return { hero: h.hero, total, reliable, thin: total - reliable, accuracyOnly };
         });
+        const accuracyOnlyHeroes = rows.filter(r => r.accuracyOnly).map(r => r.hero);
         const rosterTotal = byScale.length;
         const rosterReliable = byScale.filter(s => s.reliable).length;
         return (
           <Section
-            title="Where the Minimum-N Guard Is Biting"
-            hint={`Scales need ${RELIABLE_N}+ games before they can win a pick or feed a curve fit or finding (MIN_SCALE_N). Roster-wide, ${rosterTotal - rosterReliable} of ${rosterTotal} tested scales are still below that bar. This breaks it down per hero, so "thoroughly tested" by total games doesn't hide a hero whose games are mostly scattered across thin, excluded scales.`}
+            title="Data Coverage"
+            hint={`Scales need ${RELIABLE_N}+ games before they can win a pick or feed a curve fit or finding (MIN_SCALE_N). Roster-wide, ${rosterTotal - rosterReliable} of ${rosterTotal} tested scales are still below that bar. This breaks it down per hero, so "thoroughly tested" by total games doesn't hide a hero whose games are mostly scattered across thin, excluded scales. The last column marks heroes with no crit, extra or signature stat logged: ${accuracyOnlyHeroes.length} of ${heroes.length}${accuracyOnlyHeroes.length ? ` (${accuracyOnlyHeroes.join(', ')})` : ''} get an accuracy-only pick and curve fit.`}
             dataInspectId="sensAnalysis-min-n-coverage"
           >
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
-                    <th className="py-1.5 pr-3">Hero</th><th className="py-1.5 pr-3">Scales tested</th><th className="py-1.5 pr-3">Reliable (n≥{RELIABLE_N})</th><th className="py-1.5">Thin (excluded)</th>
+                    <th className="py-1.5 pr-3">Hero</th><th className="py-1.5 pr-3">Scales tested</th><th className="py-1.5 pr-3">Reliable (n≥{RELIABLE_N})</th><th className="py-1.5 pr-3">Thin (excluded)</th><th className="py-1.5">Pick basis</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2098,7 +1920,8 @@ export default function SensAnalysis() {
                       <td className="py-1.5 pr-3 text-xs hero-name text-[var(--ink)]">{withHeroCount(r.hero, heroCounts)}</td>
                       <td className="py-1.5 pr-3 font-bold">{r.total}</td>
                       <td className="py-1.5 pr-3 font-bold text-emerald-700 dark:text-emerald-500">{r.reliable}</td>
-                      <td className={`py-1.5 font-bold ${r.thin > 0 ? 'text-amber-600 dark:text-amber-400' : ''}`}>{r.thin}</td>
+                      <td className={`py-1.5 pr-3 font-bold ${r.thin > 0 ? 'text-amber-600 dark:text-amber-400' : ''}`}>{r.thin}</td>
+                      <td className={`py-1.5 font-bold ${r.accuracyOnly ? 'text-amber-600 dark:text-amber-400' : ''}`}>{r.accuracyOnly ? 'Accuracy only' : 'Accuracy + hero stat'}</td>
                     </tr>
                   ))}
                 </tbody>

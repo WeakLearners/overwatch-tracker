@@ -578,7 +578,7 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
                     <b className={`font-bold ${Math.abs(lastZ) >= 2 ? 'text-amber-600' : ''}`}>
                       {lastZ >= 0 ? '+' : '−'}{Math.abs(lastZ).toFixed(2)} SD
                     </b>
-                    {Math.abs(lastZ) < 1 ? ', ordinary' : Math.abs(lastZ) < 2 ? ', notable' : ', real'}
+                    {Math.abs(lastZ) < 1 ? ', ordinary' : Math.abs(lastZ) < 2 ? ', notable' : ', outside the usual range'}
                   </span>
                 </div>
                 {/* Legend. The candle is the part no one can guess: the body is
