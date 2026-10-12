@@ -192,9 +192,9 @@ export function computeAnalysis(db: DatabaseSync) {
            a.hero_stat_label, a.hero_stat_value, m.hero AS primary_hero, a.created_at,
            -- Labelling only (2026-09-24) — carried onto each point object
            -- below so a consumer can see/filter on it later. No fit, filter,
-           -- bucket, or exclusion in this function reads these; whether
-           -- leaver games get excluded from the study is a separate decision
-           -- Sean hasn't made.
+           -- bucket, or exclusion in this function reads these.
+           -- Sean decided 2026-10-12: leaver games stay in the sens study fit.
+           -- Reason: a leaver means fewer targets on the enemy team, so his targets do not change.
            m.leaver, m.leaver_side,
            -- Output stats. All live on aim_stats, which is one row per MATCH,
            -- so like hero_stat_value they describe the primary hero and are
