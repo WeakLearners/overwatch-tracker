@@ -5,7 +5,7 @@ import os from 'os';
 import path from 'path';
 import { getDb, closeDb } from '../db/schema';
 import {
-  decideMatch, MATCH_WINDOW_MIN, processFile, rematchRecent, validateParsed, callVision, resolveSelf, recomputeScoreboards, storeScoreboard, systemPrompt, SCHEMA, TEAMS_PROMPT,
+  decideMatch, MATCH_WINDOW_MIN, processFile, rematchRecent, validateParsed, isShortBoard, callVision, resolveSelf, recomputeScoreboards, storeScoreboard, systemPrompt, SCHEMA, TEAMS_PROMPT,
   type MatchCandidate, type ParsedRow, type ParsedScoreboard, type SelfRow,
 } from './scoreboard';
 import { pollOnce } from './scoreboardWatcher';
@@ -66,7 +66,24 @@ function board(n = 6): ParsedScoreboard {
 
 describe('validateParsed', () => {
   test('6v6 and 5v5 pass', () => { assert.equal(validateParsed(board(6)), null); assert.equal(validateParsed(board(5)), null); });
-  test('uneven teams fail', () => { const b = board(6); b.rows.pop(); assert.match(validateParsed(b)!, /row counts/); });
+  test('leaver boards pass: 5v0, 4v5, 5v4', () => {
+    const mk = (u: number, t: number): ParsedScoreboard => ({ is_scoreboard: true, rows: [...Array(u)].map((_, i) => row('us', i, i === 0)).concat([...Array(t)].map((_, i) => row('them', i))) });
+    for (const [u, t] of [[5, 0], [4, 5], [5, 4]]) assert.equal(validateParsed(mk(u, t)), null, `${u}v${t}`);
+  });
+  test('7 rows on a side, or no us rows, still fail', () => {
+    const mk = (u: number, t: number): ParsedScoreboard => ({ is_scoreboard: true, rows: [...Array(u)].map((_, i) => row('us', i)).concat([...Array(t)].map((_, i) => row('them', i))) });
+    assert.match(validateParsed(mk(7, 5))!, /row counts/);
+    assert.match(validateParsed(mk(5, 7))!, /row counts/);
+    assert.match(validateParsed(mk(0, 5))!, /row counts/);
+  });
+  test('isShortBoard flags unequal sides or a side under 5, not 5v5 or 6v6', () => {
+    assert.equal(isShortBoard(board(5).rows), false);
+    assert.equal(isShortBoard(board(6).rows), false);
+    const b = board(5); b.rows = b.rows.filter(r => r.team === 'us');
+    assert.equal(isShortBoard(b.rows), true);
+    const c = board(5); c.rows.pop();
+    assert.equal(isShortBoard(c.rows), true);
+  });
   test('the model highlight is not validated (self comes from the name)', () => { const b = board(6); b.rows.forEach(r => (r.is_self = false)); assert.equal(validateParsed(b), null); });
 });
 
@@ -132,6 +149,19 @@ describe('processFile + rematch on a temp DB', () => {
     const id = addMatch(at(8));
     assert.equal(rematchRecent(db, MTIME + 10 * 60_000), 1);
     assert.equal((db.prepare(`SELECT match_id FROM match_scoreboards`).get() as any).match_id, id);
+  });
+  test('5v0 leaver board links to its match, is stored as short, rows kept', async () => {
+    const m = addMatch(at(1));
+    const b = board(5); b.rows = b.rows.filter(r => r.team === 'us');
+    assert.equal(await processFile(db, '/x/leaver.png', MTIME, async () => b), 'matched');
+    const sb = db.prepare(`SELECT match_id, short FROM match_scoreboards`).get() as any;
+    assert.deepEqual([sb.match_id, sb.short], [m, 1]);
+    assert.equal((db.prepare(`SELECT COUNT(*) n FROM scoreboard_rows`).get() as any).n, 5);
+  });
+  test('a full 5v5 board is not short', async () => {
+    addMatch(at(1));
+    await processFile(db, '/x/full.png', MTIME, async () => board(5));
+    assert.equal((db.prepare(`SELECT short FROM match_scoreboards`).get() as any).short, 0);
   });
   test('rematchRecent leaves old unmatched rows alone', async () => {
     addMatch(at(120));

@@ -1093,6 +1093,8 @@ function initSchema(db: DatabaseSync) {
   if (!sbCols.includes('page_type')) db.exec(`ALTER TABLE match_scoreboards ADD COLUMN page_type TEXT`);
   if (!sbCols.includes('group_id')) db.exec(`ALTER TABLE match_scoreboards ADD COLUMN group_id INTEGER`);
   if (!sbCols.includes('page_hero')) db.exec(`ALTER TABLE match_scoreboards ADD COLUMN page_hero TEXT`);
+  // short: 1 when a Teams board has unequal sides or a side under 5 (comp leaver; the game removes the row). Added 2026-10-12.
+  if (!sbCols.includes('short')) db.exec(`ALTER TABLE match_scoreboards ADD COLUMN short INTEGER NOT NULL DEFAULT 0`);
   // One group per Summary page. state: live (no logged match, waits for the log form),
   // linked (the form linked it at submit), recovery (linked at ingest to a match that
   // was already logged), ambiguous (2+ logged matches fit the Summary DATE; never lights the form).

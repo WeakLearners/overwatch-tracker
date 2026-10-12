@@ -167,10 +167,20 @@ export function resolveSelf(rows: { team: string; player_name: string }[], accou
 
 /** Returns a problem description, or null when the parsed output is usable. */
 export function validateParsed(p: ParsedScoreboard): string | null {
-  const us = p.rows.filter(r => r.team === 'us');
-  const them = p.rows.filter(r => r.team === 'them');
-  if (us.length !== them.length || (us.length !== 5 && us.length !== 6)) return `unexpected row counts (us ${us.length}, them ${them.length})`;
+  const { us, them } = teamCounts(p.rows);
+  // Comp has no backfill: the game REMOVES a leaver's row. So a side can hold 0..6 rows and the teams can differ (5v0 when the whole enemy team left).
+  if (us < 1 || us > 6 || them > 6) return `unexpected row counts (us ${us}, them ${them})`;
   return null;
+}
+
+export function teamCounts(rows: { team: string }[]): { us: number; them: number } {
+  return { us: rows.filter(r => r.team === 'us').length, them: rows.filter(r => r.team === 'them').length };
+}
+
+/** A short board has unequal sides or a side under 5 (a leaver). Its rows are kept as read; never average a short board's team. */
+export function isShortBoard(rows: { team: string }[]): boolean {
+  const { us, them } = teamCounts(rows);
+  return us !== them || us < 5;
 }
 
 // ----------------------------------------------------------------- storage
@@ -190,6 +200,7 @@ export function storeScoreboard(db: DatabaseSync, args: StoreArgs): number {
   try {
     const mtimeIso = new Date(args.mtimeMs).toISOString();
     const raw = args.raw == null ? null : JSON.stringify(args.raw);
+    const short = args.rows.length > 0 && isShortBoard(args.rows) ? 1 : 0;
     let id: number;
     if (args.replaceId != null) {
       id = args.replaceId;
@@ -197,13 +208,13 @@ export function storeScoreboard(db: DatabaseSync, args: StoreArgs): number {
       db.prepare(`DELETE FROM scoreboard_rank_heroes WHERE scoreboard_id = ?`).run(id);
       db.prepare(`DELETE FROM scoreboard_ranks WHERE scoreboard_id = ?`).run(id);
       db.prepare(`
-        UPDATE match_scoreboards SET match_id = ?, file_mtime = ?, status = ?, reason = ?, raw_json = ?, page_type = ?, group_id = ?, page_hero = ? WHERE id = ?
-      `).run(args.matchId, mtimeIso, args.status, args.reason, raw, args.pageType ?? null, args.groupId ?? null, args.pageHero ?? null, id);
+        UPDATE match_scoreboards SET match_id = ?, file_mtime = ?, status = ?, reason = ?, raw_json = ?, page_type = ?, group_id = ?, page_hero = ?, short = ? WHERE id = ?
+      `).run(args.matchId, mtimeIso, args.status, args.reason, raw, args.pageType ?? null, args.groupId ?? null, args.pageHero ?? null, short, id);
     } else {
       const info = db.prepare(`
-        INSERT INTO match_scoreboards (match_id, file_path, file_mtime, status, reason, raw_json, page_type, group_id, page_hero)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(args.matchId, args.filePath, mtimeIso, args.status, args.reason, raw, args.pageType ?? null, args.groupId ?? null, args.pageHero ?? null);
+        INSERT INTO match_scoreboards (match_id, file_path, file_mtime, status, reason, raw_json, page_type, group_id, page_hero, short)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(args.matchId, args.filePath, mtimeIso, args.status, args.reason, raw, args.pageType ?? null, args.groupId ?? null, args.pageHero ?? null, short);
       id = Number(info.lastInsertRowid);
     }
     const ins = db.prepare(`
