@@ -1,4 +1,4 @@
-// Polls the Drive "OW Game Logs" folder (My Drive, Drive for desktop, Stream
+// Polls the SCOREBOARD_DIR folder (since 2026-10-12 the local SMB share /Users/Sean/OWScreenshots; before that the Drive
 // mode) every 10 s (was 60 s until 2026-10-10). It moved from "Other computers/My Computer" on 2026-10-09
 // because that path synced up to 2 hours late. After each poll it files processed
 // images into subfolders (scoreboardOrganize.ts: moves and renames, never deletes).
@@ -21,6 +21,11 @@ export const MIN_INTAKE_AGE_MS = 5_000;
  *  scoreboard.ts still spans about 3 minutes at a 10 s poll instead of 30 s. */
 export const RETRY_BACKOFF_MS = 60_000;
 const retryAfter = new Map<string, number>();
+/** Files sean cannot read (EACCES/EPERM, e.g. an SMB file made before the folder ACL). Value = mtime when seen.
+ *  Logged once, skipped without a read or a vision call until the mtime changes. */
+const unreadable = new Map<string, number>();
+/** Most new files one tick processes (ciso condition 2026-10-12). The rest wait for the next tick. */
+export const MAX_FILES_PER_TICK = 20;
 export const FS_TIMEOUT_MS = 30_000;
 /** Scoreboard folder, from SCOREBOARD_DIR in the gitignored server/.env. Unset means the watcher stays off. */
 export const scoreboardDir = (): string | null => process.env.SCOREBOARD_DIR || null;
@@ -64,18 +69,33 @@ export async function pollOnce(
       if ((retryAfter.get(full) ?? 0) > nowMs) continue;
       try {
         const st = await withTimeout(fs.promises.stat(full), fsTimeoutMs, 'stat');
+        if (unreadable.get(full) === st.mtimeMs) continue;
+        if (st.isFile() && st.size > 0) {
+          try { await withTimeout(fs.promises.access(full, fs.constants.R_OK), fsTimeoutMs, 'access'); unreadable.delete(full); }
+          catch (e) {
+            const code = (e as NodeJS.ErrnoException).code;
+            if (code !== 'EACCES' && code !== 'EPERM') throw e;
+            unreadable.set(full, st.mtimeMs);
+            console.warn(`[scoreboard] ${name}: not readable (${code}); skipped until the file changes`);
+            continue;
+          }
+        }
         if (st.isFile() && st.size > 0 && (minAgeMs <= 0 || nowMs - st.mtimeMs >= minAgeMs)) fresh.push({ name, full, st });
       } catch (e) {
         console.warn(`[scoreboard] ${name}: ${(e as Error).message}; retry next poll`);
       }
     }
     fresh.sort((a, b) => a.st.mtimeMs - b.st.mtimeMs || a.name.localeCompare(b.name));
+    if (fresh.length > MAX_FILES_PER_TICK) {
+      console.warn(`[scoreboard] ${fresh.length} new files; processing the oldest ${MAX_FILES_PER_TICK} this tick, the rest next tick`);
+      fresh.length = MAX_FILES_PER_TICK;
+    }
     markInFlight(fresh.map(f => f.full));
     for (const { name, full, st } of fresh) {
       try {
         // Folder moved: same basename and mtime already stored, so only repoint file_path.
         const moved = (byMove.all(new Date(st.mtimeMs).toISOString()) as { id: number; file_path: string }[])
-          .find(r => path.basename(r.file_path) === name);
+          .find(r => path.basename(r.file_path) === name && !fs.existsSync(r.file_path)); // a stored file still at its old path is a copy, not a move
         if (moved) {
           db.prepare(`UPDATE match_scoreboards SET file_path = ? WHERE id = ?`).run(full, moved.id);
           known.add(full);

@@ -297,6 +297,60 @@ describe('processFile + rematch on a temp DB', () => {
   });
 });
 
+describe('pollOnce: shared folder safety (2026-10-12)', () => {
+  let db: ReturnType<typeof getDb>; let tmp: string;
+  beforeEach(() => { tmp = path.join(os.tmpdir(), `sb-smb-${process.pid}-${Date.now()}.db`); db = getDb(tmp); });
+  afterEach(() => { closeDb(); for (const f of [tmp, `${tmp}-wal`, `${tmp}-shm`]) if (fs.existsSync(f)) fs.unlinkSync(f); });
+  const mk = () => fs.mkdtempSync(path.join(os.tmpdir(), 'sb-smb-'));
+  test('an unreadable file logs once, makes no vision call, and is retried only after its mtime changes', async () => {
+    const dir = mk(); const f = path.join(dir, 'Screenshot (169).png');
+    fs.writeFileSync(f, 'x'); fs.chmodSync(f, 0o000);
+    let calls = 0; const v = async () => { calls++; return { is_scoreboard: false, rows: [] }; };
+    const warns: string[] = []; const orig = console.warn; console.warn = (m: string) => { warns.push(String(m)); };
+    try {
+      await pollOnce(db, dir, v); await pollOnce(db, dir, v); await pollOnce(db, dir, v);
+    } finally { console.warn = orig; }
+    assert.equal(calls, 0);
+    assert.equal(warns.filter(w => w.includes('not readable')).length, 1);
+    assert.equal((db.prepare(`SELECT COUNT(*) c FROM match_scoreboards`).get() as { c: number }).c, 0);
+    fs.chmodSync(f, 0o644); const t = new Date(Date.now() + 5_000); fs.utimesSync(f, t, t);
+    assert.equal((await pollOnce(db, dir, v)).processed, 1);
+    fs.rmSync(dir, { recursive: true });
+  });
+  test('one tick processes at most 20 new files and warns when the cap is hit', async () => {
+    const dir = mk();
+    for (let i = 1; i <= 25; i++) fs.writeFileSync(path.join(dir, `Screenshot (${i}).png`), 'x');
+    let calls = 0; const v = async () => { calls++; return { is_scoreboard: false, rows: [] }; };
+    const warns: string[] = []; const orig = console.warn; console.warn = (m: string) => { warns.push(String(m)); };
+    let r;
+    try { r = await pollOnce(db, dir, v); } finally { console.warn = orig; }
+    assert.equal(r.processed, 20); assert.equal(calls, 20);
+    assert.ok(warns.some(w => w.includes('25 new files')));
+    assert.equal((await pollOnce(db, dir, v)).processed, 5);
+    fs.rmSync(dir, { recursive: true });
+  });
+  test('a same-name, same-mtime file whose stored path still exists is a copy: the old board is not repointed', async () => {
+    const old = mk(); const dir = mk();
+    const a = path.join(old, 'Screenshot (7).png'); const b = path.join(dir, 'Screenshot (7).png');
+    fs.writeFileSync(a, 'x'); fs.writeFileSync(b, 'x');
+    const t = new Date(Date.now() - 60_000); fs.utimesSync(a, t, t); fs.utimesSync(b, t, t);
+    db.prepare(`INSERT INTO match_scoreboards (match_id, file_path, file_mtime, status) VALUES (NULL, ?, ?, 'unmatched')`).run(a, t.toISOString());
+    const v = async () => ({ is_scoreboard: false, rows: [] });
+    await pollOnce(db, dir, v);
+    assert.equal((db.prepare(`SELECT file_path FROM match_scoreboards WHERE file_path = ?`).get(a) as unknown) !== undefined, true);
+    fs.rmSync(old, { recursive: true }); fs.rmSync(dir, { recursive: true });
+  });
+  test('organizeAll leaves boards outside the watched root where they are', () => {
+    const old = mk(); const root = mk();
+    const f = path.join(old, 'Screenshot (3).png'); fs.writeFileSync(f, 'x');
+    const t = new Date(Date.now() - 3_600_000); fs.utimesSync(f, t, t);
+    db.prepare(`INSERT INTO match_scoreboards (match_id, file_path, file_mtime, status) VALUES (NULL, ?, ?, 'not_scoreboard')`).run(f, t.toISOString());
+    assert.equal(organizeAll(db, root), 0);
+    assert.ok(fs.existsSync(f));
+    fs.rmSync(old, { recursive: true }); fs.rmSync(root, { recursive: true });
+  });
+});
+
 describe('GET/POST /api/scoreboards', () => {
   test('unmatched list and manual attach', async () => {
     const { startHarness } = await import('../test/httpHarness');
