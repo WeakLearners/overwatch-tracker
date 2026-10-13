@@ -1,9 +1,9 @@
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { TrendPoint, RANK_TIER_RGB, rankLabel, isAccount } from '../../types';
 import AnimatedNumber from '../AnimatedNumber';
 import EmptyState from '../EmptyState';
-import { computeTrendsDerived } from '../../lib/trendsDerived';
+import { computeTrendsDerived, computeRankRange } from '../../lib/trendsDerived';
 import { SEASONS } from '../../lib/roster';
 
 // Extracted 2026-09-26 (perf pass, round 2): this card (the candle/volume/
@@ -26,10 +26,24 @@ import { SEASONS } from '../../lib/roster';
 // object or closure at the call site.
 interface RecentMatchesCardProps {
   trends: TrendPoint[] | null;
+  /** The account selected in MatchContext, passed down as a primitive so the memo guard holds. */
+  account?: string | null;
   tilt: { on_tilt: boolean; loss_streak: number; tilt_win_rate: number | null; tilt_games: number } | null | undefined;
 }
-const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: RecentMatchesCardProps) {
-  const { last100, last500, winRate, wr100, wr500, wrDelta, CANDLE_DAYS, candles, careerComp, careerEdge, perMatchSd, paceAt, sdAt, CH_W, CH_H, CH_PAD, VOL_H, PLOT_BOTTOM, bandLo, bandHi, lowV, highV, vSpan, slotW, bodyW, volW, slotX, chartY, maxVol, ROOFLINE, volY, FALLOFF, VOL_STOPS, volStopColor, pacePts, bandUpper, bandLower, bandPoly, candleIdxByDate, tierMarks, tierMarkByDay, drumLabel, tierStackIdx, RANK_ROLES, RANK_SERIES_COLOR, rankSeries, rankValuesSeen, rankHasData, rankMinRaw, rankMaxRaw, rankTierLoIdx, rankTierHiIdx, rankLo, rankHi, rankSpan, RANK_H, rankY, rankTierBands, zeroY, lastCandle, lastClose, lastN, lastZ, BLEND_THRESHOLD, SAT_FLOOR, SAT_CEIL, SAT_FULL_AT, GRAD_STOPS, gradStops, UP_COLOR, DOWN_COLOR, UP_SWATCH, DOWN_SWATCH, LEGEND_SWATCH, LEGEND_TITLE, yTicks, labelEvery, dayTicks, dayNets, bestDay, worstDay } = useMemo(() => computeTrendsDerived(trends), [trends]);
+const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt, account }: RecentMatchesCardProps) {
+  const { last100, last500, winRate, wr100, wr500, wrDelta, CANDLE_DAYS, candles, careerComp, careerEdge, perMatchSd, paceAt, sdAt, CH_W, CH_H, CH_PAD, VOL_H, PLOT_BOTTOM, bandLo, bandHi, lowV, highV, vSpan, slotW, bodyW, volW, slotX, chartY, maxVol, ROOFLINE, volY, FALLOFF, VOL_STOPS, volStopColor, pacePts, bandUpper, bandLower, bandPoly, candleIdxByDate, tierMarks, tierMarkByDay, drumLabel, tierStackIdx, RANK_ROLES, RANK_SERIES_COLOR, rankSeries, rankValuesSeen, rankMinRaw, rankMaxRaw, rankTierLoIdx, rankTierHiIdx, rankLo, rankHi, RANK_H, zeroY, lastCandle, lastClose, lastN, lastZ, BLEND_THRESHOLD, SAT_FLOOR, SAT_CEIL, SAT_FULL_AT, GRAD_STOPS, gradStops, UP_COLOR, DOWN_COLOR, UP_SWATCH, DOWN_SWATCH, LEGEND_SWATCH, LEGEND_TITLE, yTicks, labelEvery, dayTicks, dayNets, bestDay, worstDay } = useMemo(() => computeTrendsDerived(trends), [trends]);
+  // Rank strip shows the selected account only; the toggle shows all four. No
+  // valid account (defensive: MatchContext always sets one) means show all.
+  // The y-range is refitted to the visible series so one account's line is not
+  // squashed among tiers only another account reached.
+  const [showAllAccounts, setShowAllAccounts] = useState(false);
+  const filterAccount = isAccount(account) ? account : null;
+  const showingAll = showAllAccounts || filterAccount === null;
+  const visibleSeries = useMemo(
+    () => (showingAll ? rankSeries : rankSeries.filter(s => s.account === filterAccount)),
+    [rankSeries, showingAll, filterAccount],
+  );
+  const { rankHasData, rankSpan, rankY, rankTierBands } = useMemo(() => computeRankRange(visibleSeries), [visibleSeries]);
   // Season starts. The x-axis is one candle per day PLAYED, not per calendar day,
   // so a start lands on the first candle dated on or after it. A start at or
   // before the first candle (or after the last) is outside the window: skipped.
@@ -465,11 +479,11 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
                   role="img"
                   aria-label={
                     rankHasData
-                      ? `Competitive rank over time, one stepped line per account and role: ${rankSeries.filter(s => s.steps.length > 0).map(s => `${s.account} ${s.role}`).join(', ')}.`
+                      ? `Competitive rank over time, one stepped line per account and role: ${visibleSeries.filter(s => s.steps.length > 0).map(s => `${s.account} ${s.role}`).join(', ')}.`
                       : 'Competitive rank over time. No ranked matches with a known account fall inside the currently visible window.'
                   }
                 >
-                  {rankSeries.map(s => s.steps.length > 0 && !s.current && (
+                  {visibleSeries.map(s => s.steps.length > 0 && !s.current && (
                     <polyline
                       key={`rank-line-${s.account}-${s.role}`}
                       points={s.steps.map(p => `${p.x},${rankY(p.y)}`).join(' ')}
@@ -490,9 +504,9 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
                   preserveAspectRatio="none"
                   className="rank-glow absolute inset-0 z-20 w-full h-[120px] overflow-visible pointer-events-none"
                   aria-hidden="true"
-                  style={{ '--glow': rankSeries.find(s => s.current)?.color } as React.CSSProperties}
+                  style={{ '--glow': visibleSeries.find(s => s.current)?.color } as React.CSSProperties}
                 >
-                  {rankSeries.filter(s => s.current && s.steps.length > 0).map(s => (
+                  {visibleSeries.filter(s => s.current && s.steps.length > 0).map(s => (
                     <polyline
                       key={`rank-line-${s.account}-${s.role}`}
                       points={s.steps.map(p => `${p.x},${rankY(p.y)}`).join(' ')}
@@ -538,7 +552,7 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] leading-none text-[var(--faint)] mt-2" data-inspect-id="dash-rank-strip-legend">
                   {/* Open ladders stay out of the legend until they have a rank;
                       four empty "(no data)" entries would only add noise. */}
-                  {rankSeries.filter(s => s.role !== 'Open' || s.steps.length > 0).map(s => {
+                  {visibleSeries.filter(s => s.role !== 'Open' || s.steps.length > 0).map(s => {
                     const has = s.steps.length > 0;
                     return (
                       <span key={`rank-legend-${s.account}-${s.role}`} className="inline-flex items-center gap-1">
@@ -552,6 +566,18 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
                       </span>
                     );
                   })}
+                  {filterAccount !== null && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllAccounts(v => !v)}
+                      data-inspect-id="dash-rank-strip-all-toggle"
+                      aria-pressed={showAllAccounts}
+                      title={showAllAccounts ? `Show only ${filterAccount}` : 'Show every account on the rank strip'}
+                      className="field px-1.5 py-0.5 text-[9px] leading-none cursor-pointer hover:text-ow-accent transition-colors"
+                    >
+                      {showAllAccounts ? `Only ${filterAccount}` : 'All accounts'}
+                    </button>
+                  )}
                 </div>
               </div>
             )}

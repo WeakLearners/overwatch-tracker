@@ -1,5 +1,33 @@
 import { TrendPoint, rankTier, RANK_TIERS, ACCOUNTS, Account, RANK_MIN, RANK_MAX } from '../types';
 
+export const RANK_H = 120;
+
+/** Y-range for the rank strip, fitted to whichever series are passed in. The
+ *  range is exactly the tiers the data sits in, whole: no padding into an
+ *  empty tier (a 2-rank pad above Emerald 24 used to show a Diamond sliver
+ *  with nothing in it). Tiers are 5 ranks wide; edges sit half a rank past.
+ *  The card calls this again over the filtered series (one account), so a
+ *  single account's line fills the strip instead of sitting among empty tiers. */
+export function computeRankRange(series: { steps: { y: number }[] }[]) {
+  const rankValuesSeen = series.flatMap(s => s.steps.map(p => p.y));
+  const rankHasData = rankValuesSeen.length > 0;
+  const rankMinRaw = rankHasData ? Math.min(...rankValuesSeen) : RANK_MIN;
+  const rankMaxRaw = rankHasData ? Math.max(...rankValuesSeen) : RANK_MAX;
+  const rankTierLoIdx = Math.floor((rankMinRaw - 1) / 5);
+  const rankTierHiIdx = Math.floor((rankMaxRaw - 1) / 5);
+  const rankLo = rankTierLoIdx * 5 + 0.5;
+  const rankHi = rankTierHiIdx * 5 + 5.5;
+  const rankSpan = rankHi - rankLo;
+  const rankY = (v: number) => RANK_H - ((v - rankLo) / rankSpan) * RANK_H;
+  const rankTierBands = RANK_TIERS
+    .slice(rankTierLoIdx, rankTierHiIdx + 1)
+    .map((tier, i) => {
+      const k = rankTierLoIdx + i;
+      return { tier, lo: k * 5 + 0.5, hi: k * 5 + 5.5 };
+    });
+  return { rankValuesSeen, rankHasData, rankMinRaw, rankMaxRaw, rankTierLoIdx, rankTierHiIdx, rankLo, rankHi, rankSpan, rankY, rankTierBands };
+}
+
 // Extracted 2026-09-26 (perf pass): this entire derivation used to run inline
 // in Dashboard's render body, recomputing candles/tierMarks/rankSeries from the
 // full trends array (one row per logged match, 3600+ and growing) on EVERY
@@ -384,26 +412,7 @@ export function computeTrendsDerived(trends: TrendPoint[] | null) {
       };
     }),
   );
-  const rankValuesSeen = rankSeries.flatMap(s => s.steps.map(p => p.y));
-  const rankHasData = rankValuesSeen.length > 0;
-  const rankMinRaw = rankHasData ? Math.min(...rankValuesSeen) : RANK_MIN;
-  const rankMaxRaw = rankHasData ? Math.max(...rankValuesSeen) : RANK_MAX;
-  // The range is exactly the tiers the data sits in, whole: no padding into
-  // an empty tier (a 2-rank pad above Emerald 24 used to show a Diamond sliver
-  // with nothing in it). Tiers are 5 ranks wide; edges sit half a rank past.
-  const rankTierLoIdx = Math.floor((rankMinRaw - 1) / 5);
-  const rankTierHiIdx = Math.floor((rankMaxRaw - 1) / 5);
-  const rankLo = rankTierLoIdx * 5 + 0.5;
-  const rankHi = rankTierHiIdx * 5 + 5.5;
-  const rankSpan = rankHi - rankLo;
-  const RANK_H = 120;
-  const rankY = (v: number) => RANK_H - ((v - rankLo) / rankSpan) * RANK_H;
-  const rankTierBands = RANK_TIERS
-    .slice(rankTierLoIdx, rankTierHiIdx + 1)
-    .map((tier, i) => {
-      const k = rankTierLoIdx + i;
-      return { tier, lo: k * 5 + 0.5, hi: k * 5 + 5.5 };
-    });
+  const { rankValuesSeen, rankHasData, rankMinRaw, rankMaxRaw, rankTierLoIdx, rankTierHiIdx, rankLo, rankHi, rankSpan, rankY, rankTierBands } = computeRankRange(rankSeries);
 
   const zeroY = chartY(0);
   const lastCandle = candles.length ? candles[candles.length - 1] : null;
