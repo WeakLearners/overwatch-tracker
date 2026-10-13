@@ -80,14 +80,18 @@ describe('tilesToRows', () => {
 });
 
 describe('tile map (confirmed heroes only)', () => {
-  test('exactly the ten confirmed heroes', () => {
-    assert.deepEqual(Object.keys(HERO_TILE_MAP).sort(), ['Ana', 'Ashe', 'Doctrine', 'Juno', 'Mizuki', 'Shion', 'Sojourn', 'Sombra', 'Tracer', 'Pharah'].sort());
+  test('exactly the twelve confirmed heroes', () => {
+    assert.deepEqual(Object.keys(HERO_TILE_MAP).sort(), ['Ana', 'Ashe', 'Cassidy', 'Doctrine', 'Juno', 'Mizuki', 'Shion', 'Sojourn', 'Soldier: 76', 'Sombra', 'Tracer', 'Pharah'].sort());
     assert.equal(HERO_TILE_MAP.Baptiste, undefined);
   });
   const tiles = (o: Record<string, string>) => Object.entries(o).map(([label, value]) => ({ label, value }));
   test('Tracer and Pharah from the real pages', () => {
     assert.deepEqual(slotValues('Tracer', TRACER_51.personal!.tiles), { overall_acc: 33, crit_acc: 10, extra_acc: 0, torpedo_damage: null, torpedo_healing: null });
     assert.deepEqual(slotValues('Pharah', PHARAH_52.personal!.tiles), { overall_acc: 50, crit_acc: 21, extra_acc: null, torpedo_damage: null, torpedo_healing: null });
+  });
+  test('Soldier: 76 (board 165) and Cassidy (board 166) from the real pages', () => {
+    assert.deepEqual(slotValues('Soldier: 76', tiles({ 'WEAPON ACCURACY': '35%', 'CRITICAL HIT ACCURACY': '6%', 'HELIX ROCKET ACCURACY': '53%', 'FINAL BLOWS': '5', 'LONG RANGE FINAL BLOWS': '0' })), { overall_acc: 35, crit_acc: 6, extra_acc: 53, torpedo_damage: null, torpedo_healing: null });
+    assert.deepEqual(slotValues('Cassidy', tiles({ 'WEAPON ACCURACY': '45%', 'CRITICAL HIT ACCURACY': '5%', 'FINAL BLOWS': '3' })), { overall_acc: 45, crit_acc: 5, extra_acc: null, torpedo_damage: null, torpedo_healing: null });
   });
   test('Ashe overall comes from SCOPED ACCURACY, Juno gets torpedoes and no crit, Sojourn extra', () => {
     assert.deepEqual(slotValues('Ashe', tiles({ 'SCOPED ACCURACY': '38%', 'SCOPED CRITICAL HIT ACCURACY': '8%' })), { overall_acc: 38, crit_acc: 8, extra_acc: null, torpedo_damage: null, torpedo_healing: null });

@@ -7,7 +7,7 @@
 // study without any warning, so a hero is in this map ONLY after a real
 // Personal page confirmed its tile labels (Addendum 2, 2026-10-09).
 //
-// Confirmed 2026-10-09, each hero checked against the values Sean typed for a
+// Confirmed 2026-10-09 (Soldier: 76 and Cassidy added 2026-10-13), each hero checked against the values Sean typed for a
 // real match (spec section "Confirmed tile map"). Baptiste is removed. Every other hero gets play time, final blows and the raw tile JSON,
 // and its accuracy slots stay empty for Sean. To add a hero: read a real
 // Personal page for it first. Labels are compared case-insensitively and exactly,
@@ -24,6 +24,8 @@ export const HERO_TILE_MAP: Record<string, SlotTiles> = {
   Doctrine: { overall: 'weapon accuracy' }, // no crit value
   Sombra: { overall: 'weapon accuracy', crit: 'critical hit accuracy' },
   Shion: { overall: 'weapon accuracy', crit: 'critical hit accuracy' }, // no extra value; checked against match 3828: 34 / 10
+  'Soldier: 76': { overall: 'weapon accuracy', crit: 'critical hit accuracy', extra: 'helix rocket accuracy' }, // checked against board 165 (2026-10-13): 35 / 6 / 53
+  Cassidy: { overall: 'weapon accuracy', crit: 'critical hit accuracy' }, // no extra value; checked against board 166 (2026-10-13): 45 / 5
   Juno: { overall: 'weapon accuracy', torpedo_damage: 'pulsar torpedoes damage', torpedo_healing: 'pulsar torpedoes healing' }, // no crit value
 };
 
