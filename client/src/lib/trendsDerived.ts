@@ -2,6 +2,10 @@ import { TrendPoint, rankTier, RANK_TIERS, ACCOUNTS, Account, RANK_MIN, RANK_MAX
 
 export const RANK_H = 120;
 
+export type RankRole = 'DPS' | 'Support' | 'Open';
+export type RankStep = { x: number; y: number };
+export type RankSeries = { account: Account; role: RankRole; color: string; steps: RankStep[]; current: boolean };
+
 /** Y-range for the rank strip, fitted to whichever series are passed in. The
  *  range is exactly the tiers the data sits in, whole: no padding into an
  *  empty tier (a 2-rank pad above Emerald 24 used to show a Diamond sliver
@@ -332,7 +336,6 @@ export function computeTrendsDerived(trends: TrendPoint[] | null) {
   // Only DPS and Support are ranked ladders Sean tracks here; Tank is out of
   // scope for this strip by the same brief that scoped the account pills.
   const RANK_ROLES = ['DPS', 'Support', 'Open'] as const;
-  type RankRole = typeof RANK_ROLES[number];
 
   // Eight hues spread evenly around the wheel, one per account x role, at
   // matched lightness and chroma. Deliberately NOT from the tier palette:
@@ -347,8 +350,6 @@ export function computeTrendsDerived(trends: TrendPoint[] | null) {
     Linx: { DPS: hue(200, 0.78), Support: hue(25, 0.66), Open: hue(120, 0.62) }, // cyan / red
   };
 
-  type RankStep = { x: number; y: number };
-  type RankSeries = { account: Account; role: RankRole; color: string; steps: RankStep[]; current: boolean };
 
   // "Current" = the account and role of the most recent match with an account
   // on file (trends run oldest → newest). That line gets the glow.

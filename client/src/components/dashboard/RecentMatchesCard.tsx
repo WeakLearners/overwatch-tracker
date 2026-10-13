@@ -1,9 +1,9 @@
 import { memo, useMemo, useState } from 'react';
 import { format, parseISO } from 'date-fns';
-import { TrendPoint, RANK_TIER_RGB, rankLabel, isAccount } from '../../types';
+import { TrendPoint, RANK_TIER_RGB, rankLabel, isAccount, ACCOUNTS, Account } from '../../types';
 import AnimatedNumber from '../AnimatedNumber';
 import EmptyState from '../EmptyState';
-import { computeTrendsDerived, computeRankRange } from '../../lib/trendsDerived';
+import { computeTrendsDerived, computeRankRange, RANK_H, type RankSeries } from '../../lib/trendsDerived';
 import { SEASONS } from '../../lib/roster';
 
 // Extracted 2026-09-26 (perf pass, round 2): this card (the candle/volume/
@@ -24,6 +24,95 @@ import { SEASONS } from '../../lib/roster';
 // across Dashboard's own re-renders; both are still passed straight
 // through from Dashboard's own useApi state, unwrapped, with no inline
 // object or closure at the call site.
+// One fixed-height rank panel for one account: its own tier bands and y-range,
+// fitted to that account's series only. The height never changes (RANK_H).
+// `chW` is the candle chart's CH_W so the day columns line up with it.
+function RankPanel({ account, series, chW }: { account: string; series: RankSeries[]; chW: number }) {
+  const { rankHasData, rankSpan, rankY, rankTierBands } = useMemo(() => computeRankRange(series), [series]);
+  const CH_W = chW;
+  return (
+                <div className="relative" data-inspect-id="dash-rank-strip-panel">
+  <span className="absolute left-0 top-0 z-30 text-[9px] leading-none text-[var(--faint)] pointer-events-none select-none">{account}</span>
+  <svg
+    viewBox={`0 0 ${CH_W} ${RANK_H}`}
+    preserveAspectRatio="none"
+    className="relative z-10 w-full h-[120px] overflow-visible"
+    role="img"
+    aria-label={
+      rankHasData
+        ? `Competitive rank over time for ${account}, one stepped line per role: ${series.filter(s => s.steps.length > 0).map(s => `${s.role}`).join(', ')}.`
+        : `Competitive rank over time for ${account}. No ranked matches with a known account fall inside the currently visible window.`
+    }
+  >
+    {series.map(s => s.steps.length > 0 && !s.current && (
+      <polyline
+        key={`rank-line-${s.account}-${s.role}`}
+        points={s.steps.map(p => `${p.x},${rankY(p.y)}`).join(' ')}
+        fill="none"
+        stroke={s.color}
+                              strokeWidth="2"
+        vectorEffect="non-scaling-stroke"
+      >
+        <title>{`${s.account} · ${s.role}`}</title>
+      </polyline>
+    ))}
+  </svg>
+  {/* The current account/role's line, in its own svg so the glow (.rank-glow,
+      a pulsing CSS drop-shadow) sits on the html box: a filter inside the stretched
+      svg (preserveAspectRatio="none") would smear sideways. */}
+  <svg
+    viewBox={`0 0 ${CH_W} ${RANK_H}`}
+    preserveAspectRatio="none"
+    className="rank-glow absolute inset-0 z-20 w-full h-[120px] overflow-visible pointer-events-none"
+    aria-hidden="true"
+    style={{ '--glow': series.find(s => s.current)?.color } as React.CSSProperties}
+  >
+    {series.filter(s => s.current && s.steps.length > 0).map(s => (
+      <polyline
+        key={`rank-line-${s.account}-${s.role}`}
+        points={s.steps.map(p => `${p.x},${rankY(p.y)}`).join(' ')}
+        fill="none"
+        stroke={s.color}
+                              strokeWidth="2.5"
+        vectorEffect="non-scaling-stroke"
+      />
+    ))}
+  </svg>
+  {/* Each band is lit like a selected mode tile (.is-selected
+      .mode-fill in the tier's hue): the threshold at its bottom
+      edge is the light source, fading upward.
+      Tier names as watermarks, styled like the mode watermarks:
+      the band is a clipping box and the name is drawn larger than
+      it, so the letters bleed off its edges; the glyphs carry the
+      same bottom-lit glow (.lit-text.lit-strong) in the tier's own
+      hue via --sel. HTML rather than svg <text>: the svg stretches
+      (preserveAspectRatio="none") and would squash the letters. */}
+  {rankTierBands.map(b => {
+    const bandPx = (RANK_H * (b.hi - b.lo)) / rankSpan;
+    return (
+      <div
+        key={`rank-band-label-${b.tier}`}
+        aria-hidden="true"
+        className="absolute left-0 right-0 overflow-hidden pointer-events-none select-none is-selected mode-fill"
+        style={{ top: `${(rankY(b.hi) / RANK_H) * 100}%`, height: `${(bandPx / RANK_H) * 100}%`, '--sel': RANK_TIER_RGB[b.tier],
+          // A notch thinner than .mode-fill's 3px edge + 10px glow: these
+          // bands are ~30px tall, a third of a mode tile.
+          boxShadow: 'inset 0 -2px 0 0 rgb(var(--sel)), inset 0 -6px 8px -5px rgb(var(--sel) / 0.95)',
+        } as React.CSSProperties}
+      >
+        <span
+          className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-[0.3em] num-display italic font-black uppercase leading-none tracking-[-0.07em] whitespace-nowrap opacity-[0.225]"
+          style={{ fontSize: `${bandPx * 1.6}px` }}
+        >
+          <span className="lit-text lit-strong pr-[0.3em]">{b.tier}</span>
+        </span>
+      </div>
+    );
+  })}
+  </div>
+  );
+}
+
 interface RecentMatchesCardProps {
   trends: TrendPoint[] | null;
   /** The account selected in MatchContext, passed down as a primitive so the memo guard holds. */
@@ -31,7 +120,7 @@ interface RecentMatchesCardProps {
   tilt: { on_tilt: boolean; loss_streak: number; tilt_win_rate: number | null; tilt_games: number } | null | undefined;
 }
 const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt, account }: RecentMatchesCardProps) {
-  const { last100, last500, winRate, wr100, wr500, wrDelta, CANDLE_DAYS, candles, careerComp, careerEdge, perMatchSd, paceAt, sdAt, CH_W, CH_H, CH_PAD, VOL_H, PLOT_BOTTOM, bandLo, bandHi, lowV, highV, vSpan, slotW, bodyW, volW, slotX, chartY, maxVol, ROOFLINE, volY, FALLOFF, VOL_STOPS, volStopColor, pacePts, bandUpper, bandLower, bandPoly, candleIdxByDate, tierMarks, tierMarkByDay, drumLabel, tierStackIdx, RANK_ROLES, RANK_SERIES_COLOR, rankSeries, rankValuesSeen, rankMinRaw, rankMaxRaw, rankTierLoIdx, rankTierHiIdx, rankLo, rankHi, RANK_H, zeroY, lastCandle, lastClose, lastN, lastZ, BLEND_THRESHOLD, SAT_FLOOR, SAT_CEIL, SAT_FULL_AT, GRAD_STOPS, gradStops, UP_COLOR, DOWN_COLOR, UP_SWATCH, DOWN_SWATCH, LEGEND_SWATCH, LEGEND_TITLE, yTicks, labelEvery, dayTicks, dayNets, bestDay, worstDay } = useMemo(() => computeTrendsDerived(trends), [trends]);
+  const { last100, last500, winRate, wr100, wr500, wrDelta, CANDLE_DAYS, candles, careerComp, careerEdge, perMatchSd, paceAt, sdAt, CH_W, CH_H, CH_PAD, VOL_H, PLOT_BOTTOM, bandLo, bandHi, lowV, highV, vSpan, slotW, bodyW, volW, slotX, chartY, maxVol, ROOFLINE, volY, FALLOFF, VOL_STOPS, volStopColor, pacePts, bandUpper, bandLower, bandPoly, candleIdxByDate, tierMarks, tierMarkByDay, drumLabel, tierStackIdx, RANK_ROLES, RANK_SERIES_COLOR, rankSeries, rankValuesSeen, rankMinRaw, rankMaxRaw, rankTierLoIdx, rankTierHiIdx, rankLo, rankHi, zeroY, lastCandle, lastClose, lastN, lastZ, BLEND_THRESHOLD, SAT_FLOOR, SAT_CEIL, SAT_FULL_AT, GRAD_STOPS, gradStops, UP_COLOR, DOWN_COLOR, UP_SWATCH, DOWN_SWATCH, LEGEND_SWATCH, LEGEND_TITLE, yTicks, labelEvery, dayTicks, dayNets, bestDay, worstDay } = useMemo(() => computeTrendsDerived(trends), [trends]);
   // Rank strip shows the selected account only; the toggle shows all four. No
   // valid account (defensive: MatchContext always sets one) means show all.
   // The y-range is refitted to the visible series so one account's line is not
@@ -39,11 +128,20 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt, accoun
   const [showAllAccounts, setShowAllAccounts] = useState(false);
   const filterAccount = isAccount(account) ? account : null;
   const showingAll = showAllAccounts || filterAccount === null;
+  // Panels: filtered = the selected account only. All = the selected account
+  // first (always shown, even with no data), then the others in ACCOUNTS order,
+  // skipping accounts with no ranked steps in the window.
+  const panelAccounts: Account[] = useMemo(() => {
+    const hasData = (a: Account) => rankSeries.some(s => s.account === a && s.steps.length > 0);
+    if (!showingAll) return [filterAccount!];
+    const rest = ACCOUNTS.filter(a => a !== filterAccount && hasData(a));
+    const out = filterAccount ? [filterAccount, ...rest] : rest;
+    return out.length ? out : [ACCOUNTS[0]];
+  }, [rankSeries, showingAll, filterAccount]);
   const visibleSeries = useMemo(
-    () => (showingAll ? rankSeries : rankSeries.filter(s => s.account === filterAccount)),
-    [rankSeries, showingAll, filterAccount],
+    () => rankSeries.filter(s => panelAccounts.includes(s.account)),
+    [rankSeries, panelAccounts],
   );
-  const { rankHasData, rankSpan, rankY, rankTierBands } = useMemo(() => computeRankRange(visibleSeries), [visibleSeries]);
   // Season starts. The x-axis is one candle per day PLAYED, not per calendar day,
   // so a start lands on the first candle dated on or after it. A start at or
   // before the first candle (or after the last) is outside the window: skipped.
@@ -471,83 +569,10 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt, accoun
                 independent. */}
             {candles.length >= 1 && (
               <div className="relative pl-7 mt-6 pt-3 border-t border-ow-border/60" data-inspect-id="dash-rank-strip">
-                <div className="relative">
-                <svg
-                  viewBox={`0 0 ${CH_W} ${RANK_H}`}
-                  preserveAspectRatio="none"
-                  className="relative z-10 w-full h-[120px] overflow-visible"
-                  role="img"
-                  aria-label={
-                    rankHasData
-                      ? `Competitive rank over time, one stepped line per account and role: ${visibleSeries.filter(s => s.steps.length > 0).map(s => `${s.account} ${s.role}`).join(', ')}.`
-                      : 'Competitive rank over time. No ranked matches with a known account fall inside the currently visible window.'
-                  }
-                >
-                  {visibleSeries.map(s => s.steps.length > 0 && !s.current && (
-                    <polyline
-                      key={`rank-line-${s.account}-${s.role}`}
-                      points={s.steps.map(p => `${p.x},${rankY(p.y)}`).join(' ')}
-                      fill="none"
-                      stroke={s.color}
-                                            strokeWidth="2"
-                      vectorEffect="non-scaling-stroke"
-                    >
-                      <title>{`${s.account} · ${s.role}`}</title>
-                    </polyline>
+                <div className="flex flex-col gap-2">
+                  {panelAccounts.map(a => (
+                    <RankPanel key={`rank-panel-${a}`} account={a} series={rankSeries.filter(s => s.account === a)} chW={CH_W} />
                   ))}
-                </svg>
-                {/* The current account/role's line, in its own svg so the glow (.rank-glow,
-                    a pulsing CSS drop-shadow) sits on the html box: a filter inside the stretched
-                    svg (preserveAspectRatio="none") would smear sideways. */}
-                <svg
-                  viewBox={`0 0 ${CH_W} ${RANK_H}`}
-                  preserveAspectRatio="none"
-                  className="rank-glow absolute inset-0 z-20 w-full h-[120px] overflow-visible pointer-events-none"
-                  aria-hidden="true"
-                  style={{ '--glow': visibleSeries.find(s => s.current)?.color } as React.CSSProperties}
-                >
-                  {visibleSeries.filter(s => s.current && s.steps.length > 0).map(s => (
-                    <polyline
-                      key={`rank-line-${s.account}-${s.role}`}
-                      points={s.steps.map(p => `${p.x},${rankY(p.y)}`).join(' ')}
-                      fill="none"
-                      stroke={s.color}
-                                            strokeWidth="2.5"
-                      vectorEffect="non-scaling-stroke"
-                    />
-                  ))}
-                </svg>
-                {/* Each band is lit like a selected mode tile (.is-selected
-                    .mode-fill in the tier's hue): the threshold at its bottom
-                    edge is the light source, fading upward.
-                    Tier names as watermarks, styled like the mode watermarks:
-                    the band is a clipping box and the name is drawn larger than
-                    it, so the letters bleed off its edges; the glyphs carry the
-                    same bottom-lit glow (.lit-text.lit-strong) in the tier's own
-                    hue via --sel. HTML rather than svg <text>: the svg stretches
-                    (preserveAspectRatio="none") and would squash the letters. */}
-                {rankTierBands.map(b => {
-                  const bandPx = (RANK_H * (b.hi - b.lo)) / rankSpan;
-                  return (
-                    <div
-                      key={`rank-band-label-${b.tier}`}
-                      aria-hidden="true"
-                      className="absolute left-0 right-0 overflow-hidden pointer-events-none select-none is-selected mode-fill"
-                      style={{ top: `${(rankY(b.hi) / RANK_H) * 100}%`, height: `${(bandPx / RANK_H) * 100}%`, '--sel': RANK_TIER_RGB[b.tier],
-                        // A notch thinner than .mode-fill's 3px edge + 10px glow: these
-                        // bands are ~30px tall, a third of a mode tile.
-                        boxShadow: 'inset 0 -2px 0 0 rgb(var(--sel)), inset 0 -6px 8px -5px rgb(var(--sel) / 0.95)',
-                      } as React.CSSProperties}
-                    >
-                      <span
-                        className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-[0.3em] num-display italic font-black uppercase leading-none tracking-[-0.07em] whitespace-nowrap opacity-[0.225]"
-                        style={{ fontSize: `${bandPx * 1.6}px` }}
-                      >
-                        <span className="lit-text lit-strong pr-[0.3em]">{b.tier}</span>
-                      </span>
-                    </div>
-                  );
-                })}
                 </div>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] leading-none text-[var(--faint)] mt-2" data-inspect-id="dash-rank-strip-legend">
                   {/* Open ladders stay out of the legend until they have a rank;
