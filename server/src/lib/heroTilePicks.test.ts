@@ -48,8 +48,15 @@ describe('menu rules', () => {
     assert.deepEqual(resolveSlots('Newhero', NEW, { extra: null }).extra, { tile: null, source: null });
   });
   test('a pick removes its tile from the other slots menus', () => {
-    const p = pickableTiles('Zenyatta', NEW, { extra: 'mystery ability accuracy' });
-    assert.deepEqual(p.crit!.map(o => o.label), ['CRITICAL HIT ACCURACY', 'AIRTIME PERCENTAGE']);
+    const p = pickableTiles('Newhero', tiles({ 'WEAPON ACCURACY': '41%', 'AIRTIME PERCENTAGE': '54%', 'MYSTERY ABILITY ACCURACY': '60%' }), { extra: 'mystery ability accuracy' });
+    assert.equal(p.extra, undefined);
+    assert.deepEqual(p.crit!.map(o => o.label), ['AIRTIME PERCENTAGE']);
+  });
+  test('never for a slot the client already names: Zenyatta crit, Baptiste crit and extra', () => {
+    assert.equal(pickableTiles('Zenyatta', NEW).crit, undefined);
+    assert.equal(pickableTiles('Baptiste', NEW).crit, undefined);
+    assert.equal(pickableTiles('Baptiste', NEW).extra, undefined);
+    assert.ok(pickableTiles('Baptiste', NEW).overall === undefined); // overall is derived
   });
   test('never for a hand-map hero, never crit for a no-crit hero', () => {
     assert.deepEqual(pickableTiles('Cassidy', NEW), {});
@@ -84,6 +91,10 @@ describe('HTTP: pick, fill, label, fixed, reset', () => {
       assert.equal(bad.status, 400);
       assert.equal((await h.post('/api/scoreboards/tile-picks', { group_id: live.group_id, hero: 'Reaper', slot: 'crit', tile_label: 'AIRTIME PERCENTAGE' })).status, 409, 'crit is derived, no menu');
 
+      for (const [hr, sl] of [['Zenyatta', 'crit'], ['Baptiste', 'crit'], ['Baptiste', 'extra']]) {
+        assert.equal((await h.post('/api/scoreboards/tile-picks', { group_id: live.group_id, hero: hr, slot: sl, tile_label: 'AIRTIME PERCENTAGE' })).status, 409, `${hr} ${sl}`);
+      }
+      assert.equal(h.db.prepare(`SELECT COUNT(*) n FROM hero_tile_picks`).get().n, 0);
       const ok = await h.post('/api/scoreboards/tile-picks', { group_id: live.group_id, hero: 'Reaper', slot: 'extra', tile_label: 'MYSTERY ABILITY ACCURACY' });
       assert.equal(ok.status, 200);
       assert.equal(ok.body.fill.heroes[0].extra_acc, 60);

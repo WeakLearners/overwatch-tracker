@@ -2150,7 +2150,7 @@ const DATA = {
           "kind": "list",
           "description": "One row per hero played with duration, accuracy, crit and extra-accuracy fields. Same StatFields component (components/AimStatsFields.tsx) as the Sens page's Record combat details form, with its ids prefixed `logmatch-aim`.",
           "locate": {
-            "path": "client/src/components/AimStatsFields.tsx:109",
+            "path": "client/src/components/AimStatsFields.tsx:108",
             "grep": "grep -n -F -- '-hero-acc-inputs`' client/src/components/AimStatsFields.tsx"
           }
         },
@@ -2160,7 +2160,7 @@ const DATA = {
           "kind": "input",
           "description": "Required m:ss duration for a played hero. Same StatFields component (components/AimStatsFields.tsx) as the Sens page's Record combat details form, with its ids prefixed `logmatch-aim`.",
           "locate": {
-            "path": "client/src/components/AimStatsFields.tsx:141",
+            "path": "client/src/components/AimStatsFields.tsx:140",
             "grep": "grep -n -F -- '-hero-duration-input`' client/src/components/AimStatsFields.tsx"
           }
         },
@@ -2170,7 +2170,7 @@ const DATA = {
           "kind": "input",
           "description": "Overall accuracy % (label varies per hero). Same StatFields component (components/AimStatsFields.tsx) as the Sens page's Record combat details form, with its ids prefixed `logmatch-aim`.",
           "locate": {
-            "path": "client/src/components/AimStatsFields.tsx:148",
+            "path": "client/src/components/AimStatsFields.tsx:147",
             "grep": "grep -n -F -- '-overall-acc-input`' client/src/components/AimStatsFields.tsx"
           }
         },
@@ -2180,7 +2180,7 @@ const DATA = {
           "kind": "input",
           "description": "Crit accuracy % for heroes that have a crit slot. Same StatFields component (components/AimStatsFields.tsx) as the Sens page's Record combat details form, with its ids prefixed `logmatch-aim`.",
           "locate": {
-            "path": "client/src/components/AimStatsFields.tsx:154",
+            "path": "client/src/components/AimStatsFields.tsx:153",
             "grep": "grep -n -F -- '-crit-acc-input`' client/src/components/AimStatsFields.tsx"
           }
         },
@@ -2190,7 +2190,7 @@ const DATA = {
           "kind": "input",
           "description": "Hero-specific extra accuracy slot. Same StatFields component (components/AimStatsFields.tsx) as the Sens page's Record combat details form, with its ids prefixed `logmatch-aim`.",
           "locate": {
-            "path": "client/src/components/AimStatsFields.tsx:161",
+            "path": "client/src/components/AimStatsFields.tsx:160",
             "grep": "grep -n -F -- '-extra-acc-input`' client/src/components/AimStatsFields.tsx"
           }
         },
@@ -2198,20 +2198,10 @@ const DATA = {
           "id": "logmatch-aim-tile-pick-select",
           "label": "Fold-out tile pick menu",
           "kind": "input",
-          "description": "Select under an accuracy field whose slot nothing fills yet (new hero, or Zenyatta/Baptiste crit): the Personal-page percent tiles plus 'None for this hero'. Ringed, not a modal. A choice POSTs /api/scoreboards/tile-picks, is fixed once saved, and fills the slot at once.",
+          "description": "Select under an accuracy field whose slot nothing fills yet (new hero): the Personal-page percent tiles plus 'None for this hero'. Ringed, not a modal. A choice POSTs /api/scoreboards/tile-picks, is fixed once saved, and fills the slot at once.",
           "locate": {
             "path": "client/src/components/AimStatsFields.tsx:72",
             "grep": "grep -n -F -- '-tile-pick-select`' client/src/components/AimStatsFields.tsx"
-          }
-        },
-        {
-          "id": "logmatch-aim-tile-pick-hint",
-          "label": "Fold-out tile pick hint",
-          "kind": "text",
-          "description": "Under the tile pick menu when the app already gives that slot a meaning (for example Zenyatta crit = Charged Volley %): says what the app reads the slot as today.",
-          "locate": {
-            "path": "client/src/components/AimStatsFields.tsx:81",
-            "grep": "grep -n -F -- '-tile-pick-hint`' client/src/components/AimStatsFields.tsx"
           }
         },
         {
@@ -2220,7 +2210,7 @@ const DATA = {
           "kind": "input",
           "description": "Per-hero raw scoreboard counts from RAW_STAT_FIELDS (ids logmatch-aim-torpedo-damage-input and logmatch-aim-torpedo-healing-input). Same StatFields component (components/AimStatsFields.tsx) as the Sens page's Record combat details form, with its ids prefixed `logmatch-aim`.",
           "locate": {
-            "path": "client/src/components/AimStatsFields.tsx:168",
+            "path": "client/src/components/AimStatsFields.tsx:167",
             "grep": "grep -n -F -- 'rf.key.replace' client/src/components/AimStatsFields.tsx"
           }
         },
@@ -2230,7 +2220,7 @@ const DATA = {
           "kind": "list",
           "description": "Elims/deaths/damage, plus assists/healing when a Support was played. Same StatFields component (components/AimStatsFields.tsx) as the Sens page's Record combat details form, with its ids prefixed `logmatch-aim`.",
           "locate": {
-            "path": "client/src/components/AimStatsFields.tsx:178",
+            "path": "client/src/components/AimStatsFields.tsx:177",
             "grep": "grep -n -F -- '-combat-stats-inputs`' client/src/components/AimStatsFields.tsx"
           }
         },
@@ -2681,7 +2671,7 @@ const DATA = {
           "kind": "input",
           "description": "Required percent input for a played hero's overall accuracy stat \u2014 one row per hero played (a mid-match switch gets one row per hero, since time-on-hero varies).",
           "locate": {
-            "path": "client/src/components/AimStatsFields.tsx:148",
+            "path": "client/src/components/AimStatsFields.tsx:147",
             "grep": "grep -n -F -- '-overall-acc-input`' client/src/components/AimStatsFields.tsx"
           }
         },
@@ -2691,7 +2681,7 @@ const DATA = {
           "kind": "input",
           "description": "Optional percent input for a played hero's crit accuracy \u2014 one row per hero played, same multi-hero layout as sl-overall-acc-input. Hidden entirely for heroes in NO_CRIT_HEROES (Juno), whose kit has no crit reading.",
           "locate": {
-            "path": "client/src/components/AimStatsFields.tsx:154",
+            "path": "client/src/components/AimStatsFields.tsx:153",
             "grep": "grep -n -F -- '-crit-acc-input`' client/src/components/AimStatsFields.tsx"
           }
         },
@@ -2701,7 +2691,7 @@ const DATA = {
           "kind": "input",
           "description": "Per-hero raw scoreboard counts (whole numbers, not percentages) rendered from RAW_STAT_FIELDS \u2014 currently Juno only: Torpedo Damage and Torpedo Healing. Saved to aim_stats_heroes.torpedo_damage/torpedo_healing rather than the accuracy slots, which are averaged across heroes. data-inspect-ids are generated per field (sl-torpedo-damage-input, sl-torpedo-healing-input).",
           "locate": {
-            "path": "client/src/components/AimStatsFields.tsx:115",
+            "path": "client/src/components/AimStatsFields.tsx:114",
             "grep": "grep -n -F -- 'const rawFields = RAW_STAT_FIELDS' client/src/components/AimStatsFields.tsx"
           }
         },
@@ -2711,7 +2701,7 @@ const DATA = {
           "kind": "input",
           "description": "Endgame-scoreboard number inputs \u2014 Eliminations, Deaths, Damage, plus Healing when any played hero is a Support \u2014 for the match being recorded. Final blows was dropped from this set.",
           "locate": {
-            "path": "client/src/components/AimStatsFields.tsx:178",
+            "path": "client/src/components/AimStatsFields.tsx:177",
             "grep": "grep -n -F -- '-combat-stats-inputs`' client/src/components/AimStatsFields.tsx"
           }
         },
@@ -3614,7 +3604,7 @@ const DATA = {
           "kind": "list",
           "description": "One row per hero actually played in the selected match, each with overall accuracy, crit accuracy, and duration inputs. The hero-name header of each row is a flex row (justify-between): the name on the left, and \u2014 when that hero's sens is known (heroSens/loggedHeroSens, seeded from match_heroes.sens) \u2014 a right-aligned read-only string \"s.ss @ dddd (eDPI eeee)\" via eDPI (lib/aim) and MOUSE_DPI. Shared by both the Awaiting Stats and Logged Today inline forms (StatFields component).",
           "locate": {
-            "path": "client/src/components/AimStatsFields.tsx:109",
+            "path": "client/src/components/AimStatsFields.tsx:108",
             "grep": "grep -n -F -- '-hero-acc-inputs`' client/src/components/AimStatsFields.tsx"
           }
         },
@@ -3624,7 +3614,7 @@ const DATA = {
           "kind": "input",
           "description": "Required number input for how long this specific hero was played, one per hero row (a mid-match switch gets one each) \u2014 gates whether the form's Save button is enabled.",
           "locate": {
-            "path": "client/src/components/AimStatsFields.tsx:141",
+            "path": "client/src/components/AimStatsFields.tsx:140",
             "grep": "grep -n -F -- '-hero-duration-input`' client/src/components/AimStatsFields.tsx"
           }
         },
@@ -6314,6 +6304,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 

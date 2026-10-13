@@ -6,7 +6,7 @@ import { REMATCH_GRACE_MIN, recheckGroup } from '../lib/scoreboard';
 import { syncMatchHeroStats } from '../lib/matchHeroStats';
 import { computeStage } from '../lib/scoreboardStage';
 import { listPicks, savePick, resetPick, isSlot } from '../lib/heroTilePicks';
-import { normTileLabel } from '../lib/heroTileLabels';
+import { normTileLabel, clientOverrides } from '../lib/heroTileLabels';
 import { buildFill, linkGroup, syncLeaverFromBoard, TEAMS_ONLY, type GroupRow } from '../lib/scoreboardPages';
 
 /** Folder to file images into; null (SCOREBOARD_DIR unset) skips filing. */
@@ -44,6 +44,7 @@ router.post('/tile-picks', (req, res) => {
   if (typeof hero !== 'string' || !isSlot(slot) || !(tile_label === null || typeof tile_label === 'string') || !Number.isInteger(group_id)) {
     res.status(400).json({ error: 'group_id, hero, slot and tile_label (string or null) are required' }); return;
   }
+  if (clientOverrides(hero, slot)) { res.status(409).json({ error: 'The app already names that slot for this hero; it takes no pick' }); return; }
   const fill = buildFill(db, group_id as number);
   const fh = fill?.heroes.find(h => h.hero === hero);
   const options = fh?.pickable[slot];

@@ -138,7 +138,7 @@ export function slotValues(hero: string, tiles: Tile[], picks: HeroPicks = {}): 
  * Menu options for the slots nothing fills yet. Only heroes outside the hand map get a menu: a mapped hero's
  * empty slot (Cassidy extra, Juno crit) was checked against a real page and is empty on purpose.
  * Options: PERCENT tiles of this hero's Personal page (value ends in %, not PERCENT PLAYED), minus tiles another
- * slot of the hero already uses. Slots with a saved pick (None included) get no menu. The crit slot of a no-crit hero never does.
+ * slot of the hero already uses. Slots with a saved pick (None included) get no menu. A slot the client already names (clientOverrides, no-crit heroes included) never does.
  */
 export function pickableTiles(hero: string, tiles: Tile[], picks: HeroPicks = {}): Partial<Record<Slot, PickTile[]>> {
   if (hasOwn(HERO_TILE_MAP, hero)) return {};
@@ -150,7 +150,7 @@ export function pickableTiles(hero: string, tiles: Tile[], picks: HeroPicks = {}
   const out: Partial<Record<Slot, PickTile[]>> = {};
   for (const slot of SLOTS) {
     if (r[slot].source != null || hasOwn(picks, slot)) continue;
-    if (slot === 'crit' && (CLIENT_NO_CRIT_HEROES as readonly string[]).includes(hero)) continue;
+    if (clientOverrides(hero, slot)) continue; // the app already names this slot; a pick would relabel old rows
     if (options.length) out[slot] = options;
   }
   return out;

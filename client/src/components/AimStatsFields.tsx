@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { CRIT_SLOT_LABEL, EXTRA_ACC_LABEL, RAW_STAT_FIELDS, critSlot, overallSlot, extraSlot, hasCrit } from '../lib/heroStatLabels';
+import { RAW_STAT_FIELDS, critSlot, overallSlot, extraSlot, hasCrit } from '../lib/heroStatLabels';
 import { useTilePicks } from '../hooks/useTilePicks';
 import type { PickSlot, PickTile } from '../lib/scoreboardFill';
 import { eDPI, MOUSE_DPI } from '../lib/aim';
@@ -57,9 +57,9 @@ export type TileMenus = Record<string, Partial<Record<PickSlot, PickTile[]>>>;
 // ringed so the eye finds it; it never blocks the form. It asks the browser to open itself once when it
 // appears and the page has no focus target (a refusal is fine: the ring still marks it). Options are
 // "LABEL  value%", then "None for this hero". The pick is fixed once saved: there is no edit here.
-function TilePickSelect({ hero, slot, options, onPick, idPrefix, staticLabel }: {
+function TilePickSelect({ hero, slot, options, onPick, idPrefix }: {
   hero: string; slot: PickSlot; options: PickTile[]; onPick: (hero: string, slot: PickSlot, tile: string | null) => void;
-  idPrefix: string; staticLabel?: string;
+  idPrefix: string;
 }) {
   const ref = useRef<HTMLSelectElement>(null);
   useEffect(() => {
@@ -78,7 +78,6 @@ function TilePickSelect({ hero, slot, options, onPick, idPrefix, staticLabel }: 
         {options.map(o => <option key={o.label} value={o.label}>{o.label}  {o.value}</option>)}
         <option value={NONE_PICK}>None for this hero</option>
       </select>
-      {staticLabel && <div className="text-[10px] text-[var(--faint-2)] mt-1" data-inspect-id={`${idPrefix}-tile-pick-hint`}>App reads this slot as {staticLabel}</div>}
     </div>
   );
 }
@@ -114,9 +113,9 @@ export function StatFields({ s, upd, updHeroAcc, showHealing, firstDurationRef, 
           const critLabels = critSlot(h.hero, picks);
           const rawFields = RAW_STAT_FIELDS[h.hero] ?? [];
           const cols = 2 + (showCrit ? 1 : 0) + (extraLabel ? 1 : 0) + rawFields.length;
-          const pickMenu = (slot: PickSlot, staticLabel?: string) => {
+          const pickMenu = (slot: PickSlot) => {
             const opts = menu?.[slot];
-            return opts && onPickTile ? <TilePickSelect hero={h.hero} slot={slot} options={opts} onPick={onPickTile} idPrefix={idPrefix} staticLabel={staticLabel} /> : null;
+            return opts && onPickTile ? <TilePickSelect hero={h.hero} slot={slot} options={opts} onPick={onPickTile} idPrefix={idPrefix} /> : null;
           };
           return (
           <div key={h.hero}>
@@ -152,14 +151,14 @@ export function StatFields({ s, upd, updHeroAcc, showHealing, firstDurationRef, 
                 <div>
                   <label className="block text-xs text-[var(--muted)] mb-1.5">{critLabels.label}</label>
                   <input type="number" step="0.1" min="0" max="100" inputMode="decimal" value={h.crit_acc} onChange={e => updHeroAcc(i, 'crit_acc', e.target.value)} data-inspect-id={`${idPrefix}-crit-acc-input`} className={field} placeholder="e.g. 22.5" aria-label={`${h.hero} ${critLabels.aria} %`} />
-                  {pickMenu('crit', CRIT_SLOT_LABEL[h.hero]?.label)}
+                  {pickMenu('crit')}
                 </div>
               )}
               {extraLabel && (
                 <div>
                   <label className="block text-xs text-[var(--muted)] mb-1.5">{extraLabel}</label>
                   <input type="number" step="0.1" min="0" max="100" inputMode="decimal" value={h.extra_acc} onChange={e => updHeroAcc(i, 'extra_acc', e.target.value)} data-inspect-id={`${idPrefix}-extra-acc-input`} className={field} placeholder="e.g. 18.0" aria-label={`${h.hero} ${extraLabel}`} />
-                  {pickMenu('extra', EXTRA_ACC_LABEL[h.hero])}
+                  {pickMenu('extra')}
                 </div>
               )}
               {rawFields.map(rf => (
