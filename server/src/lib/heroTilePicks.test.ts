@@ -94,7 +94,7 @@ describe('HTTP: pick, fill, label, fixed, reset', () => {
       for (const [hr, sl] of [['Zenyatta', 'crit'], ['Baptiste', 'crit'], ['Baptiste', 'extra']]) {
         assert.equal((await h.post('/api/scoreboards/tile-picks', { group_id: live.group_id, hero: hr, slot: sl, tile_label: 'AIRTIME PERCENTAGE' })).status, 409, `${hr} ${sl}`);
       }
-      assert.equal(h.db.prepare(`SELECT COUNT(*) n FROM hero_tile_picks`).get().n, 0);
+      assert.equal((h.db.prepare(`SELECT COUNT(*) n FROM hero_tile_picks`).get() as { n: number }).n, 0);
       const ok = await h.post('/api/scoreboards/tile-picks', { group_id: live.group_id, hero: 'Reaper', slot: 'extra', tile_label: 'MYSTERY ABILITY ACCURACY' });
       assert.equal(ok.status, 200);
       assert.equal(ok.body.fill.heroes[0].extra_acc, 60);
