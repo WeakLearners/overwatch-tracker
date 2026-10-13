@@ -10,6 +10,7 @@ import {
 } from '../lib/statsInsights';
 import { studyTagFor } from '../lab/studyTags';
 import { withReplica } from '../lab/replicaCache';
+import { makeFinding, type Finding } from '../lib/finding';
 
 // Lab side of the stats routes (split plan slice 5c). The inferential layer:
 // GET /split (field vs win rate / accuracy) and GET /insights (hot hand,
@@ -69,9 +70,16 @@ router.get('/insights', withReplica((_req: Request, res: Response, db) => {
   type Part = { text: string; color?: Color };
   const t = (text: string): Part => ({ text });
   const c = (text: string, color: Color): Part => ({ text, color });
-  const factoids: { id: string; category: string; parts: Part[] }[] = [];
+  const factoids: { id: string; category: string; parts: Part[]; finding?: Finding }[] = [];
+  // Each factoid compares two groups of games. Its verdict is corrected over
+  // every factoid that makes such a comparison (design-language.md section 5).
+  type Pair = { a: { rate: number | null; n: number }; b: { rate: number | null; n: number } };
+  const pairs = new Map<string, Pair>();
+  const compare = (id: string, a: Pair['a'], b: Pair['b']) => { pairs.set(id, { a, b }); };
+  const wins = (g: Pair['a']) => Math.round(((g.rate ?? 0) / 100) * g.n);
 
   if (hotHand.reliable && hotHand.gap !== null) {
+    compare('hot-hand', { rate: hotHand.after_win.win_rate, n: hotHand.after_win.games }, { rate: hotHand.after_loss.win_rate, n: hotHand.after_loss.games });
     if (Math.abs(hotHand.gap) < 3) {
       // No real difference — coloring one side over the other would misstate
       // the finding, so both numbers stay neutral.
@@ -106,6 +114,7 @@ router.get('/insights', withReplica((_req: Request, res: Response, db) => {
   for (const f of perf.features) {
     if (!f.reliable || f.gap === null || f.baseline === null) continue;
     const aboveIsBetter = f.gap > 0;
+    compare(`perf-${f.key}`, { rate: f.aboveWinRate, n: f.aboveGames }, { rate: f.belowWinRate, n: f.belowGames });
     factoids.push({
       id: `perf-${f.key}`,
       category: `Performance · ${f.label}`,
@@ -135,6 +144,7 @@ router.get('/insights', withReplica((_req: Request, res: Response, db) => {
   }
 
   if (queueSwitch.reliable && queueSwitch.gap !== null) {
+    compare('queue-switch-tax', { rate: queueSwitch.same.win_rate, n: queueSwitch.same.games }, { rate: queueSwitch.switched.win_rate, n: queueSwitch.switched.games });
     factoids.push({
       id: 'queue-switch-tax',
       category: 'Queue-Mode Switch',
@@ -149,6 +159,7 @@ router.get('/insights', withReplica((_req: Request, res: Response, db) => {
 
   if (critAcc.reliable && critAcc.gap !== null && critAcc.baseline !== null) {
     const aboveIsBetter = critAcc.gap > 0;
+    compare('crit-accuracy', { rate: critAcc.aboveWinRate, n: critAcc.aboveGames }, { rate: critAcc.belowWinRate, n: critAcc.belowGames });
     factoids.push({
       id: 'crit-accuracy',
       category: 'Crit Accuracy',
@@ -164,6 +175,7 @@ router.get('/insights', withReplica((_req: Request, res: Response, db) => {
 
   if (killSecure.reliable && killSecure.gap !== null && killSecure.baseline !== null) {
     const aboveIsBetter = killSecure.gap > 0;
+    compare('kill-secure', { rate: killSecure.aboveWinRate, n: killSecure.aboveGames }, { rate: killSecure.belowWinRate, n: killSecure.belowGames });
     factoids.push({
       id: 'kill-secure',
       category: 'Kill-Secure Rate',
@@ -175,6 +187,11 @@ router.get('/insights', withReplica((_req: Request, res: Response, db) => {
         t(` (${killSecure.aboveGames}/${killSecure.belowGames} games) — probably reflects solo-closing kills when the team isn't there, not a skill signal.`),
       ],
     });
+  }
+
+  for (const f of factoids) {
+    const pair = pairs.get(f.id);
+    if (pair) f.finding = makeFinding({ wins: wins(pair.a), n: pair.a.n }, { wins: wins(pair.b), n: pair.b.n }, pairs.size);
   }
 
   res.json({ factoids });

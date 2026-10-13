@@ -140,6 +140,10 @@ describe('lab readers: replica path equals direct-database path', () => {
       assert.deepEqual(viaReplica.body, direct.body, url);
     }
     assert.ok((await h.get('/api/stats/insights')).body.factoids.length >= 3, 'insights must produce factoids');
+    // Every factoid that compares two groups carries a Finding, corrected over those factoids.
+    const compared = (await h.get('/api/stats/insights')).body.factoids.filter((f: any) => f.finding);
+    assert.ok(compared.length >= 1, 'at least one factoid carries a finding');
+    for (const f of compared) assert.equal(f.finding.groupsTested, compared.length, f.id);
     const split = (await h.get('/api/stats/split?by=match_quality')).body;
     assert.ok(split.groups.length >= 2);
     assert.equal((await h.get('/api/stats/split?by=nope')).status, 400);

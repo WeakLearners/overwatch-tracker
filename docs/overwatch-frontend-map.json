@@ -4579,9 +4579,9 @@
           "id": "trendssummary-factoid-grid",
           "label": "Trend Factoid Cards",
           "kind": "list",
-          "description": "A grid of four square cards, each showing a randomly drawn one-sentence data insight (factoid, e.g. death-axis outcomes, hot hand) pulled from the backend's insights pool and reshuffled on every page load.",
+          "description": "A grid of four square cards, each showing a randomly drawn one-sentence data insight (factoid, e.g. death-axis outcomes, hot hand) pulled from the backend's insights pool and reshuffled on every page load. A two-group factoid carries a Finding chip (Holds up / Not reliable / Too few games) in the card's top row, corrected over the factoids that compare two groups.",
           "locate": {
-            "path": "client/src/components/TrendsSummary.tsx:83",
+            "path": "client/src/components/TrendsSummary.tsx:88",
             "grep": "grep -n -F -- 'grid grid-cols-2 sm:grid-cols-4 gap-4' client/src/components/TrendsSummary.tsx"
           }
         }
