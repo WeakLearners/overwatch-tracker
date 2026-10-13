@@ -444,9 +444,24 @@ router.get('/state', (_req: Request, res: Response) => {
   const db = getDb();
   const sets = activeSets(db);
 
+  // Sens of the last logged game per hero (match_heroes.sens, the per-hero
+  // column of record), for the Prematch "change sens" pop-up. Any queue mode:
+  // the in-game setting is what is physically set, QP included. Crashed matches
+  // have no match_heroes row. NULL sens rows are skipped (unknown), so the pop-up
+  // compares against the last game whose sens is known.
+  const lastSensStmt = db.prepare(`
+    SELECT mh.match_id AS last_match_id, mh.sens AS last_sens
+    FROM match_heroes mh JOIN matches m ON m.id = mh.match_id
+    WHERE mh.hero = :hero AND mh.sens IS NOT NULL
+    ORDER BY m.date DESC, COALESCE(m.time, '') DESC, m.id DESC LIMIT 1
+  `);
+
   const actives = sets.map(set => {
     const stages = stagesOf(db, set.id);
     const n_stages = stages.length;
+    const last = set.hero
+      ? (lastSensStmt.get({ hero: set.hero }) as { last_match_id: number; last_sens: number } | undefined)
+      : undefined;
     const curRel = liveStageIndex(db, set, n_stages);
     const curStage = stages.find(s => s.stage_index === curRel) ?? stages[0];
     const totalGames = totalGamesOf(db, set.id);
@@ -488,6 +503,7 @@ router.get('/state', (_req: Request, res: Response) => {
       dpi: curStage?.dpi ?? null, sens: curStage?.sens ?? null, n_stages, hero: set.hero, phase: set.phase, totalGames, completed,
       needSwitch: needsSwitchNow(db, set, n_stages, completed),
       stages, curveEnabled: !!set.curve_enabled, chunk: chunkInfo,
+      last_sens: last?.last_sens ?? null, last_match_id: last?.last_match_id ?? null,
     };
   });
 

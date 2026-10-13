@@ -358,3 +358,16 @@ describe('GET /api/blind/sets/:id excludes QP-credited rows from the per-stage s
     assert.equal(stage1.games, 2, 'perf query must also exclude the QP row');
   });
 });
+
+describe('GET /api/blind/state — last_sens for the Prematch change-sens pop-up', () => {
+  test('null before any game; after a credited game it is that match\'s sens and id', async () => {
+    const setId = await makeSet({ hero: 'Ashe', senses: [2.0, 3.0] });
+    const before = await stateOf(setId);
+    assert.equal(before.last_sens, null);
+    assert.equal(before.last_match_id, null);
+    await playGames('Ashe', 1);
+    const after = await stateOf(setId);
+    assert.ok(after.last_match_id > 0);
+    assert.equal(after.last_sens, 2);
+  });
+});

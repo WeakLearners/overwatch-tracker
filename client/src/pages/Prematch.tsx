@@ -1,6 +1,8 @@
 import LobbyRankSection from '../components/LobbyRankSection';
 import SegmentedPills, { NOTCH, ACCENT_SEL } from '../components/SegmentedPills';
 import { useState, useRef, useEffect, Fragment } from 'react';
+import { createPortal } from 'react-dom';
+import { sensChangesNeeded } from '../lib/blind';
 import { useApi, revalidateAll } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
@@ -53,6 +55,8 @@ interface DpiTestHud {
   actives: {
     set_id: number; hero: string | null; cur_stage: number; n_stages: number; totalGames: number;
     batch_size: number; games_on_stage: number; dpi: number | null; sens: number | null;
+    // Sens of the hero's last logged game (match_heroes.sens) and that match's id; null if none.
+    last_sens: number | null; last_match_id: number | null;
     // Present only for a chunked (ABBA) 2-stage set — see routes/blind.ts's
     // GET /state and lib/blind.ts's block model (chunkLabelFor/
     // deriveBlockState). `label` is the "A1".."B4" chunk badge.
@@ -219,6 +223,11 @@ export default function Prematch() {
   );
   const mapCounts = useTodayMapCounts();
   const heroCounts = useTodayHeroCounts();
+  // "Change sens" pop-up: derived from state (picked heroes x active tests x last
+  // logged sens), so it also fires when the needed sens changes under an
+  // already-selected hero. React state only; acknowledged keys are (hero, target, last match).
+  const [sensAcked, setSensAcked] = useState<ReadonlySet<string>>(() => new Set());
+  const sensChanges = sensChangesNeeded(pickedHeroes, btActives, queueMode, sensAcked);
   // GET /api/df — the Designated Fallback (a role's safe pick when nothing
   // else fits; never earns test credit, never opens a test set) for each
   // role. "Select Your Hero" always shows the current role's DF alongside
@@ -1695,6 +1704,31 @@ export default function Prematch() {
       <div id="lobby-step" className="scroll-mt-24 mt-4">
         <LobbyRankSection className="card" />
       </div>
+
+      {sensChanges.length > 0 && createPortal(
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60" role="alertdialog" aria-modal="true" aria-labelledby="sens-change-title" data-inspect-id="prematch-sens-change-modal">
+          <div className="card w-full max-w-sm mx-4 text-center">
+            <h2 id="sens-change-title" className="text-sm card-title mb-3">Change sens</h2>
+            <div className="flex flex-col gap-4 mb-4">
+              {sensChanges.map(c => (
+                <div key={c.hero}>
+                  <div className="text-sm font-semibold text-[var(--ink)]">{c.hero}</div>
+                  <div className="text-xs text-[var(--muted)]">last game: {c.last ?? 'none'}</div>
+                  <div className="text-xs text-[var(--muted)] mt-1">set now:</div>
+                  <div className="text-4xl font-bold tabular-nums text-[var(--ink)] leading-tight">{c.target}</div>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button" autoFocus
+              onClick={() => setSensAcked(prev => new Set([...prev, ...sensChanges.map(c => c.ackKey)]))}
+              className="btn-primary w-full py-2 text-sm"
+              data-inspect-id="prematch-sens-change-ack"
+            >I set it in game</button>
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
