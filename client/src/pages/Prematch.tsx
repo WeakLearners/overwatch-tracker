@@ -1228,27 +1228,36 @@ export default function Prematch() {
         {/* Select Your Hero — game step 5, the tracker's hero input. Advice sits
             above it (the card above) and the Experiment column beside it. Its
             picks feed the Match Log's hero slots through MatchContext. */}
-        {/* Fixed height at lg+ with the sens study on (Sean, 2026-10-08): the card
-            is as tall as the Experiment column, so its bottom edge matches Next
-            Test, and each role column scrolls on its own. lg:h-0 + lg:min-h-full
-            stops the card adding height to the row. Sean asked for this scroll;
-            it overrides the no-scroll-in-cards rule for this card only.
-            overflow-y-auto also clips x, so each list gets lg:p-2 with an equal
-            lg:-m-2: the selected border and glow ring draw outside the row box
-            and would be cut at the edges; rows keep their position and width. */}
-        <div className={`card min-w-0 ${sensStudyOn ? 'lg:col-span-2 lg:h-0 lg:min-h-full lg:flex lg:flex-col' : 'lg:col-span-3'}`} data-inspect-id="prematch-hero-select-card">
+        {/* Height source at lg+ with the sens study on (Sean, 2026-10-13): this
+            card sets the row height and Next Test stretches to meet its bottom
+            edge. Each role list is a FIXED box that holds exactly 7 hero rows,
+            whatever the plan holds (the box never resizes); rows 8 and up scroll
+            inside it. 7-row height, computed from the classes, not measured:
+              row   = border 2px + padding 2 x 15px + content 15px x 1.5 (the
+                      arrow glyph, text-[15px] at the 1.5 base line-height)
+                    = 54.5px, pinned below as --hero-row-h (selected rows trade
+                      1px of border for 1px of padding, so they match)
+              gaps  = 6 x gap-1.5 (6px) = 36px
+              list  = 7 x 54.5 + 36 = 417.5px; the list adds lg:p-2 with an equal
+                      lg:-m-2, so its h is that + 1rem (the padding).
+            The padding + negative margin exist because overflow-y-auto also clips
+            x: the selected border and glow ring draw outside the row box and
+            would be cut at the edges; rows keep their position and width.
+            Sean asked for the scroll; it overrides the no-scroll-in-cards rule
+            for this card only. */}
+        <div className={`card min-w-0 ${sensStudyOn ? 'lg:col-span-2 lg:flex lg:flex-col' : 'lg:col-span-3'}`} style={{ '--hero-row-h': '54.5px' } as React.CSSProperties} data-inspect-id="prematch-hero-select-card">
         <div className="flex items-baseline gap-2 mb-3 shrink-0">
           <h3 className="text-sm card-title" data-inspect-id="prematch-select-your-hero-header">Select Your Hero</h3>
           <span className="text-xs text-[var(--faint-2)]">by role · min 2 games · tap hero to pre-fill log</span>
         </div>
         {showHeroPicker ? (
-          <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${sensStudyOn ? 'lg:flex-1 lg:min-h-0 lg:grid-rows-[minmax(0,1fr)]' : ''}`} data-inspect-id="prematch-hero-picker-list">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" data-inspect-id="prematch-hero-picker-list">
             {(['DPS', 'Support'] as const).map(role => {
               const heroes = byRole[role];
               return (
-                <div key={role} className={sensStudyOn ? 'lg:flex lg:flex-col lg:min-h-0' : ''}>
+                <div key={role} className={sensStudyOn ? 'lg:flex lg:flex-col' : ''}>
                   <div className={`text-xs font-bold uppercase tracking-widest mb-2 shrink-0 ${ROLE_TEXT[role]}`}>{role}</div>
-                  <div className={`flex flex-col gap-1.5 ${sensStudyOn ? 'lg:flex-1 lg:min-h-0 lg:overflow-y-auto lg:p-2 lg:-m-2' : ''}`}>
+                  <div className={`flex flex-col gap-1.5 ${sensStudyOn ? 'lg:h-[calc(7*var(--hero-row-h)+6*0.375rem+1rem)] lg:shrink-0 lg:overflow-y-auto lg:p-2 lg:-m-2' : ''}`}>
                     {heroes.map(h => {
                       const clickIndex = clickedHeroes.indexOf(h.hero);
                       const isClicked = clickIndex !== -1;
@@ -1313,7 +1322,7 @@ export default function Prematch() {
                           ...(litFill ? { '--fill': fill } : {}),
                           ...(isClicked && !isDfHero && (testGaugeFor(h.hero) != null || chunkFor(h.hero)) ? { boxShadow: 'none' } : {}),
                         } as React.CSSProperties}
-                        className={`hero-pick relative isolate [container-type:inline-size] flex items-center gap-3 w-full text-left rounded cursor-pointer active:scale-[0.98] transition-all group ${isTestHero ? 'test-glow' : ''} ${
+                        className={`hero-pick relative isolate [container-type:inline-size] flex items-center gap-3 w-full text-left rounded cursor-pointer active:scale-[0.98] transition-all group ${sensStudyOn ? 'lg:h-[var(--hero-row-h)] lg:shrink-0' : ''} ${isTestHero ? 'test-glow' : ''} ${
                           // Resting wears the lobby slider's unlit rank-pane border; the extra
                           // 1px padding makes up the width gap with the 2px
                           // selected border, so selecting doesn't shift the row.
@@ -1602,7 +1611,7 @@ export default function Prematch() {
                 the sens-study category, since it has nothing to say when that
                 data isn't being collected. Sits under the HUD in the Experiment column. */}
             {nextTest && (
-              <div className="card text-left" data-inspect-id="prematch-next-test-card">
+              <div className="card text-left lg:flex-1" data-inspect-id="prematch-next-test-card">
                 <h3 className="text-sm card-title mb-1">Next test</h3>
                 {nextTest.isQuickplay ? (
                   <p className="text-xs text-[var(--faint)]" data-inspect-id="prematch-next-test-qp">
