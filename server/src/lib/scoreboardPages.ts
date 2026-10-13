@@ -1,7 +1,7 @@
 // Scoreboard pages and groups (Addendum 2, 2026-10-09). The post-match screen has
 // three pages that Sean captures one after the other: SUMMARY, TEAMS and one
-// PERSONAL page per hero. A Summary page opens a group; the Teams and Personal
-// pages that follow within PAGE_GAP_MS of the group's last page join it.
+// PERSONAL page per hero. A Summary page opens a group;
+// Teams and Personal pages after it join it until the next Summary (no time limit; PAGE_GAP_MS only bounds rank-page adoption and group filling).
 // A competitive match also shows a RANK page (2026-10-11) BEFORE the Summary. It joins
 // the group of the Summary that follows it within PAGE_GAP_MS, in either arrival order.
 //
@@ -227,12 +227,12 @@ export function fillRankFromGroup(db: DatabaseSync, groupId: number, matchId: nu
 
 export interface GroupRow { id: number; state: 'live' | 'linked' | 'recovery' | 'ambiguous'; match_id: number | null; summary_mtime: string; last_mtime: string; filled_at: string | null }
 
-/** The group a page taken at mtimeMs joins: the latest Summary at or before it, if the chain of pages has no gap over PAGE_GAP_MS. */
+/** The group a Teams or Personal page taken at mtimeMs joins: the group of the newest Summary at or before it. No time limit; the next Summary closes it. */
 export function findOpenGroup(db: DatabaseSync, mtimeMs: number): GroupRow | null {
   const g = db.prepare(`SELECT * FROM scoreboard_groups WHERE summary_mtime <= ? ORDER BY summary_mtime DESC, id DESC LIMIT 1`)
     .get(new Date(mtimeMs).toISOString()) as GroupRow | undefined;
   if (!g) return null;
-  return mtimeMs - Date.parse(g.last_mtime) <= PAGE_GAP_MS ? g : null;
+  return g;
 }
 
 export function createGroup(db: DatabaseSync, summaryMtimeMs: number, state: GroupRow['state'], matchId: number | null): number {
@@ -329,6 +329,13 @@ export function groupSummaryMap(db: DatabaseSync, groupId: number): string | nul
   const p = db.prepare(`SELECT raw_json, file_mtime FROM match_scoreboards WHERE group_id = ? AND page_type = 'summary' ORDER BY id LIMIT 1`).get(groupId) as { raw_json: string | null; file_mtime: string } | undefined;
   if (!p?.raw_json) return null;
   try { return normSummary(JSON.parse(p.raw_json).summary, Date.parse(p.file_mtime)).map; } catch { return null; }
+}
+
+/** Roster heroes listed on a group's Summary page. */
+export function groupSummaryHeroes(db: DatabaseSync, groupId: number): string[] {
+  const p = db.prepare(`SELECT raw_json, file_mtime FROM match_scoreboards WHERE group_id = ? AND page_type = 'summary' AND status <> 'dismissed' ORDER BY id DESC LIMIT 1`).get(groupId) as { raw_json: string | null; file_mtime: string } | undefined;
+  if (!p?.raw_json) return [];
+  try { return normSummary(JSON.parse(p.raw_json).summary, Date.parse(p.file_mtime)).heroes.map(h => h.hero).filter((h): h is string => !!h); } catch { return []; }
 }
 
 /**

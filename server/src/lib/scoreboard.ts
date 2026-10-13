@@ -21,8 +21,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { DatabaseSync } from 'node:sqlite';
 import { PATCH_BOUNDARIES } from './patchEra';
 import {
-  TEAMS_ONLY, parseDbUtc, normSummary, rosterHero, findOpenGroup, createGroup, touchGroup, linkGroup, groupSummaryMap, syncLeaverFromBoard,
-  adoptLoosePages, recoveryCandidates, finalizeGroups, normRank, storeRank, findGroupAfterRank, fillRankFromGroup,
+  TEAMS_ONLY, parseDbUtc, normSummary, rosterHero, findOpenGroup, createGroup, touchGroup, linkGroup, groupSummaryMap, groupSummaryHeroes, syncLeaverFromBoard,
+  adoptLoosePages, buildFill, fillEmptyAim, recoveryCandidates, finalizeGroups, normRank, storeRank, findGroupAfterRank, fillRankFromGroup,
   type RawSummary, type RawPersonal, type RawRank, type PageType, type GroupRow,
 } from './scoreboardPages';
 export { parseDbUtc };
@@ -594,15 +594,23 @@ function processPersonal(db: DatabaseSync, parsed: ParsedScoreboard, store: Stor
   const hero = rosterHero(parsed.personal?.hero);
   const g = findOpenGroup(db, mtimeMs);
   if (!g) return store({ status: 'unmatched', reason: 'personal page with no summary page before it', raw: parsed, matchId: null, rows: [], pageType: 'personal', pageHero: hero });
+  // A hero the Summary does not list cannot belong to this match: keep the page, do not join.
+  if (hero && !groupSummaryHeroes(db, g.id).includes(hero)) return store({ status: 'unmatched', reason: 'hero not in the summary of the newest match', raw: parsed, matchId: null, rows: [], pageType: 'personal', pageHero: hero });
   touchGroup(db, g.id, mtimeMs);
   const dup = hero && db.prepare(`SELECT id FROM match_scoreboards WHERE group_id = ? AND page_type = 'personal' AND page_hero = ? AND status <> 'dismissed' AND file_mtime <> ?`)
     .get(g.id, hero, new Date(mtimeMs).toISOString()) as { id: number } | undefined;
   if (dup) return store({ status: 'dismissed', reason: `second personal page for ${hero} (page ${dup.id})`, raw: parsed, matchId: null, rows: [], pageType: 'personal', groupId: g.id, pageHero: hero });
-  return store({
+  const status = store({
     status: g.match_id != null ? 'matched' : 'unmatched',
     reason: g.match_id != null ? (g.state === 'recovery' ? `recovery of match ${g.match_id}` : 'group page') : 'waiting for the match log',
     raw: parsed, matchId: g.match_id, rows: [], pageType: 'personal', groupId: g.id, pageHero: hero,
   });
+  // A page on a logged match (it can arrive long after the group was filled): fill that hero's EMPTY accuracy slots only. fillEmptyAim never overwrites a typed value.
+  if (g.match_id != null && hero) {
+    const fill = buildFill(db, g.id);
+    if (fill && fillEmptyAim(db, g.match_id, { ...fill, heroes: fill.heroes.filter(h => h.hero === hero) }, ['hero_slots']).filled.length) emitTrackerWrite();
+  }
+  return status;
 }
 
 /** Teams keeps today's path (rule 1 copies, window, rule 2 stats). Inside a group the group's match wins and a window or stats hit must agree with the Summary map. */

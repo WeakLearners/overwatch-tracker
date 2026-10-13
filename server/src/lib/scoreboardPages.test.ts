@@ -258,19 +258,57 @@ describe('groups on a temp DB (match 3842 is a recovery)', () => {
     const aim = db.prepare(`SELECT elims, final_blows FROM aim_stats WHERE match_id = ?`).get(mid) as any;
     assert.deepEqual({ ...aim }, { elims: null, final_blows: 6 }, 'the form owns every other field');
   });
-  test('Summary starts a new group; pages join only within the gap; a page with no Summary stays standalone', async () => {
+  test('Summary starts a new group; a page joins the newest Summary with no time limit', async () => {
     await feed(SUMMARY_49, '49', 0);
     assert.ok(findOpenGroup(db, T0 + 60_000));
-    assert.equal(findOpenGroup(db, T0 + PAGE_GAP_MS + 1000), null);
+    assert.ok(findOpenGroup(db, T0 + PAGE_GAP_MS + 1000));
     await feed(SUMMARY_49, '49b', 300);
     assert.equal((db.prepare(`SELECT COUNT(*) n FROM scoreboard_groups`).get() as any).n, 2);
     await feed(TRACER_51, 'late', 900);
-    const late = db.prepare(`SELECT status, group_id, reason FROM match_scoreboards WHERE file_path = '/x/late.png'`).get() as any;
-    assert.equal(late.group_id, null); assert.match(late.reason, /no summary/);
+    const late = db.prepare(`SELECT status, group_id FROM match_scoreboards WHERE file_path = '/x/late.png'`).get() as any;
+    assert.ok(late.group_id, 'no window: joins the newest Summary group');
   });
   test('a second Personal page for the same hero is kept but never counted', async () => {
     await feed(SUMMARY_49, '49', 0); await feed(TRACER_51, '51', 5); await feed(TRACER_51, '51b', 7);
     assert.equal((db.prepare(`SELECT COUNT(*) n FROM match_scoreboards WHERE status = 'dismissed'`).get() as any).n, 1);
+  });
+  const MIN = 60_000;
+  test('every page after a Summary joins it: 8.5 min later still joins; a hero the Summary lacks stays unmatched; a second page is dismissed', async () => {
+    await feed(SUMMARY_49, '49', 0); await feed(TRACER_51, '51', 5);
+    assert.equal(await feed(PHARAH_52, '52', 510), 'unmatched');
+    const gid = (db.prepare(`SELECT id FROM scoreboard_groups`).get() as any).id;
+    const last = pages().pop();
+    assert.deepEqual([last.group_id, last.status, last.page_hero], [gid, 'unmatched', 'Pharah']);
+    assert.deepEqual(buildFill(db, gid)!.pages.personal.sort(), ['Pharah', 'Tracer']);
+    assert.equal((db.prepare(`SELECT last_mtime FROM scoreboard_groups WHERE id = ?`).get(gid) as any).last_mtime, new Date(T0 + 510_000).toISOString());
+    await feed(PHARAH_52, '52b', 9 * 60);
+    assert.equal(pages().pop().status, 'dismissed');
+    await feed(personal('SOLDIER: 76', [['WEAPON ACCURACY', '40%']]), 'sol', 30 * 60);
+    const sol = db.prepare(`SELECT status, group_id, reason FROM match_scoreboards WHERE file_path = '/x/sol.png'`).get() as any;
+    assert.deepEqual([sol.status, sol.group_id, sol.reason], ['unmatched', null, 'hero not in the summary of the newest match']);
+  });
+  test('a page after a newer Summary joins the newer group, never the older one', async () => {
+    await feed(SUMMARY_49, '49', 0);
+    await feed(SUMMARY_49, '49b', 300);
+    await feed(TRACER_51, 'late', 3100);
+    const gs = db.prepare(`SELECT id FROM scoreboard_groups ORDER BY summary_mtime`).all() as any[];
+    assert.equal(gs.length, 2);
+    assert.equal((db.prepare(`SELECT group_id FROM match_scoreboards WHERE file_path = '/x/late.png'`).get() as any).group_id, gs[1].id);
+  });
+  test('a Personal page before any Summary stays unmatched with the no-summary reason', async () => {
+    await feed(TRACER_51, 'early', 0);
+    const r = db.prepare(`SELECT group_id, reason FROM match_scoreboards`).get() as any;
+    assert.equal(r.group_id, null); assert.match(r.reason, /no summary/);
+  });
+  test('a late page on a linked group (and a late one) fills only the NULL accuracy slots of that hero', async () => {
+    const mid = addMatch('2026-10-09 16:35:14'); addAim(mid);
+    db.prepare(`UPDATE aim_stats_heroes SET overall_acc = NULL, crit_acc = 7 WHERE match_id = ? AND hero = 'Tracer'`).run(mid);
+    await feed(SUMMARY_49, '49', 0);
+    assert.equal((db.prepare(`SELECT state FROM scoreboard_groups`).get() as any).state, 'recovery');
+    assert.equal(await feed(TRACER_51, '51', 20 * 60), 'matched');
+    const t = db.prepare(`SELECT overall_acc, crit_acc, extra_acc FROM aim_stats_heroes WHERE match_id = ? AND hero = 'Tracer'`).get(mid) as any;
+    assert.deepEqual({ ...t }, { overall_acc: 33, crit_acc: 7, extra_acc: 0 });
+    assert.equal((db.prepare(`SELECT COUNT(*) n FROM match_hero_stats WHERE match_id = ?`).get(mid) as any).n > 0, true);
   });
   test('ALL HEROES personal page joins the group but supplies no hero data', async () => {
     await feed(SUMMARY_49, '49', 0); await feed(personal('ALL HEROES', [['FINAL BLOWS', '99']]), 'all', 4);
