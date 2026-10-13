@@ -5,6 +5,7 @@ import AnimatedNumber from '../AnimatedNumber';
 import EmptyState from '../EmptyState';
 import { computeTrendsDerived } from '../../lib/trendsDerived';
 import { SEASONS } from '../../lib/roster';
+import FindingChip, { type Finding } from '../FindingChip';
 
 // Extracted 2026-09-26 (perf pass, round 2): this card (the candle/volume/
 // rank-strip chart) is the single heaviest subtree Dashboard renders --
@@ -26,7 +27,7 @@ import { SEASONS } from '../../lib/roster';
 // object or closure at the call site.
 interface RecentMatchesCardProps {
   trends: TrendPoint[] | null;
-  tilt: { on_tilt: boolean; loss_streak: number; tilt_win_rate: number | null; tilt_games: number } | null | undefined;
+  tilt: { on_tilt: boolean; loss_streak: number; tilt_win_rate: number | null; tilt_games: number; tilt_finding?: Finding | null; other_win_rate?: number | null } | null | undefined;
 }
 const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: RecentMatchesCardProps) {
   const { last100, last500, winRate, wr100, wr500, wrDelta, CANDLE_DAYS, candles, careerComp, careerEdge, perMatchSd, paceAt, sdAt, CH_W, CH_H, CH_PAD, VOL_H, PLOT_BOTTOM, bandLo, bandHi, lowV, highV, vSpan, slotW, bodyW, volW, slotX, chartY, maxVol, ROOFLINE, volY, FALLOFF, VOL_STOPS, volStopColor, pacePts, bandUpper, bandLower, bandPoly, candleIdxByDate, tierMarks, tierMarkByDay, drumLabel, tierStackIdx, RANK_ROLES, RANK_SERIES_COLOR, rankSeries, rankValuesSeen, rankHasData, rankMinRaw, rankMaxRaw, rankTierLoIdx, rankTierHiIdx, rankLo, rankHi, rankSpan, RANK_H, rankY, rankTierBands, zeroY, lastCandle, lastClose, lastN, lastZ, BLEND_THRESHOLD, SAT_FLOOR, SAT_CEIL, SAT_FULL_AT, GRAD_STOPS, gradStops, UP_COLOR, DOWN_COLOR, UP_SWATCH, DOWN_SWATCH, LEGEND_SWATCH, LEGEND_TITLE, yTicks, labelEvery, dayTicks, dayNets, bestDay, worstDay } = useMemo(() => computeTrendsDerived(trends), [trends]);
@@ -700,9 +701,15 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt }: Rece
               <span className="text-amber-600 text-lg shrink-0">⚠</span>
               <div>
                 <div className="text-sm font-semibold text-amber-700">You've lost <b className="font-bold">{tilt.loss_streak}</b> in a row today</div>
-                {tilt.tilt_win_rate !== null && tilt.tilt_games >= 10 && (
-                  <div className="text-xs text-amber-600/80 mt-0.5">
-                    Historically your win rate in this situation is <b className="font-bold">{tilt.tilt_win_rate.toFixed(1)}</b>% — a short break often helps.
+                {tilt.tilt_finding && (
+                  <div className="text-xs text-amber-600/80 mt-0.5 flex flex-wrap items-center gap-x-2">
+                    <span>
+                      After two losses in a row your win rate has been <b className="font-bold">{tilt.tilt_finding.rate.toFixed(1)}</b>%
+                      {' '}(<b className="font-bold">{tilt.tilt_finding.lo.toFixed(1)}–{tilt.tilt_finding.hi.toFixed(1)}</b>%, {tilt.tilt_finding.n} games)
+                      {tilt.other_win_rate != null && <> against <b className="font-bold">{tilt.other_win_rate.toFixed(1)}</b>% in other games</>}.
+                      {tilt.tilt_finding.verdict === 'holds' && tilt.other_win_rate != null && tilt.tilt_finding.rate < tilt.other_win_rate && ' A short break may help.'}
+                    </span>
+                    <FindingChip finding={tilt.tilt_finding} />
                   </div>
                 )}
               </div>

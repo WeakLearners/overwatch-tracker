@@ -313,9 +313,14 @@ router.get('/prematch', (req: Request, res: Response) => {
              LAG(win,2) OVER (PARTITION BY date ORDER BY time) as prev2
       FROM matches
     )
-    SELECT ROUND(AVG(win)*100, 1) as win_rate, COUNT(*) as games
+    SELECT ROUND(AVG(win)*100, 1) as win_rate, COUNT(*) as games, COALESCE(SUM(win), 0) as wins
     FROM numbered WHERE prev1 = 0 AND prev2 = 0
-  `).get({}) as { win_rate: number; games: number } | undefined;
+  `).get({}) as { win_rate: number; games: number; wins: number } | undefined;
+  const allRow = db.prepare(`SELECT COUNT(*) as games, COALESCE(SUM(win), 0) as wins FROM matches`).get({}) as { games: number; wins: number };
+  // One group tested, so no correction beyond alpha. Compared with every other game.
+  const tiltFinding = tiltRow && tiltRow.games > 0
+    ? makeFinding({ wins: tiltRow.wins, n: tiltRow.games }, { wins: allRow.wins - tiltRow.wins, n: allRow.games - tiltRow.games }, 1)
+    : null;
 
   const session = {
     games_today: gamesPlayedToday,
@@ -328,6 +333,9 @@ router.get('/prematch', (req: Request, res: Response) => {
     depth_games: depthRow?.games ?? 0,
     tilt_win_rate: tiltRow?.win_rate ?? null,
     tilt_games: tiltRow?.games ?? 0,
+    tilt_finding: tiltFinding,
+    other_win_rate: allRow.games > (tiltRow?.games ?? 0)
+      ? Math.round(((allRow.wins - (tiltRow?.wins ?? 0)) / (allRow.games - (tiltRow?.games ?? 0))) * 1000) / 10 : null,
   };
 
   // Best hero for the current game type (cross-type optimizer)

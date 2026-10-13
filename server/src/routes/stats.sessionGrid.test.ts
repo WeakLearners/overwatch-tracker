@@ -106,5 +106,11 @@ describe('session.loss_streak', () => {
     const r = await h.get('/api/stats/prematch');
     assert.equal(r.body.session.on_tilt, true);
     assert.equal(r.body.session.loss_streak, 3);
+    // Only the 4th game (a loss) followed two losses, so the group is 1 game: too thin to test.
+    const f = r.body.session.tilt_finding;
+    assert.equal(f.n, 1);
+    assert.equal(f.verdict, 'thin');
+    assert.equal(f.groupsTested, 1);
+    assert.equal(r.body.session.other_win_rate, 33.3);  // 1 win in the other 3 games
   });
 });
