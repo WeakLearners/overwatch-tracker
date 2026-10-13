@@ -1,6 +1,6 @@
 import { memo, useMemo, useState } from 'react';
 import { format, parseISO } from 'date-fns';
-import { TrendPoint, RANK_TIER_RGB, rankLabel, isAccount, ACCOUNTS, Account } from '../../types';
+import { TrendPoint, RANK_TIER_RGB, rankLabel, isAccount, ACCOUNTS, Account, type RankTier } from '../../types';
 import AnimatedNumber from '../AnimatedNumber';
 import EmptyState from '../EmptyState';
 import { computeTrendsDerived, RANK_H, type RankSeries } from '../../lib/trendsDerived';
@@ -28,7 +28,7 @@ import { SEASONS } from '../../lib/roster';
 // (computed over every account), so a tier band is the same pixel height in
 // every panel and in both views. The height never changes (RANK_H).
 // `chW` is the candle chart's CH_W so the day columns line up with it.
-function RankPanel({ account, series, chW, rankSpan, rankY, rankTierBands }: { account: string; series: RankSeries[]; chW: number; rankSpan: number; rankY: (v: number) => number; rankTierBands: { tier: string; lo: number; hi: number }[] }) {
+function RankPanel({ account, series, chW, rankSpan, rankY, rankTierBands }: { account: string; series: RankSeries[]; chW: number; rankSpan: number; rankY: (v: number) => number; rankTierBands: { tier: RankTier; lo: number; hi: number }[] }) {
   const rankHasData = series.some(s => s.steps.length > 0);
   const CH_W = chW;
   return (
