@@ -1,9 +1,9 @@
 import { memo, useMemo, useState } from 'react';
 import { format, parseISO } from 'date-fns';
-import { TrendPoint, RANK_TIER_RGB, rankLabel, isAccount, ACCOUNTS, Account, type RankTier } from '../../types';
+import { TrendPoint, RANK_TIER_RGB, rankLabel, isAccount, ACCOUNTS, Account } from '../../types';
 import AnimatedNumber from '../AnimatedNumber';
 import EmptyState from '../EmptyState';
-import { computeTrendsDerived, RANK_H, type RankSeries } from '../../lib/trendsDerived';
+import { computeTrendsDerived, computeRankRange, type RankSeries } from '../../lib/trendsDerived';
 import { SEASONS } from '../../lib/roster';
 
 // Extracted 2026-09-26 (perf pass, round 2): this card (the candle/volume/
@@ -24,20 +24,24 @@ import { SEASONS } from '../../lib/roster';
 // across Dashboard's own re-renders; both are still passed straight
 // through from Dashboard's own useApi state, unwrapped, with no inline
 // object or closure at the call site.
-// One fixed-height rank panel for one account. All panels share ONE rank scale
-// (computed over every account), so a tier band is the same pixel height in
-// every panel and in both views. The height never changes (RANK_H).
+// One rank panel for one account, fitted to the whole tiers that account's
+// series touch. Every tier band is TIER_PX tall in every panel and both views,
+// so the panel is (tiers x TIER_PX) tall and depends only on its own data.
 // `chW` is the candle chart's CH_W so the day columns line up with it.
-function RankPanel({ account, series, chW, rankSpan, rankY, rankTierBands }: { account: string; series: RankSeries[]; chW: number; rankSpan: number; rankY: (v: number) => number; rankTierBands: { tier: RankTier; lo: number; hi: number }[] }) {
-  const rankHasData = series.some(s => s.steps.length > 0);
+function RankPanel({ account, series, chW }: { account: string; series: RankSeries[]; chW: number }) {
+  const range = useMemo(() => computeRankRange(series), [series]);
+  const { rankHasData, rankSpan, rankY, rankHeight } = range;
+  const rankTierBands = rankHasData ? range.rankTierBands : [];
+  const H = rankHeight;
   const CH_W = chW;
   return (
-                <div className="relative" data-inspect-id="dash-rank-strip-panel">
+                <div className="relative" style={{ height: H }} data-inspect-id="dash-rank-strip-panel">
   <span className="absolute left-0 top-0 z-30 text-[9px] leading-none text-[var(--faint)] pointer-events-none select-none">{account}</span>
   <svg
-    viewBox={`0 0 ${CH_W} ${RANK_H}`}
+    viewBox={`0 0 ${CH_W} ${H}`}
     preserveAspectRatio="none"
-    className="relative z-10 w-full h-[120px] overflow-visible"
+    className="relative z-10 w-full overflow-visible"
+    style={{ height: H }}
     role="img"
     aria-label={
       rankHasData
@@ -62,11 +66,11 @@ function RankPanel({ account, series, chW, rankSpan, rankY, rankTierBands }: { a
       a pulsing CSS drop-shadow) sits on the html box: a filter inside the stretched
       svg (preserveAspectRatio="none") would smear sideways. */}
   <svg
-    viewBox={`0 0 ${CH_W} ${RANK_H}`}
+    viewBox={`0 0 ${CH_W} ${H}`}
     preserveAspectRatio="none"
-    className="rank-glow absolute inset-0 z-20 w-full h-[120px] overflow-visible pointer-events-none"
+    className="rank-glow absolute inset-0 z-20 w-full overflow-visible pointer-events-none"
     aria-hidden="true"
-    style={{ '--glow': series.find(s => s.current)?.color } as React.CSSProperties}
+    style={{ height: H, '--glow': series.find(s => s.current)?.color } as React.CSSProperties}
   >
     {series.filter(s => s.current && s.steps.length > 0).map(s => (
       <polyline
@@ -89,13 +93,13 @@ function RankPanel({ account, series, chW, rankSpan, rankY, rankTierBands }: { a
       hue via --sel. HTML rather than svg <text>: the svg stretches
       (preserveAspectRatio="none") and would squash the letters. */}
   {rankTierBands.map(b => {
-    const bandPx = (RANK_H * (b.hi - b.lo)) / rankSpan;
+    const bandPx = (H * (b.hi - b.lo)) / rankSpan;
     return (
       <div
         key={`rank-band-label-${b.tier}`}
         aria-hidden="true"
         className="absolute left-0 right-0 overflow-hidden pointer-events-none select-none is-selected mode-fill"
-        style={{ top: `${(rankY(b.hi) / RANK_H) * 100}%`, height: `${(bandPx / RANK_H) * 100}%`, '--sel': RANK_TIER_RGB[b.tier],
+        style={{ top: `${(rankY(b.hi) / H) * 100}%`, height: `${(bandPx / H) * 100}%`, '--sel': RANK_TIER_RGB[b.tier],
           // A notch thinner than .mode-fill's 3px edge + 10px glow: these
           // bands are ~30px tall, a third of a mode tile.
           boxShadow: 'inset 0 -2px 0 0 rgb(var(--sel)), inset 0 -6px 8px -5px rgb(var(--sel) / 0.95)',
@@ -121,7 +125,7 @@ interface RecentMatchesCardProps {
   tilt: { on_tilt: boolean; loss_streak: number; tilt_win_rate: number | null; tilt_games: number } | null | undefined;
 }
 const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt, account }: RecentMatchesCardProps) {
-  const { last100, last500, winRate, wr100, wr500, wrDelta, CANDLE_DAYS, candles, careerComp, careerEdge, perMatchSd, paceAt, sdAt, CH_W, CH_H, CH_PAD, VOL_H, PLOT_BOTTOM, bandLo, bandHi, lowV, highV, vSpan, slotW, bodyW, volW, slotX, chartY, maxVol, ROOFLINE, volY, FALLOFF, VOL_STOPS, volStopColor, pacePts, bandUpper, bandLower, bandPoly, candleIdxByDate, tierMarks, tierMarkByDay, drumLabel, tierStackIdx, RANK_ROLES, RANK_SERIES_COLOR, rankSeries, rankValuesSeen, rankMinRaw, rankMaxRaw, rankTierLoIdx, rankTierHiIdx, rankLo, rankHi, rankSpan, rankY, rankTierBands, zeroY, lastCandle, lastClose, lastN, lastZ, BLEND_THRESHOLD, SAT_FLOOR, SAT_CEIL, SAT_FULL_AT, GRAD_STOPS, gradStops, UP_COLOR, DOWN_COLOR, UP_SWATCH, DOWN_SWATCH, LEGEND_SWATCH, LEGEND_TITLE, yTicks, labelEvery, dayTicks, dayNets, bestDay, worstDay } = useMemo(() => computeTrendsDerived(trends), [trends]);
+  const { last100, last500, winRate, wr100, wr500, wrDelta, CANDLE_DAYS, candles, careerComp, careerEdge, perMatchSd, paceAt, sdAt, CH_W, CH_H, CH_PAD, VOL_H, PLOT_BOTTOM, bandLo, bandHi, lowV, highV, vSpan, slotW, bodyW, volW, slotX, chartY, maxVol, ROOFLINE, volY, FALLOFF, VOL_STOPS, volStopColor, pacePts, bandUpper, bandLower, bandPoly, candleIdxByDate, tierMarks, tierMarkByDay, drumLabel, tierStackIdx, RANK_ROLES, RANK_SERIES_COLOR, rankSeries, rankValuesSeen, rankMinRaw, rankMaxRaw, rankTierLoIdx, rankTierHiIdx, rankLo, rankHi, zeroY, lastCandle, lastClose, lastN, lastZ, BLEND_THRESHOLD, SAT_FLOOR, SAT_CEIL, SAT_FULL_AT, GRAD_STOPS, gradStops, UP_COLOR, DOWN_COLOR, UP_SWATCH, DOWN_SWATCH, LEGEND_SWATCH, LEGEND_TITLE, yTicks, labelEvery, dayTicks, dayNets, bestDay, worstDay } = useMemo(() => computeTrendsDerived(trends), [trends]);
   // Rank strip shows the selected account only; the toggle shows all four. No
   // valid account (defensive: MatchContext always sets one) means show all.
   // The y-range is refitted to the visible series so one account's line is not
@@ -572,7 +576,7 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt, accoun
               <div className="relative pl-7 mt-6 pt-3 border-t border-ow-border/60" data-inspect-id="dash-rank-strip">
                 <div className="flex flex-col gap-2">
                   {panelAccounts.map(a => (
-                    <RankPanel key={`rank-panel-${a}`} account={a} series={rankSeries.filter(s => s.account === a)} chW={CH_W} rankSpan={rankSpan} rankY={rankY} rankTierBands={rankTierBands} />
+                    <RankPanel key={`rank-panel-${a}`} account={a} series={rankSeries.filter(s => s.account === a)} chW={CH_W} />
                   ))}
                 </div>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] leading-none text-[var(--faint)] mt-2" data-inspect-id="dash-rank-strip-legend">

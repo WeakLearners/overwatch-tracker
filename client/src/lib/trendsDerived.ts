@@ -1,17 +1,19 @@
 import { TrendPoint, rankTier, RANK_TIERS, ACCOUNTS, Account, RANK_MIN, RANK_MAX } from '../types';
 
 export const RANK_H = 120;
+/** Height of one tier band in a rank panel. A panel is (tiers touched) x TIER_PX tall. */
+export const TIER_PX = 40;
 
 export type RankRole = 'DPS' | 'Support' | 'Open';
 export type RankStep = { x: number; y: number };
 export type RankSeries = { account: Account; role: RankRole; color: string; steps: RankStep[]; current: boolean };
 
-/** Y-range for the rank strip, fitted to the series passed in. The
+/** Y-range and height for one rank panel, fitted to the series passed in. The
  *  range is exactly the tiers the data sits in, whole: no padding into an
  *  empty tier (a 2-rank pad above Emerald 24 used to show a Diamond sliver
  *  with nothing in it). Tiers are 5 ranks wide; edges sit half a rank past.
- *  computeTrendsDerived calls it ONCE over all accounts; every rank panel shares
- *  that scale, so tier bands never resize with the selected account or view. */
+ *  Each rank panel calls it over its own account's series. rankHeight is
+ *  tiers x TIER_PX, so every tier band is the same height in every panel. */
 export function computeRankRange(series: { steps: { y: number }[] }[]) {
   const rankValuesSeen = series.flatMap(s => s.steps.map(p => p.y));
   const rankHasData = rankValuesSeen.length > 0;
@@ -22,14 +24,17 @@ export function computeRankRange(series: { steps: { y: number }[] }[]) {
   const rankLo = rankTierLoIdx * 5 + 0.5;
   const rankHi = rankTierHiIdx * 5 + 5.5;
   const rankSpan = rankHi - rankLo;
-  const rankY = (v: number) => RANK_H - ((v - rankLo) / rankSpan) * RANK_H;
+  // Panel height follows the tier count at a fixed TIER_PX per tier; a series
+  // with no data gets one empty TIER_PX box (no bands are drawn by the caller).
+  const rankHeight = rankHasData ? (rankTierHiIdx - rankTierLoIdx + 1) * TIER_PX : TIER_PX;
+  const rankY = (v: number) => rankHeight - ((v - rankLo) / rankSpan) * rankHeight;
   const rankTierBands = RANK_TIERS
     .slice(rankTierLoIdx, rankTierHiIdx + 1)
     .map((tier, i) => {
       const k = rankTierLoIdx + i;
       return { tier, lo: k * 5 + 0.5, hi: k * 5 + 5.5 };
     });
-  return { rankValuesSeen, rankHasData, rankMinRaw, rankMaxRaw, rankTierLoIdx, rankTierHiIdx, rankLo, rankHi, rankSpan, rankY, rankTierBands };
+  return { rankValuesSeen, rankHasData, rankMinRaw, rankMaxRaw, rankTierLoIdx, rankTierHiIdx, rankLo, rankHi, rankSpan, rankY, rankTierBands, rankHeight };
 }
 
 // Extracted 2026-09-26 (perf pass): this entire derivation used to run inline
