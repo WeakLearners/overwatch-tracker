@@ -11,7 +11,7 @@ import path from 'path';
 import { getDb, closeDb } from '../db/schema';
 import { processFile, recheckGroup, type ParsedScoreboard, type ParsedRow } from './scoreboard';
 import { parseSummaryDate, rosterHero, rosterMap, normSummary, buildFill, fillEmptyAim, finalizeGroups, findOpenGroup, linkGroup, PAGE_GAP_MS } from './scoreboardPages';
-import { HERO_TILE_MAP, slotValues, finalBlows, parseTileNumber } from './heroTileLabels';
+import { HERO_TILE_MAP, slotValues, deriveSlotTiles, isAutoMapped, finalBlows, parseTileNumber } from './heroTileLabels';
 import { syncMatchHeroStats, tilesToRows, normStat, statUnit } from './matchHeroStats';
 import { organizeBoard, pageSuffix } from './scoreboardOrganize';
 
@@ -99,8 +99,27 @@ describe('tile map (confirmed heroes only)', () => {
     assert.equal(slotValues('Sojourn', tiles({ 'WEAPON ACCURACY': '29%', 'CHARGED SHOT ACCURACY': '60%', 'CHARGED SHOT CRITICAL ACCURACY': '20%' }))!.extra_acc, 20);
     assert.equal(slotValues('Ana', tiles({ 'SCOPED ACCURACY': '53%', 'SLEEP DART ACCURACY': '9%' }))!.crit_acc, 9);
   });
+  test('derived rule matches the hand map for overall and crit; map wins for ability crit heroes', () => {
+    for (const [hero, m] of Object.entries(HERO_TILE_MAP)) {
+      const t = tiles({ [m.overall.toUpperCase()]: '40%', ...(m.crit ? { [m.crit.toUpperCase()]: '12%' } : {}) });
+      const d = deriveSlotTiles(t);
+      assert.equal(d?.overall, m.overall, hero);
+      const stdCrit = !m.crit || m.crit === 'critical hit accuracy' || m.crit === 'scoped critical hit accuracy';
+      if (stdCrit) assert.equal(d?.crit, m.crit, hero);
+      assert.equal(d?.extra, undefined, hero);
+      assert.equal(isAutoMapped(hero), false);
+    }
+    // Ana has both a standard-looking and an ability crit tile: the map must win.
+    assert.equal(slotValues('Ana', tiles({ 'SCOPED ACCURACY': '53%', 'SCOPED CRITICAL HIT ACCURACY': '70%', 'SLEEP DART ACCURACY': '9%' }))!.crit_acc, 9);
+  });
+  test('a new hero is filled from standard labels, never extra; no overall tile gives null', () => {
+    assert.deepEqual(slotValues('Newhero', tiles({ 'WEAPON ACCURACY': '41%', 'CRITICAL HIT ACCURACY': '7%', 'MYSTERY ABILITY ACCURACY': '60%' })), { overall_acc: 41, crit_acc: 7, extra_acc: null, torpedo_damage: null, torpedo_healing: null });
+    assert.equal(isAutoMapped('Newhero'), true);
+    assert.equal(slotValues('Newhero', tiles({ 'FINAL BLOWS': '3' })), null);
+    assert.equal(slotValues('Newhero', tiles({ 'SCOPED ACCURACY': '30%' }))!.overall_acc, 30);
+  });
   test('an unconfirmed hero gets no slots, never a guess; Ana with only a weapon tile reads null', () => {
-    assert.equal(slotValues('Reaper', tiles({ 'WEAPON ACCURACY': '40%' })), null);
+    assert.equal(slotValues('Reaper', tiles({ 'FINAL BLOWS': '4' })), null);
     assert.equal(slotValues('Ana', tiles({ 'WEAPON ACCURACY': '40%' }))!.overall_acc, null);
   });
   test('FINAL BLOW and FINAL BLOWS count, LONG RANGE FINAL BLOWS does not', () => {

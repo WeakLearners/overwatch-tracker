@@ -49,9 +49,24 @@ function tileValue(tiles: Tile[], label: string): number | null {
 
 export interface SlotValues { overall_acc: number | null; crit_acc: number | null; extra_acc: number | null; torpedo_damage: number | null; torpedo_healing: number | null }
 
-/** Accuracy slot values for a hero, or null when the hero is not in the confirmed map. Never guesses. */
+/**
+ * Fallback for heroes NOT in HERO_TILE_MAP. Exact standard labels only; extra is never derived
+ * because ability tiles mean different things per hero. Null when no overall tile exists.
+ */
+export function deriveSlotTiles(tiles: Tile[]): SlotTiles | null {
+  const has = (label: string) => tiles.some(x => lc(x.label) === label);
+  const overall = has('weapon accuracy') ? 'weapon accuracy' : has('scoped accuracy') ? 'scoped accuracy' : null;
+  if (!overall) return null;
+  const crit = has('critical hit accuracy') ? 'critical hit accuracy' : has('scoped critical hit accuracy') ? 'scoped critical hit accuracy' : undefined;
+  return crit ? { overall, crit } : { overall };
+}
+
+/** True when the hero has no hand-map entry, so its slots come from deriveSlotTiles. */
+export const isAutoMapped = (hero: string) => !Object.prototype.hasOwnProperty.call(HERO_TILE_MAP, hero);
+
+/** Accuracy slot values for a hero: the hand map wins, else the derived standard labels, else null. Never guesses. */
 export function slotValues(hero: string, tiles: Tile[]): SlotValues | null {
-  const map = HERO_TILE_MAP[hero];
+  const map = Object.prototype.hasOwnProperty.call(HERO_TILE_MAP, hero) ? HERO_TILE_MAP[hero] : deriveSlotTiles(tiles);
   if (!map) return null;
   return {
     overall_acc: tileValue(tiles, map.overall),

@@ -15,7 +15,7 @@
 import { syncMatchHeroStats } from './matchHeroStats';
 import type { DatabaseSync } from 'node:sqlite';
 import { HEROES_BY_ROLE, MAPS_BY_NAME } from './roster';
-import { slotValues, finalBlows, type Tile } from './heroTileLabels';
+import { slotValues, isAutoMapped, finalBlows, type Tile } from './heroTileLabels';
 import { emitTrackerWrite } from './trackerEvents';
 
 
@@ -369,7 +369,7 @@ export interface FillHero {
   overall_acc: number | null; crit_acc: number | null; extra_acc: number | null;
   torpedo_damage: number | null; torpedo_healing: number | null;
   /** true when the hero is in HERO_TILE_MAP, so the accuracy slots were read. */
-  mapped: boolean; final_blows: number | null; has_personal: boolean;
+  mapped: boolean; auto_mapped?: boolean; final_blows: number | null; has_personal: boolean;
 }
 export interface FormFill {
   group_id: number; state: GroupRow['state'];
@@ -420,7 +420,7 @@ export function buildFill(db: DatabaseSync, groupId: number): FormFill | null {
       hero: h.hero!, percent: h.percent, seconds: h.seconds, duration: h.seconds != null ? mss(h.seconds) : '',
       overall_acc: slots?.overall_acc ?? null, crit_acc: slots?.crit_acc ?? null, extra_acc: slots?.extra_acc ?? null,
       torpedo_damage: slots?.torpedo_damage ?? null, torpedo_healing: slots?.torpedo_healing ?? null,
-      mapped: slots != null, final_blows: tiles ? finalBlows(tiles) : null, has_personal: !!tiles,
+      mapped: slots != null, ...(slots != null && isAutoMapped(h.hero!) ? { auto_mapped: true } : {}), final_blows: tiles ? finalBlows(tiles) : null, has_personal: !!tiles,
     };
   });
   const rk = db.prepare(`
