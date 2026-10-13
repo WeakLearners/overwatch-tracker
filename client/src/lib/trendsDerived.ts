@@ -6,12 +6,12 @@ export type RankRole = 'DPS' | 'Support' | 'Open';
 export type RankStep = { x: number; y: number };
 export type RankSeries = { account: Account; role: RankRole; color: string; steps: RankStep[]; current: boolean };
 
-/** Y-range for the rank strip, fitted to whichever series are passed in. The
+/** Y-range for the rank strip, fitted to the series passed in. The
  *  range is exactly the tiers the data sits in, whole: no padding into an
  *  empty tier (a 2-rank pad above Emerald 24 used to show a Diamond sliver
  *  with nothing in it). Tiers are 5 ranks wide; edges sit half a rank past.
- *  The card calls this again over the filtered series (one account), so a
- *  single account's line fills the strip instead of sitting among empty tiers. */
+ *  computeTrendsDerived calls it ONCE over all accounts; every rank panel shares
+ *  that scale, so tier bands never resize with the selected account or view. */
 export function computeRankRange(series: { steps: { y: number }[] }[]) {
   const rankValuesSeen = series.flatMap(s => s.steps.map(p => p.y));
   const rankHasData = rankValuesSeen.length > 0;
