@@ -717,20 +717,21 @@ function spreadSens(low: number, high: number, stages: number): number[] {
 // what was actually found.
 const NARROW_RATIO = 2 / 3;
 
-// Heroes Sean has stopped playing — dropped from the "+ Add new phase" roster
-// carry-over so new phases stop re-testing sens on heroes that will never
-// accumulate more games. Historical PHASE2-5/custom-phase records that already
-// include them are left untouched: retiring a hero ends their future, not
-// their past.
+// Heroes that are NOT carried into a new phase automatically. Sean
+// (2026-10-13): "unretire all. I just didn't want them to automatically start
+// a test. I never wanted completely removed from the roster." So these heroes
+// are skipped by the "+ Add new phase" carry-over, but Sean can add them by
+// hand in the add-hero form or the swap picker at any time. Historical
+// PHASE2-5/custom-phase records that include them stay untouched.
 //
-// Cassidy, Emre, Reaper retired 2026-08-31.
-// Baptiste retired 2026-09-15 — Sean doesn't enjoy playing him. The stated
+// Cassidy, Emre, Reaper stopped auto-carrying 2026-08-31.
+// Baptiste stopped 2026-09-15 — Sean doesn't enjoy playing him. The stated
 // reason is a roster signal worth keeping: he gravitates to heroes with real
 // movement in the kit, and Baptiste has none. Ana is the deliberate exception
 // — also low-mobility, but her kit is fun enough to outweigh it. If a future
 // phase ever needs a judgement call on whether to add a support, that's the
 // bar. His Phase 5-9 data stays fully intact and still feeds the analysis.
-const RETIRED_HEROES = new Set(['Cassidy', 'Emre', 'Reaper', 'Baptiste']);
+const NO_AUTO_CARRY_HEROES = new Set(['Cassidy', 'Emre', 'Reaper', 'Baptiste']);
 
 type HeroTestStatus = 'none' | 'testing' | 'completed' | 'paused';
 
@@ -969,7 +970,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
     try {
       const res = await fetch('/api/aim/analysis');
       const analysis: CumulativeHero[] = res.ok ? ((await res.json()) as { heroes: CumulativeHero[] }).heroes : [];
-      const built: NewPhaseRow[] = latest.plan.filter(h => !RETIRED_HEROES.has(h.hero)).map((h): NewPhaseRow => {
+      const built: NewPhaseRow[] = latest.plan.filter(h => !NO_AUTO_CARRY_HEROES.has(h.hero)).map((h): NewPhaseRow => {
         const values = valuesOf(h);
         const oldLow = Math.min(...values);
         const oldHigh = Math.max(...values);
@@ -1269,7 +1270,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                   className={`${compactField} col-span-3`} aria-label="Hero"
                 >
                   <option value="">Hero</option>
-                  {Object.keys(HEROES).filter(n => !RETIRED_HEROES.has(n) && !plan.some(p => p.hero === n)).sort().map(n => <option key={n} value={n}>{n}</option>)}
+                  {Object.keys(HEROES).filter(n => !plan.some(p => p.hero === n)).sort().map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
                 <select
                   value={addHeroRow.archetype} onChange={e => setAddHeroRow({ ...addHeroRow, archetype: e.target.value })}
@@ -1331,7 +1332,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                       value={editRow.hero} disabled={locked} onChange={e => setEditRow({ ...editRow, hero: e.target.value })}
                       className={`${compactField} col-span-3 disabled:opacity-60`} aria-label="Hero"
                     >
-                      {Object.keys(HEROES).filter(n => n === h.hero || (!RETIRED_HEROES.has(n) && !plan.some(p => p.hero === n))).sort().map(n => <option key={n} value={n}>{n}</option>)}
+                      {Object.keys(HEROES).filter(n => n === h.hero || (!plan.some(p => p.hero === n))).sort().map(n => <option key={n} value={n}>{n}</option>)}
                     </select>
                     <select
                       value={editRow.archetype} onChange={e => setEditRow({ ...editRow, archetype: e.target.value })}
