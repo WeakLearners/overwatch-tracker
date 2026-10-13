@@ -9,8 +9,15 @@ import type { StatFieldsT, HeroAccStat } from '../components/AimStatsFields';
 export interface FillHero {
   hero: string; percent: number; seconds: number | null; duration: string;
   overall_acc: number | null; crit_acc: number | null; extra_acc: number | null;
-  torpedo_damage: number | null; torpedo_healing: number | null; mapped: boolean;
+  torpedo_damage: number | null; torpedo_healing: number | null; mapped: boolean; auto_mapped?: boolean;
+  /** Where each slot's tile came from (server: heroTileLabels.ts resolveSlots). */
+  slot_source?: Record<PickSlot, 'map' | 'pick' | 'derived' | null>;
+  /** Menu options for the slots nothing fills yet; empty or missing = no menu. */
+  pickable?: Partial<Record<PickSlot, PickTile[]>>;
 }
+export type PickSlot = 'overall' | 'crit' | 'extra';
+/** A percent tile of the hero's Personal page: label as printed, value like "54%". */
+export interface PickTile { label: string; value: string }
 export interface FormFill {
   group_id: number; map: string | null; win: 0 | 1 | null; score_us: number | null; score_them: number | null;
   heroes: FillHero[]; elims: number | null; assists: number | null; deaths: number | null;

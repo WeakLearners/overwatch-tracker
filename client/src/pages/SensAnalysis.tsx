@@ -10,6 +10,7 @@ import { MOUSE_DPI } from '../lib/aim';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 // Per-hero stat-slot names, shared with the SensLog entry form. Without these
 // this page printed Ana's sleep dart hit rate under a column headed "Crit".
+import { useTilePicks } from '../hooks/useTilePicks';
 import { critSlotShort, extraSlotShort, hasCrit } from '../lib/heroStatLabels';
 
 // Matches before / on-or-after the 2026-10-06 game patch ([pre, post]). A note,
@@ -920,6 +921,7 @@ interface ActiveStudySet {
 }
 
 export default function SensAnalysis() {
+  const tilePicks = useTilePicks(); // picked-tile labels (revalidated with the rest of the page)
   const { data, loading } = useApi<Analysis>('/api/aim/analysis');
   const { data: blindState } = useApi<{ actives: ActiveStudySet[] }>('/api/blind/state');
   const heroCounts = useTodayHeroCounts();
@@ -1412,7 +1414,7 @@ export default function SensAnalysis() {
                     {hasCrit(h.hero) ? (
                       <>
                         {f1(h.avgCrit)}%
-                        <span className="ml-1.5 text-[10px] font-normal text-[var(--faint-2)]">{critSlotShort(h.hero)}</span>
+                        <span className="ml-1.5 text-[10px] font-normal text-[var(--faint-2)]">{critSlotShort(h.hero, tilePicks)}</span>
                       </>
                     ) : (
                       <span className="text-[var(--faint-2)] text-[10px] font-normal">no crit stat</span>
@@ -1462,8 +1464,8 @@ export default function SensAnalysis() {
         const CHANNEL_MIN_N = 3; // below this a cell is shown but greyed
         const abilityHeroes = heroes
           .map(h => {
-            const critName = hasCrit(h.hero) ? critSlotShort(h.hero) : null;
-            const extraName = extraSlotShort(h.hero);
+            const critName = hasCrit(h.hero) ? critSlotShort(h.hero, tilePicks) : null;
+            const extraName = extraSlotShort(h.hero, tilePicks);
             const hasCritData = critName != null && h.scales.some(s => s.avgCrit != null);
             const hasExtraData = extraName != null && h.scales.some(s => s.nExtra > 0);
             const hasStatData = h.nHeroStat > 0;
@@ -1675,8 +1677,8 @@ export default function SensAnalysis() {
         // (heroStatCurveChannel) names itself rather than being called
         // "Crit" for a hero whose curve is actually a raw kill count.
         const heroStatChannelLabel = (h: HeroRow): string => {
-          if (h.heroStatCurveChannel === 'crit') return hasCrit(h.hero) ? critSlotShort(h.hero) : 'crit stat';
-          if (h.heroStatCurveChannel === 'extra') return extraSlotShort(h.hero) ?? 'extra accuracy';
+          if (h.heroStatCurveChannel === 'crit') return hasCrit(h.hero) ? critSlotShort(h.hero, tilePicks) : 'crit stat';
+          if (h.heroStatCurveChannel === 'extra') return extraSlotShort(h.hero, tilePicks) ?? 'extra accuracy';
           if (h.heroStatCurveChannel === 'heroStat') return h.heroStatLabel ?? 'signature stat';
           return 'hero stat';
         };
@@ -2030,8 +2032,8 @@ export default function SensAnalysis() {
           crit alone — one channel instead of two, same as every hero below. */}
       {(() => {
         const coverage = heroes.map(h => {
-          const crit = hasCrit(h.hero) ? critSlotShort(h.hero) : null;
-          const extra = extraSlotShort(h.hero);
+          const crit = hasCrit(h.hero) ? critSlotShort(h.hero, tilePicks) : null;
+          const extra = extraSlotShort(h.hero, tilePicks);
           const sig = h.heroStatLabel;
           const none = crit == null && extra == null && sig == null;
           return { h, crit, extra, sig, none };

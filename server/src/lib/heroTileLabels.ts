@@ -91,18 +91,76 @@ export function deriveSlotTiles(tiles: Tile[], hero?: string): Partial<SlotTiles
 /** True when the hero has no hand-map entry, so its slots come from deriveSlotTiles. */
 export const isAutoMapped = (hero: string) => !Object.prototype.hasOwnProperty.call(HERO_TILE_MAP, hero);
 
-/** Accuracy slot values for a hero: the hand map wins, else the derived standard labels, else null. Never guesses. */
-export function slotValues(hero: string, tiles: Tile[]): SlotValues | null {
-  const map = Object.prototype.hasOwnProperty.call(HERO_TILE_MAP, hero) ? HERO_TILE_MAP[hero] : deriveSlotTiles(tiles, hero);
-  if (!map) return null;
+export type Slot = 'overall' | 'crit' | 'extra';
+export const SLOTS: readonly Slot[] = ['overall', 'crit', 'extra'];
+export type SlotSource = 'map' | 'pick' | 'derived' | null;
+/** A saved pick per slot: a lowercase tile label, or null = "None for this hero". A missing key = no pick yet. */
+export type HeroPicks = Partial<Record<Slot, string | null>>;
+export interface ResolvedSlot { tile: string | null; source: SlotSource }
+export interface PickTile { label: string; value: string }
+
+const hasOwn = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
+
+/**
+ * Which tile fills each slot. Precedence per hero and slot: hand map (HERO_TILE_MAP) > saved pick >
+ * derived standard label (only for heroes outside the hand map, and never into a client-overridden slot) > empty.
+ * A pick of null ("None for this hero") resolves to empty with source null, so the menu stays away.
+ */
+export function resolveSlots(hero: string, tiles: Tile[], picks: HeroPicks = {}): Record<Slot, ResolvedSlot> {
+  const inMap = hasOwn(HERO_TILE_MAP, hero);
+  const map: Partial<SlotTiles> = inMap ? HERO_TILE_MAP[hero] : {};
+  const derived = inMap ? null : deriveSlotTiles(tiles, hero);
+  const one = (slot: Slot): ResolvedSlot => {
+    if (map[slot]) return { tile: map[slot]!, source: 'map' };
+    if (hasOwn(picks, slot)) { const t = picks[slot] ?? null; return t ? { tile: lc(t), source: 'pick' } : { tile: null, source: null }; }
+    if (derived?.[slot]) return { tile: derived[slot]!, source: 'derived' };
+    return { tile: null, source: null };
+  };
+  return { overall: one('overall'), crit: one('crit'), extra: one('extra') };
+}
+
+/** Accuracy slot values for a hero (precedence in resolveSlots). Null for a hero outside the hand map when no slot resolves. Never guesses. */
+export function slotValues(hero: string, tiles: Tile[], picks: HeroPicks = {}): SlotValues | null {
+  const r = resolveSlots(hero, tiles, picks);
+  const inMap = hasOwn(HERO_TILE_MAP, hero);
+  if (!inMap && !SLOTS.some(s => r[s].tile)) return null;
+  const map: Partial<SlotTiles> = inMap ? HERO_TILE_MAP[hero] : {};
   return {
-    overall_acc: map.overall ? tileValue(tiles, map.overall) : null,
-    crit_acc: map.crit ? tileValue(tiles, map.crit) : null,
-    extra_acc: map.extra ? tileValue(tiles, map.extra) : null,
+    overall_acc: r.overall.tile ? tileValue(tiles, r.overall.tile) : null,
+    crit_acc: r.crit.tile ? tileValue(tiles, r.crit.tile) : null,
+    extra_acc: r.extra.tile ? tileValue(tiles, r.extra.tile) : null,
     torpedo_damage: map.torpedo_damage ? tileValue(tiles, map.torpedo_damage) : null,
     torpedo_healing: map.torpedo_healing ? tileValue(tiles, map.torpedo_healing) : null,
   };
 }
+
+/**
+ * Menu options for the slots nothing fills yet. Only heroes outside the hand map get a menu: a mapped hero's
+ * empty slot (Cassidy extra, Juno crit) was checked against a real page and is empty on purpose.
+ * Options: PERCENT tiles of this hero's Personal page (value ends in %, not PERCENT PLAYED), minus tiles another
+ * slot of the hero already uses. Slots with a saved pick (None included) get no menu. The crit slot of a no-crit hero never does.
+ */
+export function pickableTiles(hero: string, tiles: Tile[], picks: HeroPicks = {}): Partial<Record<Slot, PickTile[]>> {
+  if (hasOwn(HERO_TILE_MAP, hero)) return {};
+  const r = resolveSlots(hero, tiles, picks);
+  const used = new Set(SLOTS.map(s => r[s].tile).filter((t): t is string => !!t));
+  const options = tiles
+    .filter(t => /%\s*$/.test(t.value) && lc(t.label) !== 'percent played' && !used.has(lc(t.label)))
+    .map(t => ({ label: t.label.trim(), value: t.value.trim() }));
+  const out: Partial<Record<Slot, PickTile[]>> = {};
+  for (const slot of SLOTS) {
+    if (r[slot].source != null || hasOwn(picks, slot)) continue;
+    if (slot === 'crit' && (CLIENT_NO_CRIT_HEROES as readonly string[]).includes(hero)) continue;
+    if (options.length) out[slot] = options;
+  }
+  return out;
+}
+
+/** "sleep dart accuracy" -> "Sleep Dart Accuracy %": the form label a picked tile gets (the unit suffix matches the static labels). */
+export const pickFormLabel = (tileLabel: string) =>
+  `${lc(tileLabel).split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')} %`;
+
+export const normTileLabel = lc;
 
 export function finalBlows(tiles: Tile[]): number | null {
   for (const l of FINAL_BLOWS_LABELS) {

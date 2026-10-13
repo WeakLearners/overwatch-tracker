@@ -5,6 +5,8 @@ import { scoreboardDir } from '../lib/scoreboardWatcher';
 import { REMATCH_GRACE_MIN, recheckGroup } from '../lib/scoreboard';
 import { syncMatchHeroStats } from '../lib/matchHeroStats';
 import { computeStage } from '../lib/scoreboardStage';
+import { listPicks, savePick, resetPick, isSlot } from '../lib/heroTilePicks';
+import { normTileLabel } from '../lib/heroTileLabels';
 import { buildFill, linkGroup, syncLeaverFromBoard, TEAMS_ONLY, type GroupRow } from '../lib/scoreboardPages';
 
 /** Folder to file images into; null (SCOREBOARD_DIR unset) skips filing. */
@@ -30,6 +32,33 @@ function livePayload(db: ReturnType<typeof getDb>) {
   return { light: 'green', group_id: g.id, fill, ...stage };
 }
 router.get('/live', (_req, res) => { res.json(livePayload(getDb())); });
+
+// Tile picks: which Personal-page tile fills a hero's accuracy slot when the hand map does not.
+// GET lists them with their form labels (every surface that shows a slot label reads this). POST saves
+// one from a group's menu and returns the fresh /live payload so the form fills at once. A saved pick is
+// fixed: POST on a taken slot is 409, and /reset (no UI) refuses while logged rows hold a value there.
+router.get('/tile-picks', (_req, res) => { res.json({ picks: listPicks(getDb()) }); });
+router.post('/tile-picks', (req, res) => {
+  const db = getDb();
+  const { group_id, hero, slot, tile_label } = (req.body ?? {}) as { group_id?: unknown; hero?: unknown; slot?: unknown; tile_label?: unknown };
+  if (typeof hero !== 'string' || !isSlot(slot) || !(tile_label === null || typeof tile_label === 'string') || !Number.isInteger(group_id)) {
+    res.status(400).json({ error: 'group_id, hero, slot and tile_label (string or null) are required' }); return;
+  }
+  const fill = buildFill(db, group_id as number);
+  const fh = fill?.heroes.find(h => h.hero === hero);
+  const options = fh?.pickable[slot];
+  if (!fh || !options) { res.status(409).json({ error: 'That slot has no menu for this hero in this group' }); return; }
+  if (tile_label !== null && !options.some(o => normTileLabel(o.label) === normTileLabel(tile_label))) { res.status(400).json({ error: 'That tile is not on the hero page' }); return; }
+  if (!savePick(db, hero, slot, tile_label)) { res.status(409).json({ error: 'That slot already has a saved pick' }); return; }
+  res.json(livePayload(db));
+});
+router.post('/tile-picks/reset', (req, res) => {
+  const { hero, slot } = (req.body ?? {}) as { hero?: unknown; slot?: unknown };
+  if (typeof hero !== 'string' || !isSlot(slot)) { res.status(400).json({ error: 'hero and slot are required' }); return; }
+  const r = resetPick(getDb(), hero, slot);
+  if (!r.ok) { res.status(r.status).json({ error: r.error }); return; }
+  res.json({ ok: true });
+});
 
 // "Re-read the scoreboard" button. Re-decides the stored group from its saved Summary
 // reading (recheckGroup, one transaction, no vision call, no backup) and returns the

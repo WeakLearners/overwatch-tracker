@@ -9,13 +9,14 @@
 // payload) and the group queries. It never imports scoreboard.ts, so the two
 // files do not form a cycle. Rules that must not drift:
 //  - A name that is not exactly in the roster becomes null. Never fuzzy-match.
-//  - Accuracy slots fill only for heroes in HERO_TILE_MAP (heroTileLabels.ts).
+//  - Accuracy slots: hand map (HERO_TILE_MAP) > saved pick (hero_tile_picks) > derived standard label (heroTileLabels.ts).
 //  - Recovery and submit fills only write NULL columns of rows that already exist.
 //  - A rank page fills matches.player_rank / player_rank_start only where they are NULL.
 import { syncMatchHeroStats } from './matchHeroStats';
 import type { DatabaseSync } from 'node:sqlite';
 import { HEROES_BY_ROLE, MAPS_BY_NAME } from './roster';
-import { slotValues, isAutoMapped, finalBlows, type Tile } from './heroTileLabels';
+import { slotValues, resolveSlots, pickableTiles, isAutoMapped, finalBlows, type Tile, type Slot, type SlotSource, type PickTile } from './heroTileLabels';
+import { loadPicks } from './heroTilePicks';
 import { emitTrackerWrite } from './trackerEvents';
 
 
@@ -370,6 +371,10 @@ export interface FillHero {
   torpedo_damage: number | null; torpedo_healing: number | null;
   /** true when the hero is in HERO_TILE_MAP, so the accuracy slots were read. */
   mapped: boolean; auto_mapped?: boolean; final_blows: number | null; has_personal: boolean;
+  /** Where each slot's tile came from: the hand map, a saved pick, the derived standard label, or nothing. */
+  slot_source: Record<Slot, SlotSource>;
+  /** Menu options per slot that nothing fills yet (see pickableTiles); empty object = no menu. */
+  pickable: Partial<Record<Slot, PickTile[]>>;
 }
 export interface FormFill {
   group_id: number; state: GroupRow['state'];
@@ -413,14 +418,19 @@ export function buildFill(db: DatabaseSync, groupId: number): FormFill | null {
   const self = tp ? db.prepare(`SELECT dmg, h, mit FROM scoreboard_rows WHERE scoreboard_id = ? AND is_self = 1`).get(tp.id) as { dmg: number; h: number; mit: number } | undefined : undefined;
 
   const boardLeaver = tp ? leaverFromBoard(db, tp.id) : null;
+  const picks = loadPicks(db);
   const heroes: FillHero[] = (sum?.heroes ?? []).filter(h => h.hero).slice(0, 3).map(h => {
     const tiles = personal.get(h.hero!);
-    const slots = tiles ? slotValues(h.hero!, tiles) : null;
+    const hp = picks.get(h.hero!) ?? {};
+    const slots = tiles ? slotValues(h.hero!, tiles, hp) : null;
+    const rs = tiles ? resolveSlots(h.hero!, tiles, hp) : null;
     return {
       hero: h.hero!, percent: h.percent, seconds: h.seconds, duration: h.seconds != null ? mss(h.seconds) : '',
       overall_acc: slots?.overall_acc ?? null, crit_acc: slots?.crit_acc ?? null, extra_acc: slots?.extra_acc ?? null,
       torpedo_damage: slots?.torpedo_damage ?? null, torpedo_healing: slots?.torpedo_healing ?? null,
       mapped: slots != null, ...(slots != null && isAutoMapped(h.hero!) ? { auto_mapped: true } : {}), final_blows: tiles ? finalBlows(tiles) : null, has_personal: !!tiles,
+      slot_source: { overall: rs?.overall.source ?? null, crit: rs?.crit.source ?? null, extra: rs?.extra.source ?? null },
+      pickable: tiles ? pickableTiles(h.hero!, tiles, hp) : {},
     };
   });
   const rk = db.prepare(`

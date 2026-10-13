@@ -59,21 +59,43 @@ export const RAW_STAT_FIELDS: Record<string, { key: 'torpedo_damage' | 'torpedo_
   ],
 };
 
-export const overallSlot = (hero: string) =>
-  OVERALL_SLOT_LABEL[hero] ?? { label: 'Overall %', aria: 'overall accuracy' };
+// Labels of tiles the user picked for a hero's slot (server: hero_tile_picks, GET /api/scoreboards/tile-picks).
+// A pick wins over the static maps above, which stay the defaults for heroes nobody picked for. The picks are
+// NOT held in a module variable: components load them with useTilePicks (a useApi hook, so revalidateAll
+// refreshes it) and pass them in. A None pick has a null label and changes nothing.
+export type SlotKey = 'overall' | 'crit' | 'extra';
+export type TilePickLabels = Record<string, Partial<Record<SlotKey, string | null>>>;
+export const picksToLabels = (rows: { hero: string; slot: SlotKey; label: string | null }[]): TilePickLabels => {
+  const out: TilePickLabels = {};
+  for (const r of rows) (out[r.hero] ??= {})[r.slot] = r.label;
+  return out;
+};
+const pickLabel = (hero: string, slot: SlotKey, picks?: TilePickLabels) => picks?.[hero]?.[slot] ?? null;
+const pickSlot = (label: string) => ({ label, aria: label.replace(/\s*%$/, '').toLowerCase() });
 
-export const critSlot = (hero: string) =>
-  CRIT_SLOT_LABEL[hero] ?? { label: 'Crit %', aria: 'crit accuracy' };
+export const overallSlot = (hero: string, picks?: TilePickLabels) => {
+  const p = pickLabel(hero, 'overall', picks);
+  return p ? pickSlot(p) : OVERALL_SLOT_LABEL[hero] ?? { label: 'Overall %', aria: 'overall accuracy' };
+};
+
+export const critSlot = (hero: string, picks?: TilePickLabels) => {
+  const p = pickLabel(hero, 'crit', picks);
+  return p ? pickSlot(p) : CRIT_SLOT_LABEL[hero] ?? { label: 'Crit %', aria: 'crit accuracy' };
+};
+
+/** The 4th slot's label: a pick, else the static label, else null (the hero has no extra field). */
+export const extraSlot = (hero: string, picks?: TilePickLabels): string | null =>
+  pickLabel(hero, 'extra', picks) ?? EXTRA_ACC_LABEL[hero] ?? null;
 
 export const hasCrit = (hero: string) => !NO_CRIT_HEROES.has(hero);
 
 // Same as critSlot().label with the trailing unit stripped — for table cells
 // and chips where "%" is already implied by the value next to it, so a column
 // reads "Sleep Dart" rather than "Sleep Dart Accuracy %  41.4%".
-export const critSlotShort = (hero: string) =>
-  critSlot(hero).label.replace(/\s*(Accuracy\s*)?%\(?\+?\)?$/, '').trim();
+export const critSlotShort = (hero: string, picks?: TilePickLabels) =>
+  critSlot(hero, picks).label.replace(/\s*(Accuracy\s*)?%\(?\+?\)?$/, '').trim();
 
-export const extraSlotShort = (hero: string) => {
-  const l = EXTRA_ACC_LABEL[hero];
+export const extraSlotShort = (hero: string, picks?: TilePickLabels) => {
+  const l = extraSlot(hero, picks);
   return l ? l.replace(/\s*(Accuracy\s*)?%$/, '').trim() : null;
 };

@@ -1163,6 +1163,21 @@ function initSchema(db: DatabaseSync) {
     );
   `);
 
+  // Hero tile picks (2026-10-13): which Personal-page tile fills a hero's accuracy slot when the hand map
+  // (HERO_TILE_MAP) does not. One row per (hero, slot); tile_label is a lowercase tile label, or NULL =
+  // "None for this hero" (saved so the menu does not come back). Fixed once saved: only
+  // POST /api/scoreboards/tile-picks/reset removes a row, and that refuses while the slot holds data.
+  // picked_at is audit only (when Sean chose); nothing reads it. New table, no migration step.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS hero_tile_picks (
+      hero TEXT NOT NULL,
+      slot TEXT NOT NULL CHECK(slot IN ('overall','crit','extra')),
+      tile_label TEXT,
+      picked_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (hero, slot)
+    );
+  `);
+
     db.exec('COMMIT');
   } catch (err) {
     db.exec('ROLLBACK');

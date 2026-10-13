@@ -14,8 +14,8 @@ import { useDfHeroes, dfSensForHeroName, withDfBadge } from '../hooks/useDfHeroe
 import { format } from 'date-fns';
 import { useFieldConfig } from '../contexts/FieldConfigContext';
 import ScoreboardLight from '../components/ScoreboardLight';
-import { fillPatch, fillSignature, heroMismatch, type FormFill, type LivePayload } from '../lib/scoreboardFill';
-import { StatFields, emptyStats, statsBody, statsTouched, statsValid, type StatFieldsT } from '../components/AimStatsFields';
+import { fillPatch, fillSignature, heroMismatch, type FormFill, type LivePayload, type PickSlot } from '../lib/scoreboardFill';
+import { StatFields, emptyStats, statsBody, statsTouched, statsValid, type StatFieldsT, type TileMenus } from '../components/AimStatsFields';
 import ScoreInputs, { scoreOrNull } from '../components/ScoreInputs';
 import type { RankOutcomeValue, RankOutcomeChange } from '../components/RankOutcomeControl';
 
@@ -785,6 +785,22 @@ export default function LogMatch() {
         revalidateAll();
       }
     } finally { setRechecking(false); }
+  };
+  // Tile menus for slots the scoreboard fill cannot name (new heroes; server: heroTileLabels.ts pickableTiles).
+  // A pick is saved on the server, which returns the fresh fill; it fills BLANK fields only, so typed values stay.
+  const tileMenus: TileMenus | undefined = live?.light === 'green' && live.fill
+    ? Object.fromEntries(live.fill.heroes.filter(h => h.pickable && Object.keys(h.pickable).length).map(h => [h.hero, h.pickable!]))
+    : undefined;
+  const pickTile = async (hero: string, slot: PickSlot, tile: string | null) => {
+    if (live?.light !== 'green' || live.group_id == null) return;
+    const res = await fetch('/api/scoreboards/tile-picks', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ group_id: live.group_id, hero, slot, tile_label: tile }),
+    });
+    if (!res.ok) return;
+    const fresh = await res.json() as LivePayload;
+    if (fresh.light === 'green' && fresh.fill) fillFromScoreboard(fresh.fill, false);
+    revalidateAll();
   };
   // Hero pickers vs scoreboard heroes, judged on the form as it is now.
   const heroMis = !crashedGame && live?.light === 'green' && live.fill ? heroMismatch([form.hero, ...switchHeroes], live.fill) : null;
@@ -1608,6 +1624,8 @@ export default function LogMatch() {
                       updHeroAcc={(i, k, v) => setAimStats(st => ({ ...st, heroAcc: st.heroAcc.map((h, hi) => hi === i ? { ...h, [k]: v } : h) }))}
                       showHealing={aimHasSupport}
                       heroSens={Object.fromEntries(playedHeroes.map(h => [h, String(displaySensForHero(h) ?? '')]))}
+                      tileMenus={tileMenus}
+                      onPickTile={pickTile}
                     />
                     {aimIncomplete && (
                       <p data-inspect-id="logmatch-aim-stats-hint" className="text-[10px] text-ow-accent">
