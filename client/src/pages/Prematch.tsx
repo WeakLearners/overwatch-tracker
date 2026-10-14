@@ -8,7 +8,7 @@ import { format } from 'date-fns';
 import { activeMapNames, MAPS, mapShort, heroShort, QUEUE_MODES, ROLE_COLORS, ROLE_SEL_RGB, ROLE_TEXT, ROLE_PILL_CLASS, TYPE_COLORS, HEROES, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, MapVotingRow, QueueMode, Streaks, RANK_TIER_RGB, ACCOUNTS, rankLabel, rankShort, rankTier, rankDivision } from '../types';
 import AdvisorCard from '../components/AdvisorCard';
 import EmptyState from '../components/EmptyState';
-import FindingChip from '../components/FindingChip';
+import FindingChip, { type Finding } from '../components/FindingChip';
 import { useMapDrawer } from '../contexts/MapDrawerContext';
 import HeroPortraitBg, { PortraitFallback } from '../components/HeroPortraitBg';
 import { useHeroDrawer } from '../contexts/HeroDrawerContext';
@@ -114,6 +114,7 @@ interface AimAnalysisHero { hero: string; bestScaleEDPI: number | null; bestScal
 interface MomentumHero {
   hero: string; role: string; recent_wr: number | null; prev_wr: number | null;
   recent_games: number; prev_games: number; is_new: 0 | 1;
+  finding?: Finding;
 }
 
 interface PrematchData {
@@ -1117,7 +1118,7 @@ export default function Prematch() {
               return (
                 <div key={role} className="chamfer match-card-bg relative isolate px-4 py-3">
                   {rec && <HeroPortraitBg hero={rec.hero} inspectId="prematch-recommended-portrait-bg" />}
-                  <div className="text-[10px] grad-brand font-bold uppercase tracking-widest mb-1">Trending {role}</div>
+                  <div className="text-[10px] grad-brand font-bold uppercase tracking-widest mb-1">{rec?.finding?.verdict === 'holds' ? 'Trending' : 'Recent form'} {role}</div>
                   {rec ? (
                     <>
                       <div className="flex items-center gap-3">
@@ -1132,13 +1133,18 @@ export default function Prematch() {
                             {rec.recent_wr ?? '—'}%
                           </div>
                           <div className="text-[11px] text-[var(--muted)]">
-                            {delta != null ? (
-                              <span className={`font-bold ${delta >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>{delta >= 0 ? '▲' : '▼'} {Math.abs(delta)}pt</span>
+                            {delta != null && rec.finding && rec.finding.verdict !== 'thin' ? (
+                              <span className="font-bold">{delta >= 0 ? '+' : '−'}{Math.abs(delta)} pts</span>
                             ) : (
-                              <span>new form</span>
+                              <span>{rec.is_new ? 'new form' : 'thin'}</span>
                             )}
                             {' · '}<b className="font-bold">{rec.recent_games}</b> games (30d)
                           </div>
+                          {rec.finding && (
+                            <div className="text-[11px] text-[var(--muted)] mt-0.5" data-inspect-id="prematch-recommended-evidence">
+                              {rec.finding.lo}–{rec.finding.hi}% <FindingChip finding={rec.finding} />
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="mt-2 pt-2 border-t border-ow-border/40 flex items-center justify-between" data-inspect-id="prematch-recommended-sens">

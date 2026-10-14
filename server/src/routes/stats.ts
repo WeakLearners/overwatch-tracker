@@ -373,12 +373,28 @@ router.get('/momentum', (req: Request, res: Response) => {
       ROUND(AVG(CASE WHEN date >= date('now','-120 days') AND date < date('now','-30 days') THEN win END)*100,1)           AS prev_wr,
       COUNT(CASE WHEN date >= date('now','-30 days') THEN 1 END)                                                           AS recent_games,
       COUNT(CASE WHEN date >= date('now','-120 days') AND date < date('now','-30 days') THEN 1 END)                        AS prev_games,
-      CASE WHEN COUNT(CASE WHEN date >= date('now','-120 days') AND date < date('now','-30 days') THEN 1 END) >= 5 THEN 0 ELSE 1 END AS is_new
+      CASE WHEN COUNT(CASE WHEN date >= date('now','-120 days') AND date < date('now','-30 days') THEN 1 END) >= 5 THEN 0 ELSE 1 END AS is_new,
+      COALESCE(SUM(CASE WHEN date >= date('now','-30 days') THEN win END),0)                                               AS recent_wins,
+      COALESCE(SUM(CASE WHEN date >= date('now','-120 days') AND date < date('now','-30 days') THEN win END),0)            AS prev_wins
     FROM matches_by_hero
     GROUP BY hero
     HAVING recent_games >= 5
     ORDER BY is_new ASC, (COALESCE(recent_wr,0) - COALESCE(prev_wr,0)) DESC, recent_wr DESC
-  `).all({});
+  `).all({}) as any[];
+
+  // Lab Finding per hero: the last 30 days against the 90 days before, so the
+  // chip says whether the "trend" is real. Corrected over the heroes with 10+
+  // games in both windows (design-language.md section 5). A hero without a
+  // baseline has nothing to compare, so it carries no finding.
+  const trendGroups = byHero.filter(h => h.recent_games >= FINDING_MIN_N && h.prev_games >= FINDING_MIN_N).length;
+  for (const h of byHero) {
+    if (h.is_new) continue;
+    h.finding = makeFinding(
+      { wins: h.recent_wins, n: h.recent_games },
+      { wins: h.prev_wins, n: h.prev_games },
+      trendGroups,
+    );
+  }
 
   const byGameType = db.prepare(`
     SELECT game_type,
