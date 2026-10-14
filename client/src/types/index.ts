@@ -155,6 +155,7 @@ export interface MapVotingRow {
   recent_games: number;
   recent_rate: number | null;
   blended_score: number;
+  finding?: import('../components/FindingChip').Finding;
 }
 
 export interface HeroStat {

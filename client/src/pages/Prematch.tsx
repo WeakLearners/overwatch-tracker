@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import { activeMapNames, MAPS, mapShort, heroShort, QUEUE_MODES, ROLE_COLORS, ROLE_SEL_RGB, ROLE_TEXT, ROLE_PILL_CLASS, TYPE_COLORS, HEROES, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, MapVotingRow, QueueMode, Streaks, RANK_TIER_RGB, ACCOUNTS, rankLabel, rankShort, rankTier, rankDivision } from '../types';
 import AdvisorCard from '../components/AdvisorCard';
 import EmptyState from '../components/EmptyState';
+import FindingChip from '../components/FindingChip';
 import { useMapDrawer } from '../contexts/MapDrawerContext';
 import HeroPortraitBg, { PortraitFallback } from '../components/HeroPortraitBg';
 import { useHeroDrawer } from '../contexts/HeroDrawerContext';
@@ -428,9 +429,16 @@ export default function Prematch() {
   // The headline below prefers the hero-informed pick and only falls back to
   // the map-only blended score; the selected-map chips must follow the same
   // branch or the green check lands on a different map than the headline.
-  const recommended = testPick?.available && testPick.picks.length > 0
+  // A map is only named when its Finding holds up (design-language.md
+  // section 5); with two or more maps offered and no reliable winner the
+  // card says so and lists the maps by games played.
+  const topMap = testPick?.available && testPick.picks.length > 0
     ? testPick.picks[0].map
     : winner;
+  const voteReliable = scoreMap[topMap]?.finding?.verdict === 'holds';
+  const noReliableVote = selected.length >= 2 && !voteReliable;
+  const recommended = noReliableVote ? undefined : topMap;
+  const byGames = [...selected].sort((a, b) => (scoreMap[b]?.total_games ?? 0) - (scoreMap[a]?.total_games ?? 0));
   const topOnMap = data?.byHero ?? [];
   // "Select Your Hero" surfaces every hero in the CURRENT testing phase's
   // full roster — both the ones still actively testing and the ones that
@@ -876,7 +884,22 @@ export default function Prematch() {
               the former separate "Top Picks" list below this — folded in
               per "new feature does not equate to new elements" rather than
               keeping two side-by-side recommendations. */}
-          {selected.length > 0 && (testPick?.available ? testPick.picks.length > 0 : ranked.length > 0) && (
+          {noReliableVote && (testPick?.available ? testPick.picks.length > 0 : ranked.length > 0) && (
+            <div className="flex flex-col gap-1" data-inspect-id="prematch-map-voting-no-reliable">
+              <div className="text-sm text-[var(--ink-2)]">No reliable difference between these maps.</div>
+              {byGames.map(m => (
+                <div key={m} className="flex items-baseline justify-between gap-2 text-xs text-[var(--faint)]">
+                  <span className="map-name text-sm text-[var(--ink-2)] min-w-0 truncate">{withMapCount(m, mapCounts)}</span>
+                  <span className="shrink-0">
+                    {scoreMap[m]
+                      ? <><b className="font-bold">{scoreMap[m].historical_rate.toFixed(1)}%</b> ({scoreMap[m].finding!.lo.toFixed(0)}–{scoreMap[m].finding!.hi.toFixed(0)}%) · <b className="font-bold">{scoreMap[m].total_games}</b> games</>
+                      : 'no games'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          {!noReliableVote && selected.length > 0 && (testPick?.available ? testPick.picks.length > 0 : ranked.length > 0) && (
             <div className="grid grid-cols-[minmax(0,max-content)_10%_minmax(0,1fr)_max-content] items-center gap-0 auto-rows-fr flex-1 min-h-0">
               {testPick?.available && testPick.picks.length > 0 ? (
                 testPick.picks.slice(0, 3).map((p, i) => (
@@ -899,6 +922,7 @@ export default function Prematch() {
                       <span className="hero-name">{p.hero}</span> · <b className="font-bold">{p.games}</b> games
                       {p.sample_size === 'thin' && <span className="text-amber-500"> · thin</span>}
                     </span>
+                    {i === 0 && scoreMap[p.map]?.finding && <span className="ml-2"><FindingChip finding={scoreMap[p.map].finding!} /></span>}
                     </div>
                     <div className={cell(i, 'justify-end')}>
                     <span className={i === 0 ? 'text-2xl leading-tight map-name font-bold text-emerald-500 text-right' : 'text-lg map-name font-bold text-right'}>{p.win_rate.toFixed(1)}%</span>
@@ -924,6 +948,7 @@ export default function Prematch() {
                     <span className={`text-xs text-[var(--faint)] text-left truncate min-w-0`}>
                       {scoreMap[m] && <>blended · <b className="font-bold">{scoreMap[m].total_games}</b> games</>}
                     </span>
+                    {i === 0 && scoreMap[m]?.finding && <span className="ml-2"><FindingChip finding={scoreMap[m].finding!} /></span>}
                     </div>
                     <div className={cell(i, 'justify-end')}>
                     <span className={i === 0 ? 'text-2xl leading-tight map-name font-bold text-emerald-500 text-right' : 'text-lg map-name font-bold text-right'}>

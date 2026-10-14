@@ -522,7 +522,24 @@ router.get('/map-voting', (req: Request, res: Response) => {
     FROM historical h
     LEFT JOIN recent r ON h.map = r.map
     ORDER BY blended_score DESC
-  `).all(qm ? { qm } : {});
+  `).all(qm ? { qm } : {}) as any[];
+
+  // Lab Finding per map: each map against the other games in the same pool,
+  // corrected over the maps with 10+ games (design-language.md section 5).
+  const winRows = db.prepare(`
+    SELECT map, COUNT(*) AS n, SUM(win) AS wins
+    FROM matches
+    WHERE map NOT IN ('Hanaoka', 'Anubis')${qmAnd}
+    GROUP BY map
+  `).all(qm ? { qm } : {}) as { map: string; n: number; wins: number }[];
+  const totalN = winRows.reduce((a, r) => a + r.n, 0);
+  const totalWins = winRows.reduce((a, r) => a + r.wins, 0);
+  const groupsTested = winRows.filter(r => r.n >= FINDING_MIN_N).length;
+  const byMap = new Map(winRows.map(r => [r.map, r]));
+  for (const row of rows) {
+    const w = byMap.get(row.map);
+    if (w) row.finding = makeFinding({ wins: w.wins, n: w.n }, { wins: totalWins - w.wins, n: totalN - w.n }, groupsTested);
+  }
 
   res.json(rows);
 });
