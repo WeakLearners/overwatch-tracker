@@ -262,7 +262,22 @@ router.get('/prematch', (req: Request, res: Response) => {
            ROUND(AVG(win) * 100, 1) as win_rate
     FROM matches_by_hero ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
     GROUP BY hero ORDER BY win_rate DESC
-  `).all({ ...(map ? { map } : {}), ...(game_type ? { game_type } : {}) });
+  `).all({ ...(map ? { map } : {}), ...(game_type ? { game_type } : {}) }) as any[];
+
+  // Lab Finding per hero for the hero picker: each hero against the games on
+  // the other heroes in the same scope (this map and queue mode when picked),
+  // corrected over the heroes with 10+ games (design-language.md section 5).
+  // The picker itself stays a plain pick list; the chip only overlays it.
+  const heroN = byHero.reduce((a, r) => a + r.games, 0);
+  const heroWins = byHero.reduce((a, r) => a + (r.wins ?? 0), 0);
+  const heroGroups = byHero.filter(r => r.games >= FINDING_MIN_N).length;
+  for (const r of byHero) {
+    r.finding = makeFinding(
+      { wins: r.wins ?? 0, n: r.games },
+      { wins: heroWins - (r.wins ?? 0), n: heroN - r.games },
+      heroGroups,
+    );
+  }
 
   const timeContext = db.prepare(`
     SELECT

@@ -74,7 +74,7 @@ const ALL_MAPS = activeMapNames();
 const DPI_TEST_HERO_KEY = 'ow-dpi-test-hero';
 const AD_HOC_KEY = '__adhoc__';
 
-interface HeroRow { hero: string; role: string; games: number; wins: number; win_rate: number }
+interface HeroRow { hero: string; role: string; games: number; wins: number; win_rate: number; finding?: Finding }
 
 // /api/blind/sets — every DPI/sens-test set ever created (active or not),
 // tagged with its testing phase. Used to build the full "5 heroes per role"
@@ -528,7 +528,7 @@ export default function Prematch() {
     return topOnMap.find(h => h.role === role && h.hero === hero)
       ?? { hero, role, games: 0, wins: 0, win_rate: 0 };
   }
-  function buildRole(role: string) {
+  function buildRole(role: string): HeroRow[] {
     const df = dfRow(role);
     if (isQP) {
       const base = topOnMap.filter(h => h.role === role).slice(0, 3); // already win_rate desc
@@ -539,7 +539,7 @@ export default function Prematch() {
     const onMapSet = new Set(onMap.map(h => h.hero));
     const zeroGame = [...selectableHeroes]
       .filter(h => HEROES[h] === role && !onMapSet.has(h))
-      .map(hero => ({ hero, role, games: 0, wins: 0, win_rate: 0 }));
+      .map((hero): HeroRow => ({ hero, role, games: 0, wins: 0, win_rate: 0 }));
     const result = [...onMap, ...zeroGame];
     if (df && !result.some(h => h.hero === df.hero)) result.push(df);
     return result;
@@ -1142,7 +1142,7 @@ export default function Prematch() {
                           </div>
                           {rec.finding && (
                             <div className="text-[11px] text-[var(--muted)] mt-0.5" data-inspect-id="prematch-recommended-evidence">
-                              {rec.finding.lo}–{rec.finding.hi}% <FindingChip finding={rec.finding} />
+                              {rec.finding.lo}–{rec.finding.hi}% <FindingChip finding={rec.finding} against="the 90 days before" />
                             </div>
                           )}
                         </div>
@@ -1465,8 +1465,16 @@ export default function Prematch() {
                             change the column's width — "0%" and "100%" occupy
                             the same box, so the row's layout doesn't slide
                             from row to row. */}
+                        {/* Lab overlay: only a tested difference shows. Thin and
+                            "none" rows stay plain, so the picker reads as a pick
+                            list first. */}
+                        {h.finding && (h.finding.verdict === 'holds' || h.finding.verdict === 'unreliable') && (
+                          <span className="shrink-0 hidden sm:inline" data-inspect-id="prematch-hero-picker-finding">
+                            <FindingChip finding={h.finding} against="the other heroes" />
+                          </span>
+                        )}
                         <span ref={litWr?.ref} style={litWr?.style} className={`shrink-0 w-12 translate-y-[2px] text-right text-[13px] hero-name ${showNums ? '' : 'invisible'} ${litWr ? litWr.cls : h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
-                        <span ref={litGames?.ref} style={litGames?.style} className={`shrink-0 translate-y-[2px] text-[13px] hero-name w-11 text-right ${showNums ? '' : 'invisible'} ${litGames ? litGames.cls : 'text-[var(--faint)]'}`}>{h.games}g</span>
+                        <span ref={litGames?.ref} style={litGames?.style} title="Games" className={`shrink-0 translate-y-[2px] text-xs hero-name w-8 text-right ${showNums ? '' : 'invisible'} ${litGames ? litGames.cls : 'text-[var(--faint)]'}`}>{h.games}</span>
                       </div>
                       );
                     })}

@@ -11,16 +11,16 @@ const CHIP = {
   thin:       { text: '· Too few games', cls: 'text-[var(--muted)]' },
 } as const;
 
-export function findingTooltip(f: Finding): string {
+export function findingTooltip(f: Finding, against = 'the other games'): string {
   if (f.verdict === 'thin' || f.p === null) return `Fewer than 10 games, so not tested.`;
-  return `p = ${f.p.toFixed(4)} against the other games. Threshold ${f.threshold.toFixed(4)} (0.05 over ${f.groupsTested} ${f.groupsTested === 1 ? 'group' : 'groups'} tested).`;
+  return `p = ${f.p.toFixed(4)} against ${against}. Threshold ${f.threshold.toFixed(4)} (0.05 over ${f.groupsTested} ${f.groupsTested === 1 ? 'group' : 'groups'} tested).`;
 }
 
-export default function FindingChip({ finding }: { finding: Finding }) {
+export default function FindingChip({ finding, against }: { finding: Finding; against?: string }) {
   if (finding.verdict === 'none') return null;
   const c = CHIP[finding.verdict];
   return (
-    <span data-inspect-id="finding-chip" title={findingTooltip(finding)} className={`text-xs font-bold whitespace-nowrap ${c.cls}`}>
+    <span data-inspect-id="finding-chip" title={findingTooltip(finding, against)} className={`text-xs font-bold whitespace-nowrap ${c.cls}`}>
       {c.text}
     </span>
   );
