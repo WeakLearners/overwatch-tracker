@@ -23,15 +23,16 @@ export function PortraitFallback({ hero, children }: { hero: string | null | und
   return useHeroPortrait(hero).url ? null : <>{children}</>;
 }
 
-export default function HeroPortraitBg({ hero, opacity = 0.32, inspectId, position = '50% 20%' }: { hero: string | null | undefined; opacity?: number; inspectId?: string; position?: string }) {
+export default function HeroPortraitBg({ hero, opacity = 0.32, inspectId, position = '50% 20%', bandHeight }: { hero: string | null | undefined; opacity?: number; inspectId?: string; position?: string; bandHeight?: number }) {
   const { url, onError } = useHeroPortrait(hero);
   if (!url) return null;
   return (
     <div aria-hidden data-inspect-id={inspectId} className="absolute inset-0 -z-10 pointer-events-none overflow-hidden rounded-[inherit]">
       <img
         src={url} alt="" loading="lazy" onError={onError}
-        className="absolute right-0 top-0 h-full w-3/5 object-cover"
+        className={`absolute right-0 top-0 w-3/5 object-cover ${bandHeight ? '' : 'h-full'}`}
         style={{
+          ...(bandHeight ? { height: bandHeight } : {}),
           opacity,
           objectPosition: position,
           WebkitMaskImage: 'linear-gradient(to right, transparent, #000 70%)',

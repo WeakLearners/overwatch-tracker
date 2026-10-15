@@ -1111,7 +1111,7 @@ export default function Prematch() {
                 ? Math.round((rec.recent_wr - rec.prev_wr) * 10) / 10 : null;
               return (
                 <div key={role} className="chamfer match-card-bg relative isolate px-4 py-3">
-                  {rec && <HeroPortraitBg hero={rec.hero} inspectId="prematch-recommended-portrait-bg" />}
+                  {rec && <HeroPortraitBg hero={rec.hero} opacity={0.22} position="50% 43%" bandHeight={54.5} inspectId="prematch-recommended-portrait-bg" />}
                   <div className="text-[10px] grad-brand font-bold uppercase tracking-widest mb-1">Recent form {role}</div>
                   {rec ? (
                     <>
@@ -1164,7 +1164,7 @@ export default function Prematch() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-stretch" data-inspect-id="prematch-coaching-columns">
                 {(['DPS', 'Support'] as const).map(role => (
                   <div key={role} className="chamfer match-card-bg relative isolate px-4 py-3">
-                    {rec[role] && <HeroPortraitBg hero={rec[role].primary} inspectId={`prematch-coaching-portrait-bg-${role.toLowerCase()}`} />}
+                    {rec[role] && <HeroPortraitBg hero={rec[role].primary} opacity={0.22} position="50% 43%" bandHeight={54.5} inspectId={`prematch-coaching-portrait-bg-${role.toLowerCase()}`} />}
                     <div className="text-[10px] grad-brand font-bold uppercase tracking-widest mb-1">Coaching {role}</div>
                     {rec[role] ? (
                       <AdvisorCard
