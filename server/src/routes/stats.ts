@@ -272,21 +272,6 @@ router.get('/prematch', (req: Request, res: Response) => {
     GROUP BY hero ORDER BY win_rate DESC
   `).all({ ...(map ? { map } : {}), ...(game_type ? { game_type } : {}) }) as any[];
 
-  // Lab Finding per hero for the hero picker: each hero against the games on
-  // the other heroes in the same scope (this map and queue mode when picked),
-  // corrected over the heroes with 10+ games (design-language.md section 5).
-  // The picker itself stays a plain pick list; the chip only overlays it.
-  const heroN = byHero.reduce((a, r) => a + r.games, 0);
-  const heroWins = byHero.reduce((a, r) => a + (r.wins ?? 0), 0);
-  const heroGroups = byHero.filter(r => r.games >= FINDING_MIN_N).length;
-  for (const r of byHero) {
-    r.finding = makeFinding(
-      { wins: r.wins ?? 0, n: r.games },
-      { wins: heroWins - (r.wins ?? 0), n: heroN - r.games },
-      heroGroups,
-    );
-  }
-
   const timeContext = db.prepare(`
     SELECT
       ROUND(AVG(CASE WHEN hour = :hour THEN win END) * 100, 1) as hour_win_rate,
@@ -395,28 +380,12 @@ router.get('/momentum', (req: Request, res: Response) => {
       ${wAvg("date >= date('now','-120 days') AND date < date('now','-30 days')")}           AS prev_wr,
       ${wGames("date >= date('now','-30 days')")}                                            AS recent_games,
       ${wGames("date >= date('now','-120 days') AND date < date('now','-30 days')")}         AS prev_games,
-      CASE WHEN SUM(CASE WHEN date >= date('now','-120 days') AND date < date('now','-30 days') THEN share END) >= 5 THEN 0 ELSE 1 END AS is_new,
-      ROUND(COALESCE(SUM(CASE WHEN date >= date('now','-30 days') THEN share * win END),0),1)                              AS recent_wins,
-      ROUND(COALESCE(SUM(CASE WHEN date >= date('now','-120 days') AND date < date('now','-30 days') THEN share * win END),0),1) AS prev_wins
+      CASE WHEN SUM(CASE WHEN date >= date('now','-120 days') AND date < date('now','-30 days') THEN share END) >= 5 THEN 0 ELSE 1 END AS is_new
     FROM matches_by_hero_credit
     GROUP BY hero
     HAVING SUM(CASE WHEN date >= date('now','-30 days') THEN share END) >= 5
     ORDER BY is_new ASC, (COALESCE(recent_wr,0) - COALESCE(prev_wr,0)) DESC, recent_wr DESC
   `).all({}) as any[];
-
-  // Lab Finding per hero: the last 30 days against the 90 days before, so the
-  // chip says whether the "trend" is real. Corrected over the heroes with 10+
-  // games in both windows (design-language.md section 5). A hero without a
-  // baseline has nothing to compare, so it carries no finding.
-  const trendGroups = byHero.filter(h => h.recent_games >= FINDING_MIN_N && h.prev_games >= FINDING_MIN_N).length;
-  for (const h of byHero) {
-    if (h.is_new) continue;
-    h.finding = makeFinding(
-      { wins: h.recent_wins, n: h.recent_games },
-      { wins: h.prev_wins, n: h.prev_games },
-      trendGroups,
-    );
-  }
 
   const byGameType = db.prepare(`
     SELECT game_type,
@@ -561,23 +530,6 @@ router.get('/map-voting', (req: Request, res: Response) => {
     LEFT JOIN recent r ON h.map = r.map
     ORDER BY blended_score DESC
   `).all(qm ? { qm } : {}) as any[];
-
-  // Lab Finding per map: each map against the other games in the same pool,
-  // corrected over the maps with 10+ games (design-language.md section 5).
-  const winRows = db.prepare(`
-    SELECT map, COUNT(*) AS n, SUM(win) AS wins
-    FROM matches
-    WHERE map NOT IN ('Hanaoka', 'Anubis')${qmAnd}
-    GROUP BY map
-  `).all(qm ? { qm } : {}) as { map: string; n: number; wins: number }[];
-  const totalN = winRows.reduce((a, r) => a + r.n, 0);
-  const totalWins = winRows.reduce((a, r) => a + r.wins, 0);
-  const groupsTested = winRows.filter(r => r.n >= FINDING_MIN_N).length;
-  const byMap = new Map(winRows.map(r => [r.map, r]));
-  for (const row of rows) {
-    const w = byMap.get(row.map);
-    if (w) row.finding = makeFinding({ wins: w.wins, n: w.n }, { wins: totalWins - w.wins, n: totalN - w.n }, groupsTested);
-  }
 
   res.json(rows);
 });

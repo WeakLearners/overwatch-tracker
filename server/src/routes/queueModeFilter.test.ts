@@ -49,15 +49,6 @@ describe('GET /api/stats/map-voting queue_mode', () => {
     assert.equal(qp.total_games, 5);
     assert.equal(qp.historical_rate, 20);
   });
-  test('each map row carries a Finding; a map below 10 games is thin', async () => {
-    seed();
-    const ilios = (await h.get('/api/stats/map-voting?queue_mode=comp_role')).body.find((r: any) => r.map === 'Ilios');
-    assert.equal(ilios.finding.n, 4);
-    assert.equal(ilios.finding.rate, 75);
-    assert.equal(ilios.finding.verdict, 'thin');
-    assert.equal(ilios.finding.p, null);
-    assert.ok(ilios.finding.lo < 75 && ilios.finding.hi > 75);
-  });
   test('a mode with no games returns no rows, and an unknown mode is a 400', async () => {
     seed();
     assert.deepEqual((await h.get('/api/stats/map-voting?queue_mode=comp_open')).body, []);

@@ -10,7 +10,6 @@ import { format } from 'date-fns';
 import { activeMapNames, MAPS, mapShort, heroShort, QUEUE_MODES, ROLE_COLORS, ROLE_SEL_RGB, ROLE_TEXT, ROLE_PILL_CLASS, TYPE_COLORS, HEROES, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, MapVotingRow, QueueMode, Streaks, RANK_TIER_RGB, ACCOUNTS, rankLabel, rankShort, rankTier, rankDivision } from '../types';
 import AdvisorCard from '../components/AdvisorCard';
 import EmptyState from '../components/EmptyState';
-import FindingChip, { type Finding } from '../components/FindingChip';
 import { useMapDrawer } from '../contexts/MapDrawerContext';
 import HeroPortraitBg from '../components/HeroPortraitBg';
 import { useHeroDrawer } from '../contexts/HeroDrawerContext';
@@ -78,7 +77,7 @@ const ALL_MAPS = activeMapNames();
 const DPI_TEST_HERO_KEY = 'ow-dpi-test-hero';
 const AD_HOC_KEY = '__adhoc__';
 
-interface HeroRow { hero: string; role: string; games: number; wins: number; win_rate: number; finding?: Finding }
+interface HeroRow { hero: string; role: string; games: number; wins: number; win_rate: number }
 
 // /api/blind/sets — every DPI/sens-test set ever created (active or not),
 // tagged with its testing phase. Used to build the full "5 heroes per role"
@@ -118,7 +117,6 @@ interface AimAnalysisHero { hero: string; bestScaleEDPI: number | null; bestScal
 interface MomentumHero {
   hero: string; role: string; recent_wr: number | null; prev_wr: number | null;
   recent_games: number; prev_games: number; is_new: 0 | 1;
-  finding?: Finding;
 }
 
 interface PrematchData {
@@ -439,16 +437,9 @@ export default function Prematch() {
   // The headline below prefers the hero-informed pick and only falls back to
   // the map-only blended score; the selected-map chips must follow the same
   // branch or the green check lands on a different map than the headline.
-  // A map is only named when its Finding holds up (design-language.md
-  // section 5); with two or more maps offered and no reliable winner the
-  // card says so and lists the maps by games played.
-  const topMap = testPick?.available && testPick.picks.length > 0
+  const recommended = testPick?.available && testPick.picks.length > 0
     ? testPick.picks[0].map
     : winner;
-  const voteReliable = scoreMap[topMap]?.finding?.verdict === 'holds';
-  const noReliableVote = selected.length >= 2 && !voteReliable;
-  const recommended = noReliableVote ? undefined : topMap;
-  const byGames = [...selected].sort((a, b) => (scoreMap[b]?.total_games ?? 0) - (scoreMap[a]?.total_games ?? 0));
   const topOnMap = data?.byHero ?? [];
   // "Select Your Hero" surfaces every hero in the CURRENT testing phase's
   // full roster — both the ones still actively testing and the ones that
@@ -905,22 +896,7 @@ export default function Prematch() {
               the former separate "Top Picks" list below this — folded in
               per "new feature does not equate to new elements" rather than
               keeping two side-by-side recommendations. */}
-          {noReliableVote && (testPick?.available ? testPick.picks.length > 0 : ranked.length > 0) && (
-            <div className="flex flex-col gap-1" data-inspect-id="prematch-map-voting-no-reliable">
-              <div className="text-sm text-[var(--ink-2)]">No reliable difference between these maps.</div>
-              {byGames.map(m => (
-                <div key={m} className="flex items-baseline justify-between gap-2 text-xs text-[var(--faint)]">
-                  <span className="map-name text-sm text-[var(--ink-2)] min-w-0 truncate">{withMapCount(m, mapCounts)}</span>
-                  <span className="shrink-0">
-                    {scoreMap[m]
-                      ? <><b className="font-bold">{scoreMap[m].historical_rate.toFixed(1)}%</b> ({scoreMap[m].finding!.lo.toFixed(0)}–{scoreMap[m].finding!.hi.toFixed(0)}%) · <b className="font-bold">{scoreMap[m].total_games}</b> games</>
-                      : 'no games'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-          {!noReliableVote && selected.length > 0 && (testPick?.available ? testPick.picks.length > 0 : ranked.length > 0) && (
+          {selected.length > 0 && (testPick?.available ? testPick.picks.length > 0 : ranked.length > 0) && (
             <div className="grid grid-cols-[minmax(0,max-content)_10%_minmax(0,1fr)_max-content] items-center gap-0 auto-rows-fr flex-1 min-h-0">
               {testPick?.available && testPick.picks.length > 0 ? (
                 testPick.picks.slice(0, 3).map((p, i) => (
@@ -943,7 +919,6 @@ export default function Prematch() {
                       <span className="hero-name">{p.hero}</span> · <b className="font-bold">{p.games}</b> games
                       {p.sample_size === 'thin' && <span className="text-amber-500"> · thin</span>}
                     </span>
-                    {i === 0 && scoreMap[p.map]?.finding && <span className="ml-2"><FindingChip finding={scoreMap[p.map].finding!} /></span>}
                     </div>
                     <div className={cell(i, 'justify-end')}>
                     <span className={i === 0 ? 'text-2xl leading-tight map-name font-bold text-emerald-500 text-right' : 'text-lg map-name font-bold text-right'}>{p.win_rate.toFixed(1)}%</span>
@@ -969,7 +944,6 @@ export default function Prematch() {
                     <span className={`text-xs text-[var(--faint)] text-left truncate min-w-0`}>
                       {scoreMap[m] && <>blended · <b className="font-bold">{scoreMap[m].total_games}</b> games</>}
                     </span>
-                    {i === 0 && scoreMap[m]?.finding && <span className="ml-2"><FindingChip finding={scoreMap[m].finding!} /></span>}
                     </div>
                     <div className={cell(i, 'justify-end')}>
                     <span className={i === 0 ? 'text-2xl leading-tight map-name font-bold text-emerald-500 text-right' : 'text-lg map-name font-bold text-right'}>
@@ -1138,7 +1112,7 @@ export default function Prematch() {
               return (
                 <div key={role} className="chamfer match-card-bg relative isolate px-4 py-3">
                   {rec && <HeroPortraitBg hero={rec.hero} inspectId="prematch-recommended-portrait-bg" />}
-                  <div className="text-[10px] grad-brand font-bold uppercase tracking-widest mb-1">{rec?.finding?.verdict === 'holds' ? 'Trending' : 'Recent form'} {role}</div>
+                  <div className="text-[10px] grad-brand font-bold uppercase tracking-widest mb-1">Recent form {role}</div>
                   {rec ? (
                     <>
                       <div className="flex items-center gap-3">
@@ -1153,18 +1127,13 @@ export default function Prematch() {
                             {rec.recent_wr ?? '—'}%
                           </div>
                           <div className="text-[11px] text-[var(--muted)]">
-                            {delta != null && rec.finding && rec.finding.verdict !== 'thin' ? (
-                              <span className="font-bold">{delta >= 0 ? '+' : '−'}{Math.abs(delta)} pts</span>
+                            {delta != null ? (
+                              <span className={`font-bold ${delta >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>{delta >= 0 ? '▲' : '▼'} {Math.abs(delta)}pt</span>
                             ) : (
-                              <span>{rec.is_new ? 'new form' : 'thin'}</span>
+                              <span>new form</span>
                             )}
                             {' · '}<b className="font-bold">{rec.recent_games}</b> games (30d)
                           </div>
-                          {rec.finding && (
-                            <div className="text-[11px] text-[var(--muted)] mt-0.5" data-inspect-id="prematch-recommended-evidence">
-                              {rec.finding.lo}–{rec.finding.hi}% <FindingChip finding={rec.finding} against="the 90 days before" />
-                            </div>
-                          )}
                         </div>
                       </div>
                       <div className="mt-2 pt-2 border-t border-ow-border/40 flex items-center justify-between" data-inspect-id="prematch-recommended-sens">
@@ -1500,16 +1469,8 @@ export default function Prematch() {
                             change the column's width — "0%" and "100%" occupy
                             the same box, so the row's layout doesn't slide
                             from row to row. */}
-                        {/* Lab overlay: only a tested difference shows. Thin and
-                            "none" rows stay plain, so the picker reads as a pick
-                            list first. */}
-                        {h.finding && (h.finding.verdict === 'holds' || h.finding.verdict === 'unreliable') && (
-                          <span className="shrink-0 hidden sm:inline" data-inspect-id="prematch-hero-picker-finding">
-                            <FindingChip finding={h.finding} against="the other heroes" />
-                          </span>
-                        )}
                         <span ref={litWr?.ref} style={litWr?.style} className={`shrink-0 w-12 translate-y-[2px] text-right text-[13px] hero-name ${showNums ? '' : 'invisible'} ${litWr ? litWr.cls : h.win_rate >= 60 ? 'text-emerald-600' : h.win_rate >= 50 ? 'text-ow-blue' : h.win_rate >= 40 ? 'text-yellow-400' : 'text-red-600'}`}>{h.win_rate}%</span>
-                        <span ref={litGames?.ref} style={litGames?.style} title="Games" className={`shrink-0 translate-y-[2px] text-xs hero-name w-8 text-right ${showNums ? '' : 'invisible'} ${litGames ? litGames.cls : 'text-[var(--faint)]'}`}>{h.games}</span>
+                        <span ref={litGames?.ref} style={litGames?.style} className={`shrink-0 translate-y-[2px] text-[13px] hero-name w-11 text-right ${showNums ? '' : 'invisible'} ${litGames ? litGames.cls : 'text-[var(--faint)]'}`}>{h.games}g</span>
                       </div>
                       );
                     })}
