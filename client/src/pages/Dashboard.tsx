@@ -7,6 +7,7 @@ import { Overview, Streaks, TrendPoint, ModeComparison } from '../types';
 import PageHeader from '../components/PageHeader';
 import SegmentedPills from '../components/SegmentedPills';
 import AppTools from '../components/AppTools';
+import type { Finding } from '../components/FindingChip';
 import Prematch from './Prematch';
 import LogMatch from './LogMatch';
 import KillerFrequencyCard from '../components/KillerFrequencyCard';
@@ -36,7 +37,7 @@ export default function Dashboard() {
   const mapCounts = useTodayMapCounts();
   const heroCounts = useTodayHeroCounts();
   // Session tilt is map-independent, so a no-arg prematch fetch gives it to us.
-  const { data: prematch } = useApi<{ session: { on_tilt: boolean; loss_streak: number; tilt_win_rate: number | null; tilt_games: number } | null }>('/api/stats/prematch');
+  const { data: prematch } = useApi<{ session: { on_tilt: boolean; loss_streak: number; tilt_win_rate: number | null; tilt_games: number; tilt_finding?: Finding | null; other_win_rate?: number | null } | null }>('/api/stats/prematch');
   const tilt = prematch?.session;
 
   // The candle/volume/rank-strip derivation and its JSX now live entirely

@@ -447,6 +447,15 @@ export function computeAnalysis(db: DatabaseSync) {
           avgCrit: mean(ps.filter(p => p.crit_acc != null).map(p => p.crit_acc as number)),
           avgFeel: mean(ps.filter(p => p.feel != null).map(p => p.feel as number)),
           avgDelta: mean(ps.filter(p => p.delta != null).map(p => p.delta as number)),
+          // Standard error of avgDelta (sample sd / sqrt(n)), so the page can
+          // show a 95% interval beside the recommended scale. Null below 2 points.
+          seDelta: (() => {
+            const ds = ps.filter(p => p.delta != null).map(p => p.delta as number);
+            if (ds.length < 2) return null;
+            const m = ds.reduce((a, b) => a + b, 0) / ds.length;
+            const v = ds.reduce((a, b) => a + (b - m) ** 2, 0) / (ds.length - 1);
+            return Math.sqrt(v / ds.length);
+          })(),
           avgCritDelta: mean(ps.filter(p => p.critDelta != null).map(p => p.critDelta as number)),
           // Ability-level stats at this scale. Each carries its own n because
           // it is almost always sparser than the bucket's overall-accuracy n —

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useApi } from '../hooks/useApi';
+import FindingChip, { type Finding } from './FindingChip';
 
 interface FactoidPart {
   text: string;
@@ -9,6 +10,7 @@ interface Factoid {
   id: string;
   category: string;
   parts: FactoidPart[];
+  finding?: Finding;
 }
 interface InsightsData {
   factoids: Factoid[];
@@ -54,7 +56,10 @@ function FactoidCard({ f }: { f: Factoid }) {
     // square is kept scroll-free via tighter padding, a smaller category
     // label, and a longer tail of font-size tiers for the longest factoids.
     <div className="card !p-3 aspect-auto sm:aspect-square flex flex-col overflow-visible">
-      <div className="text-[9px] text-[var(--muted)] uppercase tracking-wider mb-1 shrink-0">{f.category}</div>
+      <div className="flex items-start justify-between gap-2 mb-1 shrink-0">
+        <span className="text-[9px] text-[var(--muted)] uppercase tracking-wider">{f.category}</span>
+        {f.finding && <FindingChip finding={f.finding} />}
+      </div>
       <p className={`font-medium text-[var(--ink)] my-auto ${fontSizeClass(len)}`}>
         {f.parts.map((p, i) => p.color
           ? <span key={i} className={PART_COLOR[p.color]}>{p.text}</span>

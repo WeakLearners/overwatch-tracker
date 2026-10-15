@@ -115,6 +115,10 @@ describe('computeAnalysis', () => {
     assert.equal(bucketB.avgOverall, 56);
     assert.equal(bucketA.avgDelta, -12);
     assert.equal(bucketB.avgDelta, 12);
+    // seDelta: deltas -16,-12,-8 -> sample sd 4 -> se 4/sqrt(3). Feeds the
+    // Recommendation card's 95% range.
+    assert.ok(Math.abs(bucketA.seDelta! - 4 / Math.sqrt(3)) < 1e-9);
+    assert.ok(Math.abs(bucketB.seDelta! - 4 / Math.sqrt(3)) < 1e-9);
     assert.equal(bucketA.winRate, 0);
     assert.equal(bucketB.winRate, 100);
     assert.equal(bucketA.absorbedN, 0);

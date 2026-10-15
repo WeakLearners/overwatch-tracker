@@ -98,6 +98,26 @@ describe('POST /api/roster/apply', () => {
     assert.equal((await h.post('/api/roster/apply', { season: { label: '2026 S6', start: '2026-10-06' } })).status, 400);
     assert.equal((await h.post('/api/roster/apply', { retireMaps: ['Nowhere'] })).status, 400);
   });
+  test('a ticked role change edits the roster only; an unknown hero or bad role is rejected', async () => {
+    const before = fs.readFileSync(path.join(tmp, 'roster.json'), 'utf8');
+    assert.equal((await h.post('/api/roster/apply', { roleChanges: [{ name: 'Nobody', role: 'Support' }] })).status, 400);
+    assert.equal((await h.post('/api/roster/apply', { roleChanges: [{ name: 'Symmetra', role: 'Healer' }] })).status, 400);
+    assert.equal(fs.readFileSync(path.join(tmp, 'roster.json'), 'utf8'), before);
+    const r = await h.post('/api/roster/apply', { roleChanges: [{ name: 'Symmetra', role: 'Support' }] });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.applied.roleChanges, 1);
+    assert.ok(HEROES_BY_ROLE.Support.includes('Symmetra'));
+    assert.ok(!HEROES_BY_ROLE.DPS.includes('Symmetra'));
+  });
+  test('check reports a role change when Blizzard moves a hero', async () => {
+    fakeBlizzard();
+    const roster = JSON.parse(fs.readFileSync(path.join(tmp, 'roster.json'), 'utf8'));
+    roster.heroes.find((x: any) => x.name === 'Symmetra').role = 'Support';
+    fs.writeFileSync(path.join(tmp, 'roster.json'), JSON.stringify(roster));
+    syncRosterViews();
+    const r = await h.post('/api/roster/check');
+    assert.deepEqual(r.body.roleChanges, [{ name: 'Symmetra', from: 'Support', to: 'DPS' }]);
+  });
   test('retiring a ticked map keeps it in MAPS_BY_NAME', async () => {
     await h.post('/api/roster/apply', { retireMaps: ['Busan'] });
     assert.equal(MAPS_BY_NAME.Busan, 'Control');

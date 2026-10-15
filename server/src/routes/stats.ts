@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { makeFinding, FINDING_MIN_N } from '../lib/finding';
 import { getDb } from '../db/schema';
 import statsLab from './statsLab';
 import { seasonRange } from '../lib/seasons';
@@ -269,7 +270,22 @@ router.get('/prematch', (req: Request, res: Response) => {
     SELECT hero, role, ${CREDIT_COLS}
     FROM matches_by_hero_credit ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
     GROUP BY hero ORDER BY win_rate DESC
-  `).all({ ...(map ? { map } : {}), ...(game_type ? { game_type } : {}) });
+  `).all({ ...(map ? { map } : {}), ...(game_type ? { game_type } : {}) }) as any[];
+
+  // Lab Finding per hero for the hero picker: each hero against the games on
+  // the other heroes in the same scope (this map and queue mode when picked),
+  // corrected over the heroes with 10+ games (design-language.md section 5).
+  // The picker itself stays a plain pick list; the chip only overlays it.
+  const heroN = byHero.reduce((a, r) => a + r.games, 0);
+  const heroWins = byHero.reduce((a, r) => a + (r.wins ?? 0), 0);
+  const heroGroups = byHero.filter(r => r.games >= FINDING_MIN_N).length;
+  for (const r of byHero) {
+    r.finding = makeFinding(
+      { wins: r.wins ?? 0, n: r.games },
+      { wins: heroWins - (r.wins ?? 0), n: heroN - r.games },
+      heroGroups,
+    );
+  }
 
   const timeContext = db.prepare(`
     SELECT
@@ -319,9 +335,14 @@ router.get('/prematch', (req: Request, res: Response) => {
              LAG(win,2) OVER (PARTITION BY date ORDER BY time) as prev2
       FROM matches
     )
-    SELECT ROUND(AVG(win)*100, 1) as win_rate, COUNT(*) as games
+    SELECT ROUND(AVG(win)*100, 1) as win_rate, COUNT(*) as games, COALESCE(SUM(win), 0) as wins
     FROM numbered WHERE prev1 = 0 AND prev2 = 0
-  `).get({}) as { win_rate: number; games: number } | undefined;
+  `).get({}) as { win_rate: number; games: number; wins: number } | undefined;
+  const allRow = db.prepare(`SELECT COUNT(*) as games, COALESCE(SUM(win), 0) as wins FROM matches`).get({}) as { games: number; wins: number };
+  // One group tested, so no correction beyond alpha. Compared with every other game.
+  const tiltFinding = tiltRow && tiltRow.games > 0
+    ? makeFinding({ wins: tiltRow.wins, n: tiltRow.games }, { wins: allRow.wins - tiltRow.wins, n: allRow.games - tiltRow.games }, 1)
+    : null;
 
   const session = {
     games_today: gamesPlayedToday,
@@ -334,6 +355,9 @@ router.get('/prematch', (req: Request, res: Response) => {
     depth_games: depthRow?.games ?? 0,
     tilt_win_rate: tiltRow?.win_rate ?? null,
     tilt_games: tiltRow?.games ?? 0,
+    tilt_finding: tiltFinding,
+    other_win_rate: allRow.games > (tiltRow?.games ?? 0)
+      ? Math.round(((allRow.wins - (tiltRow?.wins ?? 0)) / (allRow.games - (tiltRow?.games ?? 0))) * 1000) / 10 : null,
   };
 
   // Best hero for the current game type (cross-type optimizer)
@@ -371,12 +395,28 @@ router.get('/momentum', (req: Request, res: Response) => {
       ${wAvg("date >= date('now','-120 days') AND date < date('now','-30 days')")}           AS prev_wr,
       ${wGames("date >= date('now','-30 days')")}                                            AS recent_games,
       ${wGames("date >= date('now','-120 days') AND date < date('now','-30 days')")}         AS prev_games,
-      CASE WHEN SUM(CASE WHEN date >= date('now','-120 days') AND date < date('now','-30 days') THEN share END) >= 5 THEN 0 ELSE 1 END AS is_new
+      CASE WHEN SUM(CASE WHEN date >= date('now','-120 days') AND date < date('now','-30 days') THEN share END) >= 5 THEN 0 ELSE 1 END AS is_new,
+      ROUND(COALESCE(SUM(CASE WHEN date >= date('now','-30 days') THEN share * win END),0),1)                              AS recent_wins,
+      ROUND(COALESCE(SUM(CASE WHEN date >= date('now','-120 days') AND date < date('now','-30 days') THEN share * win END),0),1) AS prev_wins
     FROM matches_by_hero_credit
     GROUP BY hero
     HAVING SUM(CASE WHEN date >= date('now','-30 days') THEN share END) >= 5
     ORDER BY is_new ASC, (COALESCE(recent_wr,0) - COALESCE(prev_wr,0)) DESC, recent_wr DESC
-  `).all({});
+  `).all({}) as any[];
+
+  // Lab Finding per hero: the last 30 days against the 90 days before, so the
+  // chip says whether the "trend" is real. Corrected over the heroes with 10+
+  // games in both windows (design-language.md section 5). A hero without a
+  // baseline has nothing to compare, so it carries no finding.
+  const trendGroups = byHero.filter(h => h.recent_games >= FINDING_MIN_N && h.prev_games >= FINDING_MIN_N).length;
+  for (const h of byHero) {
+    if (h.is_new) continue;
+    h.finding = makeFinding(
+      { wins: h.recent_wins, n: h.recent_games },
+      { wins: h.prev_wins, n: h.prev_games },
+      trendGroups,
+    );
+  }
 
   const byGameType = db.prepare(`
     SELECT game_type,
@@ -520,7 +560,24 @@ router.get('/map-voting', (req: Request, res: Response) => {
     FROM historical h
     LEFT JOIN recent r ON h.map = r.map
     ORDER BY blended_score DESC
-  `).all(qm ? { qm } : {});
+  `).all(qm ? { qm } : {}) as any[];
+
+  // Lab Finding per map: each map against the other games in the same pool,
+  // corrected over the maps with 10+ games (design-language.md section 5).
+  const winRows = db.prepare(`
+    SELECT map, COUNT(*) AS n, SUM(win) AS wins
+    FROM matches
+    WHERE map NOT IN ('Hanaoka', 'Anubis')${qmAnd}
+    GROUP BY map
+  `).all(qm ? { qm } : {}) as { map: string; n: number; wins: number }[];
+  const totalN = winRows.reduce((a, r) => a + r.n, 0);
+  const totalWins = winRows.reduce((a, r) => a + r.wins, 0);
+  const groupsTested = winRows.filter(r => r.n >= FINDING_MIN_N).length;
+  const byMap = new Map(winRows.map(r => [r.map, r]));
+  for (const row of rows) {
+    const w = byMap.get(row.map);
+    if (w) row.finding = makeFinding({ wins: w.wins, n: w.n }, { wins: totalWins - w.wins, n: totalN - w.n }, groupsTested);
+  }
 
   res.json(rows);
 });
@@ -620,13 +677,13 @@ router.get('/hero-detail/:hero', (req: Request, res: Response) => {
   `).get({ hero }) as any;
 
   const maps = db.prepare(`
-    SELECT map, game_type, ROUND(SUM(share), 1) as games, ROUND(SUM(share * win) * 100.0 / SUM(share), 1) as win_rate
+    SELECT map, game_type, ROUND(SUM(share), 1) as games, ROUND(SUM(share * win), 1) as wins, ROUND(SUM(share * win) * 100.0 / SUM(share), 1) as win_rate
     FROM matches_by_hero_credit WHERE hero = :hero GROUP BY map HAVING SUM(share) >= 3
     ORDER BY win_rate DESC
   `).all({ hero }) as any[];
 
   const types = db.prepare(`
-    SELECT game_type, ROUND(SUM(share), 1) as games, ROUND(SUM(share * win) * 100.0 / SUM(share), 1) as win_rate
+    SELECT game_type, ROUND(SUM(share), 1) as games, ROUND(SUM(share * win), 1) as wins, ROUND(SUM(share * win) * 100.0 / SUM(share), 1) as win_rate
     FROM matches_by_hero_credit WHERE hero = :hero GROUP BY game_type HAVING SUM(share) >= 5
     ORDER BY win_rate DESC
   `).all({ hero }) as any[];
@@ -636,12 +693,24 @@ router.get('/hero-detail/:hero', (req: Request, res: Response) => {
     WHERE hero = :hero AND share >= 1.0 / 3 ORDER BY date DESC, id DESC LIMIT 10
   `).all({ hero }) as any[];
 
+  // Each listed group is judged against the hero's other games. The
+  // Bonferroni count is the groups big enough to test, not the 3 shown.
+  const total = { wins: overall.wins ?? 0, n: overall.games ?? 0 };
+  const withFinding = <T extends { games: number; wins: number }>(rows: T[], g: T) => ({
+    ...g,
+    finding: makeFinding(
+      { wins: g.wins, n: g.games },
+      { wins: total.wins - g.wins, n: total.n - g.games },
+      rows.filter(r => r.games >= FINDING_MIN_N).length,
+    ),
+  });
+
   res.json({
     overall, momentum,
-    bestMaps:  maps.slice(0, 3),
-    worstMaps: [...maps].reverse().slice(0, 3),
-    bestType:  types[0] ?? null,
-    worstType: types[types.length - 1] ?? null,
+    bestMaps:  maps.slice(0, 3).map(m => withFinding(maps, m)),
+    worstMaps: [...maps].reverse().slice(0, 3).map(m => withFinding(maps, m)),
+    bestType:  types[0] ? withFinding(types, types[0]) : null,
+    worstType: types.length ? withFinding(types, types[types.length - 1]) : null,
     recent10,
   });
 });

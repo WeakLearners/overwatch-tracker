@@ -94,12 +94,25 @@ export interface UpdateDiff {
   checkedAt: string;
   counts: { heroesOnPage: number; mapsOnPage: number; heroesKnown: number; mapsKnown: number };
   newHeroes: { name: string; role: string | null }[];   // role from the page's data-role; null if unreadable
+  /** Roster heroes whose role on Blizzard's page differs from roster.json. */
+  roleChanges: { name: string; from: string; to: string }[];
   newMaps: { name: string; mode: string | null }[];
-  absentMaps: string[];                                  // in roster.json (not retired), not in Blizzard's rates list
+  absentMaps: string[];                                 // in roster.json (not retired), not in Blizzard's rates list
   newSeason: { label: string; name: string; start: string } | null;
   season: { onPage: string | null; known: string | null };
   /** Roster heroes with no cached portrait; null when Blizzard images are off. */
   imagesMissing: number | null;
+}
+
+// A hero already in the roster whose page role is readable and differs (Sombra DPS -> Support).
+function roleChanges(roster: Roster, heroes: ParsedHero[]): UpdateDiff['roleChanges'] {
+  const pageRole = new Map(heroes.map(h => [nameKey(h.name), h.role]));
+  const out: UpdateDiff['roleChanges'] = [];
+  for (const h of roster.heroes) {
+    const to = pageRole.get(nameKey(h.name));
+    if (to && to !== h.role) out.push({ name: h.name, from: h.role, to });
+  }
+  return out;
 }
 
 export function buildDiff(
@@ -124,6 +137,7 @@ export function buildDiff(
     checkedAt: new Date().toISOString(),
     counts: { heroesOnPage: page.heroes.length, mapsOnPage: page.maps.length, heroesKnown: roster.heroes.length, mapsKnown: roster.maps.length },
     newHeroes: page.heroes.filter(h => !knownHeroes.has(nameKey(h.name))),
+    roleChanges: roleChanges(roster, page.heroes),
     newMaps: page.maps.filter(m => !knownMaps.has(nameKey(m.name))),
     absentMaps: roster.maps.filter(m => !m.retired && !mapsOnPage.has(nameKey(m.name))).map(m => m.name),
     newSeason,

@@ -4,9 +4,10 @@ import { useApi } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { ROLE_COLORS, TYPE_COLORS } from '../types';
+import FindingChip, { type Finding } from './FindingChip';
 
-interface MapRow  { map: string; game_type: string; games: number; win_rate: number }
-interface TypeRow { game_type: string; games: number; win_rate: number }
+interface MapRow  { map: string; game_type: string; games: number; win_rate: number; finding: Finding }
+interface TypeRow { game_type: string; games: number; win_rate: number; finding: Finding }
 interface HeroDetail {
   overall:   { games: number; win_rate: number; wins: number; losses: number };
   momentum:  { recent_wr: number | null; prev_wr: number | null; recent_games: number; prev_games: number };
@@ -80,7 +81,8 @@ function DrawerContent({ hero, role }: { hero: string; role?: string }) {
                   <span data-inspect-id="hero-drawer-type-pill-badge" className={`pill ml-1 ${TYPE_COLORS[m.game_type] ?? ''}`}>{m.game_type}</span>
                 </div>
                 <WR rate={m.win_rate} />
-                <span className="text-xs text-[var(--faint-2)] w-16 shrink-0 text-right font-bold">{m.games} games</span>
+                <span className="text-xs text-[var(--faint-2)] shrink-0 font-bold">({Math.round(m.finding.lo)}–{Math.round(m.finding.hi)}%) · {m.games} games</span>
+                <FindingChip finding={m.finding} />
               </div>
             ))}
             {data.worstMaps.map(m => (
@@ -91,7 +93,8 @@ function DrawerContent({ hero, role }: { hero: string; role?: string }) {
                   <span className={`pill ml-1 ${TYPE_COLORS[m.game_type] ?? ''}`}>{m.game_type}</span>
                 </div>
                 <WR rate={m.win_rate} />
-                <span className="text-xs text-[var(--faint-2)] w-16 shrink-0 text-right font-bold">{m.games} games</span>
+                <span className="text-xs text-[var(--faint-2)] shrink-0 font-bold">({Math.round(m.finding.lo)}–{Math.round(m.finding.hi)}%) · {m.games} games</span>
+                <FindingChip finding={m.finding} />
               </div>
             ))}
           </div>
@@ -109,7 +112,8 @@ function DrawerContent({ hero, role }: { hero: string; role?: string }) {
                 <span className={`pill ${TYPE_COLORS[data.bestType.game_type] ?? ''}`}>{data.bestType.game_type}</span>
                 <div className="ml-auto flex items-center gap-1.5">
                   <WR rate={data.bestType.win_rate} />
-                  <span className="text-xs text-[var(--faint-2)] font-bold">{data.bestType.games} games</span>
+                  <span className="text-xs text-[var(--faint-2)] font-bold">({Math.round(data.bestType.finding.lo)}–{Math.round(data.bestType.finding.hi)}%) · {data.bestType.games} games</span>
+                  <FindingChip finding={data.bestType.finding} />
                 </div>
               </div>
             )}
@@ -119,7 +123,8 @@ function DrawerContent({ hero, role }: { hero: string; role?: string }) {
                 <span className={`pill ${TYPE_COLORS[data.worstType.game_type] ?? ''}`}>{data.worstType.game_type}</span>
                 <div className="ml-auto flex items-center gap-1.5">
                   <WR rate={data.worstType.win_rate} />
-                  <span className="text-xs text-[var(--faint-2)] font-bold">{data.worstType.games} games</span>
+                  <span className="text-xs text-[var(--faint-2)] font-bold">({Math.round(data.worstType.finding.lo)}–{Math.round(data.worstType.finding.hi)}%) · {data.worstType.games} games</span>
+                  <FindingChip finding={data.worstType.finding} />
                 </div>
               </div>
             )}

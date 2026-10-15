@@ -43,3 +43,6 @@ scripts/.build-client.lock
 
 # Blizzard art cached by "Check for game updates" — public repo, never commit
 server/data/assets/
+
+# static demo build
+client/dist-demo/
