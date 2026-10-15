@@ -1156,13 +1156,23 @@ const DATA = {
           }
         },
         {
-          "id": "prematch-recommended-portrait-bg",
-          "label": "Trending hero portrait background",
+          "id": "prematch-recommended-portrait-bg-dps",
+          "label": "Trending hero portrait background (DPS)",
           "kind": "image",
           "description": "Hero portrait behind each Trending DPS/Support card, faded out on the text side; renders nothing if not cached.",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:1125",
-            "grep": "grep -n -F -- 'inspectId=\"prematch-recommended-portrait-bg\"' client/src/pages/Prematch.tsx"
+            "grep": "grep -n -F -- 'prematch-recommended-portrait-bg-' client/src/pages/Prematch.tsx"
+          }
+        },
+        {
+          "id": "prematch-recommended-portrait-bg-support",
+          "label": "Trending hero portrait background (Support)",
+          "kind": "image",
+          "description": "Hero portrait behind each Trending DPS/Support card, faded out on the text side; renders nothing if not cached.",
+          "locate": {
+            "path": "client/src/pages/Prematch.tsx:1125",
+            "grep": "grep -n -F -- 'prematch-recommended-portrait-bg-' client/src/pages/Prematch.tsx"
           }
         },
         {
@@ -1186,13 +1196,23 @@ const DATA = {
           }
         },
         {
-          "id": "prematch-recommended-hero-button",
-          "label": "Recommended hero name button",
+          "id": "prematch-recommended-hero-button-dps",
+          "label": "Recommended hero name button (DPS)",
           "kind": "button",
           "description": "Clickable hero name inside the Recommended Pick panel; opens the Hero drawer for that hero.",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:1131",
-            "grep": "grep -n -F -- 'onClick={() => openHero(rec.hero)}' client/src/pages/Prematch.tsx"
+            "grep": "grep -n -F -- 'prematch-recommended-hero-button-' client/src/pages/Prematch.tsx"
+          }
+        },
+        {
+          "id": "prematch-recommended-hero-button-support",
+          "label": "Recommended hero name button (Support)",
+          "kind": "button",
+          "description": "Clickable hero name inside the Recommended Pick panel; opens the Hero drawer for that hero.",
+          "locate": {
+            "path": "client/src/pages/Prematch.tsx:1131",
+            "grep": "grep -n -F -- 'prematch-recommended-hero-button-' client/src/pages/Prematch.tsx"
           }
         },
         {
@@ -1411,13 +1431,23 @@ const DATA = {
           }
         },
         {
-          "id": "prematch-recommended-sens",
-          "label": "Recommended pick in-game sens",
+          "id": "prematch-recommended-sens-dps",
+          "label": "Recommended pick in-game sens (DPS)",
           "kind": "stat-tile",
           "description": "In-game sens paired with the trending hero pick, derived from that hero's own best-tested DPI scale.",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:1150",
-            "grep": "grep -n -F -- 'prematch-recommended-sens' client/src/pages/Prematch.tsx"
+            "grep": "grep -n -F -- 'prematch-recommended-sens-' client/src/pages/Prematch.tsx"
+          }
+        },
+        {
+          "id": "prematch-recommended-sens-support",
+          "label": "Recommended pick in-game sens (Support)",
+          "kind": "stat-tile",
+          "description": "In-game sens paired with the trending hero pick, derived from that hero's own best-tested DPI scale.",
+          "locate": {
+            "path": "client/src/pages/Prematch.tsx:1150",
+            "grep": "grep -n -F -- 'prematch-recommended-sens-' client/src/pages/Prematch.tsx"
           }
         },
         {
@@ -6284,6 +6314,8 @@ const DATA = {
     }
   ]
 };
+
+
 
 
 

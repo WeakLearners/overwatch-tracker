@@ -1122,13 +1122,13 @@ export default function Prematch() {
                 ? Math.round((rec.recent_wr - rec.prev_wr) * 10) / 10 : null;
               return (
                 <div key={role} className="chamfer match-card-bg relative isolate px-4 py-3">
-                  {rec && <HeroPortraitBg hero={rec.hero} opacity={0.22} position="50% 55%" fill inspectId="prematch-recommended-portrait-bg" />}
+                  {rec && <HeroPortraitBg hero={rec.hero} opacity={0.22} position="50% 55%" fill inspectId={`prematch-recommended-portrait-bg-${role.toLowerCase()}`} />}
                   <div className="text-[10px] grad-brand font-bold uppercase tracking-widest mb-1">Recent form {role}</div>
                   {rec ? (
                     <>
                       <div className="flex items-center gap-3">
                         <div>
-                          <button onClick={() => openHero(rec.hero)} className="text-lg hero-name text-[var(--ink)] hover:text-ow-accent transition-colors text-left" data-inspect-id="prematch-recommended-hero-button">
+                          <button onClick={() => openHero(rec.hero)} className="text-lg hero-name text-[var(--ink)] hover:text-ow-accent transition-colors text-left" data-inspect-id={`prematch-recommended-hero-button-${role.toLowerCase()}`}>
                             {withHeroCount(rec.hero, heroCounts)}
                           </button>
                           <span className={`pill ml-2 ${ROLE_COLORS[rec.role]}`}>{rec.role}</span>
@@ -1137,7 +1137,7 @@ export default function Prematch() {
                           <div className={`text-2xl font-black tracking-tight num-display ${(rec.recent_wr ?? 0) >= 50 ? 'grad-win' : 'grad-loss'}`}>
                             {rec.recent_wr ?? '—'}%
                           </div>
-                          <div className="text-[11px] text-[var(--muted)]">
+                          <div className="text-xs text-[var(--muted)]">
                             {delta != null ? (
                               <span className={`font-bold ${delta >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>{delta >= 0 ? '▲' : '▼'} {Math.abs(delta)}pt</span>
                             ) : (
@@ -1147,8 +1147,8 @@ export default function Prematch() {
                           </div>
                         </div>
                       </div>
-                      <div className="mt-2 pt-2 border-t border-ow-border/40 flex items-center justify-between" data-inspect-id="prematch-recommended-sens">
-                        <span className="text-[10px] text-[var(--muted)] uppercase tracking-wide">In-game sens</span>
+                      <div className="mt-2 pt-2 border-t border-ow-border/40 flex items-center justify-between" data-inspect-id={`prematch-recommended-sens-${role.toLowerCase()}`}>
+                        <span className="text-[10px] text-[var(--muted)] uppercase tracking-wider">In-game sens</span>
                         <span className="text-sm num-display font-bold text-[var(--ink)]">
                           {sensRecFor(rec.hero) != null ? sensRecFor(rec.hero)!.toFixed(2) : 'No data yet'}
                         </span>
@@ -1189,7 +1189,7 @@ export default function Prematch() {
                         onOpenHero={openHero}
                       />
                     ) : (
-                      <div className="text-xs text-[var(--faint-2)] italic">No active {role} test</div>
+                      <div className="text-sm text-[var(--faint)]">No active {role} test</div>
                     )}
                   </div>
                 ))}
