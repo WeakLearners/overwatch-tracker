@@ -114,8 +114,10 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(clientDist, 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+// Loopback by default: remote devices reach the app through `tailscale serve`.
+const HOST = process.env.HOST ?? '127.0.0.1';
+app.listen(PORT, HOST, () => {
+  console.log(`Server running at http://${HOST}:${PORT}`);
   // Scoreboard watcher: prod (3001) only by default, so the 3002 dev server
   // does not make a second vision call for the same file. SCOREBOARD_WATCHER=1/0 overrides.
   const watch = process.env.SCOREBOARD_WATCHER ?? (PORT === 3001 ? '1' : '0');
