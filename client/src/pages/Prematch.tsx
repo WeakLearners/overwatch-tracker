@@ -1220,14 +1220,14 @@ export default function Prematch() {
                 title={`${r.matches} matches since ${r.since ?? 'the start'} · ${r.resets} resets so far`}
                 data-inspect-id={`prematch-role-timer-row-${k}`}
               >
-                <div className="flex items-baseline justify-between gap-2 mb-1">
-                  <b className="text-xs font-semibold" style={{ color: `rgb(${ROLE_SEL_RGB[r.role]})` }}>{r.role}</b>
-                  <span className="text-[11px] text-[var(--ink-2)] whitespace-nowrap" data-inspect-id={`prematch-role-timer-readout-${k}`}>
+                <div className="flex items-baseline justify-between gap-2 mb-1.5">
+                  <b className="text-sm font-semibold" style={{ color: `rgb(${ROLE_SEL_RGB[r.role]})` }}>{r.role}</b>
+                  <span className="text-sm text-[var(--ink-2)] whitespace-nowrap" data-inspect-id={`prematch-role-timer-readout-${k}`}>
                     {fmtHM(r.totalMin)} / {fmtHM(roleTimers!.thresholdMin)}
                     {r.estimatedMin > 0 && <span className="text-[var(--faint-2)]"> (+{Math.round(r.estimatedMin)}m est.)</span>}
                   </span>
                 </div>
-                <div className="w-full h-1.5 rounded-full bg-ow-border/50 overflow-hidden" data-inspect-id={`prematch-role-timer-bar-${k}`}>
+                <div className="w-full h-2 rounded-full bg-ow-border/50 overflow-hidden" data-inspect-id={`prematch-role-timer-bar-${k}`}>
                   <div
                     className="h-full rounded-full"
                     style={{ width: `${Math.min(100, (r.totalMin / roleTimers!.thresholdMin) * 100)}%`, background: `rgb(${ROLE_SEL_RGB[r.role]})` }}
