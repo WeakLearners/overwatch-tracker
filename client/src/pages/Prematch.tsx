@@ -1078,9 +1078,9 @@ export default function Prematch() {
           hero row 20 = 63) = 119, +42 = 161. The taller no-map state sets the height,
           206.5 rounded up to 208; Coaching panels stretch to fill and the portrait
           covers the rest. The advisor returns hero names only, no prose.
-          Portrait object-position y = 55%: eye rows 95-125 of the 256px image sit at
-          s*row - (W-H)*0.55, s = W/256. Panels are W 295-377 wide, H 130 (no map) or
-          110 (map): eye centre lands 15-36px from the top, inside the top third. */}
+          Portrait: right 3/5 of the panel at full height, like the hero picker rows.
+          object-position y = 70%: eye row 110 of 256 sits at (w/256)*110 - (w-H)*0.70
+          from the top, w = 0.6*W (177-226), H 130 or 110: 16-43px, inside the top third. */}
       <div className="grid grid-cols-1 lg:grid-cols-3 lg:h-[208px] items-stretch gap-4 mb-4">
       <div id="consolidated-advisor" className="card lg:col-span-2 min-w-0 lg:flex lg:flex-col" data-inspect-id="prematch-consolidated-advisor-card">
         <div className="flex items-start justify-between gap-3 mb-1">
@@ -1122,7 +1122,7 @@ export default function Prematch() {
                 ? Math.round((rec.recent_wr - rec.prev_wr) * 10) / 10 : null;
               return (
                 <div key={role} className="chamfer match-card-bg relative isolate px-4 py-3">
-                  {rec && <HeroPortraitBg hero={rec.hero} opacity={0.22} position="50% 55%" fill inspectId={`prematch-recommended-portrait-bg-${role.toLowerCase()}`} />}
+                  {rec && <HeroPortraitBg hero={rec.hero} opacity={0.22} position="50% 70%" inspectId={`prematch-recommended-portrait-bg-${role.toLowerCase()}`} />}
                   <div className="text-[10px] grad-brand font-bold uppercase tracking-widest mb-1">Recent form {role}</div>
                   {rec ? (
                     <>
@@ -1175,7 +1175,7 @@ export default function Prematch() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-stretch lg:h-full" data-inspect-id="prematch-coaching-columns">
                 {(['DPS', 'Support'] as const).map(role => (
                   <div key={role} className="chamfer match-card-bg relative isolate px-4 py-3">
-                    {rec[role] && <HeroPortraitBg hero={rec[role].primary} opacity={0.22} position="50% 55%" fill inspectId={`prematch-coaching-portrait-bg-${role.toLowerCase()}`} />}
+                    {rec[role] && <HeroPortraitBg hero={rec[role].primary} opacity={0.22} position="50% 70%" inspectId={`prematch-coaching-portrait-bg-${role.toLowerCase()}`} />}
                     <div className="text-[10px] grad-brand font-bold uppercase tracking-widest mb-1">Coaching {role}</div>
                     {rec[role] ? (
                       <AdvisorCard

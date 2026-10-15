@@ -23,16 +23,14 @@ export function PortraitFallback({ hero, children }: { hero: string | null | und
   return useHeroPortrait(hero).url ? null : <>{children}</>;
 }
 
-/** `fill` covers the whole panel (full width and height) instead of the right 3/5
- * strip; the left-to-right fade stays so text on the left remains readable. */
-export default function HeroPortraitBg({ hero, opacity = 0.32, inspectId, position = '50% 20%', fill }: { hero: string | null | undefined; opacity?: number; inspectId?: string; position?: string; fill?: boolean }) {
+export default function HeroPortraitBg({ hero, opacity = 0.32, inspectId, position = '50% 20%' }: { hero: string | null | undefined; opacity?: number; inspectId?: string; position?: string }) {
   const { url, onError } = useHeroPortrait(hero);
   if (!url) return null;
   return (
     <div aria-hidden data-inspect-id={inspectId} className="absolute inset-0 -z-10 pointer-events-none overflow-hidden rounded-[inherit]">
       <img
         src={url} alt="" loading="lazy" onError={onError}
-        className={`absolute top-0 h-full object-cover ${fill ? 'left-0 w-full' : 'right-0 w-3/5'}`}
+        className="absolute right-0 top-0 h-full w-3/5 object-cover"
         style={{
           opacity,
           objectPosition: position,
