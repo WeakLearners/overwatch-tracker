@@ -1157,15 +1157,15 @@ export default function Prematch() {
             stretch pick — a role with no in-testing hero just shows empty
             rather than an error, since the other column may still have one. */}
         {map && (
-          <div id="coaching" className="scroll-mt-24 chamfer bg-emerald-500/5 px-4 py-3 mt-3" data-inspect-id="prematch-coaching-section">
-            <div className="text-[10px] text-emerald-600 uppercase tracking-widest font-semibold mb-2">Coaching</div>
+          <div id="coaching" className="scroll-mt-24 mt-3" data-inspect-id="prematch-coaching-section">
             {recLoading && !rec && <div className="text-xs text-[var(--faint)]">Loading…</div>}
             {recError && <div className="text-xs text-red-600">{recError}</div>}
             {rec && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start" data-inspect-id="prematch-coaching-columns">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-stretch" data-inspect-id="prematch-coaching-columns">
                 {(['DPS', 'Support'] as const).map(role => (
-                  <div key={role}>
-                    <div className="text-[10px] text-emerald-600/70 uppercase tracking-widest font-semibold mb-1.5">{role}</div>
+                  <div key={role} className="chamfer match-card-bg relative isolate px-4 py-3">
+                    {rec[role] && <HeroPortraitBg hero={rec[role].primary} inspectId={`prematch-coaching-portrait-bg-${role.toLowerCase()}`} />}
+                    <div className="text-[10px] grad-brand font-bold uppercase tracking-widest mb-1">Coaching {role}</div>
                     {rec[role] ? (
                       <AdvisorCard
                         bare

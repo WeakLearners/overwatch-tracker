@@ -705,7 +705,7 @@
           "id": "prematch-coaching-section",
           "label": "Coaching section",
           "kind": "section",
-          "description": "Section shown once a map is picked, embedding the LLM tactical-read AdvisorCard (matchup coaching and death patterns) for that map.",
+          "description": "Plain wrapper (no frame of its own since 2026-10-15; each role panel is a chamfer match-card-bg panel with a portrait) shown once a map is picked, embedding the LLM tactical-read AdvisorCard (matchup coaching and death patterns) for that map.",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:1160",
             "grep": "grep -n -F -- 'id=\"coaching\" className=\"scroll-mt-24' client/src/pages/Prematch.tsx"
@@ -717,8 +717,28 @@
           "kind": "list",
           "description": "Two-column (DPS/Support) layout inside the Coaching section, one AdvisorCard per role for the picked map, shown once the /api/advisor/recommend response is in.",
           "locate": {
-            "path": "client/src/pages/Prematch.tsx:1165",
+            "path": "client/src/pages/Prematch.tsx:1164",
             "grep": "grep -n -F -- 'prematch-coaching-columns' client/src/pages/Prematch.tsx"
+          }
+        },
+        {
+          "id": "prematch-coaching-portrait-bg-dps",
+          "label": "Coaching DPS portrait background",
+          "kind": "image",
+          "description": "Hero portrait behind the Coaching DPS panel (the role's primary pick), faded out on the text side like the Recommended Pick panels; renders nothing if not cached.",
+          "locate": {
+            "path": "client/src/pages/Prematch.tsx:1167",
+            "grep": "grep -n -F -- 'prematch-coaching-portrait-bg-' client/src/pages/Prematch.tsx"
+          }
+        },
+        {
+          "id": "prematch-coaching-portrait-bg-support",
+          "label": "Coaching Support portrait background",
+          "kind": "image",
+          "description": "Hero portrait behind the Coaching Support panel (the role's primary pick), faded out on the text side like the Recommended Pick panels; renders nothing if not cached.",
+          "locate": {
+            "path": "client/src/pages/Prematch.tsx:1167",
+            "grep": "grep -n -F -- 'prematch-coaching-portrait-bg-' client/src/pages/Prematch.tsx"
           }
         },
         {
