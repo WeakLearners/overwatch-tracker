@@ -2,12 +2,15 @@
 // hand map does not. The pick is fixed once saved. The only way out is resetPick, which refuses while any
 // logged hero row holds a value in that slot, because a changed pick would change what old numbers mean.
 import type { DatabaseSync } from 'node:sqlite';
-import { SLOTS, normTileLabel, pickFormLabel, type HeroPicks, type Slot } from './heroTileLabels';
+import { HERO_TILE_MAP, SLOTS, normTileLabel, pickFormLabel, type HeroPicks, type Slot } from './heroTileLabels';
 
+const hasOwn = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
+
+/** Picks of a hero in HERO_TILE_MAP are ignored: a mapped hero's slots are set by the map (empty on purpose). */
 export function loadPicks(db: DatabaseSync): Map<string, HeroPicks> {
   const out = new Map<string, HeroPicks>();
   const rows = db.prepare(`SELECT hero, slot, tile_label FROM hero_tile_picks`).all() as unknown as { hero: string; slot: Slot; tile_label: string | null }[];
-  for (const r of rows) { const p = out.get(r.hero) ?? {}; p[r.slot] = r.tile_label; out.set(r.hero, p); }
+  for (const r of rows) { if (hasOwn(HERO_TILE_MAP, r.hero)) continue; const p = out.get(r.hero) ?? {}; p[r.slot] = r.tile_label; out.set(r.hero, p); }
   return out;
 }
 
@@ -16,7 +19,7 @@ export interface PickRow { hero: string; slot: Slot; tile_label: string | null; 
 /** Every saved pick with its form label (title-cased tile label + " %"); label is null for a None pick. */
 export function listPicks(db: DatabaseSync): PickRow[] {
   const rows = db.prepare(`SELECT hero, slot, tile_label FROM hero_tile_picks ORDER BY hero, slot`).all() as unknown as { hero: string; slot: Slot; tile_label: string | null }[];
-  return rows.map(r => ({ ...r, label: r.tile_label ? pickFormLabel(r.tile_label) : null }));
+  return rows.filter(r => !hasOwn(HERO_TILE_MAP, r.hero)).map(r => ({ ...r, label: r.tile_label ? pickFormLabel(r.tile_label) : null }));
 }
 
 export const isSlot = (s: unknown): s is Slot => typeof s === 'string' && (SLOTS as readonly string[]).includes(s);

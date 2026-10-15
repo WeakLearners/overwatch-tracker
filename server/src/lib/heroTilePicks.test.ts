@@ -5,6 +5,8 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveSlots, slotValues, pickableTiles, pickFormLabel, type Tile } from './heroTileLabels';
 import { processFile, type ParsedScoreboard } from './scoreboard';
+import { DatabaseSync } from 'node:sqlite';
+import { loadPicks, listPicks } from './heroTilePicks';
 import { insertMatch, insertAimStatsHero } from '../db/fixtures';
 
 const tiles = (o: Record<string, string>): Tile[] => Object.entries(o).map(([label, value]) => ({ label, value }));
@@ -29,9 +31,20 @@ describe('precedence: hand map > saved pick > derived > empty', () => {
     assert.equal(slotValues('Newhero', t), null);
     assert.equal(slotValues('Newhero', t, { extra: 'airtime percentage' })!.extra_acc, 54);
   });
-  test('Zenyatta crit stays empty without a pick, and takes a pick', () => {
-    assert.equal(slotValues('Zenyatta', NEW)!.crit_acc, null);
-    assert.equal(slotValues('Zenyatta', NEW, { crit: 'mystery ability accuracy' })!.crit_acc, 60);
+  test('Zenyatta (mapped): crit is Charged Volley, extra stays empty, picks are ignored', () => {
+    const z = tiles({ 'WEAPON ACCURACY': '39%', 'CHARGED VOLLEY ACCURACY': '15%', 'TRANSCENDENCE EFFICIENCY': '17%' });
+    assert.deepEqual(slotValues('Zenyatta', z), { overall_acc: 39, crit_acc: 15, extra_acc: null, torpedo_damage: null, torpedo_healing: null });
+    const picks = { extra: 'transcendence efficiency', crit: 'transcendence efficiency', overall: 'transcendence efficiency' };
+    assert.deepEqual(slotValues('Zenyatta', z, picks), slotValues('Zenyatta', z));
+    assert.equal(resolveSlots('Zenyatta', z, picks).extra.source, null);
+    assert.deepEqual(pickableTiles('Zenyatta', z), {});
+  });
+  test('a saved pick of a mapped hero is not loaded and not listed', () => {
+    const db = new DatabaseSync(':memory:');
+    db.exec(`CREATE TABLE hero_tile_picks (hero TEXT, slot TEXT, tile_label TEXT)`);
+    db.exec(`INSERT INTO hero_tile_picks VALUES ('Zenyatta','extra','charged volley accuracy'), ('Reaper','extra','airtime percentage')`);
+    assert.equal(loadPicks(db).has('Zenyatta'), false);
+    assert.deepEqual(listPicks(db).map(r => r.hero), ['Reaper']);
   });
 });
 
@@ -52,8 +65,7 @@ describe('menu rules', () => {
     assert.equal(p.extra, undefined);
     assert.deepEqual(p.crit!.map(o => o.label), ['AIRTIME PERCENTAGE']);
   });
-  test('never for a slot the client already names: Zenyatta crit, Baptiste crit and extra', () => {
-    assert.equal(pickableTiles('Zenyatta', NEW).crit, undefined);
+  test('never for a slot the client already names: Baptiste crit and extra', () => {
     assert.equal(pickableTiles('Baptiste', NEW).crit, undefined);
     assert.equal(pickableTiles('Baptiste', NEW).extra, undefined);
     assert.ok(pickableTiles('Baptiste', NEW).overall === undefined); // overall is derived

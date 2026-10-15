@@ -26,6 +26,7 @@ export const HERO_TILE_MAP: Record<string, SlotTiles> = {
   Shion: { overall: 'weapon accuracy', crit: 'critical hit accuracy' }, // no extra value; checked against match 3828: 34 / 10
   'Soldier: 76': { overall: 'weapon accuracy', crit: 'critical hit accuracy', extra: 'helix rocket accuracy' }, // checked against board 165 (2026-10-13): 35 / 6 / 53
   Cassidy: { overall: 'weapon accuracy', crit: 'critical hit accuracy' }, // no extra value; checked against board 166 (2026-10-13): 45 / 5
+  Zenyatta: { overall: 'weapon accuracy', crit: 'charged volley accuracy' }, // checked against boards 290 and 338 (2026-10-15): no critical hit tile, no extra value
   Juno: { overall: 'weapon accuracy', torpedo_damage: 'pulsar torpedoes damage', torpedo_healing: 'pulsar torpedoes healing' }, // no crit value
 };
 
@@ -102,7 +103,7 @@ export interface PickTile { label: string; value: string }
 const hasOwn = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 
 /**
- * Which tile fills each slot. Precedence per hero and slot: hand map (HERO_TILE_MAP) > saved pick >
+ * Which tile fills each slot. A hero in the hand map ignores saved picks for every slot. Precedence per hero and slot: hand map (HERO_TILE_MAP) > saved pick >
  * derived standard label (only for heroes outside the hand map, and never into a client-overridden slot) > empty.
  * A pick of null ("None for this hero") resolves to empty with source null, so the menu stays away.
  */
@@ -112,7 +113,7 @@ export function resolveSlots(hero: string, tiles: Tile[], picks: HeroPicks = {})
   const derived = inMap ? null : deriveSlotTiles(tiles, hero);
   const one = (slot: Slot): ResolvedSlot => {
     if (map[slot]) return { tile: map[slot]!, source: 'map' };
-    if (hasOwn(picks, slot)) { const t = picks[slot] ?? null; return t ? { tile: lc(t), source: 'pick' } : { tile: null, source: null }; }
+    if (!inMap && hasOwn(picks, slot)) { const t = picks[slot] ?? null; return t ? { tile: lc(t), source: 'pick' } : { tile: null, source: null }; }
     if (derived?.[slot]) return { tile: derived[slot]!, source: 'derived' };
     return { tile: null, source: null };
   };

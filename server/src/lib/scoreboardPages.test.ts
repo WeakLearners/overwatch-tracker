@@ -80,8 +80,8 @@ describe('tilesToRows', () => {
 });
 
 describe('tile map (confirmed heroes only)', () => {
-  test('exactly the twelve confirmed heroes', () => {
-    assert.deepEqual(Object.keys(HERO_TILE_MAP).sort(), ['Ana', 'Ashe', 'Cassidy', 'Doctrine', 'Juno', 'Mizuki', 'Shion', 'Sojourn', 'Soldier: 76', 'Sombra', 'Tracer', 'Pharah'].sort());
+  test('exactly the thirteen confirmed heroes', () => {
+    assert.deepEqual(Object.keys(HERO_TILE_MAP).sort(), ['Ana', 'Ashe', 'Cassidy', 'Doctrine', 'Juno', 'Mizuki', 'Shion', 'Sojourn', 'Soldier: 76', 'Sombra', 'Tracer', 'Pharah', 'Zenyatta'].sort());
     assert.equal(HERO_TILE_MAP.Baptiste, undefined);
   });
   const tiles = (o: Record<string, string>) => Object.entries(o).map(([label, value]) => ({ label, value }));
