@@ -1070,8 +1070,19 @@ export default function Prematch() {
 
       {/* Hero advice — the recommendation and the coaching behind it, in one
           card above Select Your Hero (the tracker's hero input). */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 items-stretch gap-4 mb-4">
-      <div id="consolidated-advisor" className="card lg:col-span-2 min-w-0" data-inspect-id="prematch-consolidated-advisor-card">
+      {/* Fixed row height at lg+ (Sean, 2026-10-15): 208px in every state, with or
+          without a map. Computed from classes, not measured. Card chrome = p-5 x2 +
+          border 2 = 42. No map: header 20 + mb-1 4 + mt-3 12 + Recent form panel
+          (py-3 24 + label 15 + mb-1 4 + hero row 48.5 + sens row 37 = 128.5) = 164.5,
+          +42 = 206.5. Map picked: header 40 + 4 + mt-3 12 + Coaching panel (24 + 19 +
+          hero row 20 = 63) = 119, +42 = 161. The taller no-map state sets the height,
+          206.5 rounded up to 208; Coaching panels stretch to fill and the portrait
+          covers the rest. The advisor returns hero names only, no prose.
+          Portrait object-position y = 55%: eye rows 95-125 of the 256px image sit at
+          s*row - (W-H)*0.55, s = W/256. Panels are W 295-377 wide, H 130 (no map) or
+          110 (map): eye centre lands 15-36px from the top, inside the top third. */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 lg:h-[208px] items-stretch gap-4 mb-4">
+      <div id="consolidated-advisor" className="card lg:col-span-2 min-w-0 lg:flex lg:flex-col" data-inspect-id="prematch-consolidated-advisor-card">
         <div className="flex items-start justify-between gap-3 mb-1">
           <div>
             <h2 className="text-sm card-title">
@@ -1105,13 +1116,13 @@ export default function Prematch() {
             that role rather than the single overall-best-win-rate hero, paired with
             the in-game sens its own best-tested scale points to. */}
         {(trendingDps || trendingSupport) && !map && (
-          <div className="grid gap-3 mt-3 items-stretch grid-cols-1 sm:grid-cols-2" data-inspect-id="prematch-recommended-pick-card">
+          <div className="grid gap-3 mt-3 items-stretch grid-cols-1 sm:grid-cols-2 lg:flex-1 lg:min-h-0" data-inspect-id="prematch-recommended-pick-card">
             {([['DPS', trendingDps], ['Support', trendingSupport]] as const).map(([role, rec]) => {
               const delta = rec && !rec.is_new && rec.recent_wr != null && rec.prev_wr != null
                 ? Math.round((rec.recent_wr - rec.prev_wr) * 10) / 10 : null;
               return (
                 <div key={role} className="chamfer match-card-bg relative isolate px-4 py-3">
-                  {rec && <HeroPortraitBg hero={rec.hero} opacity={0.22} position="50% 43%" bandHeight={54.5} inspectId="prematch-recommended-portrait-bg" />}
+                  {rec && <HeroPortraitBg hero={rec.hero} opacity={0.22} position="50% 55%" fill inspectId="prematch-recommended-portrait-bg" />}
                   <div className="text-[10px] grad-brand font-bold uppercase tracking-widest mb-1">Recent form {role}</div>
                   {rec ? (
                     <>
@@ -1157,14 +1168,14 @@ export default function Prematch() {
             stretch pick — a role with no in-testing hero just shows empty
             rather than an error, since the other column may still have one. */}
         {map && (
-          <div id="coaching" className="scroll-mt-24 mt-3" data-inspect-id="prematch-coaching-section">
+          <div id="coaching" className="scroll-mt-24 mt-3 lg:flex-1 lg:min-h-0" data-inspect-id="prematch-coaching-section">
             {recLoading && !rec && <div className="text-xs text-[var(--faint)]">Loading…</div>}
             {recError && <div className="text-xs text-red-600">{recError}</div>}
             {rec && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-stretch" data-inspect-id="prematch-coaching-columns">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-stretch lg:h-full" data-inspect-id="prematch-coaching-columns">
                 {(['DPS', 'Support'] as const).map(role => (
                   <div key={role} className="chamfer match-card-bg relative isolate px-4 py-3">
-                    {rec[role] && <HeroPortraitBg hero={rec[role].primary} opacity={0.22} position="50% 43%" bandHeight={54.5} inspectId={`prematch-coaching-portrait-bg-${role.toLowerCase()}`} />}
+                    {rec[role] && <HeroPortraitBg hero={rec[role].primary} opacity={0.22} position="50% 55%" fill inspectId={`prematch-coaching-portrait-bg-${role.toLowerCase()}`} />}
                     <div className="text-[10px] grad-brand font-bold uppercase tracking-widest mb-1">Coaching {role}</div>
                     {rec[role] ? (
                       <AdvisorCard
@@ -1192,14 +1203,14 @@ export default function Prematch() {
           minutes since each role's last reset; a clock that reaches 4 hours
           resets to 0. Rules in server/src/lib/roleTimer.ts. Quick Play is
           ignored server-side. Recommendation only, never blocks logging. */}
-      <div className="card lg:col-span-1 min-w-0" data-inspect-id="prematch-role-timers-card">
+      <div className="card lg:col-span-1 min-w-0 lg:flex lg:flex-col" data-inspect-id="prematch-role-timers-card">
         <div className="flex items-baseline gap-2 mb-3">
           <h2 className="text-sm card-title">Role time</h2>
           <span className="text-xs text-[var(--faint-2)] whitespace-nowrap">
             Comp only · resets at {roleTimers ? fmtHM(roleTimers.thresholdMin).replace(' 00m', '') : '4h'}
           </span>
         </div>
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 lg:flex-1 lg:justify-between">
           {(roleTimers?.roles ?? []).map(r => {
             const k = r.role.toLowerCase();
             return (
