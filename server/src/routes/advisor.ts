@@ -342,15 +342,15 @@ router.get('/recommend', withReplica(async (req: Request, res: Response, db) => 
 
   try {
     const client = new Anthropic();
-    // Sonnet 5 (not Haiku 4.5) so the untested-fallback pick can draw on
-    // current game knowledge for newer heroes Haiku predates. Sonnet 5 thinks
+    // Sonnet 5.5 (not Haiku 4.5) so the untested-fallback pick can draw on
+    // current game knowledge for newer heroes Haiku predates. Sonnet 5.5 thinks
     // by default (adaptive thinking, no opt-in needed) and thinking tokens
     // count against max_tokens, so this pins effort low — picking one name
     // off a short list needs no deep reasoning — and gives max_tokens some
     // headroom above the old 700 so a stray thinking burst can't truncate
     // the JSON reply.
     const response = await client.messages.create({
-      model: 'claude-sonnet-5',
+      model: 'claude-sonnet-5-5',
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
       output_config: {
