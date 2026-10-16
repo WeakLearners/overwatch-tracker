@@ -100,3 +100,56 @@ describe('PUT /api/config — sens-study lock', () => {
     assert.ok(!r.body.enabledCategories.includes('sens-study'));
   });
 });
+
+describe('POST /api/config/preset — first-run presets', () => {
+  const sorted = (a: string[]) => [...a].sort();
+
+  test('a fresh database asks for a preset, and GET still reports every category on', async () => {
+    const r = await h.get('/api/config');
+    assert.equal(r.body.needsPreset, true);
+    assert.deepEqual(r.body.presets.map((p: any) => p.id), ['casual', 'improver', 'scientist']);
+  });
+
+  test('casual turns on core and rank only: 4 registry fields', async () => {
+    const r = await h.post('/api/config/preset', { preset: 'casual' });
+    assert.equal(r.status, 200);
+    assert.deepEqual(sorted(r.body.enabledCategories), ['core', 'rank']);
+    assert.equal(r.body.needsPreset, false);
+    assert.equal(r.body.fields.filter((f: any) => f.enabled).length, 4);
+  });
+
+  test('improver adds subjective and combat: 9 registry fields, feel off', async () => {
+    const r = await h.post('/api/config/preset', { preset: 'improver' });
+    assert.deepEqual(sorted(r.body.enabledCategories), ['combat', 'core', 'rank', 'subjective']);
+    assert.equal(r.body.fields.filter((f: any) => f.enabled).length, 9);
+    assert.equal(r.body.fields.find((f: any) => f.id === 'feel').enabled, false);
+  });
+
+  test('scientist is every category: 10 registry fields', async () => {
+    const r = await h.post('/api/config/preset', { preset: 'scientist' });
+    assert.deepEqual(sorted(r.body.enabledCategories), ['combat', 'core', 'mouse-settings', 'rank', 'sens-study', 'subjective']);
+    assert.equal(r.body.fields.filter((f: any) => f.enabled).length, 10);
+  });
+
+  test('a user who already has a saved row is refused and keeps their setup', async () => {
+    await h.put('/api/config', { enabledCategories: ['combat'] });
+    const r = await h.post('/api/config/preset', { preset: 'casual' });
+    assert.equal(r.status, 409);
+    const check = await h.get('/api/config');
+    assert.ok(check.body.enabledCategories.includes('combat'));
+    assert.ok(!check.body.enabledCategories.includes('rank'));
+  });
+
+  test('an unknown preset is rejected', async () => {
+    const r = await h.post('/api/config/preset', { preset: 'nope' });
+    assert.equal(r.status, 400);
+  });
+
+  test('a running sens study keeps sens-study on, with its prerequisite, under casual', async () => {
+    insertBlindSet(h.db, { active: 1 });
+    const r = await h.post('/api/config/preset', { preset: 'casual' });
+    assert.equal(r.status, 200);
+    assert.ok(r.body.enabledCategories.includes('sens-study'));
+    assert.ok(r.body.enabledCategories.includes('mouse-settings'));
+  });
+});

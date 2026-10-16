@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
-import { CATEGORY_REGISTRY, FIELD_REGISTRY, CategoryId, categoryById } from '../lib/fieldRegistry';
+import { CATEGORY_REGISTRY, FIELD_REGISTRY, PRESET_REGISTRY, CategoryId, categoryById, presetById } from '../lib/fieldRegistry';
 import { activeSets } from './blind';
 
 const router = Router();
@@ -40,12 +40,20 @@ function lockedCategories(db: ReturnType<typeof getDb>): { id: CategoryId; reaso
   return [{ id: 'sens-study', reason: 'locked — a sensitivity study stage is running' }];
 }
 
+// True when the owner has no saved row: nobody has picked a preset or toggled a
+// category. A user with a row never sees the first-run preset screen.
+function hasStoredConfig(db: ReturnType<typeof getDb>): boolean {
+  return !!db.prepare('SELECT 1 FROM user_config WHERE user_id = :user_id').get({ user_id: OWNER });
+}
+
 export function buildConfigPayload(db: ReturnType<typeof getDb>) {
   const enabled = new Set(currentEnabled(db));
   const locked = lockedCategories(db);
   return {
     enabledCategories: [...enabled],
     lockedCategories: locked,
+    needsPreset: !hasStoredConfig(db),
+    presets: PRESET_REGISTRY,
     categories: CATEGORY_REGISTRY,
     fields: FIELD_REGISTRY.map(f => ({ ...f, enabled: enabled.has(f.category) })),
   };
@@ -117,6 +125,37 @@ router.put('/', (req: Request, res: Response) => {
     ON CONFLICT(user_id) DO UPDATE SET enabled_categories = :cats
   `).run({ user_id: OWNER, cats: JSON.stringify(toStore) });
 
+  res.json(buildConfigPayload(db));
+});
+
+// Body: { preset: 'casual' | 'improver' | 'scientist' } — the first-run choice.
+// Only allowed while no row is saved, so a preset can never overwrite a user's
+// own setup. A category that a running sens study locks stays on, and every
+// category's hard prerequisites are pulled in, as PUT / does.
+router.post('/preset', (req: Request, res: Response) => {
+  const db = getDb();
+  const preset = presetById(String(req.body?.preset ?? ''));
+  if (!preset) {
+    res.status(400).json({ error: 'preset must be one of: casual, improver, scientist' });
+    return;
+  }
+  if (hasStoredConfig(db)) {
+    res.status(409).json({ error: 'a setup is already saved — change categories in Settings' });
+    return;
+  }
+  const desired = new Set<CategoryId>(preset.categories);
+  for (const l of lockedCategories(db)) desired.add(l.id);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const cid of [...desired]) {
+      for (const dep of categoryById(cid)!.hardDependsOn) {
+        if (!desired.has(dep)) { desired.add(dep); changed = true; }
+      }
+    }
+  }
+  db.prepare('INSERT INTO user_config (user_id, enabled_categories) VALUES (:user_id, :cats)')
+    .run({ user_id: OWNER, cats: JSON.stringify([...desired]) });
   res.json(buildConfigPayload(db));
 });
 

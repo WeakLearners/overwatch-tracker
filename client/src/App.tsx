@@ -20,6 +20,7 @@ import DevWatermark from './components/DevWatermark';
 import SensChangeModal from './components/SensChangeModal';
 import DemoBanner from './demo/DemoBanner';
 import { DASHBOARD_PATHS } from './lib/dashSections';
+import FirstRunPreset from './components/FirstRunPreset';
 
 // The static demo has no server to rewrite deep links, so it routes on the hash.
 const Router = import.meta.env.VITE_DEMO === '1' ? HashRouter : BrowserRouter;
@@ -96,6 +97,7 @@ export default function App() {
           </div>
         </header>
         <main className="relative z-10 max-w-[79.2rem] mx-auto px-4 sm:px-6 pt-6 pb-10">
+          <FirstRunPreset />
           <Routes>
             <Route path="/" element={<Dashboard />} />
             {/* Aliases: Pre-Match, Log Match and Trends now live as sections on

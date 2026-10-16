@@ -50,7 +50,16 @@ export interface LockedCategory {
   reason: string;
 }
 
+export interface PresetMeta {
+  id: string;
+  label: string;
+  description: string;
+  categories: string[];
+}
+
 interface ConfigPayload {
+  needsPreset?: boolean;
+  presets?: PresetMeta[];
   enabledCategories: string[];
   lockedCategories: LockedCategory[];
   categories: CategoryMeta[];
@@ -64,6 +73,11 @@ interface FieldConfigCtx {
   fields: FieldMeta[];
   enabledCategories: string[];
   lockedCategories: LockedCategory[];
+  // True while the owner has no saved setup: the first-run preset screen shows.
+  needsPreset: boolean;
+  presets: PresetMeta[];
+  // First-run only. The server refuses it once a setup is saved.
+  choosePreset: (id: string) => Promise<void>;
   isCategoryEnabled: (id: string) => boolean;
   isCategoryLocked: (id: string) => LockedCategory | undefined;
   isFieldEnabled: (id: string) => boolean;
@@ -84,6 +98,9 @@ const FieldConfigContext = createContext<FieldConfigCtx>({
   fields: [],
   enabledCategories: ['core'],
   lockedCategories: [],
+  needsPreset: false,
+  presets: [],
+  choosePreset: async () => {},
   isCategoryEnabled: () => false,
   isCategoryLocked: () => undefined,
   isFieldEnabled: () => false,
@@ -121,6 +138,17 @@ export function FieldConfigProvider({ children }: { children: ReactNode }) {
     setConfig(body);
   }, [config.enabledCategories]);
 
+  const choosePreset = useCallback(async (id: string) => {
+    const res = await fetch('/api/config/preset', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ preset: id }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
+    setConfig(body);
+  }, []);
+
   const value: FieldConfigCtx = {
     loading,
     error,
@@ -128,6 +156,9 @@ export function FieldConfigProvider({ children }: { children: ReactNode }) {
     fields: config.fields,
     enabledCategories: config.enabledCategories,
     lockedCategories: config.lockedCategories,
+    needsPreset: config.needsPreset ?? false,
+    presets: config.presets ?? [],
+    choosePreset,
     isCategoryEnabled: (id) => config.enabledCategories.includes(id),
     isCategoryLocked: (id) => config.lockedCategories.find(l => l.id === id),
     isFieldEnabled: (id) => config.fields.find(f => f.id === id)?.enabled ?? false,

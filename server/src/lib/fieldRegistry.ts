@@ -84,6 +84,45 @@ export function categoryById(id: string): CategoryEntry | undefined {
   return CATEGORY_REGISTRY.find(c => c.id === id);
 }
 
+// Phase 3 presets (lists approved by Sean 2026-10-15, drafted in
+// projects/overwatch-analysis/auto/phase3-presets.md). A preset is a list of
+// categories, because the category is the toggle unit. 'core' is always on and
+// is not listed. Scientist is every category, so it equals the state of a user
+// with no saved row before presets existed.
+export type PresetId = 'casual' | 'improver' | 'scientist';
+
+export interface PresetEntry {
+  id: PresetId;
+  label: string;
+  description: string;
+  categories: CategoryId[];
+}
+
+export const PRESET_REGISTRY: PresetEntry[] = [
+  {
+    id: 'casual',
+    label: 'Casual',
+    description: 'Log the match and watch your rank. Nothing else to fill in.',
+    categories: ['rank'],
+  },
+  {
+    id: 'improver',
+    label: 'Improver',
+    description: 'Adds your match ratings and who killed you, to find what to fix.',
+    categories: ['rank', 'subjective', 'combat'],
+  },
+  {
+    id: 'scientist',
+    label: 'Scientist',
+    description: 'Everything, including mouse settings and the sensitivity study.',
+    categories: ['rank', 'subjective', 'combat', 'mouse-settings', 'sens-study'],
+  },
+];
+
+export function presetById(id: string): PresetEntry | undefined {
+  return PRESET_REGISTRY.find(p => p.id === id);
+}
+
 // Mode/role tags — added at Phase 2 kickoff (2026-09-24, Sean's addition to
 // the roadmap). Cheap to add now, one shape frozen across all Phase 2
 // entries, so the eventual filter-settings screen doesn't have to reopen
