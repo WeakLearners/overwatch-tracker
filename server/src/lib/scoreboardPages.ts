@@ -15,7 +15,7 @@
 import { syncMatchHeroStats } from './matchHeroStats';
 import type { DatabaseSync } from 'node:sqlite';
 import { HEROES_BY_ROLE, MAPS_BY_NAME } from './roster';
-import { slotValues, resolveSlots, pickableTiles, isAutoMapped, finalBlows, type Tile, type Slot, type SlotSource, type PickTile } from './heroTileLabels';
+import { parseTileNumber, slotValues, resolveSlots, pickableTiles, isAutoMapped, finalBlows, type Tile, type Slot, type SlotSource, type PickTile } from './heroTileLabels';
 import { loadPicks } from './heroTilePicks';
 import { emitTrackerWrite } from './trackerEvents';
 
@@ -53,6 +53,22 @@ export interface RawRank {
 // -------------------------------------------------------------- name matching
 
 const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[‘’]/g, "'").trim().replace(/\s+/g, ' ').toLowerCase();
+
+/** The Personal page with the hero selector on ALL HEROES. It is not a hero: it holds the player's totals for the match. */
+export const isAllHeroes = (name: string | null | undefined): boolean => !!name && fold(name) === 'all heroes';
+
+// Tile labels on the ALL HEROES page, in priority order (first label present wins). Labels are matched exactly after fold; never fuzzy.
+// ALL DAMAGE DONE is assumed to be the same figure as the Teams board's DMG column; no sample page existed when this was written (2026-10-16).
+export const ALL_HEROES_DAMAGE_LABELS = ['all damage done', 'damage done', 'hero damage done'];
+export const ALL_HEROES_HEALING_LABELS = ['healing done'];
+/** Total damage and healing from the tiles of an ALL HEROES page; null for a missing or unreadable tile. */
+export function allHeroesTotals(tiles: Tile[]): { damage: number | null; healing: number | null } {
+  const pick = (labels: string[]) => {
+    for (const l of labels) { const t = tiles.find(x => fold(x.label) === l); const v = t ? parseTileNumber(t.value) : null; if (v != null) return v; }
+    return null;
+  };
+  return { damage: pick(ALL_HEROES_DAMAGE_LABELS), healing: pick(ALL_HEROES_HEALING_LABELS) };
+}
 
 /** Exact roster name (case, accents and curly quotes folded), else null. */
 export function rosterHero(name: string | null | undefined): string | null {
@@ -396,7 +412,7 @@ export interface FormFill {
   /** aim_stats.duration_min: the sum of hero play times in minutes, NOT the game length. */
   duration_min: number | null;
   game_length_sec: number | null;
-  pages: { summary: boolean; teams: boolean; personal: string[] };
+  pages: { summary: boolean; teams: boolean; personal: string[]; /** an ALL HEROES page with a damage or healing tile was read (it is not a hero) */ all_heroes?: boolean };
   /** The group's rank page (the form fills the rank selector and outcome from it), or null. start_* come from deriveStartRank. */
   rank: { rank_int: number; progress_pct: number | null; delta_pct: number | null; result: 'victory' | 'defeat' | 'draw' | null; start_rank_int: number | null; start_progress_pct: number | null } | null;
 }
@@ -414,8 +430,14 @@ export function buildFill(db: DatabaseSync, groupId: number): FormFill | null {
 
   // One Personal page per hero (the newest wins); the ALL HEROES tab has no roster hero and is left out.
   const personal = new Map<string, Tile[]>();
+  let allHeroesTiles: Tile[] | null = null;
   for (const p of pages) {
     if (p.page_type !== 'personal') continue;
+    if (isAllHeroes(parse(p)?.personal?.hero)) {
+      const t = parse(p)?.personal?.tiles;
+      if (Array.isArray(t) && p.status !== 'dismissed') allHeroesTiles = t;
+      continue;
+    }
     const hero = rosterHero(p.page_hero);
     const tiles = parse(p)?.personal?.tiles;
     if (hero && Array.isArray(tiles) && p.status !== 'dismissed') personal.set(hero, tiles);
@@ -423,6 +445,8 @@ export function buildFill(db: DatabaseSync, groupId: number): FormFill | null {
 
   const tp = [...pages].reverse().find(p => (p.page_type === 'teams' || p.page_type == null) && db.prepare(`SELECT 1 FROM scoreboard_rows WHERE scoreboard_id = ? AND is_self = 1`).get(p.id));
   const self = tp ? db.prepare(`SELECT dmg, h, mit FROM scoreboard_rows WHERE scoreboard_id = ? AND is_self = 1`).get(tp.id) as { dmg: number; h: number; mit: number } | undefined : undefined;
+
+  const totals = allHeroesTiles ? allHeroesTotals(allHeroesTiles) : null;
 
   const boardLeaver = tp ? leaverFromBoard(db, tp.id) : null;
   const picks = loadPicks(db);
@@ -456,11 +480,11 @@ export function buildFill(db: DatabaseSync, groupId: number): FormFill | null {
     score_us: sum?.scoreUs ?? null, score_them: sum?.scoreThem ?? null,
     heroes,
     elims: sum?.elims ?? null, assists: sum?.assists ?? null, deaths: sum?.deaths ?? null,
-    damage: self?.dmg ?? null, healing: self?.h ?? null, mitigation: self?.mit ?? null,
+    damage: totals?.damage ?? self?.dmg ?? null, healing: totals?.healing ?? self?.h ?? null, mitigation: self?.mit ?? null,
     final_blows: everyFb ? heroes.reduce((a, h) => a + (h.final_blows ?? 0), 0) : null,
     duration_min: heroes.length && secs.every(s => s != null) ? secs.reduce((a, s) => a + (s as number), 0) / 60 : null,
     game_length_sec: sum?.lengthSec ?? null,
-    pages: { summary: !!sum, teams: !!self, personal: [...personal.keys()] },
+    pages: { summary: !!sum, teams: !!self, personal: [...personal.keys()], all_heroes: !!totals },
     rank,
     leaver_side: boardLeaver?.side ?? null, short_board: !!boardLeaver,
   };

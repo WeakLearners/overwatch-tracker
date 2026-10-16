@@ -10,7 +10,7 @@ import os from 'os';
 import path from 'path';
 import { getDb, closeDb } from '../db/schema';
 import { processFile, recheckGroup, type ParsedScoreboard, type ParsedRow } from './scoreboard';
-import { parseSummaryDate, rosterHero, rosterMap, normSummary, buildFill, fillEmptyAim, finalizeGroups, findOpenGroup, linkGroup, PAGE_GAP_MS } from './scoreboardPages';
+import { allHeroesTotals, parseSummaryDate, rosterHero, rosterMap, normSummary, buildFill, fillEmptyAim, finalizeGroups, findOpenGroup, linkGroup, PAGE_GAP_MS } from './scoreboardPages';
 import { HERO_TILE_MAP, slotValues, deriveSlotTiles, isAutoMapped, finalBlows, parseTileNumber } from './heroTileLabels';
 import { syncMatchHeroStats, tilesToRows, normStat, statUnit } from './matchHeroStats';
 import { organizeBoard, pageSuffix } from './scoreboardOrganize';
@@ -314,6 +314,53 @@ describe('groups on a temp DB (match 3842 is a recovery)', () => {
     await feed(SUMMARY_49, '49', 0); await feed(personal('ALL HEROES', [['FINAL BLOWS', '99']]), 'all', 4);
     const gid = (db.prepare(`SELECT id FROM scoreboard_groups`).get() as any).id;
     assert.equal(buildFill(db, gid)!.final_blows, null);
+  });
+  describe('ALL HEROES page: total damage and healing (2026-10-16)', () => {
+    const allHeroes = (tiles: [string, string][] = [['ALL DAMAGE DONE', '12,345'], ['HEALING DONE', '2,100'], ['FINAL BLOWS', '99']]) => personal('ALL HEROES', tiles);
+    const teams = (selfName = 'LINX'): ParsedScoreboard => ({ is_scoreboard: true, page_type: 'teams', rows: [...Array(5)].map((_, i) => ({ ...row('us', i, i === 4), player_name: i === 4 ? selfName : `Pus${i}` })).concat([...Array(5)].map((_, i) => row('them', i))) });
+    beforeEach(() => { addMatch('2026-09-01 10:00:00'); }); // makes LINX a known account; far from the group window
+    const gidOf = () => (db.prepare(`SELECT id FROM scoreboard_groups`).get() as any).id;
+    test('(a) Teams page in error (PINK for PINX): All Heroes still gives damage and healing, adds no hero', async () => {
+      await feed(SUMMARY_49, '49', 0);
+      assert.equal(await feed(teams('PINK'), 'teams', 3), 'error');
+      await feed(allHeroes(), 'all', 5);
+      const f = buildFill(db, gidOf())!;
+      assert.deepEqual([f.damage, f.healing, f.pages.teams, f.pages.all_heroes], [12345, 2100, false, true]);
+    });
+    test('(b) both present: the All Heroes totals win over the Teams self row', async () => {
+      await feed(SUMMARY_49, '49', 0); await feed(teams(), 'teams', 3); await feed(allHeroes(), 'all', 5);
+      const f = buildFill(db, gidOf())!;
+      assert.deepEqual([f.damage, f.healing], [12345, 2100]);
+      assert.equal(f.pages.teams, true);
+    });
+    test('(c) no All Heroes page: the Teams self row is used as before', async () => {
+      await feed(SUMMARY_49, '49', 0); await feed(teams(), 'teams', 3);
+      const f = buildFill(db, gidOf())!;
+      assert.deepEqual([f.damage, f.healing, f.pages.all_heroes], [8, 5, false]);
+    });
+    test('(d) All Heroes adds no hero: not in heroes or pages.personal, no match_hero_stats row, no accuracy', async () => {
+      const mid = addMatch('2026-10-09 16:35:14'); // the Summary DATE links the group to this match
+      await feed(SUMMARY_49, '49', 0); await feed(TRACER_51, '51', 5); await feed(allHeroes(), 'all', 8);
+      const f = buildFill(db, gidOf())!;
+      assert.deepEqual(f.pages.personal, ['Tracer']);
+      assert.deepEqual(f.heroes.map(h => h.hero), ['Tracer', 'Pharah']);
+      assert.equal(f.final_blows, null, 'the 99 final blows of the All Heroes page are not counted');
+      const hs = db.prepare(`SELECT DISTINCT hero FROM match_hero_stats WHERE match_id = ?`).all(mid) as any[];
+      assert.ok(hs.every(r => r.hero !== 'ALL HEROES' && r.hero != null));
+    });
+    test('label table: ALL DAMAGE DONE beats HERO DAMAGE DONE; HERO DAMAGE DONE alone is the fallback; unknown labels give null', () => {
+      assert.deepEqual(allHeroesTotals(allHeroes([['HERO DAMAGE DONE', '9,000'], ['ALL DAMAGE DONE', '12,000']]).personal!.tiles), { damage: 12000, healing: null });
+      assert.deepEqual(allHeroesTotals(allHeroes([['HERO DAMAGE DONE', '9,000']]).personal!.tiles), { damage: 9000, healing: null });
+      assert.deepEqual(allHeroesTotals(allHeroes([['DAMAGE DEALT', '9,000']]).personal!.tiles), { damage: null, healing: null });
+    });
+    test('late All Heroes page on a logged match fills empty damage/healing only', async () => {
+      const mid = addMatch('2026-10-09 16:35:14');
+      db.prepare(`INSERT INTO match_heroes (match_id, slot, hero, role) VALUES (?, 1, 'Mizuki', 'Support')`).run(mid);
+      db.prepare(`INSERT INTO aim_stats (match_id, elims, deaths, damage, duration_min) VALUES (?, 11, 5, 6347, 8.0667)`).run(mid);
+      await feed(SUMMARY_49, '49', 0); await feed(allHeroes(), 'all', 8);
+      const a = db.prepare(`SELECT damage, healing FROM aim_stats WHERE match_id = ?`).get(mid) as any;
+      assert.deepEqual({ ...a }, { damage: 6347, healing: 2100 });
+    });
   });
   test('Teams in a live group is not linked to a nearby match on another map (window rule guarded by the Summary map)', async () => {
     addMatch('2026-10-09 17:15:00', 'Numbani', 'Mizuki', 'Support');
