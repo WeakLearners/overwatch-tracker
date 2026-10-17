@@ -4462,7 +4462,7 @@ const DATA = {
           "id": "lobby-rank-header",
           "label": "'Lobby Rank' section header",
           "kind": "header",
-          "description": "Header for the rank capture section, with the hint 'read it off the scoreboard now'. Moved 2026-09-29 from Pre-Match into the Log Match form (tracker/lab split): it writes match columns, so it is tracker capture.",
+          "description": "Header for the rank capture section, with the hint 'read it off the scoreboard now'. Lives in the Lobby Rank card (tracker capture), not the Log Match form: the move into the form on 2026-09-29 was reverted the same night.",
           "locate": {
             "path": "client/src/components/LobbyRankSection.tsx:83",
             "grep": "grep -n -F -- 'lobby-rank-header' client/src/components/LobbyRankSection.tsx"
@@ -4492,7 +4492,7 @@ const DATA = {
           "id": "lobby-rank-row",
           "label": "Lobby Rank \u2014 drum + track row",
           "kind": "container",
-          "description": "One flex row holding the rank drum on the left and the lobby range track on the right. Added 2026-09-19 when the drum moved down out of the Recommended pick row. The drum keeps its fixed square width (shrink-0); the track side is flex-1 min-w-0 so a full 21-box row shrinks instead of pushing the drum off the card. Moved 2026-09-29 from Pre-Match into the Log Match form (tracker/lab split): it writes match columns, so it is tracker capture.",
+          "description": "One flex row holding the rank drum on the left and the lobby range track on the right. Added 2026-09-19 when the drum moved down out of the Recommended pick row. The drum keeps its fixed square width (shrink-0); the track side is flex-1 min-w-0 so a full 21-box row shrinks instead of pushing the drum off the card. Part of the Lobby Rank card, which is tracker capture and writes match columns (lobby_low, lobby_high, player_rank).",
           "locate": {
             "path": "client/src/components/LobbyRankSection.tsx:105",
             "grep": "grep -n -F -- 'data-inspect-id=\"lobby-rank-row\"' client/src/components/LobbyRankSection.tsx"
@@ -4502,7 +4502,7 @@ const DATA = {
           "id": "lobby-rank-drum",
           "label": "Current rank drum",
           "kind": "input",
-          "description": "Left half of the Lobby Rank row, sitting beside the lobby range track it defines. A square tier-colored badge showing Sean's current rank, with a step-up button above and a step-down below; each press moves one division on the 1-45 ladder. Competitive only \u2014 it shares the Lobby Rank section's own condition, so it stays reachable at hero select whether or not a map is picked. Moved here 2026-09-19 from the Recommended pick row: your own rank is the origin the lobby range is measured from, so the two belong in one place. This is the only control that writes player_rank. Moved 2026-09-29 from Pre-Match into the Log Match form (tracker/lab split): it writes match columns, so it is tracker capture.",
+          "description": "Left half of the Lobby Rank row, sitting beside the lobby range track it defines. A square tier-colored badge showing Sean's current rank, with a step-up button above and a step-down below; each press moves one division on the 1-45 ladder. Competitive only \u2014 it shares the Lobby Rank section's own condition, so it stays reachable at hero select whether or not a map is picked. Moved here 2026-09-19 from the Recommended pick row: your own rank is the origin the lobby range is measured from, so the two belong in one place. This is the only control that writes player_rank. Part of the Lobby Rank card, which is tracker capture and writes match columns; it reads player_ranks per account and role.",
           "locate": {
             "path": "client/src/components/LobbyRankSection.tsx:106",
             "grep": "grep -n -F -- 'data-inspect-id=\"lobby-rank-drum\"' client/src/components/LobbyRankSection.tsx"
@@ -4512,7 +4512,7 @@ const DATA = {
           "id": "lobby-rank-drum-up",
           "label": "Rank drum \u2014 step up",
           "kind": "button",
-          "description": "Moves Sean's rank up one division. From no rank at all it seeds at Gold 5, visibly, as a starting point to drum from. Any move clears the lobby range, which was computed from the old rank. Moved 2026-09-29 from Pre-Match into the Log Match form (tracker/lab split): it writes match columns, so it is tracker capture.",
+          "description": "Moves Sean's rank up one division. From no rank at all it seeds at Gold 5, visibly, as a starting point to drum from. Any move clears the lobby range, which was computed from the old rank. Part of the Lobby Rank card (tracker capture); this arrow is one of the two hand controls that write player_ranks.",
           "locate": {
             "path": "client/src/components/LobbyRankSection.tsx:110",
             "grep": "grep -n -F -- 'lobby-rank-drum-up' client/src/components/LobbyRankSection.tsx"
@@ -4532,7 +4532,7 @@ const DATA = {
           "id": "lobby-rank-drum-down",
           "label": "Rank drum \u2014 step down",
           "kind": "button",
-          "description": "Moves Sean's rank down one division. Same seeding and same lobby-range clearing as the step-up button. Moved 2026-09-29 from Pre-Match into the Log Match form (tracker/lab split): it writes match columns, so it is tracker capture.",
+          "description": "Moves Sean's rank down one division. Same seeding and same lobby-range clearing as the step-up button. Part of the Lobby Rank card (tracker capture); this arrow is one of the two hand controls that write player_ranks.",
           "locate": {
             "path": "client/src/components/LobbyRankSection.tsx:120",
             "grep": "grep -n -F -- 'lobby-rank-drum-down' client/src/components/LobbyRankSection.tsx"
@@ -4542,7 +4542,7 @@ const DATA = {
           "id": "lobby-rank-needs-rank",
           "label": "Lobby Rank \u2014 'set your rank first' notice",
           "kind": "display",
-          "description": "Stands in for the slider until a rank is on the drum beside it. The track is built around Sean's own rank, so there is nothing to draw without one. Moved 2026-09-29 from Pre-Match into the Log Match form (tracker/lab split): it writes match columns, so it is tracker capture.",
+          "description": "Stands in for the slider until a rank is on the drum beside it. The track is built around Sean's own rank, so there is nothing to draw without one. Part of the Lobby Rank card (tracker capture), which writes match columns.",
           "locate": {
             "path": "client/src/components/LobbyRankSection.tsx:133",
             "grep": "grep -n -F -- 'data-inspect-id=\"lobby-rank-needs-rank\"' client/src/components/LobbyRankSection.tsx"
@@ -6314,6 +6314,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 
