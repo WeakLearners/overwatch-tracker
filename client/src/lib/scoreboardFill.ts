@@ -44,16 +44,10 @@ export interface LivePayload {
 export interface FormSnapshot {
   hero: string; switchHeroes: [string, string]; win: '' | '1' | '0'; map: string;
   scoreUs: string; scoreThem: string; aimStats: StatFieldsT;
-  /** Rank block (optional so older callers stay valid). rankFillable is false on QP, placement or with the rank field off. */
   /** The leaver side the form holds now; the board fills it only while null. */
   leaverSide?: 'mine' | 'theirs' | null;
-  rankFillable?: boolean; rankOutcome?: 'moved' | 'none' | null; rankAtLastLog?: number | null;
 }
 export interface FormPatch {
-  /** Rank selector value (matches.player_rank). */
-  playerRank?: number; rankOutcome?: 'moved' | 'none';
-  /** The start rank to submit as player_rank_start; set together with playerRank, null when the screenshot could not give one. */
-  rankStart?: number | null;
   /** Leaver side from a short Teams board; set only while the form's side is blank (Sean's own pick is never overwritten, not even in overwrite mode). */
   leaverSide?: 'mine' | 'theirs';
   hero?: string; switchHeroes?: [string, string]; win?: '1' | '0'; map?: string;
@@ -125,23 +119,21 @@ export function fillPatch(f: FormSnapshot, fill: FormFill, opts: FillOptions = {
     return next;
   });
   if (JSON.stringify(a) !== JSON.stringify(f.aimStats)) { patch.aimStats = a; patch.aimOpen = true; }
-  Object.assign(patch, rankPatch(f, fill, ow));
   return patch;
 }
 
 /**
- * Rank from the rank page. End rank -> the selector; start -> outcome 'moved' when it differs from the end
- * (Plat 4 81% -> Plat 3 25% is a promotion), else 'none'. Taken only while Sean has not answered the outcome
- * question (or in overwrite mode), and never on QP/placement. A rank page whose result disagrees with the
- * scoreboard's win/loss is a wrong link, so it is ignored. Without a derivable start the form's own rank
- * base decides the outcome and the start is left to the form (rankStart null).
+ * True when the rank page can supply this match's end and start rank. The fill never writes the rank drum
+ * or player_ranks (the drum is the pre-match rank, read from the DB per account and role). Instead the form
+ * submits NULL for player_rank / player_rank_start and the server fills those NULL columns from the rank
+ * page (lib/scoreboardPages.ts fillRankFromGroup). Same guards as the server: not on QP/placement/rank
+ * field off (rankFillable), and a page whose result disagrees with the scoreboard's win/loss is a wrong link.
  */
-function rankPatch(f: FormSnapshot, fill: FormFill, ow: boolean): Pick<FormPatch, 'playerRank' | 'rankOutcome' | 'rankStart'> {
-  const r = fill.rank;
-  if (!r || !f.rankFillable || (!ow && f.rankOutcome != null)) return {};
-  if (r.result && fill.win != null && (r.result === 'victory') !== (fill.win === 1) && r.result !== 'draw') return {};
-  const start = r.start_rank_int ?? f.rankAtLastLog ?? null;
-  return { playerRank: r.rank_int, rankOutcome: start != null && start !== r.rank_int ? 'moved' : 'none', rankStart: r.start_rank_int };
+export function rankPageSupplies(rankFillable: boolean, fill: FormFill | null): boolean {
+  const r = fill?.rank;
+  if (!fill || !r || !rankFillable) return false;
+  if (r.result && fill.win != null && (r.result === 'victory') !== (fill.win === 1) && r.result !== 'draw') return false;
+  return true;
 }
 
 export interface HeroMismatch {

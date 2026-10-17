@@ -14,7 +14,7 @@ import { useDfHeroes, dfSensForHeroName, withDfBadge } from '../hooks/useDfHeroe
 import { format } from 'date-fns';
 import { useFieldConfig } from '../contexts/FieldConfigContext';
 import ScoreboardLight from '../components/ScoreboardLight';
-import { fillPatch, fillSignature, heroMismatch, type FormFill, type LivePayload, type PickSlot } from '../lib/scoreboardFill';
+import { fillPatch, fillSignature, rankPageSupplies, heroMismatch, type FormFill, type LivePayload, type PickSlot } from '../lib/scoreboardFill';
 import { StatFields, emptyStats, statsBody, statsTouched, statsValid, type StatFieldsT, type TileMenus } from '../components/AimStatsFields';
 import ScoreInputs, { scoreOrNull } from '../components/ScoreInputs';
 import type { RankOutcomeValue, RankOutcomeChange } from '../components/RankOutcomeControl';
@@ -671,17 +671,13 @@ export default function LogMatch() {
   // Switching the result after answering would leave a promotion standing on
   // a loss. Clear the answer and hand the rank back to where it started.
   const winValue = form.win;
-  // The scoreboard fill sets the result and the rank in one go. Its rank answer must survive the
-  // reset below, which exists for a hand switch of the result. Set only when the fill changes win.
+  // The scoreboard fill sets the result. That change must not run the reset below, which exists for a
+  // hand switch of the result and would write the drum. Set only when the fill changes win.
   const rankFillWin = useRef<string | null>(null);
-  // Start rank derived from the rank page; submitted as player_rank_start while set. Any hand change
-  // to the rank answer, and every submit, clears it so the form's own rankAtLastLog applies again.
-  const [rankStartFill, setRankStartFill] = useState<number | null>(null);
   useEffect(() => {
     const keep = rankFillWin.current === winValue;
     rankFillWin.current = null;
     if (keep) return;
-    setRankStartFill(null);
     setRankOutcome(null);
     if (rankAtLastLog != null && playerRank !== rankAtLastLog) setPlayerRank(rankAtLastLog);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -753,13 +749,10 @@ export default function LogMatch() {
   const fillFromScoreboard = (src: FormFill | null = live?.light === 'green' ? live.fill : null, overwrite = false) => {
     const fill = src;
     if (!fill) return;
-    const patch = fillPatch({ hero: form.hero, switchHeroes, win: form.win, map, scoreUs, scoreThem, aimStats, leaverSide, rankFillable: !isQP && !(placement && !isQP) && isFieldEnabled('player_rank'), rankOutcome, rankAtLastLog }, fill, { overwrite });
-    if (patch.playerRank !== undefined) {
-      if (patch.win !== undefined && patch.win !== form.win) rankFillWin.current = patch.win;
-      setPlayerRank(patch.playerRank);
-      setRankOutcome(patch.rankOutcome ?? null);
-      setRankStartFill(patch.rankStart ?? null);
-    }
+    const patch = fillPatch({ hero: form.hero, switchHeroes, win: form.win, map, scoreUs, scoreThem, aimStats, leaverSide }, fill, { overwrite });
+    // The scoreboard never sets the rank drum or player_ranks (the drum is the pre-match rank in the DB).
+    // A win change from the fill must not trip the reset effect below, which would PUT the drum back.
+    if (patch.win !== undefined && patch.win !== form.win) rankFillWin.current = patch.win;
     if (patch.leaverSide) setLeaverSide(patch.leaverSide);
     if (patch.map !== undefined) setMap(patch.map);
     if (patch.hero !== undefined) setForm(f => ({ ...f, hero: patch.hero! }));
@@ -1023,7 +1016,10 @@ export default function LogMatch() {
   // — the row says to go set one instead of trapping the form.
   // Placements show no rank to move from, so nothing is asked or written.
   const isPlacement = placement && !isQP;
-  const rankAnswered = isQP || isPlacement || !isFieldEnabled('player_rank') || playerRank == null || rankOutcome != null;
+  // A rank page in the scoreboard group supplies this match's end and start rank when Sean has not answered by
+  // hand: the form then submits NULL and the server fills them (NULL-only). The drum is never touched by it.
+  const rankFromPage = rankOutcome == null && rankPageSupplies(!isQP && !isPlacement && isFieldEnabled('player_rank'), live?.light === 'green' ? live.fill : null);
+  const rankAnswered = isQP || isPlacement || !isFieldEnabled('player_rank') || playerRank == null || rankOutcome != null || rankFromPage;
   // Every hero actually played needs an explicit feel answer — an untouched
   // slider must not reach the database at all (see FEEL_MID note above).
   // Bypassed the same way rankAnswered bypasses on QP above: RegistryField
@@ -1066,8 +1062,8 @@ export default function LogMatch() {
         queue_mode: queueMode,
         leaver: leaverSide !== null,
         leaver_side: leaverSide,
-        player_rank: isQP || isPlacement ? null : playerRank,
-        player_rank_start: isQP || isPlacement ? null : rankStartFill ?? rankAtLastLog,
+        player_rank: isQP || isPlacement || rankFromPage ? null : playerRank,
+        player_rank_start: isQP || isPlacement || rankFromPage ? null : rankAtLastLog,
         lobby_low: isQP || isPlacement ? null : lobbyLow,
         lobby_high: isQP || isPlacement ? null : lobbyHigh,
         placement: isPlacement,
@@ -1101,12 +1097,12 @@ export default function LogMatch() {
           score_them: scoreOrNull(scoreThem),
           // Placement matches write no rank at all: the drum still holds last
           // season's rank, and writing it would draw a fake climb.
-          player_rank: isQP || isPlacement ? null : playerRank,
+          player_rank: isQP || isPlacement || rankFromPage ? null : playerRank,
           // Where the ladder stood going in. Carried from the rank the last
           // match on this account+role ended at, so the row records the move
           // itself rather than leaving the chart to infer one by comparing
           // against whichever earlier row it can find.
-          player_rank_start: isQP || isPlacement ? null : rankStartFill ?? rankAtLastLog,
+          player_rank_start: isQP || isPlacement || rankFromPage ? null : rankAtLastLog,
           lobby_low: isQP || isPlacement ? null : lobbyLow,
           lobby_high: isQP || isPlacement ? null : lobbyHigh,
           placement: isPlacement,
@@ -1131,10 +1127,10 @@ export default function LogMatch() {
       // only after the save succeeds — a failed POST must not move the ladder.
       // After a placement game the ladder has no known rank yet, so the next
       // match must not start from last season's.
-      if (!isQP) commitRankAtLastLog(isPlacement ? null : playerRank);
+      // A rank-page match left the drum alone, so playerRank is not its end rank: leave rankAtLastLog as is.
+      if (!isQP && !rankFromPage) commitRankAtLastLog(isPlacement ? null : playerRank);
       setRankOutcome(null);
-      setRankStartFill(null);
-      clearDeathBuffer();
+        clearDeathBuffer();
       setFeelByHero({});
       setTeamRating(0);
       setMatchQuality(null);
@@ -1597,8 +1593,7 @@ export default function LogMatch() {
                 onChange={(v) => {
                   const { rankOutcome: ro, playerRank: pr } = v as RankOutcomeChange;
                   setRankOutcome(ro);
-                  setRankStartFill(null);
-                  if (pr != null) setPlayerRank(pr);
+                                if (pr != null) setPlayerRank(pr);
                 }}
               />
             )}

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from 'react';
 import { MAPS, QUEUE_MODES, QueueMode, RANK_MIN, RANK_MAX, clampRank, Account, ACCOUNTS, DEFAULT_ACCOUNT, isAccount } from '../types';
 
 // rec/recLoading/recError (the advisor fetch) moved to AdvisorContext.tsx,
@@ -278,6 +278,18 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // Every account / role / queue swap re-reads player_ranks, so the drum shows the DB value for the new slot
+  // (localStorage only paints first). The mount fetch above covers the first load.
+  const swapSeen = useRef(false);
+  useEffect(() => {
+    if (!swapSeen.current) { swapSeen.current = true; return; }
+    let cancelled = false;
+    fetch('/api/ranks').then(r => r.ok ? r.json() : null).then((server: Record<string, number> | null) => {
+      if (!cancelled && server) setRankMap(server);
+    }).catch(() => { /* offline: the rankMap already held applies */ });
+    return () => { cancelled = true; };
+  }, [account, ladder]);
 
   const [playerRank, setPlayerRankState] = useState<number | null>(() => readRank(account, ladder));
   // Once the server's map arrives it wins, for the slot currently selected.

@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { fillPatch, fillSignature, heroMismatch, type FormFill, type FormSnapshot } from './scoreboardFill';
+import { fillPatch, fillSignature, rankPageSupplies, heroMismatch, type FormFill, type FormSnapshot } from './scoreboardFill';
 import { emptyStats } from '../components/AimStatsFields';
 
 const hero = (h: string, o: object = {}) => ({ hero: h, percent: 50, seconds: 100, duration: '1:40', overall_acc: null, crit_acc: null, extra_acc: null, torpedo_damage: null, torpedo_healing: null, mapped: false, ...o });
@@ -93,38 +93,21 @@ describe('fillPatch', () => {
   });
 });
 
-describe('fillPatch: rank page', () => {
+describe('fillPatch / rankPageSupplies: rank page', () => {
   // Screenshot (114): PLATINUM 3 (18) at 25% after +44% -> started Platinum 4 (17) at 81%.
   const win: FormFill = { ...fill, win: 1, rank: { rank_int: 18, progress_pct: 25, delta_pct: 44, result: 'victory', start_rank_int: 17, start_progress_pct: 81 } };
-  const ranked = (o: Partial<FormSnapshot> = {}) => blank({ rankFillable: true, rankOutcome: null, rankAtLastLog: 17, ...o });
-  test('rank selector takes the screenshot rank; a division crossing answers "moved" and keeps the derived start', () => {
-    const p = fillPatch(ranked(), win);
-    assert.deepEqual([p.playerRank, p.rankOutcome, p.rankStart], [18, 'moved', 17]);
+  test('the fill never carries a rank: the drum and player_ranks are not the scoreboard\'s to set', () => {
+    const p = fillPatch(blank(), win, { overwrite: true }) as Record<string, unknown>;
+    for (const k of ['playerRank', 'rankOutcome', 'rankStart']) assert.equal(k in p, false, k);
   });
-  test('same division: outcome "none", start is the derived start', () => {
-    const same: FormFill = { ...win, rank: { rank_int: 18, progress_pct: 60, delta_pct: 20, result: 'victory', start_rank_int: 18, start_progress_pct: 40 } };
-    const p = fillPatch(ranked({ rankAtLastLog: 18 }), same);
-    assert.deepEqual([p.playerRank, p.rankOutcome, p.rankStart], [18, 'none', 18]);
+  test('a rank page supplies the match rank only while the rank field is fillable', () => {
+    assert.equal(rankPageSupplies(true, win), true);
+    assert.equal(rankPageSupplies(false, win), false, 'quick play, placement or rank field off');
   });
-  test('a loss that demoted answers "moved"', () => {
-    const lose: FormFill = { ...win, win: 0, rank: { rank_int: 17, progress_pct: 80, delta_pct: -30, result: 'defeat', start_rank_int: 18, start_progress_pct: 10 } };
-    const p = fillPatch(ranked({ rankAtLastLog: 18 }), lose);
-    assert.deepEqual([p.playerRank, p.rankOutcome, p.rankStart], [17, 'moved', 18]);
-  });
-  test('no derivable start: the form rank base decides the outcome and the start is left to the form (null)', () => {
-    const noStart: FormFill = { ...win, rank: { ...win.rank!, delta_pct: null, start_rank_int: null, start_progress_pct: null } };
-    assert.deepEqual([fillPatch(ranked(), noStart).rankOutcome, fillPatch(ranked(), noStart).rankStart], ['moved', null]);
-    assert.equal(fillPatch(ranked({ rankAtLastLog: 18 }), noStart).rankOutcome, 'none');
-  });
-  test('an answered outcome is never replaced, except in overwrite mode', () => {
-    assert.equal(fillPatch(ranked({ rankOutcome: 'none' }), win).playerRank, undefined);
-    assert.equal(fillPatch(ranked({ rankOutcome: 'none' }), win, { overwrite: true }).playerRank, 18);
-  });
-  test('quick play, placement or rank field off (rankFillable false), no rank page, or a result that disagrees: no rank patch', () => {
-    assert.equal(fillPatch(ranked({ rankFillable: false }), win).playerRank, undefined);
-    assert.equal(fillPatch(blank(), win).playerRank, undefined);
-    assert.equal(fillPatch(ranked(), fill).playerRank, undefined);
-    assert.equal(fillPatch(ranked(), { ...win, win: 0 }).playerRank, undefined, 'victory page on a lost scoreboard is a wrong link');
+  test('no rank page, no fill, or a result that disagrees: nothing supplied', () => {
+    assert.equal(rankPageSupplies(true, fill), false);
+    assert.equal(rankPageSupplies(true, null), false);
+    assert.equal(rankPageSupplies(true, { ...win, win: 0 }), false, 'victory page on a lost scoreboard is a wrong link');
   });
   test('a late rank page changes the signature so the form fills again', () => {
     assert.notEqual(fillSignature(fill), fillSignature(win));
