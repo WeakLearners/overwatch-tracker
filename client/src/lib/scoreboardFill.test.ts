@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { fillPatch, fillSignature, rankPageSupplies, heroMismatch, type FormFill, type FormSnapshot } from './scoreboardFill';
+import { fillPatch, fillSignature, rankPageSupplies, rankPageOutcome, heroMismatch, type FormFill, type FormSnapshot } from './scoreboardFill';
 import { emptyStats } from '../components/AimStatsFields';
 
 const hero = (h: string, o: object = {}) => ({ hero: h, percent: 50, seconds: 100, duration: '1:40', overall_acc: null, crit_acc: null, extra_acc: null, torpedo_damage: null, torpedo_healing: null, mapped: false, ...o });
@@ -125,6 +125,14 @@ describe('fillPatch / rankPageSupplies: rank page', () => {
     assert.equal(rankPageSupplies(true, fill), false);
     assert.equal(rankPageSupplies(true, null), false);
     assert.equal(rankPageSupplies(true, { ...win, win: 0 }), false, 'victory page on a lost scoreboard is a wrong link');
+  });
+  test('rankPageOutcome: page 15/17%/+33 with drum 14 gives moved, end 15, start 14; hand answer is the caller\'s (null result when no page)', () => {
+    const live: FormFill = { ...fill, win: 1, rank: { rank_int: 15, progress_pct: 17, delta_pct: 33, result: 'victory', start_rank_int: null, start_progress_pct: null } };
+    assert.deepEqual(rankPageOutcome(true, live, 14), { end: 15, start: 14, outcome: 'moved' });
+    assert.equal(rankPageOutcome(true, live, 15)!.outcome, 'none');
+    assert.equal(rankPageOutcome(false, live, 14), null);
+    assert.equal(rankPageOutcome(true, fill, 14), null);
+    assert.equal(rankPageOutcome(true, { ...live, win: 0 }, 14), null);
   });
   test('a late rank page changes the signature so the form fills again', () => {
     assert.notEqual(fillSignature(fill), fillSignature(win));

@@ -139,6 +139,18 @@ export function rankPageSupplies(rankFillable: boolean, fill: FormFill | null): 
   return true;
 }
 
+/**
+ * The rank outcome a rank page implies, for display and submit. Pure: it never touches the drum or
+ * player_ranks (no setPlayerRank, no PUT /api/ranks). Start is the page's start_rank_int, else the drum value.
+ * Returns null when the page does not apply (see rankPageSupplies).
+ */
+export function rankPageOutcome(rankFillable: boolean, fill: FormFill | null, drum: number | null): { end: number; start: number | null; outcome: 'moved' | 'none' } | null {
+  if (!fill || !rankPageSupplies(rankFillable, fill)) return null;
+  const end = fill.rank!.rank_int;
+  const start = fill.rank!.start_rank_int ?? drum ?? null;
+  return { end, start, outcome: start != null && start !== end ? 'moved' : 'none' };
+}
+
 export interface HeroMismatch {
   /** Scoreboard heroes with their play-time share, for the marker text. */
   board: { hero: string; percent: number }[];
