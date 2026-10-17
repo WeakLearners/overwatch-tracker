@@ -61,8 +61,11 @@ export interface FillOptions {
   overwrite?: boolean;
 }
 
+/** A hero picked and swapped off before play has a Personal page with 0 seconds: it is left out. Unknown seconds (null) keep the hero. */
+const played = (h: FillHero) => !(h.seconds === 0 || (h.percent === 0 && h.duration === '0:00'));
+
 /** Heroes on the scoreboard, in play-time order, max 3. */
-const boardHeroes = (fill: FormFill) => fill.heroes.map(h => h.hero).slice(0, 3);
+const boardHeroes = (fill: FormFill) => fill.heroes.filter(played).map(h => h.hero).slice(0, 3);
 
 export function fillPatch(f: FormSnapshot, fill: FormFill, opts: FillOptions = {}): FormPatch {
   const ow = !!opts.overwrite;
@@ -104,7 +107,7 @@ export function fillPatch(f: FormSnapshot, fill: FormFill, opts: FillOptions = {
   a.heroAcc = picked.map(name => {
     const row: HeroAccStat = f.aimStats.heroAcc.find(r => r.hero === name)
       ?? { hero: name, overall_acc: '', crit_acc: '', extra_acc: '', torpedo_damage: '', torpedo_healing: '', duration_min: '' };
-    const src = fill.heroes.find(h => h.hero === name);
+    const src = fill.heroes.filter(played).find(h => h.hero === name);
     if (!src) return row;
     const next = { ...row };
     const put = (k: Exclude<keyof HeroAccStat, 'hero'>, v: number | string | null) => {

@@ -13,6 +13,23 @@ const fill: FormFill = {
 };
 const blank = (o: Partial<FormSnapshot> = {}): FormSnapshot => ({ hero: '', switchHeroes: ['', ''], win: '', map: '', scoreUs: '', scoreThem: '', aimStats: emptyStats([]), ...o });
 
+describe('fillPatch zero-second hero', () => {
+  const zero = { ...fill, heroes: [hero('Cassidy', { seconds: 387, percent: 100, duration: '6:27', overall_acc: 40, mapped: true }), hero('Soldier: 76', { seconds: 0, percent: 0, duration: '0:00' })] };
+  test('a 0-second hero gets no switch slot and no stat row', () => {
+    const p = fillPatch(blank(), zero);
+    assert.equal(p.hero, 'Cassidy'); assert.deepEqual(p.switchHeroes, undefined);
+    assert.deepEqual(p.aimStats!.heroAcc.map(r => r.hero), ['Cassidy']);
+  });
+  test('a 0-second hero is not the start hero', () => {
+    const p = fillPatch(blank(), { ...zero, heroes: [zero.heroes[1], zero.heroes[0]] });
+    assert.equal(p.hero, 'Cassidy');
+  });
+  test('unknown seconds (null) keep the hero', () => {
+    const p = fillPatch(blank(), { ...zero, heroes: [zero.heroes[0], hero('Soldier: 76', { seconds: null, percent: 20, duration: '1:00' })] });
+    assert.deepEqual(p.switchHeroes, ['Soldier: 76', '']);
+  });
+});
+
 describe('fillPatch leaver side', () => {
   const sb = { ...fill, leaver_side: 'theirs' as const, short_board: true };
   test('a short board ticks the side on a blank form', () => assert.equal(fillPatch(blank(), sb).leaverSide, 'theirs'));
