@@ -552,7 +552,7 @@ interface BlindSetSummary {
 export default function LogMatch() {
   // Map + queue mode are shared with the Pre-Match section via context; this
   // section only owns date/time/hero/win plus the death tags.
-  const { queueMode, map, setMap, mapType, sens, testRole, pendingHeroes, setPendingHeroes, setPickedHeroes, notifyMatchLogged, playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, lobbyLow, lobbyHigh, placement, ladder, account } = useMatch();
+  const { queueMode, map, setMap, mapType, sens, testRole, pendingHeroes, setPendingHeroes, setPickedHeroes, notifyMatchLogged, playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, refreshRanks, lobbyLow, lobbyHigh, placement, ladder, account } = useMatch();
   const { deathBuffer, removeDeathFromBuffer, toggleDeathUlt, clearDeathBuffer } = useDeathBuffer();
   const { data: dpiState } = useApi<DpiTestState>('/api/blind/state');
   const { isFieldEnabled, fields } = useFieldConfig();
@@ -1129,6 +1129,9 @@ export default function LogMatch() {
       // match must not start from last season's.
       // A rank-page match left the drum alone, so playerRank is not its end rank: leave rankAtLastLog as is.
       if (!isQP && !rankFromPage) commitRankAtLastLog(isPlacement ? null : playerRank);
+      // The server wrote player_ranks (syncLadderRank), also when the rank came from the rank page. Re-read it so the
+      // drum shows the DB value, and start the next match from it.
+      if (!isQP && !isPlacement) void refreshRanks().then(m => { const v = m?.[`${account}|${ladder}`]; if (rankFromPage && v != null) commitRankAtLastLog(v); });
       setRankOutcome(null);
         clearDeathBuffer();
       setFeelByHero({});

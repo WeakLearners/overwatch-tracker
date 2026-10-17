@@ -167,6 +167,13 @@ describe('rank page on a temp DB', () => {
       assert.equal(fillRankFromGroup(db, gid, qp), false); assert.equal(fillRankFromGroup(db, gid, lost), false);
       assert.deepEqual([{ ...ranks(qp) }, { ...ranks(lost) }], [{ player_rank: null, player_rank_start: null }, { player_rank: null, player_rank_start: null }]);
     });
+    test('a promotion filled from the rank page moves player_ranks 17 -> 18 (one source of truth for the drum)', async () => {
+      db.prepare(`INSERT INTO player_ranks (account, role, rank) VALUES ('Linx', 'DPS', 17)`).run();
+      const m = addMatch();
+      await feed(rankReading(), 'r', 0); await feed(SUMMARY, 's', 14);
+      assert.equal(ranks(m).player_rank, 18);
+      assert.equal((db.prepare(`SELECT rank FROM player_ranks WHERE account = 'Linx' AND role = 'DPS'`).get() as any).rank, 18);
+    });
     test('no change bar read: end rank fills, start stays NULL', async () => {
       const m = addMatch();
       await feed(rankReading({ change_text: '' }), 'r', 0); await feed(SUMMARY, 's', 14);

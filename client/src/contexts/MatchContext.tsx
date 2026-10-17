@@ -159,6 +159,8 @@ interface MatchContextValue {
   /** Rank the last logged match on this ladder ended at — the next match's start rank. */
   rankAtLastLog: number | null;
   commitRankAtLastLog: (r: number | null) => void;
+  /** Re-read /api/ranks (the one source of truth) into the drum; resolves with the map, or null when offline. */
+  refreshRanks: () => Promise<Record<string, number> | null>;
   /** After a Today's Matches rank-outcome fix: mirror what the server moved
    *  (live rank and/or the ladder's latest end rank) for any account+role. */
   applyRankFix: (a: Account, r: RankRole, rank: number | null, latestEnd: number | null) => void;
@@ -290,6 +292,24 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     }).catch(() => { /* offline: the rankMap already held applies */ });
     return () => { cancelled = true; };
   }, [account, ladder]);
+
+  const refreshRanks = useCallback(async () => {
+    try {
+      const res = await fetch('/api/ranks');
+      if (!res.ok) return null;
+      const server: Record<string, number> = await res.json();
+      setRankMap(server);
+      return server;
+    } catch { return null; }
+  }, []);
+
+  // The server can move player_ranks while no save happens here (a rank page arriving after the match was
+  // logged links and fills it), so re-read when the tab regains focus.
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') void refreshRanks(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [refreshRanks]);
 
   const [playerRank, setPlayerRankState] = useState<number | null>(() => readRank(account, ladder));
   // Once the server's map arrives it wins, for the slot currently selected.
@@ -474,7 +494,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     testRole, setTestRole,
     mapType,
     account, setAccount,
-    playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, applyRankFix,
+    playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, applyRankFix, refreshRanks,
     ladder, placement, setPlacement,
     lobbyLow, lobbyHigh,
     setLobbyRange: setLobbyRangeValues, applyLobbySpread, nudgeLobby, clearLobbyRange,
@@ -484,7 +504,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     notifyMatchLogged,
   }), [
     queueMode, setQueueMode, map, setMap, sens, setSens, testRole, setTestRole, mapType,
-    account, setAccount, playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, applyRankFix,
+    account, setAccount, playerRank, setPlayerRank, rankAtLastLog, commitRankAtLastLog, applyRankFix, refreshRanks,
     ladder, placement, setPlacement, lobbyLow, lobbyHigh, setLobbyRangeValues, applyLobbySpread, nudgeLobby, clearLobbyRange,
     pendingHeroes, pickedHeroes, mapCandidates, matchLoggedSignal, lastLog, notifyMatchLogged,
   ]);

@@ -18,6 +18,7 @@ import { HEROES_BY_ROLE, MAPS_BY_NAME } from './roster';
 import { parseTileNumber, slotValues, resolveSlots, pickableTiles, isAutoMapped, finalBlows, type Tile, type Slot, type SlotSource, type PickTile } from './heroTileLabels';
 import { loadPicks } from './heroTilePicks';
 import { emitTrackerWrite } from './trackerEvents';
+import { syncLadderRank } from './ladderRank';
 
 
 export const PAGE_GAP_MS = 90_000;
@@ -236,6 +237,7 @@ export function fillRankFromGroup(db: DatabaseSync, groupId: number, matchId: nu
   const start = deriveStartRank(r.rank_int, r.progress_pct, r.delta_pct);
   let wrote = db.prepare(`UPDATE matches SET player_rank = ? WHERE id = ? AND player_rank IS NULL`).run(r.rank_int, matchId).changes > 0;
   if (start) wrote = db.prepare(`UPDATE matches SET player_rank_start = ? WHERE id = ? AND player_rank_start IS NULL`).run(start.rankInt, matchId).changes > 0 || wrote;
+  if (wrote) syncLadderRank(db, matchId);
   return wrote;
 }
 

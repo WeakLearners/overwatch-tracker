@@ -4,6 +4,7 @@ import { getCurveParams } from '../lib/curveParams';
 import { getExperimentHooks } from '../lib/experimentHooks';
 import { saveAimStatsRows, validateAimStats, type AimStatsPayload } from '../lib/aimStatsWrite';
 import { CRASHED_HERO, CRASHED_EDITABLE } from '../lib/crashed';
+import { syncLadderRank } from '../lib/ladderRank';
 import { linkGroup, shortBoardConflicts } from '../lib/scoreboardPages';
 import { organizeBoard } from '../lib/scoreboardOrganize';
 import { scoreboardDir } from '../lib/scoreboardWatcher';
@@ -62,6 +63,7 @@ function logCrashedMatch(db: ReturnType<typeof getDb>, body: Record<string, any>
     player_rank: player_rank ?? null, player_rank_start: player_rank_start ?? null,
     lobby_low: lobby_low ?? null, lobby_high: lobby_high ?? null, placement: placement ? 1 : null, account: account ?? null,
   });
+  syncLadderRank(db, result.lastInsertRowid as number);
   res.json({ id: result.lastInsertRowid as number });
 }
 
@@ -266,6 +268,7 @@ router.post('/', (req: Request, res: Response) => {
       const g = db.prepare(`SELECT state FROM scoreboard_groups WHERE id = ?`).get(scoreboard_group_id) as { state: string } | undefined;
       if (g?.state === 'live') { linkGroup(db, scoreboard_group_id, matchId, 'linked', 'linked at submit', false); linkedGroup = scoreboard_group_id; }
     }
+    syncLadderRank(db, matchId);
     db.exec('COMMIT');
   } catch (err) {
     db.exec('ROLLBACK');
@@ -497,6 +500,9 @@ router.put('/:id', (req: Request, res: Response) => {
       res.status(404).json({ error: 'Match not found' });
       return;
     }
+    // The ladder's live rank follows the newest comp match. Only edits that can change a match's rank or its
+    // ladder/position re-sync, so an unrelated edit never overwrites a drum Sean set by hand.
+    if (fields.some(k => ['player_rank', 'queue_mode', 'role', 'account', 'date', 'time'].includes(k))) syncLadderRank(db, req.params.id);
     // Keep match_heroes' slot-1 row (the by-hero stats attribution source) in
     // sync whenever the primary hero/role/sens is corrected via edit. sens
     // mirrors the same way feel/duration never needed to (they're captured
