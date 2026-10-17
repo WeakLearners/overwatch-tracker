@@ -20,7 +20,7 @@ export default function FirstRunPreset() {
 
   return (
     <div className="card mb-6 py-4 px-4" data-inspect-id="first-run-preset">
-      <div className="text-sm text-[var(--ink)] font-bold">How much do you want to track?</div>
+      <div className="text-sm card-title">How much do you want to track?</div>
       <div className="text-xs text-[var(--faint)] mb-3">Pick a starting point. You can change it any time in Settings.</div>
       <div className="grid gap-2 sm:grid-cols-3">
         {presets.map(p => (
@@ -30,7 +30,7 @@ export default function FirstRunPreset() {
             disabled={saving}
             onClick={() => pick(p.id)}
             data-inspect-id="first-run-preset-option"
-            className="chamfer-sm match-card-bg text-left px-3 py-3 border border-ow-border rounded-md hover:border-ow-accent disabled:opacity-60"
+            className="chamfer-sm match-card-bg text-left px-3 py-3 border border-ow-border hover:border-ow-accent disabled:opacity-60"
           >
             <div className="text-sm text-[var(--ink)] font-bold">{p.label}</div>
             <div className="text-xs text-[var(--faint)] mt-0.5">{p.description}</div>
