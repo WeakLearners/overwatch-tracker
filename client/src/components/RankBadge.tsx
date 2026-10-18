@@ -1,4 +1,10 @@
-import { RANK_TIER_RGB, rankTier, rankDivision, rankLabel } from '../types';
+import { RANK_TIER_RGB, rankTier, rankDivision, rankLabel, type RankTier } from '../types';
+
+// Short tier names for the tight log-page badge only (opt-in via `abbreviate`).
+const TIER_ABBR: Record<RankTier, string> = {
+  Bronze: 'Brnz', Silver: 'Silv', Gold: 'Gold', Platinum: 'Plat', Emerald: 'Emld',
+  Diamond: 'Dmnd', Master: 'Mast', Grandmaster: 'GM', Champion: 'Chmp',
+};
 
 // The rank badge, in one place.
 //
@@ -15,11 +21,12 @@ import { RANK_TIER_RGB, rankTier, rankDivision, rankLabel } from '../types';
 // ink at the top, shading to a DARKENED tier hue (65% hue, 35% black) at the
 // bottom, which keeps the contrast the rule above was protecting.
 export default function RankBadge({
-  rank, size = 'lg', dataInspectId,
+  rank, size = 'lg', dataInspectId, abbreviate = false,
 }: {
   rank: number | null;
   size?: 'lg' | 'sm';
   dataInspectId?: string;
+  abbreviate?: boolean;
 }) {
   const lg = size === 'lg';
   return (
@@ -38,7 +45,7 @@ export default function RankBadge({
       ) : (
         <>
           <span className={`${lg ? 'text-[9px]' : 'text-[7px]'} uppercase tracking-widest font-bold leading-none lit-text`}>
-            {rankTier(rank)}
+            {abbreviate ? TIER_ABBR[rankTier(rank)] : rankTier(rank)}
           </span>
           <span className={`${lg ? 'text-3xl' : 'text-xl'} num-display font-black leading-none ${lg ? 'mt-1' : 'mt-0.5'} lit-text`}>
             {rankDivision(rank)}

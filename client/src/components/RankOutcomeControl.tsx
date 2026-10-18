@@ -43,7 +43,7 @@ export default function RankOutcomeControl({ value, onChange }: {
         rankAnswered ? 'border-ow-border bg-ow-darker' : 'border-ow-accent/50 bg-ow-accent/5'
       }`}
     >
-      <RankBadge rank={playerRank} size="sm" dataInspectId="logmatch-rank-outcome-badge" />
+      <RankBadge rank={playerRank} size="sm" abbreviate dataInspectId="logmatch-rank-outcome-badge" />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2 mb-1.5">
           <span className="text-[10px] uppercase tracking-wide text-[var(--faint-2)]">
