@@ -1634,7 +1634,7 @@
           "id": "logmatch-rank-outcome-badge",
           "label": "Current rank badge (log page)",
           "kind": "badge",
-          "description": "The shared RankBadge at small size, reading the live server rank from player_ranks. Same component as prematch-rank-drum-badge, so pressing a button in this row moves the Pre-Match badge too.",
+          "description": "The shared RankBadge at small size, reading the live server rank from player_ranks. Same component as lobby-rank-drum-badge, so pressing a button in this row moves the Pre-Match badge too. Only this badge passes `abbreviate`, so it shows short tier names (Brnz, Silv, GM, ...).",
           "locate": {
             "path": "client/src/components/RankOutcomeControl.tsx:46",
             "grep": "grep -n -F -- 'logmatch-rank-outcome-badge' client/src/components/RankOutcomeControl.tsx"
