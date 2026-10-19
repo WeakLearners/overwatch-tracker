@@ -39,7 +39,7 @@ export default function RankBadge({
       title={rank == null ? 'No rank set' : rankLabel(rank)}
     >
       {rank == null ? (
-        <span className={`${lg ? 'text-[10px]' : 'text-[8px]'} uppercase tracking-widest text-[var(--faint-2)] px-1 leading-tight`}>
+        <span className={`text-[10px] uppercase tracking-widest text-[var(--faint-2)] px-1 leading-tight`}>
           Set<br />rank
         </span>
       ) : (
