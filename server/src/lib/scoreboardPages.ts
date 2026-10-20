@@ -507,6 +507,28 @@ export function logSourceConflicts(fill: FormFill, matchId: number | null): void
   for (const c of fill.source_conflicts) console.log(`[scoreboard] group ${fill.group_id} -> match ${matchId ?? '?'}: ${c.stat} differs, teams ${c.teams} vs all heroes ${c.all_heroes}; using all heroes`);
 }
 
+/**
+ * Replace a Teams-reader damage/healing value with the ALL HEROES value. Only when the stored value equals the
+ * Teams value exactly: that proves the reader put it there (match 3940 stored 4043 from Teams; ALL HEROES said 4843).
+ * A stored value equal to neither source was typed by Sean: it stays and is logged. NULL columns are fillEmptyAim's job.
+ * Returns the stats it changed.
+ */
+export function reconcileSourceConflicts(db: DatabaseSync, matchId: number, fill: FormFill): string[] {
+  const changed: string[] = [];
+  for (const c of fill.source_conflicts) {
+    const aim = db.prepare(`SELECT ${c.stat} AS v FROM aim_stats WHERE match_id = ?`).get(matchId) as { v: number | null } | undefined;
+    if (!aim || aim.v == null || aim.v === c.all_heroes) continue;
+    if (aim.v === c.teams) {
+      db.prepare(`UPDATE aim_stats SET ${c.stat} = ? WHERE match_id = ? AND ${c.stat} = ?`).run(c.all_heroes, matchId, c.teams);
+      changed.push(c.stat);
+      console.log(`[scoreboard] group ${fill.group_id} -> match ${matchId}: ${c.stat} ${c.teams} (teams reader) replaced by ${c.all_heroes} (all heroes)`);
+    } else {
+      console.log(`[scoreboard] group ${fill.group_id} -> match ${matchId}: ${c.stat} stored ${aim.v} matches neither teams ${c.teams} nor all heroes ${c.all_heroes}; left alone`);
+    }
+  }
+  return changed;
+}
+
 // -------------------------------------------------- fill only the empty fields
 
 /**
@@ -564,6 +586,7 @@ export function finalizeGroups(db: DatabaseSync, nowMs: number = Date.now(), onl
     const fill = buildFill(db, g.id);
     if (fill) {
       logSourceConflicts(fill, g.match_id);
+      if (reconcileSourceConflicts(db, g.match_id!, fill).length) wrote = true;
       const r = fillEmptyAim(db, g.match_id!, fill, g.state === 'linked' ? LINKED_FILL : ['elims', 'deaths', 'damage', 'final_blows', 'assists', 'healing', 'hero_slots']);
       if (r.filled.length) wrote = true;
       if (r.filled.length) console.log(`[scoreboard] group ${g.id} -> match ${g.match_id}: filled ${r.filled.join(', ')}`);

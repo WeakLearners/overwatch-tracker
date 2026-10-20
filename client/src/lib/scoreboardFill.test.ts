@@ -13,6 +13,23 @@ const fill: FormFill = {
 };
 const blank = (o: Partial<FormSnapshot> = {}): FormSnapshot => ({ hero: '', switchHeroes: ['', ''], win: '', map: '', scoreUs: '', scoreThem: '', aimStats: emptyStats([]), ...o });
 
+describe('fillPatch Teams vs ALL HEROES conflict (match 3940)', () => {
+  const conflict: FormFill = { ...fill, damage: 4843, pages: { ...fill.pages, all_heroes: true }, source_conflicts: [{ stat: 'damage', teams: 4043, all_heroes: 4843 }] };
+  const held = (damage: string) => blank({ aimStats: { ...emptyStats([]), damage } });
+  test('a form field still holding the Teams value takes the ALL HEROES value', () => {
+    assert.equal(fillPatch(held('4043'), conflict).aimStats!.damage, '4843');
+  });
+  test('a typed value that matches neither source stays', () => {
+    assert.equal(fillPatch(held('4000'), conflict).aimStats!.damage, '4000');
+  });
+  test('a blank field fills with the ALL HEROES value', () => {
+    assert.equal(fillPatch(blank(), conflict).aimStats!.damage, '4843');
+  });
+  test('the signature changes when the ALL HEROES page lands', () => {
+    assert.notEqual(fillSignature(fill), fillSignature(conflict));
+  });
+});
+
 describe('fillPatch zero-second hero', () => {
   const zero = { ...fill, heroes: [hero('Cassidy', { seconds: 387, percent: 100, duration: '6:27', overall_acc: 40, mapped: true }), hero('Soldier: 76', { seconds: 0, percent: 0, duration: '0:00' })] };
   test('a 0-second hero gets no switch slot and no stat row', () => {

@@ -22,7 +22,9 @@ export interface FormFill {
   group_id: number; map: string | null; win: 0 | 1 | null; score_us: number | null; score_them: number | null;
   heroes: FillHero[]; elims: number | null; assists: number | null; deaths: number | null;
   damage: number | null; healing: number | null;
-  pages: { summary: boolean; teams: boolean; personal: string[] };
+  pages: { summary: boolean; teams: boolean; personal: string[]; all_heroes?: boolean };
+  /** Teams self row and ALL HEROES page disagree on this total. The fill value is all_heroes; a form field still holding the Teams value is replaced. */
+  source_conflicts?: { stat: 'damage' | 'healing'; teams: number; all_heroes: number }[];
   /** Leaver implied by a short Teams board (the game removes a leaver's row in comp). short_board with a null side: both sides equally short, so the side is left to Sean. */
   leaver_side?: 'mine' | 'theirs' | null; short_board?: boolean;
   /** The rank progress page of the group (server: scoreboardPages.ts buildFill), or null. */
@@ -104,6 +106,8 @@ export function fillPatch(f: FormSnapshot, fill: FormFill, opts: FillOptions = {
   const setIf = (k: 'elims' | 'deaths' | 'damage' | 'healing' | 'assists', v: number | null) => { if (v != null && (ow || a[k].trim() === '')) a[k] = String(v); };
   setIf('elims', fill.elims); setIf('deaths', fill.deaths); setIf('damage', fill.damage);
   if (hasSupport) { setIf('healing', fill.healing); setIf('assists', fill.assists); }
+  // A value the form took from the Teams page before the ALL HEROES page arrived: only an exact match to the Teams value is replaced.
+  for (const c of fill.source_conflicts ?? []) if (a[c.stat].trim() === String(c.teams) && (c.stat === 'damage' || hasSupport)) a[c.stat] = String(c.all_heroes);
   a.heroAcc = picked.map(name => {
     const row: HeroAccStat = f.aimStats.heroAcc.find(r => r.hero === name)
       ?? { hero: name, overall_acc: '', crit_acc: '', extra_acc: '', torpedo_damage: '', torpedo_healing: '', duration_min: '' };
@@ -172,4 +176,4 @@ export function heroMismatch(picked: (string | undefined)[], fill: FormFill): He
 
 /** Changes whenever a page lands in the group, so late Personal pages fill their blanks too. */
 export const fillSignature = (fill: FormFill) =>
-  `${fill.group_id}:${fill.pages.summary ? 1 : 0}${fill.pages.teams ? 1 : 0}:${fill.pages.personal.join(',')}:${fill.rank ? fill.rank.rank_int : ''}`;
+  `${fill.group_id}:${fill.pages.summary ? 1 : 0}${fill.pages.teams ? 1 : 0}${fill.pages.all_heroes ? 1 : 0}:${fill.pages.personal.join(',')}:${fill.rank ? fill.rank.rank_int : ''}`;

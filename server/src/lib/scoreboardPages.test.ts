@@ -171,6 +171,39 @@ describe('groups on a temp DB (match 3842 is a recovery)', () => {
     const aim = db.prepare(`SELECT damage, healing FROM aim_stats WHERE match_id = ?`).get(mid) as any;
     assert.deepEqual({ ...aim }, { damage: 1765, healing: 5351 });
   });
+  describe('Teams vs ALL HEROES conflict on a stored match (3940)', () => {
+    const setup = (stored: number | null) => {
+      const mid = Number(db.prepare(`INSERT INTO matches (date, hero, role, map, game_type, win, account, created_at) VALUES ('2026-10-20', 'Shion', 'DPS', 'Nepal', 'Control', 0, 'Winx', '2026-10-20 13:16:04')`).run().lastInsertRowid);
+      db.prepare(`INSERT INTO match_heroes (match_id, slot, hero, role) VALUES (?, 1, 'Shion', 'DPS')`).run(mid);
+      db.prepare(`INSERT INTO aim_stats (match_id, elims, deaths, damage, duration_min) VALUES (?, 17, 0, ?, 8)`).run(mid, stored);
+      const iso = new Date(T0).toISOString();
+      const gid = Number(db.prepare(`INSERT INTO scoreboard_groups (state, match_id, summary_mtime, last_mtime) VALUES ('linked', ?, ?, ?)`).run(mid, iso, iso).lastInsertRowid);
+      const sid = Number(db.prepare(`INSERT INTO match_scoreboards (match_id, file_path, file_mtime, status, page_type, group_id) VALUES (?, '/x/t.png', ?, 'matched', 'teams', ?)`).run(mid, iso, gid).lastInsertRowid);
+      db.prepare(`INSERT INTO scoreboard_rows (scoreboard_id, team, slot, is_self, role, player_name, e, a, d, dmg, h, mit) VALUES (?, 'us', 0, 1, 'dps', 'WINX', 17, 0, 0, 4043, 0, 90)`).run(sid);
+      db.prepare(`INSERT INTO match_scoreboards (match_id, file_path, file_mtime, status, page_type, group_id, raw_json) VALUES (?, '/x/a.png', ?, 'matched', 'personal', ?, ?)`)
+        .run(mid, iso, gid, JSON.stringify({ page_type: 'personal', rows: [], personal: { hero: 'ALL HEROES', tiles: [{ label: 'HERO DAMAGE DONE', value: '4,843', per10: '', career_best: false }, { label: 'HEALING DONE', value: '0', per10: '', career_best: false }] } }));
+      return { mid, gid };
+    };
+    const dmg = (mid: number) => (db.prepare(`SELECT damage FROM aim_stats WHERE match_id = ?`).get(mid) as any).damage;
+    const capture = (fn: () => void) => { const lines: string[] = []; const o = console.log; console.log = (m: string) => { lines.push(String(m)); }; try { fn(); } finally { console.log = o; } return lines; };
+    test('stored value equals the Teams value: replaced by the ALL HEROES value and logged', () => {
+      const { mid } = setup(4043);
+      const lines = capture(() => finalizeGroups(db, T0 + PAGE_GAP_MS + 1000));
+      assert.equal(dmg(mid), 4843);
+      assert.ok(lines.some(l => /damage 4043 \(teams reader\) replaced by 4843/.test(l)));
+    });
+    test('stored value equals neither source: unchanged and logged', () => {
+      const { mid } = setup(4000);
+      const lines = capture(() => finalizeGroups(db, T0 + PAGE_GAP_MS + 1000));
+      assert.equal(dmg(mid), 4000);
+      assert.ok(lines.some(l => /stored 4000 matches neither/.test(l)));
+    });
+    test('stored NULL: filled with the ALL HEROES value as before', () => {
+      const { mid } = setup(null);
+      capture(() => finalizeGroups(db, T0 + PAGE_GAP_MS + 1000));
+      assert.equal(dmg(mid), 4843);
+    });
+  });
   describe('recheckGroup', () => {
     // A group stored as ambiguous (as before the 24-hour date fix) with a good Summary reading.
     const stored = async () => {

@@ -22,7 +22,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { PATCH_BOUNDARIES } from './patchEra';
 import {
   TEAMS_ONLY, parseDbUtc, normSummary, rosterHero, isAllHeroes, findOpenGroup, createGroup, touchGroup, linkGroup, groupSummaryMap, groupSummaryHeroes, syncLeaverFromBoard,
-  adoptLoosePages, buildFill, logSourceConflicts, fillEmptyAim, recoveryCandidates, finalizeGroups, normRank, storeRank, findGroupAfterRank, fillRankFromGroup,
+  adoptLoosePages, buildFill, logSourceConflicts, reconcileSourceConflicts, fillEmptyAim, recoveryCandidates, finalizeGroups, normRank, storeRank, findGroupAfterRank, fillRankFromGroup,
   type RawSummary, type RawPersonal, type RawRank, type PageType, type GroupRow,
 } from './scoreboardPages';
 export { parseDbUtc };
@@ -633,6 +633,7 @@ function processPersonal(db: DatabaseSync, parsed: ParsedScoreboard, store: Stor
   if (g.match_id != null && !hero && isAllHeroes(parsed.personal?.hero)) {
     const fill = buildFill(db, g.id);
     if (fill) logSourceConflicts(fill, g.match_id);
+    if (fill && reconcileSourceConflicts(db, g.match_id, fill).length) emitTrackerWrite();
     if (fill && fillEmptyAim(db, g.match_id, { ...fill, heroes: [] }, ['damage', 'healing']).filled.length) emitTrackerWrite();
   }
   return status;
