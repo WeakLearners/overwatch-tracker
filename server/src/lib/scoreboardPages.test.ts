@@ -10,7 +10,7 @@ import os from 'os';
 import path from 'path';
 import { getDb, closeDb } from '../db/schema';
 import { processFile, recheckGroup, type ParsedScoreboard, type ParsedRow } from './scoreboard';
-import { allHeroesTotals, parseSummaryDate, rosterHero, rosterMap, normSummary, buildFill, fillEmptyAim, finalizeGroups, findOpenGroup, linkGroup, PAGE_GAP_MS } from './scoreboardPages';
+import { allHeroesTotals, parseSummaryDate, rosterHero, rosterMap, normSummary, buildFill, logSourceConflicts, fillEmptyAim, finalizeGroups, findOpenGroup, linkGroup, PAGE_GAP_MS } from './scoreboardPages';
 import { HERO_TILE_MAP, slotValues, deriveSlotTiles, isAutoMapped, finalBlows, parseTileNumber } from './heroTileLabels';
 import { syncMatchHeroStats, tilesToRows, normStat, statUnit } from './matchHeroStats';
 import { organizeBoard, pageSuffix } from './scoreboardOrganize';
@@ -348,6 +348,27 @@ describe('groups on a temp DB (match 3842 is a recovery)', () => {
       await feed(SUMMARY_49, '49', 0); await feed(teams(), 'teams', 3);
       const f = buildFill(db, gidOf())!;
       assert.deepEqual([f.damage, f.healing, f.pages.all_heroes], [8, 5, false]);
+    });
+    test('(e) Teams and All Heroes agree: no conflict', async () => {
+      await feed(SUMMARY_49, '49', 0); await feed(teams(), 'teams', 3); await feed(allHeroes([['ALL DAMAGE DONE', '8'], ['HEALING DONE', '5']]), 'all', 5);
+      const f = buildFill(db, gidOf())!;
+      assert.deepEqual([f.damage, f.healing, f.source_conflicts], [8, 5, []]);
+    });
+    test('(f) 3940 shape: Teams 4043 vs All Heroes 4843 -> 4843 is used and the conflict is logged with both values', async () => {
+      await feed(SUMMARY_49, '49', 0);
+      const t = teams(); t.rows[4].dmg = 4043; t.rows[4].h = 0;
+      await feed(t, 'teams', 3); await feed(allHeroes([['HERO DAMAGE DONE', '4,843'], ['HEALING DONE', '0']]), 'all', 5);
+      const f = buildFill(db, gidOf())!;
+      assert.deepEqual([f.damage, f.healing], [4843, 0]);
+      assert.deepEqual(f.source_conflicts, [{ stat: 'damage', teams: 4043, all_heroes: 4843 }]);
+      const lines: string[] = []; const orig = console.log; console.log = (m: string) => { lines.push(String(m)); };
+      try { logSourceConflicts(f, 3940); } finally { console.log = orig; }
+      assert.equal(lines.length, 1);
+      assert.match(lines[0], /\[scoreboard\] group \d+ -> match 3940: damage differs, teams 4043 vs all heroes 4843/);
+    });
+    test('(g) only one source: no conflict is reported', async () => {
+      await feed(SUMMARY_49, '49', 0); await feed(allHeroes(), 'all', 5);
+      assert.deepEqual(buildFill(db, gidOf())!.source_conflicts, []);
     });
     test('(d) All Heroes adds no hero: not in heroes or pages.personal, no match_hero_stats row, no accuracy', async () => {
       const mid = addMatch('2026-10-09 16:35:14'); // the Summary DATE links the group to this match

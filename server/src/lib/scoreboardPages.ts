@@ -414,6 +414,8 @@ export interface FormFill {
   /** aim_stats.duration_min: the sum of hero play times in minutes, NOT the game length. */
   duration_min: number | null;
   game_length_sec: number | null;
+  /** Stats where the Teams self row and the ALL HEROES page both gave a value and the values differ. The fill uses all_heroes (see buildFill). Logged by logSourceConflicts. */
+  source_conflicts: { stat: 'damage' | 'healing'; teams: number; all_heroes: number }[];
   pages: { summary: boolean; teams: boolean; personal: string[]; /** an ALL HEROES page with a damage or healing tile was read (it is not a hero) */ all_heroes?: boolean };
   /** The group's rank page (the form fills the rank selector and outcome from it), or null. start_* come from deriveStartRank. */
   rank: { rank_int: number; progress_pct: number | null; delta_pct: number | null; result: 'victory' | 'defeat' | 'draw' | null; start_rank_int: number | null; start_progress_pct: number | null } | null;
@@ -449,6 +451,13 @@ export function buildFill(db: DatabaseSync, groupId: number): FormFill | null {
   const self = tp ? db.prepare(`SELECT dmg, h, mit FROM scoreboard_rows WHERE scoreboard_id = ? AND is_self = 1`).get(tp.id) as { dmg: number; h: number; mit: number } | undefined : undefined;
 
   const totals = allHeroesTiles ? allHeroesTotals(allHeroesTiles) : null;
+  // Two readings of the same total. ALL HEROES wins: in the one disagreement on record (match 3940, group 99)
+  // the Teams reader gave 4043 and the screenshot shows 4,843. All 18 other groups with both pages agree.
+  const source_conflicts: FormFill['source_conflicts'] = [];
+  if (totals && self) {
+    if (totals.damage != null && totals.damage !== self.dmg) source_conflicts.push({ stat: 'damage', teams: self.dmg, all_heroes: totals.damage });
+    if (totals.healing != null && totals.healing !== self.h) source_conflicts.push({ stat: 'healing', teams: self.h, all_heroes: totals.healing });
+  }
 
   const boardLeaver = tp ? leaverFromBoard(db, tp.id) : null;
   const picks = loadPicks(db);
@@ -486,10 +495,16 @@ export function buildFill(db: DatabaseSync, groupId: number): FormFill | null {
     final_blows: everyFb ? heroes.reduce((a, h) => a + (h.final_blows ?? 0), 0) : null,
     duration_min: heroes.length && secs.every(s => s != null) ? secs.reduce((a, s) => a + (s as number), 0) / 60 : null,
     game_length_sec: sum?.lengthSec ?? null,
+    source_conflicts,
     pages: { summary: !!sum, teams: !!self, personal: [...personal.keys()], all_heroes: !!totals },
     rank,
     leaver_side: boardLeaver?.side ?? null, short_board: !!boardLeaver,
   };
+}
+
+/** One log line per conflict between the Teams self row and the ALL HEROES page. Called where a fill is written, not on every live read. */
+export function logSourceConflicts(fill: FormFill, matchId: number | null): void {
+  for (const c of fill.source_conflicts) console.log(`[scoreboard] group ${fill.group_id} -> match ${matchId ?? '?'}: ${c.stat} differs, teams ${c.teams} vs all heroes ${c.all_heroes}; using all heroes`);
 }
 
 // -------------------------------------------------- fill only the empty fields
@@ -548,6 +563,7 @@ export function finalizeGroups(db: DatabaseSync, nowMs: number = Date.now(), onl
     if (nowMs - Date.parse(g.last_mtime) < PAGE_GAP_MS) continue;
     const fill = buildFill(db, g.id);
     if (fill) {
+      logSourceConflicts(fill, g.match_id);
       const r = fillEmptyAim(db, g.match_id!, fill, g.state === 'linked' ? LINKED_FILL : ['elims', 'deaths', 'damage', 'final_blows', 'assists', 'healing', 'hero_slots']);
       if (r.filled.length) wrote = true;
       if (r.filled.length) console.log(`[scoreboard] group ${g.id} -> match ${g.match_id}: filled ${r.filled.join(', ')}`);
