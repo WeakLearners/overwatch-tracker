@@ -160,6 +160,17 @@ describe('groups on a temp DB (match 3842 is a recovery)', () => {
     assert.deepEqual(heroes.map(h => ({ ...h })), [{ hero: 'Pharah', overall_acc: 50, crit_acc: 21, extra_acc: null }, { hero: 'Tracer', overall_acc: 33, crit_acc: 10, extra_acc: 0 }]);
     assert.equal(finalizeGroups(db, T0 + 999_999), 0, 'filled once');
   });
+  test('a group linked at submit still fills empty damage and healing from a Teams page that arrived late (match 3863)', () => {
+    const mid = Number(db.prepare(`INSERT INTO matches (date, hero, role, map, game_type, win, account, created_at) VALUES ('2026-10-12', 'Sombra', 'Support', 'Nepal', 'Control', 0, 'Winx', '2026-10-12 15:17:09')`).run().lastInsertRowid);
+    db.prepare(`INSERT INTO match_heroes (match_id, slot, hero, role) VALUES (?, 1, 'Sombra', 'Support')`).run(mid);
+    db.prepare(`INSERT INTO aim_stats (match_id, elims, deaths, duration_min) VALUES (?, 3, 1, 8)`).run(mid);
+    const gid = Number(db.prepare(`INSERT INTO scoreboard_groups (state, match_id, summary_mtime, last_mtime) VALUES ('linked', ?, ?, ?)`).run(mid, new Date(T0).toISOString(), new Date(T0).toISOString()).lastInsertRowid);
+    const sid = Number(db.prepare(`INSERT INTO match_scoreboards (match_id, file_path, file_mtime, status, page_type, group_id) VALUES (?, '/x/late-teams.png', ?, 'matched', 'teams', ?)`).run(mid, new Date(T0).toISOString(), gid).lastInsertRowid);
+    db.prepare(`INSERT INTO scoreboard_rows (scoreboard_id, team, slot, is_self, role, player_name, e, a, d, dmg, h, mit) VALUES (?, 'us', 0, 1, 'support', 'WINX', 3, 4, 1, 1765, 5351, 63)`).run(sid);
+    assert.equal(finalizeGroups(db, T0 + PAGE_GAP_MS + 1000), 1);
+    const aim = db.prepare(`SELECT damage, healing FROM aim_stats WHERE match_id = ?`).get(mid) as any;
+    assert.deepEqual({ ...aim }, { damage: 1765, healing: 5351 });
+  });
   describe('recheckGroup', () => {
     // A group stored as ambiguous (as before the 24-hour date fix) with a good Summary reading.
     const stored = async () => {
@@ -247,7 +258,7 @@ describe('groups on a temp DB (match 3842 is a recovery)', () => {
     assert.deepEqual(f.heroes.map(h => [h.hero, h.duration, h.overall_acc, h.crit_acc, h.extra_acc]), [['Tracer', '5:28', 33, 10, 0], ['Pharah', '2:36', 50, 21, null]]);
     assert.equal(f.duration_min, (328 + 156) / 60, 'sum of hero play times, not the 8:47 game length');
   });
-  test('submit link: group becomes linked, pages move to the new match, only final_blows is filled', async () => {
+  test('submit link: group becomes linked, pages move to the new match, only final_blows (plus damage and healing) can fill', async () => {
     await feed(SUMMARY_49, '49', 0); await feed(TRACER_51, '51', 5); await feed(PHARAH_52, '52', 6);
     const g = (db.prepare(`SELECT id FROM scoreboard_groups`).get() as any).id;
     const mid = addMatch('2026-10-09 16:40:00'); addAim(mid);

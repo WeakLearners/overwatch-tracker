@@ -536,9 +536,11 @@ export function fillEmptyAim(db: DatabaseSync, matchId: number, fill: FormFill, 
 /**
  * Once a linked group has been quiet for PAGE_GAP_MS (every page is in), fill the
  * empty aim fields of its match. Recovery groups fill everything fillEmptyAim
- * allows; a group the form linked at submit fills final_blows only (the form
- * already sent the rest, and it has no field for final blows).
+ * allows. A group the form linked at submit fills final_blows (the form has no field
+ * for it) plus damage and healing (a Teams page can arrive after the form was sent). The form
+ * owns every other column. NULL columns only, so a typed value always stays.
  */
+const LINKED_FILL = ['final_blows', 'damage', 'healing'];
 export function finalizeGroups(db: DatabaseSync, nowMs: number = Date.now(), onlyGroup?: number): number {
   const due = (db.prepare(`SELECT * FROM scoreboard_groups WHERE state IN ('recovery', 'linked') AND match_id IS NOT NULL AND filled_at IS NULL`).all() as unknown as GroupRow[]).filter(g => onlyGroup == null || g.id === onlyGroup);
   let n = 0, wrote = false;
@@ -546,7 +548,7 @@ export function finalizeGroups(db: DatabaseSync, nowMs: number = Date.now(), onl
     if (nowMs - Date.parse(g.last_mtime) < PAGE_GAP_MS) continue;
     const fill = buildFill(db, g.id);
     if (fill) {
-      const r = fillEmptyAim(db, g.match_id!, fill, g.state === 'linked' ? ['final_blows'] : ['elims', 'deaths', 'damage', 'final_blows', 'assists', 'healing', 'hero_slots']);
+      const r = fillEmptyAim(db, g.match_id!, fill, g.state === 'linked' ? LINKED_FILL : ['elims', 'deaths', 'damage', 'final_blows', 'assists', 'healing', 'hero_slots']);
       if (r.filled.length) wrote = true;
       if (r.filled.length) console.log(`[scoreboard] group ${g.id} -> match ${g.match_id}: filled ${r.filled.join(', ')}`);
     }

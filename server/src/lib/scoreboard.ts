@@ -158,9 +158,28 @@ const norm = (s: string) => s.trim().toLowerCase();
 export function resolveSelf(rows: { team: string; player_name: string }[], accounts: string[]): { index: number } | { error: string } {
   const known = new Set(accounts.map(norm));
   const hits = rows.map((r, i) => (r.team === 'us' && known.has(norm(r.player_name)) ? i : -1)).filter(i => i >= 0);
-  if (hits.length === 0) return { error: 'no row on the top team has a known account name' };
+  if (hits.length === 1) return { index: hits[0] };
   if (hits.length > 1) return { error: `${hits.length} rows on the top team have a known account name (${hits.map(i => rows[i].player_name).join(', ')})` };
-  return { index: hits[0] };
+  // No exact name. The reader often gets one letter wrong (WINX read as WIMX or WINK, PINX as PINK).
+  // Accept a row only when exactly one top-team row is within one edit of exactly one account.
+  const near = rows.map((r, i) => {
+    if (r.team !== 'us') return -1;
+    const n = norm(r.player_name);
+    const m = [...known].filter(a => a.length >= 4 && editDistance(n, a) <= 1);
+    return m.length === 1 ? i : -1;
+  }).filter(i => i >= 0);
+  if (near.length === 1) return { index: near[0] };
+  return { error: 'no row on the top team has a known account name' };
+}
+
+/** Levenshtein distance. Names are short, so the plain table is fine. */
+export function editDistance(a: string, b: string): number {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...new Array<number>(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) {
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  }
+  return d[a.length][b.length];
 }
 
 // ------------------------------------------------------------- validation

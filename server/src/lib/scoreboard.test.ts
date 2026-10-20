@@ -95,6 +95,18 @@ describe('self row by name, hero removed', () => {
   test('enemy team rows never count', () => assert.ok('error' in resolveSelf([{ team: 'us', player_name: 'A' }, { team: 'them', player_name: 'LINX' }], ['Linx'])));
   test('zero hits -> error', () => assert.match((resolveSelf(rows(['A', 'B']), ['Linx']) as any).error, /no row/));
   test('2+ hits -> error', () => assert.match((resolveSelf(rows(['LINX', 'PINX']), ['Linx', 'Pinx']) as any).error, /2 rows/));
+  test('one-letter misread of an account name still finds the self row (WIMX, WINK, PINK)', () => {
+    const acc = ['Linx', 'Pinx', 'Jinx', 'Winx'];
+    assert.deepEqual(resolveSelf(rows(['A', 'WIMX', 'B']), acc), { index: 1 });
+    assert.deepEqual(resolveSelf(rows(['A', 'B', 'WINK']), acc), { index: 2 });
+    assert.deepEqual(resolveSelf(rows(['PINK', 'B']), acc), { index: 0 });
+  });
+  test('a near name is refused when it is ambiguous or two edits away', () => {
+    assert.ok('error' in resolveSelf(rows(['WINK', 'WIMX']), ['Winx']), 'two near rows');
+    assert.ok('error' in resolveSelf(rows(['LIMK']), ['Linx']), 'two edits');
+    assert.deepEqual(resolveSelf(rows(['LINK']), ['Linx', 'Link']), { index: 0 }, 'exact name wins');
+    assert.ok('error' in resolveSelf([{ team: 'them', player_name: 'WINK' }], ['Winx']), 'enemy rows never count');
+  });
   test('prompt and schema carry no hero field', () => {
     assert.ok(!('hero' in (SCHEMA as any).properties.rows.items.properties));
     assert.ok(!(SCHEMA as any).properties.rows.items.required.includes('hero'));
