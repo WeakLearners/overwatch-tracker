@@ -44,7 +44,7 @@ export default function RankBadge({
         </span>
       ) : (
         <>
-          <span className={`${lg ? 'text-[9px]' : 'text-[7px]'} uppercase tracking-widest font-bold leading-none lit-text`}>
+          <span className={`${lg ? 'text-[9px]' : 'text-[10px]'} uppercase tracking-widest font-bold leading-none lit-text`}>
             {abbreviate ? TIER_ABBR[rankTier(rank)] : rankTier(rank)}
           </span>
           <span className={`${lg ? 'text-3xl' : 'text-xl'} num-display font-black leading-none ${lg ? 'mt-1' : 'mt-0.5'} lit-text`}>
