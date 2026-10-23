@@ -108,7 +108,7 @@ describe('import boundary', () => {
     assert.deepEqual(bad, []);
   });
 
-  // aim.ts keeps lib/blind (isStudyQueueMode, analysis side) until slice 5 cuts it.
+  // aim.ts never imports the controller; the lab-side ban is in lab/importBan.test.ts.
   test('routes/aim.ts does not import the controller', () => {
     const bad = specifiers(src('aim.ts')).filter(s => /(^|\/)blind$/.test(s) && !/lib\/blind$/.test(s) || /(^|\/)experiments(\/|$)/.test(s));
     assert.deepEqual(bad, []);

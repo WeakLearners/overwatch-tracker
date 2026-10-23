@@ -7,7 +7,7 @@ import { startHarness, type Harness } from '../test/httpHarness';
 import {
   insertMatch, insertHeroSlot, insertAimStats, insertAimStatsHero,
   insertBlindSet, insertBlindStage, insertBlindCredit, insertMatchDeath,
-} from '../db/fixtures';
+} from '../test/dbFixtures';
 import { SCHEMA_VERSION } from './v1';
 import { createLabClient, SchemaVersionError, ExportHttpError, majorOf } from '../lab/client';
 import { setCurveParams } from '../lib/curveParams';

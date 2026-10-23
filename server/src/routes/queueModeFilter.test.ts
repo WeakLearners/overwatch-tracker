@@ -4,7 +4,7 @@
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { startHarness, type Harness } from '../test/httpHarness';
-import { insertMatch, insertHeroSlot, insertBlindSet } from '../db/fixtures';
+import { insertMatch, insertHeroSlot, insertBlindSet } from '../test/dbFixtures';
 import { configureReplicaCache } from '../lab/replicaCache';
 
 let h: Harness;

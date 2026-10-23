@@ -23,7 +23,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { getDb, closeDb } from '../db/schema';
-import { insertMatch, insertHeroSlot, insertBlindSet, insertBlindStage, insertBlindCredit, insertAimStatsHero } from '../db/fixtures';
+import { insertMatch, insertHeroSlot, insertBlindSet, insertBlindStage, insertBlindCredit, insertAimStatsHero } from '../test/dbFixtures';
 import { activeSets, gamesOnStageOf, totalGamesOf, liveStageIndex, needsSwitchNow, isSetComplete } from '../routes/blind';
 import { computeStageStatus, ActiveSetRow } from './nightlyReport';
 

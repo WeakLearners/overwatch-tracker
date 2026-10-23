@@ -6,7 +6,7 @@ import {
   fitQuadraticPeak, fitLinearTrend, CurvePoint,
 } from '../lib/aim';
 import { getCurveParams } from '../lib/curveParams';
-import { isStudyQueueMode } from '../lib/blind';
+import { isStudyQueueMode } from '../lib/queueMode';
 import { eraCounts, spannedPatchNotes } from '../lib/patchEra';
 
 // Lab side of the aim routes (split plan B3): read-only analysis. Must not

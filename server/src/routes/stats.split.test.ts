@@ -9,7 +9,7 @@
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { startHarness, type Harness } from '../test/httpHarness';
-import { insertMatch, insertAimStats, insertAimStatsHero } from '../db/fixtures';
+import { insertMatch, insertAimStats, insertAimStatsHero } from '../test/dbFixtures';
 
 let h: Harness;
 

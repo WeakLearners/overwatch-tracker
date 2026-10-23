@@ -7,7 +7,7 @@ import { resolveSlots, slotValues, pickableTiles, pickFormLabel, type Tile } fro
 import { processFile, type ParsedScoreboard } from './scoreboard';
 import { DatabaseSync } from 'node:sqlite';
 import { loadPicks, listPicks } from './heroTilePicks';
-import { insertMatch, insertAimStatsHero } from '../db/fixtures';
+import { insertMatch, insertAimStatsHero } from '../test/dbFixtures';
 
 const tiles = (o: Record<string, string>): Tile[] => Object.entries(o).map(([label, value]) => ({ label, value }));
 const NEW = tiles({ 'PERCENT PLAYED': '100%', 'PLAY TIME': '05:00', 'WEAPON ACCURACY': '41%', 'CRITICAL HIT ACCURACY': '7%', 'AIRTIME PERCENTAGE': '54%', 'MYSTERY ABILITY ACCURACY': '60%', 'FINAL BLOWS': '4' });

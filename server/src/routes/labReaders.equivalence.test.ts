@@ -14,7 +14,7 @@ import { startHarness, type Harness } from '../test/httpHarness';
 import {
   insertMatch, insertHeroSlot, insertAimStats, insertAimStatsHero,
   insertBlindSet, insertBlindStage, insertBlindCredit,
-} from '../db/fixtures';
+} from '../test/dbFixtures';
 import { setCurveParams, getCurveParams } from '../lib/curveParams';
 import { configureReplicaCache, getReplica } from '../lab/replicaCache';
 import { TABLES } from '../lab/replica';

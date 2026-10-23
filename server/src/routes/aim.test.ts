@@ -16,7 +16,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { getDb, closeDb } from '../db/schema';
-import { insertMatch, insertHeroSlot, insertAimStats, insertAimStatsHero } from '../db/fixtures';
+import { insertMatch, insertHeroSlot, insertAimStats, insertAimStatsHero } from '../test/dbFixtures';
 import { computeAnalysis, MIN_SCALE_N } from './aim';
 import { setCurveParams } from '../lib/curveParams';
 

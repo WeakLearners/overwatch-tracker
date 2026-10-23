@@ -4,7 +4,7 @@
 // test suites in routes/*.test.ts and scripts/*.test.ts. Every helper takes
 // an explicit db handle (never the module singleton) so callers stay bound
 // to whatever temp file the test opened via getDb(tmpPath).
-import type { getDb } from './schema';
+import type { getDb } from '../db/schema';
 
 type DB = ReturnType<typeof getDb>;
 

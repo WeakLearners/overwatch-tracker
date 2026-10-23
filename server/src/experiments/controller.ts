@@ -1,7 +1,8 @@
 import { getDb } from '../db/schema';
 import { getCurveParams } from '../lib/curveParams';
 import { syncSetActive, liveStageIndex, stagesOf } from '../routes/blind';
-import { isStudyQueueMode, LOCKED_DPI } from '../lib/blind';
+import { LOCKED_DPI } from '../lib/blind';
+import { isStudyQueueMode } from '../lib/queueMode';
 import { isDfHero, dfSensForHero } from '../lib/df';
 import { creditFlagsFor, type CreditFlags } from '../lib/credits';
 import type { ExperimentHooks, SensAssignment } from '../lib/experimentHooks';

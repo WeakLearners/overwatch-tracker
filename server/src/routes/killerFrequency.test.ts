@@ -4,7 +4,7 @@
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { startHarness, type Harness } from '../test/httpHarness';
-import { insertSoloMatch, insertMatchDeath } from '../db/fixtures';
+import { insertSoloMatch, insertMatchDeath } from '../test/dbFixtures';
 
 let h: Harness;
 

@@ -5,7 +5,7 @@
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { startHarness, type Harness } from '../test/httpHarness';
-import { insertBlindSet } from '../db/fixtures';
+import { insertBlindSet } from '../test/dbFixtures';
 
 let h: Harness;
 

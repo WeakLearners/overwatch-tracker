@@ -12,7 +12,7 @@
 # Heuristic, not proof. It classifies each column by WHERE its name appears:
 #
 #   WRITE sites   - schema.ts (DDL/migrations), INSERT/UPDATE statements,
-#                   fixtures.ts
+#                   test/dbFixtures.ts
 #   FORM sites    - the entry form + the endpoints that read a value back
 #                   solely to repopulate that form for editing
 #   ANALYSIS site - anything else on the server (rollups, aggregates) or any
@@ -50,7 +50,7 @@ fi
 # analysis without crediting the file wholesale.
 is_write_or_form() {
   case "$1" in
-    */db/schema.ts|*/db/fixtures.ts) return 0 ;;
+    */db/schema.ts|*/test/dbFixtures.ts) return 0 ;;
     */pages/SensLog.tsx|*/pages/LogMatch.tsx) return 0 ;;
     */routes/matches.ts|*/components/MatchEditDrawer.tsx) return 0 ;;
     */lib/fieldRegistry.ts) return 0 ;;

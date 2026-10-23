@@ -3,7 +3,7 @@
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { startHarness, type Harness } from '../test/httpHarness';
-import { insertSoloMatch } from '../db/fixtures';
+import { insertSoloMatch } from '../test/dbFixtures';
 import { heroShares, sharesFromSummary } from './heroShares';
 
 let h: Harness;

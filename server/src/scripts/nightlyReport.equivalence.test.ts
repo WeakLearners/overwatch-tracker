@@ -8,7 +8,7 @@ import { startHarness, type Harness } from '../test/httpHarness';
 import {
   insertMatch, insertHeroSlot, insertAimStats, insertAimStatsHero,
   insertBlindSet, insertBlindStage, insertBlindCredit,
-} from '../db/fixtures';
+} from '../test/dbFixtures';
 import { createLabClient } from '../lab/client';
 import { buildReplica, TABLES } from '../lab/replica';
 import { buildReport, computeStageStatus } from './nightlyReport';

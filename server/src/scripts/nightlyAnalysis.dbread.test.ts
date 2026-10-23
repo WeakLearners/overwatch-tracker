@@ -11,7 +11,7 @@ import path from 'path';
 import { getDb, closeDb } from '../db/schema';
 import {
   insertMatch, insertHeroSlot, insertBlindSet, insertBlindStage, insertBlindCredit, insertAimStatsHero,
-} from '../db/fixtures';
+} from '../test/dbFixtures';
 import { stagePointsFor, stageSamplesFor } from './nightlyAnalysis';
 
 let tmpPath: string;

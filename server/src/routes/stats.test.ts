@@ -18,7 +18,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { getDb, closeDb } from '../db/schema';
-import { insertMatch, insertAimStats } from '../db/fixtures';
+import { insertMatch, insertAimStats } from '../test/dbFixtures';
 import {
   computeHotHand,
   computePerformanceOutcome,

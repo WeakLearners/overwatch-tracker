@@ -16,7 +16,7 @@
 //      curve looks like; it never recommends narrowing or recentering on
 //      convention alone.
 import { fitQuadraticPeak, CurvePoint } from '../lib/aim';
-import { NOT_QP_SQL } from '../lib/blind';
+import { NOT_QP_SQL } from '../lib/queueMode';
 import { eraCounts, eraCountsText, spannedPatchNotes } from '../lib/patchEra';
 
 // A stage needs this many credited games before its mean accuracy is stable

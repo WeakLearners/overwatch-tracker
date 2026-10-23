@@ -1,9 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
 import {
-  generateStages, stagesFromDpis, stagesFromSens, LOCKED_DPI, abbaStageFor, isStudyQueueMode, NOT_QP_SQL,
+  generateStages, stagesFromDpis, stagesFromSens, LOCKED_DPI, abbaStageFor,
   chunkLabelFor, deriveBlockState, CHUNK_BLOCKS, STAGE_BLOCKS, type BlockState,
 } from '../lib/blind';
+import { isStudyQueueMode, NOT_QP_SQL } from '../lib/queueMode';
 import { cm360, eDPI } from '../lib/aim';
 import { computeNextTest, pickQueueRole, annotateHeroes, projectPhaseFinish, projectionBasis, type HeroTestProgress, type BlockInfo } from '../lib/nextTest';
 import { loadRoleTimerReplay } from './roleTimer';
