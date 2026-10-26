@@ -47,6 +47,19 @@ describe('fillPatch zero-second hero', () => {
   });
 });
 
+describe('fillPatch start hero vs board', () => {
+  test('a form hero not on the board is replaced by the first board hero', () => {
+    const p = fillPatch(blank({ hero: 'Zenyatta' }), fill);
+    assert.equal(p.hero, 'Tracer');
+    assert.ok(!p.aimStats!.heroAcc.some(r => r.hero === 'Zenyatta'));
+  });
+  test('a form hero on the board is kept', () => {
+    const p = fillPatch(blank({ hero: 'Pharah' }), fill);
+    assert.equal(p.hero, undefined);
+    assert.equal(p.aimStats!.heroAcc[0].hero, 'Pharah');
+  });
+});
+
 describe('fillPatch leaver side', () => {
   const sb = { ...fill, leaver_side: 'theirs' as const, short_board: true };
   test('a short board ticks the side on a blank form', () => assert.equal(fillPatch(blank(), sb).leaverSide, 'theirs'));
@@ -91,18 +104,18 @@ describe('fillPatch', () => {
     assert.deepEqual(p.aimStats!.heroAcc.map(r => [r.hero, r.duration_min]), [['Ashe', '0:15'], ['Pharah', '8:00']]);
     assert.equal(heroMismatch(['Ashe', ...p.switchHeroes!], f3), null);
   });
-  test('a picked hero missing from the scoreboard still fills stats and raises the marker', () => {
+  test('a picked hero missing from the scoreboard is replaced by the first board hero; stats still fill', () => {
     const p = fillPatch(blank({ hero: 'Reaper' }), fill);
-    assert.equal(p.hero, undefined); assert.equal(p.aimStats!.elims, '11'); assert.equal(p.win, '0');
-    assert.deepEqual(p.switchHeroes, ['Tracer', 'Pharah']);
-    const m = heroMismatch(['Reaper', ...p.switchHeroes!], fill)!;
-    assert.deepEqual([m.notOnBoard, m.notPicked], [['Reaper'], []]);
+    assert.equal(p.hero, 'Tracer'); assert.equal(p.aimStats!.elims, '11'); assert.equal(p.win, '0');
+    assert.deepEqual(p.switchHeroes, ['Pharah', '']);
+    assert.equal(heroMismatch(['Tracer', ...p.switchHeroes!], fill), null);
   });
-  test('scoreboard hero with no free slot gets no accuracy row and is named by the marker', () => {
+  test('off-board switch picks stay; the marker names what is off the board and what is unpicked', () => {
     const p = fillPatch(blank({ hero: 'Reaper', switchHeroes: ['Genji', 'Sombra'] }), fill);
-    assert.equal(p.switchHeroes, undefined);
-    assert.deepEqual(p.aimStats!.heroAcc.map(r => r.hero), ['Reaper', 'Genji', 'Sombra']);
-    assert.deepEqual(heroMismatch(['Reaper', 'Genji', 'Sombra'], fill)!.notPicked, ['Tracer', 'Pharah']);
+    assert.equal(p.hero, 'Tracer'); assert.equal(p.switchHeroes, undefined);
+    assert.deepEqual(p.aimStats!.heroAcc.map(r => r.hero), ['Tracer', 'Genji', 'Sombra']);
+    const m = heroMismatch(['Tracer', 'Genji', 'Sombra'], fill)!;
+    assert.deepEqual([m.notOnBoard, m.notPicked], [['Genji', 'Sombra'], ['Pharah']]);
   });
   test('filled switch slots are never overwritten by the auto-fill', () => {
     const p = fillPatch(blank({ hero: 'Tracer', switchHeroes: ['Genji', ''] }), fill);

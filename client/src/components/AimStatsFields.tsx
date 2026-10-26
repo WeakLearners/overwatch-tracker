@@ -138,7 +138,7 @@ export function StatFields({ s, upd, updHeroAcc, showHealing, firstDurationRef, 
                   type="text" inputMode="numeric" value={h.duration_min}
                   onChange={e => updHeroAcc(i, 'duration_min', e.target.value)}
                   data-inspect-id={`${idPrefix}-hero-duration-input`}
-                  className={`${field} num-display ${parseDurationMin(h.duration_min) != null ? '' : 'ring-1 ring-ow-accent/60'}`}
+                  className={`${field} num-display ${(parseDurationMin(h.duration_min) ?? 0) > 0 ? '' : 'ring-1 ring-ow-accent/60'}`}
                   placeholder="m:ss" aria-label={`${h.hero} duration, minutes:seconds`} required
                 />
               </div>
@@ -203,6 +203,6 @@ export const statsTouched = (s: StatFieldsT): boolean =>
   s.elims.trim() !== '' || s.deaths.trim() !== '' || s.damage.trim() !== '' || s.healing.trim() !== '' || s.assists.trim() !== '' ||
   s.heroAcc.some(h => [h.overall_acc, h.crit_acc, h.extra_acc, h.torpedo_damage, h.torpedo_healing, h.duration_min].some(v => v.trim() !== ''));
 // The one validity rule both entry points share: the first hero's overall
-// accuracy is present, and every hero has a duration.
+// accuracy is present, and every hero has a duration above 0 (the server rejects 0).
 export const statsValid = (s: StatFieldsT): boolean =>
-  parseFloat(s.heroAcc[0]?.overall_acc ?? '') >= 0 && s.heroAcc.length > 0 && s.heroAcc.every(h => parseDurationMin(h.duration_min) != null);
+  parseFloat(s.heroAcc[0]?.overall_acc ?? '') >= 0 && s.heroAcc.length > 0 && s.heroAcc.every(h => (parseDurationMin(h.duration_min) ?? 0) > 0);

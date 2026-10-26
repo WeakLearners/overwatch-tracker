@@ -86,8 +86,11 @@ export function fillPatch(f: FormSnapshot, fill: FormFill, opts: FillOptions = {
   // Pickers. The start hero records the advisor's pick: filled only when blank.
   // Switch slots take the other scoreboard heroes in play-time order: blank slots only,
   // or both slots in overwrite mode.
-  const start = f.hero || first || '';
-  if (!f.hero && first) patch.hero = first;
+  // Keep the form's hero only when it was played (Sean's own pick among board heroes wins). A pre-match pick
+  // that is off the board would get a 0-duration aim row, which the server rejects.
+  const keep = !!f.hero && (wanted.length === 0 || wanted.includes(f.hero));
+  const start = keep ? f.hero : (first || f.hero || '');
+  if (start !== f.hero) patch.hero = start;
   const others = wanted.filter(h => h !== start);
   let slots: [string, string];
   if (ow) slots = [others[0] ?? '', others[1] ?? ''];
