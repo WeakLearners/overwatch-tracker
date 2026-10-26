@@ -31,3 +31,24 @@ export function syncLadderRank(db: DatabaseSync, matchId: number | bigint | stri
     ON CONFLICT(account, role) DO UPDATE SET rank = :rank WHERE rank IS NOT :rank
   `).run({ account: m.account, slot: m.slot, rank: m.player_rank }).changes > 0;
 }
+
+/** The ladder a match sits on, read before a delete or an edit can move it. Null when the match is missing or not competitive. */
+export function ladderOf(db: DatabaseSync, matchId: number | bigint | string): { account: string; slot: string } | null {
+  const m = db.prepare(`
+    SELECT COALESCE(account, '') AS account, ${LADDER_SLOT_SQL} AS slot, queue_mode FROM matches WHERE id = ?
+  `).get(Number(matchId)) as { account: string; slot: string; queue_mode: string | null } | undefined;
+  if (!m || !['comp_role', 'comp_open'].includes(m.queue_mode ?? '')) return null;
+  return { account: m.account, slot: m.slot };
+}
+
+/** Re-sync a slot after its newest match was deleted or moved away. player_ranks follows the newest comp match left on the slot. A newest match with no rank leaves the stored rank alone. Returns true when player_ranks changed. */
+export function resyncLadderSlot(db: DatabaseSync, ladder: { account: string; slot: string } | null): boolean {
+  if (!ladder) return false;
+  const newest = db.prepare(`
+    SELECT id FROM matches
+    WHERE queue_mode IN ('comp_role', 'comp_open') AND COALESCE(account, '') = :account AND ${LADDER_SLOT_SQL} = :slot
+    ORDER BY date DESC, COALESCE(time, '') DESC, id DESC
+    LIMIT 1
+  `).get(ladder) as { id: number } | undefined;
+  return newest ? syncLadderRank(db, newest.id) : false;
+}

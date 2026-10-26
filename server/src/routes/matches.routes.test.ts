@@ -734,3 +734,47 @@ describe('PUT /api/matches/:id/rank-outcome — correcting a missed rank change'
     assert.equal(matchRow(id).player_rank, 15);
   });
 });
+
+// The live rank follows the newest comp match on a ladder. When that match is
+// deleted or moved away, the old slot has to fall back to the match now newest.
+describe('live rank after the newest match leaves its ladder', () => {
+  const live = async () => (await h.get('/api/ranks')).body['Pinx|DPS'];
+  const two = async () => {
+    const old = await logMatch({ hero: 'Ashe', role: 'DPS', account: 'Pinx', time: '12:00', player_rank_start: 15, player_rank: 15 });
+    const newest = await logMatch({ hero: 'Ashe', role: 'DPS', account: 'Pinx', time: '12:10', player_rank_start: 15, player_rank: 16 });
+    assert.equal(await live(), 16);
+    return { old, newest };
+  };
+
+  test('deleting the newest match puts the live rank back to the one before it', async () => {
+    const { newest } = await two();
+    assert.equal((await h.del(`/api/matches/${newest}`)).status, 200);
+    assert.equal(await live(), 15);
+  });
+
+  test('deleting an older match leaves the live rank alone', async () => {
+    const { old } = await two();
+    await h.del(`/api/matches/${old}`);
+    assert.equal(await live(), 16);
+  });
+
+  test('moving the newest match to another role re-syncs the old role', async () => {
+    const { newest } = await two();
+    assert.equal((await h.put(`/api/matches/${newest}`, { role: 'Support' })).status, 200);
+    assert.equal(await live(), 15);
+    assert.equal((await h.get('/api/ranks')).body['Pinx|Support'], 16);
+  });
+
+  test('moving the newest match to another queue re-syncs the old ladder', async () => {
+    const { newest } = await two();
+    assert.equal((await h.put(`/api/matches/${newest}`, { queue_mode: 'qp_role' })).status, 200);
+    assert.equal(await live(), 15);
+  });
+
+  test('the rank-outcome walk skips quick play games on the same role', async () => {
+    const a = await logMatch({ hero: 'Ashe', role: 'DPS', account: 'Pinx', time: '12:00', player_rank_start: 15, player_rank: 15 });
+    const qp = await logMatch({ hero: 'Ashe', role: 'DPS', account: 'Pinx', time: '12:05', queue_mode: 'qp_role', player_rank_start: 15, player_rank: 15 });
+    await h.put(`/api/matches/${a}/rank-outcome`, { outcome: 'promoted' });
+    assert.deepEqual([matchRow(qp).player_rank_start, matchRow(qp).player_rank], [15, 15]);
+  });
+});

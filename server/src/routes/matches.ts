@@ -4,7 +4,7 @@ import { getCurveParams } from '../lib/curveParams';
 import { getExperimentHooks } from '../lib/experimentHooks';
 import { saveAimStatsRows, validateAimStats, type AimStatsPayload } from '../lib/aimStatsWrite';
 import { CRASHED_HERO, CRASHED_EDITABLE } from '../lib/crashed';
-import { syncLadderRank } from '../lib/ladderRank';
+import { syncLadderRank, ladderOf, resyncLadderSlot } from '../lib/ladderRank';
 import { groupMapMismatch, linkGroup, shortBoardConflicts } from '../lib/scoreboardPages';
 import { organizeBoard } from '../lib/scoreboardOrganize';
 import { scoreboardDir } from '../lib/scoreboardWatcher';
@@ -435,6 +435,7 @@ router.put('/:id/rank-outcome', (req: Request, res: Response) => {
       const later = db.prepare(`
         SELECT id, player_rank, player_rank_start FROM matches
         WHERE account IS :account AND (CASE WHEN queue_mode = 'comp_open' THEN 'Open' ELSE role END) = :role AND id != :id
+          AND queue_mode IN ('comp_role', 'comp_open')
           AND (player_rank_start IS NOT NULL OR player_rank IS NOT NULL)
           AND (date, COALESCE(time, ''), id) > (:date, :time, :id)
         ORDER BY date, COALESCE(time, ''), id
@@ -503,6 +504,8 @@ router.put('/:id', (req: Request, res: Response) => {
     if (clearLeaverSide) params.leaver_side = null;
     const setClause = [...fields, ...(clearLeaverSide ? ['leaver_side'] : [])].map(k => `${k} = :${k}`).join(', ');
 
+    const ladderMoves = fields.some(k => ['player_rank', 'queue_mode', 'role', 'account', 'date', 'time'].includes(k));
+    const oldLadder = ladderMoves ? ladderOf(db, req.params.id) : null;
     const result = db.prepare(`UPDATE matches SET ${setClause} WHERE id = :id`).run(params);
     if (result.changes === 0) {
       res.status(404).json({ error: 'Match not found' });
@@ -510,7 +513,8 @@ router.put('/:id', (req: Request, res: Response) => {
     }
     // The ladder's live rank follows the newest comp match. Only edits that can change a match's rank or its
     // ladder/position re-sync, so an unrelated edit never overwrites a drum Sean set by hand.
-    if (fields.some(k => ['player_rank', 'queue_mode', 'role', 'account', 'date', 'time'].includes(k))) syncLadderRank(db, req.params.id);
+    // A match that left its old slot (other account, role or queue, or a new date) can no longer be that slot's newest, so the old slot re-syncs too.
+    if (ladderMoves) { syncLadderRank(db, req.params.id); resyncLadderSlot(db, oldLadder); }
     // Keep match_heroes' slot-1 row (the by-hero stats attribution source) in
     // sync whenever the primary hero/role/sens is corrected via edit. sens
     // mirrors the same way feel/duration never needed to (they're captured
@@ -621,9 +625,12 @@ router.delete('/:id', (req: Request, res: Response) => {
   // dead end set 86 (Reaper) sat in — unadvanceable and uncreditable.
   const hooks = getExperimentHooks();
   const deleteToken = hooks.beforeMatchDelete(db, matchId);
+  const ladder = ladderOf(db, matchId);
   db.exec('BEGIN');
   try {
     db.prepare('DELETE FROM matches WHERE id = :id').run({ id: matchId });
+    // The live rank followed this match if it was the ladder's newest. Re-sync the slot to the match now newest.
+    resyncLadderSlot(db, ladder);
     hooks.afterMatchDelete(db, matchId, deleteToken);
     db.exec('COMMIT');
   } catch (err) {
