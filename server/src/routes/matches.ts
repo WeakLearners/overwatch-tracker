@@ -50,7 +50,7 @@ router.get('/', (req: Request, res: Response) => {
 function logCrashedMatch(db: ReturnType<typeof getDb>, body: Record<string, any>, res: Response) {
   const { date, time, day_of_week, hour, role, map, game_type, win, queue_mode, notes, leaver, leaver_side, player_rank, player_rank_start, lobby_low, lobby_high, placement, account } = body;
   if (!date || !map || !game_type || win === undefined || !['DPS', 'Tank', 'Support'].includes(role)) {
-    res.status(400).json({ error: 'Missing required fields (crashed match needs date, role, map, game_type, win)' });
+    rejectBadRequest(res, 'Missing required fields (crashed match needs date, role, map, game_type, win)');
     return;
   }
   const result = db.prepare(`
@@ -70,10 +70,16 @@ function logCrashedMatch(db: ReturnType<typeof getDb>, body: Record<string, any>
 // score_us / score_them: null (blank) or an integer 0-10. Anything else is a 400.
 const validScore = (v: unknown) => v == null || (Number.isInteger(v) && (v as number) >= 0 && (v as number) <= 10);
 
+// Logs the reason before a 400 so prod.log records why a save was rejected.
+function rejectBadRequest(res: Response, error: string) {
+  console.warn(`[matches] POST rejected: ${error}`);
+  res.status(400).json({ error });
+}
+
 router.post('/', (req: Request, res: Response) => {
   const db = getDb();
   const { date, time, day_of_week, hour, hero, role, map, game_type, win, queue_mode, sens, feel, team_rating, notes, heroes, curve_enabled, match_deaths, match_quality, result_driver, leaver, leaver_side, player_rank, player_rank_start, lobby_low, lobby_high, placement, account, aim_stats, crashed, score_us, score_them, scoreboard_group_id } = req.body;
-  if (!validScore(score_us) || !validScore(score_them)) { res.status(400).json({ error: 'Score must be blank or a whole number from 0 to 10' }); return; }
+  if (!validScore(score_us) || !validScore(score_them)) { rejectBadRequest(res, 'Score must be blank or a whole number from 0 to 10'); return; }
   if (crashed === true || crashed === 1) { logCrashedMatch(db, req.body, res); return; }
 
   // leaver_side only ever means something when leaver is actually set — a
@@ -83,7 +89,7 @@ router.post('/', (req: Request, res: Response) => {
     leaver && (leaver_side === 'mine' || leaver_side === 'theirs') ? leaver_side : null;
 
   if (!date || !hero || !role || !map || !game_type || win === undefined) {
-    res.status(400).json({ error: 'Missing required fields' });
+    rejectBadRequest(res, 'Missing required fields');
     return;
   }
 
@@ -96,7 +102,7 @@ router.post('/', (req: Request, res: Response) => {
     const roster = [hero, ...(Array.isArray(heroes) ? heroes.filter((h: any) => h?.hero && h?.role).slice(0, 2).map((h: any) => h.hero) : [])];
     const aimError = validateAimStats(aimStatsIn, roster);
     if (aimError) {
-      res.status(400).json({ error: `aim_stats: ${aimError}` });
+      rejectBadRequest(res, `aim_stats: ${aimError}`);
       return;
     }
   }

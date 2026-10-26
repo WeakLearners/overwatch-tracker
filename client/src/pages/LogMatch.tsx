@@ -895,6 +895,8 @@ export default function LogMatch() {
     } catch { /* ignore */ }
   }, [form.hero, form.win, form.notes, switchHeroes, crashedGame, feelByHero, teamRating, matchQuality, resultDriver, leaverSide, scoreUs, scoreThem, aimOpen, aimStats]);
   const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  // Server's rejection reason (the 4xx/5xx JSON `error`); null = network failure.
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // "Today's Matches" reads today's matches straight from the DB — the single
   // source of truth — so it's always accurate and resets on its own when the
@@ -1040,6 +1042,7 @@ export default function LogMatch() {
     e.preventDefault();
     if (!valid) return;
     setStatus('saving');
+    setSaveError(null);
     try {
       // Unless the user hand-picked a date, stamp the log with the current day
       // as of this exact moment — guards the edge where a match is logged in the
@@ -1122,7 +1125,12 @@ export default function LogMatch() {
           ...(aimFilled ? { aim_stats: (({ match_id: _unused, ...rest }) => rest)(statsBody(0, aimStats)) } : {}),
         }),
       });
-      if (!res.ok) throw new Error('Failed');
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setSaveError(typeof body?.error === 'string' && body.error ? body.error : `HTTP ${res.status}`);
+        setStatus('error');
+        return;
+      }
       const loggedMode = queueMode;
       const loggedWin = form.win === '1';
       setStatus('success');
@@ -1174,6 +1182,7 @@ export default function LogMatch() {
       }, 700);
       setTimeout(() => setStatus('idle'), 2600);
     } catch {
+      setSaveError(null);
       setStatus('error');
       setTimeout(() => setStatus('idle'), 3000);
     }
@@ -1647,7 +1656,7 @@ export default function LogMatch() {
             >
               {status === 'saving' ? 'Saving…' : status === 'success' ? '✓ Saved' : crashedGame ? 'Log Crashed Match' : 'Log Match'}
             </button>
-            {status === 'error' && <p data-inspect-id="logmatch-save-error-banner" className="text-red-600 text-xs text-center">Failed to save — is the server running?</p>}
+            {status === 'error' && <p data-inspect-id="logmatch-save-error-banner" className="text-red-600 text-xs text-center">{saveError ? `Not saved: ${saveError}` : 'Failed to save — is the server running?'}</p>}
           </form>
         </div>
 
