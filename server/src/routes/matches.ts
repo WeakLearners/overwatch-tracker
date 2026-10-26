@@ -5,7 +5,7 @@ import { getExperimentHooks } from '../lib/experimentHooks';
 import { saveAimStatsRows, validateAimStats, type AimStatsPayload } from '../lib/aimStatsWrite';
 import { CRASHED_HERO, CRASHED_EDITABLE } from '../lib/crashed';
 import { syncLadderRank } from '../lib/ladderRank';
-import { linkGroup, shortBoardConflicts } from '../lib/scoreboardPages';
+import { groupMapMismatch, linkGroup, shortBoardConflicts } from '../lib/scoreboardPages';
 import { organizeBoard } from '../lib/scoreboardOrganize';
 import { scoreboardDir } from '../lib/scoreboardWatcher';
 
@@ -272,7 +272,9 @@ router.post('/', (req: Request, res: Response) => {
     // the light green. Only a live group links; a stale id is ignored, never an error.
     if (Number.isInteger(scoreboard_group_id)) {
       const g = db.prepare(`SELECT state FROM scoreboard_groups WHERE id = ?`).get(scoreboard_group_id) as { state: string } | undefined;
-      if (g?.state === 'live') { linkGroup(db, scoreboard_group_id, matchId, 'linked', 'linked at submit', false); linkedGroup = scoreboard_group_id; }
+      const mm = g?.state === 'live' ? groupMapMismatch(db, scoreboard_group_id, map) : null;
+      if (mm) console.warn(`[scoreboard] not linking group ${scoreboard_group_id} to match ${matchId}: group Summary map "${mm.summaryMap}" does not match match map "${map}"; group stays live`);
+      else if (g?.state === 'live') { linkGroup(db, scoreboard_group_id, matchId, 'linked', 'linked at submit', false); linkedGroup = scoreboard_group_id; }
     }
     syncLadderRank(db, matchId);
     db.exec('COMMIT');

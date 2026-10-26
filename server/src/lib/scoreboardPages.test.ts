@@ -10,7 +10,7 @@ import os from 'os';
 import path from 'path';
 import { getDb, closeDb } from '../db/schema';
 import { processFile, recheckGroup, type ParsedScoreboard, type ParsedRow } from './scoreboard';
-import { allHeroesTotals, parseSummaryDate, rosterHero, rosterMap, normSummary, buildFill, logSourceConflicts, fillEmptyAim, finalizeGroups, findOpenGroup, linkGroup, PAGE_GAP_MS } from './scoreboardPages';
+import { allHeroesTotals, parseSummaryDate, rosterHero, rosterMap, normSummary, buildFill, logSourceConflicts, fillEmptyAim, finalizeGroups, findOpenGroup, groupMapMismatch, linkGroup, PAGE_GAP_MS } from './scoreboardPages';
 import { HERO_TILE_MAP, slotValues, deriveSlotTiles, isAutoMapped, finalBlows, parseTileNumber } from './heroTileLabels';
 import { syncMatchHeroStats, tilesToRows, normStat, statUnit } from './matchHeroStats';
 import { organizeBoard, pageSuffix } from './scoreboardOrganize';
@@ -462,6 +462,18 @@ describe('groups on a temp DB (match 3842 is a recovery)', () => {
     assert.equal(pages()[1].status, 'dismissed'); assert.equal(pages()[1].page_type, 'teams');
     finalizeGroups(db, T0 + 200_000);
     assert.equal((db.prepare(`SELECT final_blows FROM aim_stats WHERE match_id = ?`).get(mid) as any).final_blows, 6);
+  });
+  describe('groupMapMismatch (match 3955: Route 66 group linked to an Aatlis match)', () => {
+    const grp = (map: string) => {
+      const iso = new Date(T0).toISOString();
+      const gid = Number(db.prepare(`INSERT INTO scoreboard_groups (state, summary_mtime, last_mtime) VALUES ('live', ?, ?)`).run(iso, iso).lastInsertRowid);
+      db.prepare(`INSERT INTO match_scoreboards (file_path, file_mtime, status, page_type, group_id, raw_json) VALUES (?, ?, 'unmatched', 'summary', ?, ?)`)
+        .run(`/x/sum-${gid}.png`, iso, gid, JSON.stringify({ summary: { ...SUMMARY_49.summary!, map } }));
+      return gid;
+    };
+    test('different map is a mismatch', () => { assert.deepEqual(groupMapMismatch(db, grp('ROUTE 66'), 'Aatlis'), { summaryMap: 'Route 66' }); });
+    test('same map matches despite case and accents', () => { assert.equal(groupMapMismatch(db, grp('ESPERANCA'), 'Esperança'), null); assert.equal(groupMapMismatch(db, grp('NEPAL'), 'nepal'), null); });
+    test('nothing to compare is not a mismatch', () => { assert.equal(groupMapMismatch(db, grp('NEPAL'), null), null); assert.equal(groupMapMismatch(db, 99999, 'Nepal'), null); });
   });
 });
 

@@ -349,6 +349,14 @@ export function groupSummaryMap(db: DatabaseSync, groupId: number): string | nul
   try { return normSummary(JSON.parse(p.raw_json).summary, Date.parse(p.file_mtime)).map; } catch { return null; }
 }
 
+/** Non-null when the group's Summary names a map that differs from the match's map (same fold as the fill). No Summary map or no match map: null (nothing to compare). */
+export function groupMapMismatch(db: DatabaseSync, groupId: number, matchMap: string | null | undefined): { summaryMap: string } | null {
+  const sm = groupSummaryMap(db, groupId);
+  if (!sm || !matchMap) return null;
+  const key = (n: string) => rosterMap(n) ?? fold(n);
+  return key(sm) === key(matchMap) ? null : { summaryMap: sm };
+}
+
 /** Roster heroes listed on a group's Summary page. */
 export function groupSummaryHeroes(db: DatabaseSync, groupId: number): string[] {
   const p = db.prepare(`SELECT raw_json, file_mtime FROM match_scoreboards WHERE group_id = ? AND page_type = 'summary' AND status <> 'dismissed' ORDER BY id DESC LIMIT 1`).get(groupId) as { raw_json: string | null; file_mtime: string } | undefined;
