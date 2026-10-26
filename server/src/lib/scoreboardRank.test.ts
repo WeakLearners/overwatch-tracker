@@ -46,6 +46,18 @@ describe('rank encoding and parse', () => {
 });
 
 describe('deriveStartRank', () => {
+  test('DEMOTION modifier (board 608: Diamond 4 (27), 44%, -35): start is 28, progress unknown, not 27 at 79%', () => {
+    assert.deepEqual(deriveStartRank(27, 44, -35), { rankInt: 27, progressPct: 79 }, 'arithmetic alone is wrong here');
+    assert.deepEqual(deriveStartRank(27, 44, -35, ['DEFEAT', 'DEMOTION']), { rankInt: 28, progressPct: null });
+  });
+  test('PROMOTION modifier: start is end rank - 1, progress unknown', () => assert.deepEqual(deriveStartRank(18, 25, 44, ['PROMOTION']), { rankInt: 17, progressPct: null }));
+  test('DEMOTION PROTECTION is not DEMOTION; other modifiers leave the arithmetic alone', () => {
+    assert.deepEqual(deriveStartRank(27, 44, -35, ['DEMOTION PROTECTION']), { rankInt: 27, progressPct: 79 });
+    assert.deepEqual(deriveStartRank(18, 60, 20, ['VICTORY', 'VARIANCE']), { rankInt: 18, progressPct: 40 });
+  });
+  test('modifier clamps: demotion from Bronze 5 or promotion to above Champion 1 stays null', () => {
+    assert.equal(deriveStartRank(45, 10, -10, ['DEMOTION']), null); assert.equal(deriveStartRank(1, 10, 10, ['PROMOTION']), null);
+  });
   test('same division: progress - change inside 0..100', () => assert.deepEqual(deriveStartRank(18, 60, 20), { rankInt: 18, progressPct: 40 }));
   test('promotion crossed a division (Screenshot 114: 25% after +44% began in Platinum 4 at 81%)', () => assert.deepEqual(deriveStartRank(18, 25, 44), { rankInt: 17, progressPct: 81 }));
   test('demotion crossed a division on a loss: ended Platinum 4 at 80% after -30% began in Platinum 3 at 10%', () => assert.deepEqual(deriveStartRank(17, 80, -30), { rankInt: 18, progressPct: 10 }));
@@ -125,6 +137,13 @@ describe('rank page on a temp DB', () => {
     await feed(rankReading(), 'r', 0); await feed({ ...SUMMARY }, 's', 14);
     const g = (db.prepare(`SELECT id FROM scoreboard_groups ORDER BY id DESC`).get() as any).id;
     assert.deepEqual(buildFill(db, g)!.rank, { rank_int: 18, progress_pct: 25, delta_pct: 44, result: 'victory', start_rank_int: 17, start_progress_pct: 81 });
+  });
+
+  test('the live payload uses the DEMOTION modifier for the start rank', async () => {
+    await feed(rankReading({ rank_text: 'Diamond 4', progress_text: '44%', change_text: '-35%', result: 'Defeat', modifiers: ['DEFEAT', 'DEMOTION'] }), 'r', 0); await feed(SUMMARY, 's', 14);
+    const g = (db.prepare(`SELECT id FROM scoreboard_groups ORDER BY id DESC`).get() as any).id;
+    const r = buildFill(db, g)!.rank!;
+    assert.deepEqual([r.rank_int, r.start_rank_int, r.start_progress_pct], [27, 28, null]);
   });
 
   describe('fill on link (NULL only)', () => {

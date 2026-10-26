@@ -188,9 +188,14 @@ export function normRank(raw: RawRank): NormRank {
  * The rank and progress the match STARTED at, from the end rank (rankInt), end progress and the change bar.
  * progress - change < 0 on a gain: it began in the division below, at 100 + that value.
  * progress - change > 100 on a loss: it began in the division above, at that value - 100.
+ * DEMOTION modifier: start = end rank + 1, PROMOTION: end rank - 1, progress unknown (null).
  * Null when a value is missing, the readings disagree (a gain that "started" above 100) or the ladder ends.
  */
-export function deriveStartRank(endRank: number | null, progressPct: number | null, deltaPct: number | null): { rankInt: number; progressPct: number } | null {
+export function deriveStartRank(endRank: number | null, progressPct: number | null, deltaPct: number | null, modifiers: readonly string[] = []): { rankInt: number; progressPct: number | null } | null {
+  // A DEMOTION / PROMOTION page crossed a division edge and the bar is reset, so the arithmetic below is wrong.
+  // The start rank is the neighbour division; the start progress is unknown. Exact match: "DEMOTION PROTECTION" is a different modifier.
+  const edge = modifiers.includes('DEMOTION') ? 1 : modifiers.includes('PROMOTION') ? -1 : 0;
+  if (edge && endRank != null) { const r = endRank + edge; return r < 1 || r > RANK_MAX ? null : { rankInt: r, progressPct: null }; }
   if (endRank == null || progressPct == null || deltaPct == null) return null;
   const start = progressPct - deltaPct;
   let r = endRank, p = start;
@@ -198,6 +203,9 @@ export function deriveStartRank(endRank: number | null, progressPct: number | nu
   else if (start > 100) { if (deltaPct >= 0) return null; r = endRank + 1; p = start - 100; }
   return r < 1 || r > RANK_MAX || p < 0 || p > 100 ? null : { rankInt: r, progressPct: p };
 }
+
+/** scoreboard_ranks.modifiers is a JSON array of strings. */
+function parseMods(j: string | null): string[] { try { const a = JSON.parse(j ?? '[]'); return Array.isArray(a) ? a.map(String) : []; } catch { return []; } }
 
 /** Write (or rewrite) the rank rows of one rank page. Keyed by the page id, so they exist before any match is linked. */
 export function storeRank(db: DatabaseSync, scoreboardId: number, n: NormRank): void {
@@ -227,14 +235,14 @@ export function findGroupAfterRank(db: DatabaseSync, mtimeMs: number): GroupRow 
  */
 export function fillRankFromGroup(db: DatabaseSync, groupId: number, matchId: number): boolean {
   const r = db.prepare(`
-    SELECT r.rank_int, r.progress_pct, r.delta_pct, r.result FROM scoreboard_ranks r JOIN match_scoreboards s ON s.id = r.scoreboard_id
+    SELECT r.rank_int, r.progress_pct, r.delta_pct, r.result, r.modifiers FROM scoreboard_ranks r JOIN match_scoreboards s ON s.id = r.scoreboard_id
     WHERE s.group_id = ? AND s.page_type = 'rank' AND s.status <> 'dismissed' ORDER BY s.file_mtime DESC, s.id DESC LIMIT 1
-  `).get(groupId) as { rank_int: number | null; progress_pct: number | null; delta_pct: number | null; result: string | null } | undefined;
+  `).get(groupId) as { rank_int: number | null; progress_pct: number | null; delta_pct: number | null; result: string | null; modifiers: string | null } | undefined;
   if (!r || r.rank_int == null) return false;
   const m = db.prepare(`SELECT queue_mode, win FROM matches WHERE id = ?`).get(matchId) as { queue_mode: string | null; win: number | null } | undefined;
   if (!m || !String(m.queue_mode ?? '').startsWith('comp')) return false;
   if ((r.result === 'victory' && m.win !== 1) || (r.result === 'defeat' && m.win !== 0)) return false;
-  const start = deriveStartRank(r.rank_int, r.progress_pct, r.delta_pct);
+  const start = deriveStartRank(r.rank_int, r.progress_pct, r.delta_pct, parseMods(r.modifiers));
   let wrote = db.prepare(`UPDATE matches SET player_rank = ? WHERE id = ? AND player_rank IS NULL`).run(r.rank_int, matchId).changes > 0;
   if (start) wrote = db.prepare(`UPDATE matches SET player_rank_start = ? WHERE id = ? AND player_rank_start IS NULL`).run(start.rankInt, matchId).changes > 0 || wrote;
   if (wrote) syncLadderRank(db, matchId);
@@ -484,10 +492,10 @@ export function buildFill(db: DatabaseSync, groupId: number): FormFill | null {
     };
   });
   const rk = db.prepare(`
-    SELECT r.rank_int, r.progress_pct, r.delta_pct, r.result FROM scoreboard_ranks r JOIN match_scoreboards s ON s.id = r.scoreboard_id
+    SELECT r.rank_int, r.progress_pct, r.delta_pct, r.result, r.modifiers FROM scoreboard_ranks r JOIN match_scoreboards s ON s.id = r.scoreboard_id
     WHERE s.group_id = ? AND s.page_type = 'rank' AND s.status NOT IN ('dismissed', 'error') ORDER BY s.file_mtime DESC, s.id DESC LIMIT 1
-  `).get(groupId) as { rank_int: number | null; progress_pct: number | null; delta_pct: number | null; result: 'victory' | 'defeat' | 'draw' | null } | undefined;
-  const start = rk ? deriveStartRank(rk.rank_int, rk.progress_pct, rk.delta_pct) : null;
+  `).get(groupId) as { rank_int: number | null; progress_pct: number | null; delta_pct: number | null; result: 'victory' | 'defeat' | 'draw' | null; modifiers: string | null } | undefined;
+  const start = rk ? deriveStartRank(rk.rank_int, rk.progress_pct, rk.delta_pct, parseMods(rk.modifiers)) : null;
   const rank: FormFill['rank'] = rk && rk.rank_int != null
     ? { rank_int: rk.rank_int, progress_pct: rk.progress_pct, delta_pct: rk.delta_pct, result: rk.result, start_rank_int: start?.rankInt ?? null, start_progress_pct: start?.progressPct ?? null } : null;
   const everyFb = heroes.length > 0 && heroes.every(h => h.final_blows != null);

@@ -549,6 +549,8 @@ interface BlindSetSummary {
   completed: boolean;
 }
 
+const mapKey = (n: string | null | undefined) => String(n ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
 export default function LogMatch() {
   // Map + queue mode are shared with the Pre-Match section via context; this
   // section only owns date/time/hero/win plus the death tags.
@@ -1119,9 +1121,9 @@ export default function LogMatch() {
           // Saved in the same server transaction as the match, which then
           // never enters the backlog. Omitted entirely when the fold-out is
           // closed or blank.
-          // The scoreboard group the form was filled from (or whose map matches this
-          // match). The server links it inside the same transaction as the match.
-          ...(live?.light === 'green' && live.fill && live.group_id != null && (appliedGroup.current === live.group_id || live.fill.map === map) ? { scoreboard_group_id: live.group_id } : {}),
+          // The scoreboard group, only while its Summary map equals the form map (accent/case folded, like the
+          // server's groupMapMismatch). appliedGroup is not enough: a fill that changed nothing still set it (match 3955). The server links it inside the same transaction as the match.
+          ...(live?.light === 'green' && live.fill && live.group_id != null && live.fill.map != null && mapKey(live.fill.map) === mapKey(map) ? { scoreboard_group_id: live.group_id } : {}),
           ...(aimFilled ? { aim_stats: (({ match_id: _unused, ...rest }) => rest)(statsBody(0, aimStats)) } : {}),
         }),
       });
