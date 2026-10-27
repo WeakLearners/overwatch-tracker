@@ -690,7 +690,7 @@ router.get('/map-detail/:map', (req: Request, res: Response) => {
     SELECT hero, role, ROUND(SUM(share), 1) as games, ROUND(SUM(share * win) * 100.0 / SUM(share), 1) as win_rate
     FROM matches_by_hero_credit WHERE map = :map
     GROUP BY hero, role HAVING SUM(share) >= 3
-    ORDER BY win_rate DESC
+    ORDER BY games DESC, win_rate DESC
   `).all({ map }) as any[];
 
   const heroes: Record<string, any[]> = { DPS: [], Tank: [], Support: [] };
