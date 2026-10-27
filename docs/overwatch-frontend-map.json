@@ -5061,63 +5061,23 @@
           }
         },
         {
-          "id": "dash-stat-total-games",
-          "label": "Total Games stat tile",
+          "id": "dash-stat-record",
+          "label": "Record stat tile",
           "kind": "stat-tile",
-          "description": "Displays the all-time total number of logged games.",
+          "description": "All-time record as wins–losses, with the total game count in the sub-line. Replaces the old Total Games, Wins and Losses tiles.",
           "locate": {
-            "path": "client/src/components/dashboard/CareerStrip.tsx:29",
-            "grep": "grep -n -F -- 'label=\"Total Games\"' client/src/components/dashboard/CareerStrip.tsx"
+            "path": "client/src/components/dashboard/CareerStrip.tsx:35",
+            "grep": "grep -n -F -- 'dataInspectId=\"dash-stat-record\"' client/src/components/dashboard/CareerStrip.tsx"
           }
         },
         {
           "id": "dash-stat-win-rate",
           "label": "Win Rate stat tile",
           "kind": "stat-tile",
-          "description": "Displays the all-time win-rate percentage, colored green if 50% or higher and red otherwise.",
+          "description": "Displays the all-time win-rate percentage, in plain ink (no win or loss colour).",
           "locate": {
-            "path": "client/src/components/dashboard/CareerStrip.tsx:33",
+            "path": "client/src/components/dashboard/CareerStrip.tsx:43",
             "grep": "grep -n -F -- 'label=\"Win Rate\"' client/src/components/dashboard/CareerStrip.tsx"
-          }
-        },
-        {
-          "id": "dash-stat-wins",
-          "label": "Wins stat tile",
-          "kind": "stat-tile",
-          "description": "Displays the all-time count of wins, styled in the 'win' color.",
-          "locate": {
-            "path": "client/src/components/dashboard/CareerStrip.tsx:39",
-            "grep": "grep -n -F -- 'label=\"Wins\"' client/src/components/dashboard/CareerStrip.tsx"
-          }
-        },
-        {
-          "id": "dash-stat-losses",
-          "label": "Losses stat tile",
-          "kind": "stat-tile",
-          "description": "Displays the all-time count of losses (total minus wins), styled in the 'loss' color.",
-          "locate": {
-            "path": "client/src/components/dashboard/CareerStrip.tsx:40",
-            "grep": "grep -n -F -- 'label=\"Losses\"' client/src/components/dashboard/CareerStrip.tsx"
-          }
-        },
-        {
-          "id": "dash-stat-heroes-played",
-          "label": "Heroes Played stat tile",
-          "kind": "stat-tile",
-          "description": "Displays the count of distinct heroes played across all logged matches.",
-          "locate": {
-            "path": "client/src/components/dashboard/CareerStrip.tsx:41",
-            "grep": "grep -n -F -- 'label=\"Heroes Played\"' client/src/components/dashboard/CareerStrip.tsx"
-          }
-        },
-        {
-          "id": "dash-stat-current-streak",
-          "label": "Current Streak stat tile",
-          "kind": "stat-tile",
-          "description": "Displays the current win or loss streak length and type (e.g. '3 W'), colored to match win or loss.",
-          "locate": {
-            "path": "client/src/components/dashboard/CareerStrip.tsx:45",
-            "grep": "grep -n -F -- 'label=\"Current Streak\"' client/src/components/dashboard/CareerStrip.tsx"
           }
         },
         {
@@ -5126,7 +5086,7 @@
           "kind": "stat-tile",
           "description": "Displays the longest win streak recorded all-time, styled in the 'win' color.",
           "locate": {
-            "path": "client/src/components/dashboard/CareerStrip.tsx:49",
+            "path": "client/src/components/dashboard/CareerStrip.tsx:48",
             "grep": "grep -n -F -- 'label=\"Longest Win Streak\"' client/src/components/dashboard/CareerStrip.tsx"
           }
         },
@@ -5134,9 +5094,9 @@
           "id": "dash-stat-leavers",
           "label": "Leavers stat tile",
           "kind": "stat-tile",
-          "description": "Count of matches where somebody left, plus a sub-line giving the denominator and the win rate with leaver matches dropped. The denominator is printed on purpose: matches logged before 2026-09-23 hold leaver NULL because the question was never asked, and they are excluded from the ratio rather than counted as 'no leaver'. Eighth tile in the Career strip, which widened from 7 to 8 columns to hold it.",
+          "description": "Count of matches where somebody left, plus a sub-line giving the denominator and the win rate with leaver matches dropped. The denominator is printed on purpose: matches logged before 2026-09-23 hold leaver NULL because the question was never asked, and they are excluded from the ratio rather than counted as 'no leaver'. Fourth tile in the Career strip (4 columns since slice 6c).",
           "locate": {
-            "path": "client/src/components/dashboard/CareerStrip.tsx:55",
+            "path": "client/src/components/dashboard/CareerStrip.tsx:54",
             "grep": "grep -n -F -- 'dataInspectId=\"dash-stat-leavers\"' client/src/components/dashboard/CareerStrip.tsx"
           }
         }

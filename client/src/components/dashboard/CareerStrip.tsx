@@ -25,8 +25,18 @@ function CareerStrip({ overview, streaks }: Props) {
       <PageHeader dataInspectId="dash-career-section-header" title="Career" sub="All-time totals across every mode." />
       {/* One continuous readout strip rather than two stacked 4-tile grids —
           all eight career totals scan as a single row on wide screens. */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-        <StatCard compact dataInspectId="dash-stat-total-games" label="Total Games" value={overview?.total ?? '—'} />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Record merges the old Total Games, Wins and Losses tiles. Win rate
+            is in ink: the baseline sits under 50%, so red said "bad" about
+            an ordinary rate. Heroes Played and Current Streak are cut (the
+            streak lives on the Pre-Match Today card). Slice 6c, rows D11-D16. */}
+        <StatCard
+          compact
+          dataInspectId="dash-stat-record"
+          label="Record"
+          value={overview ? `${overview.wins}–${overview.total - overview.wins}` : '—'}
+          sub={overview ? `${overview.total} games` : undefined}
+        />
         <StatCard
           compact
           dataInspectId="dash-stat-win-rate"
@@ -34,17 +44,6 @@ function CareerStrip({ overview, streaks }: Props) {
           value={overview ? overview.win_rate : '—'}
           decimals={1}
           suffix="%"
-          color={overview && overview.win_rate >= 50 ? 'win' : 'loss'}
-        />
-        <StatCard compact dataInspectId="dash-stat-wins" label="Wins" value={overview?.wins ?? '—'} color="win" />
-        <StatCard compact dataInspectId="dash-stat-losses" label="Losses" value={overview ? overview.total - overview.wins : '—'} color="loss" />
-        <StatCard compact dataInspectId="dash-stat-heroes-played" label="Heroes Played" value={overview?.heroes_played ?? '—'} />
-        <StatCard
-          compact
-          dataInspectId="dash-stat-current-streak"
-          label="Current Streak"
-          value={streaks ? `${streaks.currentStreak} ${streaks.currentStreakType === 1 ? 'W' : 'L'}` : '—'}
-          color={streaks?.currentStreakType === 1 ? 'win' : 'loss'}
         />
         <StatCard compact dataInspectId="dash-stat-longest-win-streak" label="Longest Win Streak" value={streaks?.longestWin ?? '—'} color="win" />
         {/* Counted only over matches where the question was asked, which is
