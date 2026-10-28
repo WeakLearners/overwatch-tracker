@@ -88,13 +88,11 @@ interface MatchHeroRow {
 // Inline editable-fields panel for a Today's Matches row — expands in place
 // below the row's header block instead of opening a side drawer, matching
 // the Awaiting Stats card's collapsed-row/inline-form pattern on the Sens page.
-function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueMode, togglingId }: {
+function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone }: {
   match: TodayMatchRow;
   heroCounts: ReturnType<typeof useTodayHeroCounts>;
   mapCounts: ReturnType<typeof useTodayMapCounts>;
   onDone: () => void;
-  toggleQueueMode: (id: number, current: QueueMode, hero: string) => void;
-  togglingId: number | null;
 }) {
   const [hero, setHero] = useState(match.hero);
   const [map, setMap] = useState(match.map);
@@ -264,25 +262,6 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone, toggleQueueM
 
   return (
     <div className="space-y-3" onClick={e => e.stopPropagation()}>
-      <div>
-        <label className="block text-xs text-[var(--muted)] mb-1.5">Mode</label>
-        <div className="flex items-center gap-2" data-inspect-id="logmatch-inline-edit-mode-toggle-group">
-          <span className="text-xs font-black text-blue-400">Q</span>
-          <button
-            type="button"
-            onClick={() => toggleQueueMode(match.id, match.queue_mode, match.hero)}
-            disabled={togglingId === match.id || match.queue_mode === 'comp_open'}
-            title={match.queue_mode === 'comp_open' ? 'Competitive Open — change it from the full edit drawer' : undefined}
-            aria-label={`Match type: ${match.queue_mode === 'qp_role' ? 'Quick Play' : 'Competitive'} — tap to switch`}
-            data-inspect-id="logmatch-inline-edit-mode-toggle"
-            className={`relative shrink-0 w-9 h-5 rounded-full transition-colors disabled:opacity-50 ${match.queue_mode === 'qp_role' ? 'bg-blue-500' : 'bg-red-500'}`}
-          >
-            <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${match.queue_mode === 'qp_role' ? 'translate-x-0' : 'translate-x-4'}`} />
-          </button>
-          <span className="text-xs font-black text-red-400">C</span>
-        </div>
-      </div>
-
       {!crashed && (
       <div>
         <label className="block text-xs text-[var(--muted)] mb-1.5">
@@ -996,34 +975,6 @@ export default function LogMatch() {
       .catch(() => { if (!cancelled) setMapHistoryByMatch({}); });
     return () => { cancelled = true; };
   }, [recentIdsKey, heroesTick]);
-
-  const [togglingId, setTogglingId] = useState<number | null>(null);
-  async function toggleQueueMode(id: number, current: QueueMode, hero: string) {
-    // This switch only knows Quick Play <-> Competitive Role. Competitive Open
-    // has no place on it: flipping it would land on qp_role, and flipping back
-    // would land on comp_role, so the Open mode would be lost for good.
-    if (current === 'comp_open') return;
-    const newMode: QueueMode = current === 'qp_role' ? 'comp_role' : 'qp_role';
-    // Comp -> QP is a correction, not a flip: it rolls back this match's
-    // stage-test credit (drops its blind_credits row server-side, see
-    // syncStageCredits in matches.ts) and pulls it out of Awaiting Stats on
-    // the Sens page entirely, since QP games never need aim stats. That's a
-    // bigger consequence than the reverse direction, so confirm before doing it.
-    if (newMode === 'qp_role' && !window.confirm('Switch this match to Quick Play? It will roll back its stage-test count by 1 and remove it from Awaiting Stats.')) {
-      return;
-    }
-    setTogglingId(id);
-    try {
-      const res = await fetch(`/api/matches/${id}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ queue_mode: newMode }),
-      });
-      if (!res.ok) throw new Error('mode toggle failed');
-      revalidateAll();
-      void checkSensChange([hero], newMode);
-    } finally {
-      setTogglingId(null);
-    }
-  }
 
   const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement | HTMLTextAreaElement>) => {
     if (k === 'date') dateTouched.current = true;
@@ -1828,8 +1779,6 @@ export default function LogMatch() {
                           heroCounts={heroCounts}
                           mapCounts={mapCounts}
                           onDone={() => { setExpandedId(null); setHeroesTick(t => t + 1); }}
-                          toggleQueueMode={toggleQueueMode}
-                          togglingId={togglingId}
                         />
                       </div>
                     )}
