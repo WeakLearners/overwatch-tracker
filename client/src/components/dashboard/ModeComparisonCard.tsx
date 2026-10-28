@@ -70,7 +70,7 @@ function ModeTile({ meta, m, selected, onSelect, openHero, lastLog }: {
       <div className="relative z-10">
       <div className="flex items-center justify-between gap-2 mb-2">
         <span className={`pill min-w-0 truncate ${c.selected}`}>{meta.short}</span>
-        {selected && <span className="shrink-0 whitespace-nowrap text-[11px] uppercase tracking-widest font-bold lit-text lit-strong">Selected</span>}
+        {selected && <span className="shrink-0 whitespace-nowrap text-xs uppercase tracking-widest font-bold lit-text lit-strong">Selected</span>}
       </div>
       {m && m.games > 0 ? (
         <>
@@ -90,9 +90,9 @@ function ModeTile({ meta, m, selected, onSelect, openHero, lastLog }: {
             );
           })()}
           <div className="text-xs text-[var(--muted)] mt-0.5">
-            last <b className="font-bold">{m.recent_window}</b>d · <span className="text-emerald-500 font-bold">{m.recent_wins}W</span> <span className="text-red-400 font-bold">{m.recent_games - m.recent_wins}L</span>
+            last <b className="font-bold">{m.recent_window}</b>d · <span className="text-emerald-500 font-bold">{m.recent_wins}W</span> <span className="text-red-500 font-bold">{m.recent_games - m.recent_wins}L</span>
           </div>
-          <div className="text-[11px] text-[var(--faint)] mt-0.5">
+          <div className="text-xs text-[var(--faint)] mt-0.5">
             <b className="font-bold">{m.win_rate.toFixed(1)}</b>% all-time · <b className="font-bold">{m.games}</b> games
           </div>
           <div className="mt-3">

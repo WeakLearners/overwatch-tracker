@@ -1696,7 +1696,20 @@ export default function LogMatch() {
         </div>
 
         <div className="card" data-inspect-id="logmatch-todays-matches-card">
-          <h2 className="text-sm card-title mb-4">Today's Matches</h2>
+          <div className="flex items-baseline justify-between gap-3 mb-4">
+            <h2 className="text-sm card-title">Today's Matches</h2>
+            {recent.length > 0 && (() => {
+              const wins = recent.filter(r => r.win === 1).length;
+              let run = 0;
+              while (run < recent.length && recent[run].win === recent[0].win) run++;
+              return (
+                <span className="text-xs text-[var(--faint)]" data-inspect-id="logmatch-todays-matches-summary">
+                  <b className="font-bold text-[var(--ink)]">{wins}W–{recent.length - wins}L</b>
+                  {run >= 2 && <> · <b className={`font-bold ${recent[0].win === 1 ? 'text-emerald-500' : 'text-red-500'}`}>{recent[0].win === 1 ? 'W' : 'L'}{run}</b> streak</>}
+                </span>
+              );
+            })()}
+          </div>
           {recent.length > 0 ? (
             <div className="space-y-2" data-inspect-id="logmatch-recently-logged-list">
               {recent.map(r => {
