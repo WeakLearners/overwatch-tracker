@@ -54,7 +54,7 @@ interface DpiTestHud {
     set_id: number; hero: string | null; cur_stage: number; n_stages: number; totalGames: number;
     batch_size: number; games_on_stage: number; dpi: number | null; sens: number | null;
     // Sens of the hero's last logged game (match_heroes.sens) and that match's id; null if none.
-    last_sens: number | null; last_match_id: number | null;
+    last_sens: number | null;
     // Present only for a chunked (ABBA) 2-stage set — see routes/blind.ts's
     // GET /state and lib/blind.ts's block model (chunkLabelFor/
     // deriveBlockState). `label` is the "A1".."B4" chunk badge.

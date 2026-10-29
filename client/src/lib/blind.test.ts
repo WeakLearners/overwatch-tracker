@@ -42,6 +42,9 @@ describe('sensChangesNeeded', () => {
   test('hero without active test or sens -> skipped', () => {
     assert.equal(sensChangesNeeded(['Ana', 'Zen'], [act('Zen', null, 4)], 'comp_role').length, 0);
   });
+  test('cancelled set: no active test for the hero -> no target, no pop-up', () => {
+    assert.equal(sensChangesNeeded(['Ana'], [], 'comp_role').length, 0);
+  });
   test('only heroes of the logged match are checked', () => {
     assert.equal(sensChangesNeeded(['Ana'], [act('Zen', 6, 4)], 'comp_role').length, 0);
   });

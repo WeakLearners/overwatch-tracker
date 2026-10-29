@@ -11,6 +11,7 @@ import {
 } from '../types';
 import { format } from 'date-fns';
 import SensNav from '../components/SensNav';
+import { checkSensChange } from '../components/SensChangeModal';
 import { parseLutString, formatLut } from '../lib/lut';
 import LutPlot from '../components/LutPlot';
 import { useFieldConfig } from '../contexts/FieldConfigContext';
@@ -781,7 +782,7 @@ async function advanceActive(active: DpiTestActive) {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ set_id: active.set_id, ...(short ? { force: true } : {}) }),
   });
-  if (r.ok) revalidateAll();
+  if (r.ok) { revalidateAll(); void checkSensChange([active.hero ?? '']); }
   else {
     const body = await r.json().catch(() => ({}));
     alert(`Advance failed: ${body.error ?? r.statusText}`);
@@ -1105,6 +1106,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
         body: JSON.stringify(setBodyFor(h)),
       });
       revalidateSets();
+      void checkSensChange([h.hero]);
     } finally { setCreating(null); }
   }
 
@@ -1123,6 +1125,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
         body: JSON.stringify(setBodyFor(h)),
       })));
       revalidateSets();
+      void checkSensChange(targets.map(h => h.hero));
     } finally {
       setCreatingAll(false);
     }
@@ -1140,6 +1143,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
         return;
       }
       revalidateSets();
+      if (action === 'resume') void checkSensChange(plan.filter(h => statuses.get(h.hero)?.setId === setId).map(h => h.hero));
     } finally { setPoolBusy(null); }
   }
 
@@ -1939,6 +1943,7 @@ function BackfillPanel({ pending, loading }: {
       if (!res.ok) throw new Error('save failed');
       setLoggedStatus('success'); setLoggedSelectedId(null);
       revalidateAll();
+      void checkSensChange(loggedSelected.heroes.map(h => h.hero), loggedSelected.queue_mode);
       setTimeout(() => setLoggedStatus('idle'), 1800);
     } catch { setLoggedStatus('error'); setTimeout(() => setLoggedStatus('idle'), 3000); }
   }
@@ -1976,6 +1981,7 @@ function BackfillPanel({ pending, loading }: {
       if (pending.length === 1) setShowCaughtUp(true);
       setStatus('success'); setSelectedId(null); setStats(emptyStats([])); setHeroSens({});
       revalidateAll();
+      void checkSensChange(selected.heroes.map(h => h.hero), selected.queue_mode);
       setTimeout(() => setStatus('idle'), 1800);
     } catch { setStatus('error'); setTimeout(() => setStatus('idle'), 3000); }
   }

@@ -10,6 +10,7 @@
 import { useEffect, useState } from 'react';
 import { useMatchEditDrawer } from '../contexts/MatchEditDrawerContext';
 import { revalidateAll } from '../hooks/useApi';
+import { checkSensChange } from './SensChangeModal';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { useDfHeroes, withDfBadge } from '../hooks/useDfHeroes';
@@ -262,6 +263,7 @@ function DrawerForm({ match }: { match: TrendPoint }) {
       });
       if (!res.ok) throw new Error('Failed');
       revalidateAll();
+      void checkSensChange([match.hero, form.hero, ...originalExtraHeroNames, ...extraHeroes], form.queue_mode);
       closeEdit();
     } catch {
       setStatus('error');
@@ -274,6 +276,7 @@ function DrawerForm({ match }: { match: TrendPoint }) {
       const res = await fetch(`/api/matches/${match.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed');
       revalidateAll();
+      void checkSensChange([match.hero, ...originalExtraHeroNames], match.queue_mode);
       closeEdit();
     } catch {
       setStatus('error');

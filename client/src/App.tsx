@@ -17,6 +17,7 @@ import { MatchEditDrawerProvider } from './contexts/MatchEditDrawerContext';
 import MatchEditDrawer from './components/MatchEditDrawer';
 import InspectorOverlay from './debug/InspectorOverlay';
 import DevWatermark from './components/DevWatermark';
+import SensChangeModal from './components/SensChangeModal';
 import DemoBanner from './demo/DemoBanner';
 
 // The static demo has no server to rewrite deep links, so it routes on the hash.
@@ -56,6 +57,7 @@ export default function App() {
     <FieldConfigProvider>
     <Router>
       <DevWatermark />
+      <SensChangeModal />
       <DemoBanner />
       <div className="min-h-screen">
         {/* HUD top bar: sticky, chamfered wordmark tile with the orange/cyan
