@@ -1617,14 +1617,14 @@ export default function Prematch() {
           <p className="mt-3 text-[11px] text-[var(--faint)] leading-snug" title="Everything else logs at the frozen fallback sens instead of the active test value.">
             Counts Comp (any role) and QP Support only.
           </p>
-        </div>
 
             {/* Next test — the sens-study round-robin recommender (GET
-                /api/blind/next, lib/nextTest.ts). The whole column is gated on
+                /api/blind/next, lib/nextTest.ts). The whole block is gated on
                 the sens-study category, since it has nothing to say when that
-                data isn't being collected. Sits under the HUD in the Experiment column. */}
+                data isn't being collected. Merged into the HUD card (slice 6c,
+                row P3): one card in the 1-col Experiment slot, split by a rule. */}
             {nextTest && (
-              <div className="card text-left lg:flex-1" data-inspect-id="prematch-next-test-card">
+              <div className="text-left mt-3 pt-3 border-t border-ow-border/40" data-inspect-id="prematch-next-test-card">
                 <h3 className="text-sm card-title mb-1">Next test</h3>
                 {nextTest.isQuickplay ? (
                   <p className="text-xs text-[var(--faint)]" data-inspect-id="prematch-next-test-qp">
@@ -1695,6 +1695,7 @@ export default function Prematch() {
                 )}
               </div>
             )}
+        </div>
           </div>
         )}
       </div>
