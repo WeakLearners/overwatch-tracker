@@ -1492,7 +1492,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
       {showAddPhase && createPortal(
         <div className="fixed inset-0 z-50 grid place-items-center">
           <div className="fixed inset-0 bg-black/50" onClick={() => setShowAddPhase(false)} />
-          <div className="relative card max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto" data-inspect-id="sl-add-phase-modal">
+          <div className={`relative card w-full mx-4 ${rows.length > 8 ? 'max-w-4xl' : 'max-w-2xl'}`} data-inspect-id="sl-add-phase-modal">
             <div className="flex items-baseline gap-2 mb-4">
             <h3 className="text-sm card-title shrink-0">Add new phase</h3>
             <p className="text-xs text-[var(--faint)] min-w-0">
@@ -1536,13 +1536,18 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
               </label>
             </div>
 
-            <div className="grid grid-cols-12 gap-1.5 mb-1 px-1 text-[10px] uppercase tracking-wide text-[var(--faint-2)]">
-              <span className="col-span-3">Hero</span>
-              <span className="col-span-3">Archetype</span>
-              <span className="col-span-2">Low sens</span>
-              <span className="col-span-2">High sens</span>
+            {/* No scroll: past 8 heroes the modal widens and the rows split into two columns. */}
+            <div className={rows.length > 8 ? 'grid md:grid-cols-2 gap-x-4' : ''}>
+              {(rows.length > 8 ? [0, 1] : [0]).map(k => (
+                <div key={k} className={`grid grid-cols-12 gap-1.5 mb-1 px-1 text-[10px] uppercase tracking-wide text-[var(--faint-2)] ${k === 1 ? 'hidden md:grid' : ''}`}>
+                  <span className="col-span-3">Hero</span>
+                  <span className="col-span-3">Archetype</span>
+                  <span className="col-span-2">Low sens</span>
+                  <span className="col-span-2">High sens</span>
+                </div>
+              ))}
             </div>
-            <div className="space-y-1 mb-2" data-inspect-id="sl-add-phase-rows">
+            <div className={rows.length > 8 ? 'grid md:grid-cols-2 gap-x-4 gap-y-1 mb-2' : 'space-y-1 mb-2'} data-inspect-id="sl-add-phase-rows">
               {rows.map((r, i) => {
                 return (
                 <div key={i} className="space-y-1" title={r.locked ? r.basis : undefined}>

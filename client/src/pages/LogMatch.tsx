@@ -1748,8 +1748,8 @@ export default function LogMatch() {
                         className="absolute inset-y-0 left-[6.75rem] right-[8.625rem] z-10 flex flex-col items-center justify-center gap-0.5 text-center pointer-events-none"
                         data-inspect-id="logmatch-todays-matches-time-sens"
                       >
-                        <span className="text-[11px] text-[var(--faint)]">{r.time ? format(new Date(r.time), 'MMM d, h:mm a') : today}</span>
-                        <span className="text-[11px] text-[var(--faint)]">{r.crashed ? 'result only' : r.stage_index != null ? <>stage <b className="font-bold">{r.stage_index}</b> · sens <b className="font-bold">{r.sens}</b></> : r.sens != null ? <>sens <b className="font-bold">{r.sens}</b></> : 'no sens'}</span>
+                        <span className="text-xs text-[var(--faint)]">{r.time ? format(new Date(r.time), 'MMM d, h:mm a') : today}</span>
+                        <span className="text-xs text-[var(--faint)]">{r.crashed ? 'result only' : r.stage_index != null ? <>stage <b className="font-bold">{r.stage_index}</b> · sens <b className="font-bold">{r.sens}</b></> : r.sens != null ? <>sens <b className="font-bold">{r.sens}</b></> : 'no sens'}</span>
                       </div>
                       <div className="relative z-10 flex flex-col items-end shrink-0 self-center mr-1.5 w-[7.5rem]">
                         <span className="text-xs map-name text-[var(--ink)] text-right leading-tight whitespace-normal break-words">{r.map}</span>
