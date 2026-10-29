@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { sensChangesNeeded, type SensChange, type SensChangeActive } from '../lib/blind';
 import { activeMapNames, HEROES, MAPS, ROLE_COLORS, ROLE_PILL_CLASS, ROLE_PILL_CLASS_DARK, TYPE_COLORS, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB, MODE_WASH_CLASS, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, isAccount, rankLabel, clampRank } from '../types';
 import { useMatch } from '../contexts/MatchContext';
 import { useDeathBuffer } from '../contexts/DeathBufferContext';
@@ -611,6 +613,7 @@ export default function LogMatch() {
   // result + context (date/time, queue, account, role, map, rank) and nothing
   // from the scoreboard. Kept across a refresh like the rest of the draft, and
   // reset on log/cancel, so each match still decides afresh.
+  const [sensChanges, setSensChanges] = useState<SensChange[]>([]);
   const [crashedGame, setCrashedGame] = useState(() => readDraft().crashedGame ?? false);
   const setSwitchHero = (i: 0 | 1) => (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSwitchHeroes(prev => {
@@ -1135,6 +1138,14 @@ export default function LogMatch() {
       }
       const loggedMode = queueMode;
       const loggedWin = form.win === '1';
+      // The save may have moved a sens test to its next stage. Read the state the server
+      // now holds and pop "Change sens" for any logged hero whose target differs from the sens just logged.
+      const loggedHeroes = [form.hero, ...switchHeroes].filter(h => !!h);
+      if (loggedHeroes.length > 0) {
+        fetch('/api/blind/state').then(r => r.json()).then((d: { actives?: SensChangeActive[] }) => {
+          setSensChanges(sensChangesNeeded(loggedHeroes, d.actives ?? [], loggedMode));
+        }).catch(() => {});
+      }
       setStatus('success');
       // This match's finishing rank is the next one's starting rank. Written
       // only after the save succeeds — a failed POST must not move the ladder.
@@ -1801,6 +1812,31 @@ export default function LogMatch() {
           )}
         </div>
       </div>
+      {/* Stage-change pop-up: shown after a save, for the heroes of the match just logged (Sean, 2026-10-29). */}
+      {sensChanges.length > 0 && createPortal(
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60" role="alertdialog" aria-modal="true" aria-labelledby="sens-change-title" data-inspect-id="logmatch-sens-change-modal">
+          <div className="card w-full max-w-sm mx-4 text-center">
+            <h2 id="sens-change-title" className="text-sm card-title mb-3">Change sens</h2>
+            <div className="flex flex-col gap-4 mb-4">
+              {sensChanges.map(c => (
+                <div key={c.hero}>
+                  <div className="text-sm font-semibold text-[var(--ink)]">{c.hero}</div>
+                  <div className="text-xs text-[var(--muted)]">last game: {c.last ?? 'none'}</div>
+                  <div className="text-xs text-[var(--muted)] mt-1">set now:</div>
+                  <div className="text-4xl font-bold tabular-nums text-[var(--ink)] leading-tight">{c.target}</div>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button" autoFocus
+              onClick={() => setSensChanges([])}
+              className="btn-primary w-full py-2 text-sm"
+              data-inspect-id="logmatch-sens-change-ack"
+            >I set it in game</button>
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }

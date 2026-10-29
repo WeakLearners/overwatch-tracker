@@ -12,33 +12,30 @@ export function isStudyQueueMode(queueMode: string | null | undefined): boolean 
   return (queueMode ?? 'comp_role') !== 'qp_role';
 }
 
-// "Change sens" pop-up decision (Prematch, 2026-10-13). A selected hero needs a
-// sens change when it has an active test sens and that sens differs from the
-// sens of its last logged game, or there is no earlier logged game with a known
-// sens (last = null). Compared at 2 decimals, the precision the UI shows.
-// Quickplay never shows it: tests do not count in QP. `ackKey` identifies the
-// (hero, target, last match) triple an acknowledgement applies to, so a new
-// stage target or a newly logged match re-arms the pop-up.
-export interface SensChangeActive { hero: string | null; sens: number | null; last_sens?: number | null; last_match_id?: number | null }
-export interface SensChange { hero: string; target: string; last: string | null; ackKey: string }
+// "Change sens" pop-up decision (moved from Prematch to the match save,
+// 2026-10-29). Called with the heroes of the match just logged and the fresh
+// GET /api/blind/state. A hero needs a sens change when it has an active test
+// sens and that sens differs from the sens of its last logged game, or there is
+// no earlier logged game with a known sens (last = null). Compared at 2
+// decimals, the precision the UI shows. Quickplay never shows it: tests do not
+// count in QP.
+export interface SensChangeActive { hero: string | null; sens: number | null; last_sens?: number | null }
+export interface SensChange { hero: string; target: string; last: string | null }
 
 export function sensChangesNeeded(
-  pickedHeroes: string[],
+  loggedHeroes: string[],
   actives: SensChangeActive[],
   queueMode: string | null | undefined,
-  acked: ReadonlySet<string>,
 ): SensChange[] {
   if (!isStudyQueueMode(queueMode)) return [];
   const out: SensChange[] = [];
-  for (const hero of pickedHeroes) {
+  for (const hero of loggedHeroes) {
     const a = actives.find(x => x.hero === hero);
     if (!a || a.sens == null) continue;
     const target = a.sens.toFixed(2);
     const last = a.last_sens != null ? a.last_sens.toFixed(2) : null;
     if (last === target) continue;
-    const ackKey = `${hero}|${target}|${a.last_match_id ?? 'none'}`;
-    if (acked.has(ackKey)) continue;
-    out.push({ hero, target, last, ackKey });
+    out.push({ hero, target, last });
   }
   return out;
 }

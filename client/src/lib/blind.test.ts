@@ -24,34 +24,29 @@ describe('isStudyQueueMode', () => {
 import { sensChangesNeeded } from './blind';
 
 describe('sensChangesNeeded', () => {
-  const act = (hero: string, sens: number | null, last_sens: number | null, last_match_id: number | null) => ({ hero, sens, last_sens, last_match_id });
-  const none = new Set<string>();
-  test('differs from last game -> needed', () => {
-    const r = sensChangesNeeded(['Soldier: 76'], [act('Soldier: 76', 5.1, 4.2, 9)], 'comp_role', none);
-    assert.deepEqual(r, [{ hero: 'Soldier: 76', target: '5.10', last: '4.20', ackKey: 'Soldier: 76|5.10|9' }]);
+  // actives come from GET /api/blind/state fetched AFTER the match save.
+  const act = (hero: string, sens: number | null, last_sens: number | null) => ({ hero, sens, last_sens });
+  test('stage advanced: target differs from the sens just logged -> needed', () => {
+    const r = sensChangesNeeded(['Soldier: 76'], [act('Soldier: 76', 5.1, 4.2)], 'comp_role');
+    assert.deepEqual(r, [{ hero: 'Soldier: 76', target: '5.10', last: '4.20' }]);
   });
-  test('same at 2 decimals -> not needed', () => {
-    assert.equal(sensChangesNeeded(['Ana'], [act('Ana', 5.1, 5.1004, 3)], 'comp_role', none).length, 0);
+  test('stage did not advance: target equals the sens just logged -> not needed', () => {
+    assert.equal(sensChangesNeeded(['Ana'], [act('Ana', 5.1, 5.1004)], 'comp_role').length, 0);
   });
   test('no earlier game -> needed with last null', () => {
-    const r = sensChangesNeeded(['Ana'], [act('Ana', 5.1, null, null)], 'comp_role', none);
-    assert.equal(r[0].last, null);
-    assert.equal(r[0].ackKey, 'Ana|5.10|none');
+    assert.equal(sensChangesNeeded(['Ana'], [act('Ana', 5.1, null)], 'comp_role')[0].last, null);
   });
   test('quickplay -> never', () => {
-    assert.equal(sensChangesNeeded(['Ana'], [act('Ana', 5.1, 4, 1)], 'qp_role', none).length, 0);
+    assert.equal(sensChangesNeeded(['Ana'], [act('Ana', 5.1, 4)], 'qp_role').length, 0);
   });
   test('hero without active test or sens -> skipped', () => {
-    assert.equal(sensChangesNeeded(['Ana', 'Zen'], [act('Zen', null, 4, 1)], 'comp_role', none).length, 0);
+    assert.equal(sensChangesNeeded(['Ana', 'Zen'], [act('Zen', null, 4)], 'comp_role').length, 0);
   });
-  test('ack hides that triple only; new last match re-arms', () => {
-    const acked = new Set(['Ana|5.10|1']);
-    assert.equal(sensChangesNeeded(['Ana'], [act('Ana', 5.1, 4, 1)], 'comp_role', acked).length, 0);
-    assert.equal(sensChangesNeeded(['Ana'], [act('Ana', 5.1, 4, 2)], 'comp_role', acked).length, 1);
-    assert.equal(sensChangesNeeded(['Ana'], [act('Ana', 5.2, 4, 1)], 'comp_role', acked).length, 1);
+  test('only heroes of the logged match are checked', () => {
+    assert.equal(sensChangesNeeded(['Ana'], [act('Zen', 6, 4)], 'comp_role').length, 0);
   });
-  test('several heroes listed in pick order', () => {
-    const r = sensChangesNeeded(['Zen', 'Ana'], [act('Ana', 5, 4, 1), act('Zen', 6, 4, 2)], 'comp_role', none);
+  test('several logged heroes listed in logged order', () => {
+    const r = sensChangesNeeded(['Zen', 'Ana'], [act('Ana', 5, 4), act('Zen', 6, 4)], 'comp_role');
     assert.deepEqual(r.map(x => x.hero), ['Zen', 'Ana']);
   });
 });
