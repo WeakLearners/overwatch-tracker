@@ -5174,9 +5174,9 @@
           "id": "dash-scoreboard-trends-card",
           "label": "Scoreboard Trends card",
           "kind": "card",
-          "description": "Card under the Trends factoids. Title with the explainer to its right: comp games with a board, how many have play time, grey under 10 games. Four blocks from GET /api/stats/scoreboard-trends.",
+          "description": "Card under the Trends factoids. Title with a one-line explainer: comp only, games with a scoreboard, date range. Two columns at lg: deaths on the left, rank then wins vs losses on the right, one week line at the bottom. Data from GET /api/stats/scoreboard-trends.",
           "locate": {
-            "path": "client/src/components/dashboard/ScoreboardTrendsCard.tsx:51",
+            "path": "client/src/components/dashboard/ScoreboardTrendsCard.tsx:59",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-scoreboard-trends-card\"' client/src/components/dashboard/ScoreboardTrendsCard.tsx"
           }
         },
@@ -5184,19 +5184,29 @@
           "id": "dash-scoreboard-trends-deaths",
           "label": "Win rate by your deaths",
           "kind": "list",
-          "description": "Win rate for 0-4, 5-6, 7-8, 9-10 and 11+ own deaths, with W-L, games and a corrected verdict chip.",
+          "description": "Death bins table (0-4, 5-6, 7-8, 9-10, 11+): win rate, 95% range, games, corrected verdict chip, an All games row, and a fine-print line. Rates are never coloured.",
           "locate": {
-            "path": "client/src/components/dashboard/ScoreboardTrendsCard.tsx:82",
+            "path": "client/src/components/dashboard/ScoreboardTrendsCard.tsx:93",
             "grep": "grep -n -F -- 'dataInspectId=\"dash-scoreboard-trends-deaths\"' client/src/components/dashboard/ScoreboardTrendsCard.tsx"
+          }
+        },
+        {
+          "id": "dash-scoreboard-trends-headline",
+          "label": "Deaths headline",
+          "kind": "stat",
+          "description": "Large win rate for the death bin that holds up after correction, with its range, games and chip. Falls back to one line when no bin holds up.",
+          "locate": {
+            "path": "client/src/components/dashboard/ScoreboardTrendsCard.tsx:94",
+            "grep": "grep -n -F -- 'data-inspect-id=\"dash-scoreboard-trends-headline\"' client/src/components/dashboard/ScoreboardTrendsCard.tsx"
           }
         },
         {
           "id": "dash-scoreboard-trends-winloss",
           "label": "Wins vs losses",
           "kind": "list",
-          "description": "Own elims, deaths, damage and healing per 10 min, and share of team deaths and damage, for wins and losses. Description only.",
+          "description": "Own elims, deaths and damage per 10 min plus share of team deaths, for wins and losses, with a Loss vs win column. Healing and team-damage share are in the payload but not shown.",
           "locate": {
-            "path": "client/src/components/dashboard/ScoreboardTrendsCard.tsx:114",
+            "path": "client/src/components/dashboard/ScoreboardTrendsCard.tsx:188",
             "grep": "grep -n -F -- 'dataInspectId=\"dash-scoreboard-trends-winloss\"' client/src/components/dashboard/ScoreboardTrendsCard.tsx"
           }
         },
@@ -5204,20 +5214,20 @@
           "id": "dash-scoreboard-trends-rank",
           "label": "Rank break-even",
           "kind": "list",
-          "description": "Mean rank change on a win and on a loss, the break-even win rate, the actual win rate, and how many misread rows were left out.",
+          "description": "Rank change on a win and on a loss, win rate to break even, win rate on these games, expected change per game, and a takeaway line. Audit counts are in the note tooltip.",
           "locate": {
-            "path": "client/src/components/dashboard/ScoreboardTrendsCard.tsx:134",
+            "path": "client/src/components/dashboard/ScoreboardTrendsCard.tsx:148",
             "grep": "grep -n -F -- 'dataInspectId=\"dash-scoreboard-trends-rank\"' client/src/components/dashboard/ScoreboardTrendsCard.tsx"
           }
         },
         {
           "id": "dash-scoreboard-trends-weeks",
-          "label": "Week by week",
+          "label": "Week and role line",
           "kind": "list",
-          "description": "Per ISO week and role: win rate, deaths and elims per 10 min, games, verdict chip. Last 8 weeks.",
+          "description": "One line: how many week-role groups were tested and whether any holds up after correction. Lists a group only if it holds up.",
           "locate": {
-            "path": "client/src/components/dashboard/ScoreboardTrendsCard.tsx:160",
-            "grep": "grep -n -F -- 'dataInspectId=\"dash-scoreboard-trends-weeks\"' client/src/components/dashboard/ScoreboardTrendsCard.tsx"
+            "path": "client/src/components/dashboard/ScoreboardTrendsCard.tsx:225",
+            "grep": "grep -n -F -- 'data-inspect-id=\"dash-scoreboard-trends-weeks\"' client/src/components/dashboard/ScoreboardTrendsCard.tsx"
           }
         },
         {
@@ -5226,7 +5236,7 @@
           "kind": "empty-state",
           "description": "Shown when no scoreboard board is matched to a comp match yet.",
           "locate": {
-            "path": "client/src/components/dashboard/ScoreboardTrendsCard.tsx:64",
+            "path": "client/src/components/dashboard/ScoreboardTrendsCard.tsx:72",
             "grep": "grep -n -F -- 'dash-scoreboard-trends-empty' client/src/components/dashboard/ScoreboardTrendsCard.tsx"
           }
         },
