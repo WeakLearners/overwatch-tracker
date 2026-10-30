@@ -5640,7 +5640,7 @@ const DATA = {
           "kind": "header",
           "description": "Section header titled 'Trends' with subtitle 'Recent form and momentum.', introducing the trends summary below.",
           "locate": {
-            "path": "client/src/components/dashboard/TrendsSection.tsx:19",
+            "path": "client/src/components/dashboard/TrendsSection.tsx:20",
             "grep": "grep -n -F -- 'title=\"Trends\" sub=\"Recent form and momentum.\"' client/src/components/dashboard/TrendsSection.tsx"
           }
         },
@@ -5650,7 +5650,7 @@ const DATA = {
           "kind": "section",
           "description": "Embeds the TrendsSummary component showing recent-form charts/metrics and momentum indicators.",
           "locate": {
-            "path": "client/src/components/dashboard/TrendsSection.tsx:20",
+            "path": "client/src/components/dashboard/TrendsSection.tsx:21",
             "grep": "grep -n -F -- '<TrendsSummary />' client/src/components/dashboard/TrendsSection.tsx"
           }
         }
@@ -5664,6 +5664,66 @@ const DATA = {
       "file": "client/src/components/dashboard/SessionWindowCard.tsx",
       "description": "Session Window: a plain day x hour grid in the Trends section (split plan decision 5, 2026-10-04). Reads GET /api/stats/by-day-hour. Replaces the best/worst day-hour factoid, which was cut.",
       "uiElements": [
+        {
+          "id": "dash-scoreboard-trends-card",
+          "label": "Scoreboard Trends card",
+          "kind": "card",
+          "description": "Card under the Trends factoids. Title with the explainer to its right: comp games with a board, how many have play time, grey under 10 games. Four blocks from GET /api/stats/scoreboard-trends.",
+          "locate": {
+            "path": "client/src/components/dashboard/ScoreboardTrendsCard.tsx:51",
+            "grep": "grep -n -F -- 'data-inspect-id=\"dash-scoreboard-trends-card\"' client/src/components/dashboard/ScoreboardTrendsCard.tsx"
+          }
+        },
+        {
+          "id": "dash-scoreboard-trends-deaths",
+          "label": "Win rate by your deaths",
+          "kind": "list",
+          "description": "Win rate for 0-4, 5-6, 7-8, 9-10 and 11+ own deaths, with W-L, games and a corrected verdict chip.",
+          "locate": {
+            "path": "client/src/components/dashboard/ScoreboardTrendsCard.tsx:82",
+            "grep": "grep -n -F -- 'dataInspectId=\"dash-scoreboard-trends-deaths\"' client/src/components/dashboard/ScoreboardTrendsCard.tsx"
+          }
+        },
+        {
+          "id": "dash-scoreboard-trends-winloss",
+          "label": "Wins vs losses",
+          "kind": "list",
+          "description": "Own elims, deaths, damage and healing per 10 min, and share of team deaths and damage, for wins and losses. Description only.",
+          "locate": {
+            "path": "client/src/components/dashboard/ScoreboardTrendsCard.tsx:114",
+            "grep": "grep -n -F -- 'dataInspectId=\"dash-scoreboard-trends-winloss\"' client/src/components/dashboard/ScoreboardTrendsCard.tsx"
+          }
+        },
+        {
+          "id": "dash-scoreboard-trends-rank",
+          "label": "Rank break-even",
+          "kind": "list",
+          "description": "Mean rank change on a win and on a loss, the break-even win rate, the actual win rate, and how many misread rows were left out.",
+          "locate": {
+            "path": "client/src/components/dashboard/ScoreboardTrendsCard.tsx:134",
+            "grep": "grep -n -F -- 'dataInspectId=\"dash-scoreboard-trends-rank\"' client/src/components/dashboard/ScoreboardTrendsCard.tsx"
+          }
+        },
+        {
+          "id": "dash-scoreboard-trends-weeks",
+          "label": "Week by week",
+          "kind": "list",
+          "description": "Per ISO week and role: win rate, deaths and elims per 10 min, games, verdict chip. Last 8 weeks.",
+          "locate": {
+            "path": "client/src/components/dashboard/ScoreboardTrendsCard.tsx:160",
+            "grep": "grep -n -F -- 'dataInspectId=\"dash-scoreboard-trends-weeks\"' client/src/components/dashboard/ScoreboardTrendsCard.tsx"
+          }
+        },
+        {
+          "id": "dash-scoreboard-trends-empty",
+          "label": "Scoreboard Trends empty state",
+          "kind": "empty-state",
+          "description": "Shown when no scoreboard board is matched to a comp match yet.",
+          "locate": {
+            "path": "client/src/components/dashboard/ScoreboardTrendsCard.tsx:64",
+            "grep": "grep -n -F -- 'dash-scoreboard-trends-empty' client/src/components/dashboard/ScoreboardTrendsCard.tsx"
+          }
+        },
         {
           "id": "dash-session-window-card",
           "label": "Session Window card",
@@ -6314,6 +6374,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 

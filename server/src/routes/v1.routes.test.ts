@@ -103,6 +103,36 @@ describe('GET /api/v1/export/aim', () => {
   });
 });
 
+describe('GET /api/v1/export/scoreboards and /api/stats/scoreboard-trends', () => {
+  function seedBoard() {
+    const m = insertMatch(h.db, { date: '2026-10-12', hero: 'Ana', role: 'Support', win: 1, queue_mode: 'comp_role' });
+    h.db.prepare(`INSERT INTO match_scoreboards (id, match_id, file_path, file_mtime, status, page_type) VALUES (900, :m, '/x/a.png', 'x', 'matched', 'teams')`).run({ m });
+    h.db.prepare(`INSERT INTO match_scoreboards (id, match_id, file_path, file_mtime, status, page_type) VALUES (901, NULL, '/x/b.png', 'x', 'unmatched', 'teams')`).run();
+    h.db.prepare(`INSERT INTO scoreboard_rows (scoreboard_id, team, slot, is_self, role, hero, player_name, e, a, d, dmg, h, mit) VALUES (900, 'us', 1, 1, 'support', 'Ana', 'SECRET', 7, 1, 3, 4000, 5000, 0)`).run();
+    h.db.prepare(`INSERT INTO scoreboard_rows (scoreboard_id, team, slot, is_self, role, hero, player_name, e, a, d, dmg, h, mit) VALUES (901, 'us', 1, 1, 'support', 'Ana', 'NOPE', 1, 1, 1, 1, 1, 0)`).run();
+    return m;
+  }
+
+  test('export carries only matched boards and never player names', async () => {
+    seedBoard();
+    const r = await h.get('/api/v1/export/scoreboards');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.schema_version, SCHEMA_VERSION);
+    assert.deepEqual(r.body.boards.map((b: any) => b.id), [900]);
+    assert.equal(r.body.rows.length, 1);
+    assert.equal('player_name' in r.body.rows[0], false);
+  });
+
+  test('the lab route reads the boards through the replica', async () => {
+    seedBoard();
+    const r = await h.get('/api/stats/scoreboard-trends');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.scope.matches, 1);
+    assert.equal(r.body.death_bins[0].n, 1); // 3 deaths -> bin 0-4
+    assert.equal(r.body.weeks[0].role, 'support');
+  });
+});
+
 describe('GET /api/v1/export/experiments', () => {
   test('returns sets (with paused_at), stages and credits', async () => {
     const [m] = seedMatches(1);

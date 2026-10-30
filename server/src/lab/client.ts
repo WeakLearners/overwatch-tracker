@@ -83,6 +83,7 @@ export function createLabClient(opts: LabClientOptions) {
     deaths: (a: { since?: number; limit?: number } = {}) => all<any>('/export/deaths', { ...a }),
     aim: (a: { since?: number; limit?: number } = {}) => all<any>('/export/aim', { ...a }),
     curve: () => get<{ schema_version: string; curve: Record<string, any> | null }>('/export/curve'),
+    scoreboards: () => get<{ schema_version: string; boards: any[]; rows: any[]; hero_stats: any[]; ranks: any[] }>('/export/scoreboards'),
     experiments: () => get<{ schema_version: string; sets: any[]; stages: any[]; credits: any[] }>('/export/experiments'),
   };
 }

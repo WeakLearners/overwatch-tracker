@@ -19,7 +19,9 @@ export const TABLES: Record<string, TableSpec> = {
       'created_at',
       // Added in slice 5c for the dashboard readers (aimAnalysis, statsLab, advisor).
       'role', 'map', 'game_type', 'day_of_week', 'hour', 'feel', 'notes', 'blind_set_id', 'stage_index',
-      'team_rating', 'match_quality', 'result_driver'],
+      'team_rating', 'match_quality', 'result_driver',
+      // Added 2026-10-30 for the scoreboard trend card (rank ladders are account + role).
+      'account'],
   },
   match_heroes: { pk: ['match_id', 'slot'], cols: ['match_id', 'slot', 'hero', 'role', 'sens', 'feel'] },
   aim_stats: {
@@ -37,11 +39,21 @@ export const TABLES: Record<string, TableSpec> = {
     pk: ['match_id', 'hero'],
     cols: ['match_id', 'hero', 'blind_set_id', 'stage_index', 'counts_result', 'counts_minutes'],
   },
+  // Scoreboard screenshot data (2026-10-30). Only boards linked to a match arrive.
+  match_scoreboards: { pk: ['id'], cols: ['id', 'match_id', 'page_type'] },
+  scoreboard_rows: {
+    pk: ['scoreboard_id', 'team', 'slot'],
+    cols: ['scoreboard_id', 'team', 'slot', 'is_self', 'role', 'hero', 'e', 'a', 'd', 'dmg', 'h', 'mit'],
+  },
+  match_hero_stats: { pk: ['match_id', 'hero', 'stat'], cols: ['match_id', 'hero', 'stat', 'value', 'unit', 'per10'] },
+  scoreboard_ranks: { pk: ['scoreboard_id'], cols: ['scoreboard_id', 'rank_int', 'progress_pct', 'delta_pct', 'result'] },
   curve_params: {
     pk: ['id'],
     cols: ['id', 'smooth', 'input', 'output', 'lut_steps', 'lut_max_speed', 'lut_points'],
   },
 };
+
+export function createReplicaSchema(db: DatabaseSync): void { create(db); }
 
 function create(db: DatabaseSync): void {
   for (const [name, t] of Object.entries(TABLES)) {
@@ -80,6 +92,7 @@ export async function buildReplica(client: LabClient): Promise<DatabaseSync> {
   const aim = await client.aim();
   const exp = await client.experiments();
   const curve = await client.curve();
+  const sb = await client.scoreboards();
 
   const db = new DatabaseSync(':memory:');
   create(db);
@@ -92,6 +105,10 @@ export async function buildReplica(client: LabClient): Promise<DatabaseSync> {
     insert(db, 'blind_stage_sets', exp.sets);
     insert(db, 'blind_stages', exp.stages);
     insert(db, 'blind_credits', exp.credits);
+    insert(db, 'match_scoreboards', sb.boards);
+    insert(db, 'scoreboard_rows', sb.rows);
+    insert(db, 'match_hero_stats', sb.hero_stats);
+    insert(db, 'scoreboard_ranks', sb.ranks);
     if (curve.curve) insert(db, 'curve_params', [curve.curve]);
     db.exec('COMMIT');
   } catch (e) {

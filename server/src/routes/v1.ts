@@ -143,6 +143,31 @@ router.get('/export/experiments', (_req: Request, res: Response) => {
   res.json({ schema_version: SCHEMA_VERSION, sets, stages, credits });
 });
 
+// Scoreboard screenshot data for the lab trend card (2026-10-30). Additive to the
+// 1.0.0 contract, so the version stays. Not paged: a few thousand small rows.
+// Only boards linked to a match (status 'matched') leave the tracker. player_name
+// (other players' names) and the raw OCR json never leave; the lab does not need them.
+router.get('/export/scoreboards', (_req: Request, res: Response) => {
+  const db = getDb();
+  const boards = db.prepare(
+    `SELECT id, match_id, page_type FROM match_scoreboards WHERE status = 'matched' AND match_id IS NOT NULL ORDER BY id`,
+  ).all() as Record<string, any>[];
+  const rows = db.prepare(
+    `SELECT r.scoreboard_id, r.team, r.slot, r.is_self, r.role, r.hero, r.e, r.a, r.d, r.dmg, r.h, r.mit
+     FROM scoreboard_rows r JOIN match_scoreboards s ON s.id = r.scoreboard_id
+     WHERE s.status = 'matched' AND s.match_id IS NOT NULL ORDER BY r.scoreboard_id, r.team, r.slot`,
+  ).all() as Record<string, any>[];
+  const heroStats = db.prepare(
+    `SELECT match_id, hero, stat, value, unit, per10 FROM match_hero_stats ORDER BY match_id, hero, stat`,
+  ).all() as Record<string, any>[];
+  const ranks = db.prepare(
+    `SELECT k.scoreboard_id, k.rank_int, k.progress_pct, k.delta_pct, k.result
+     FROM scoreboard_ranks k JOIN match_scoreboards s ON s.id = k.scoreboard_id
+     WHERE s.status = 'matched' AND s.match_id IS NOT NULL ORDER BY k.scoreboard_id`,
+  ).all() as Record<string, any>[];
+  res.json({ schema_version: SCHEMA_VERSION, boards, rows, hero_stats: heroStats, ranks });
+});
+
 // Rawaccel curve row (curve_params stays tracker-owned; the lab reads it here).
 // Single row, id 1; null before it was ever saved.
 router.get('/export/curve', (_req: Request, res: Response) => {

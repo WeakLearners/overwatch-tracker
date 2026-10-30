@@ -8,6 +8,7 @@ import {
   computeFieldSplit,
   PerfFeatureKey,
 } from '../lib/statsInsights';
+import { computeScoreboardTrends } from '../lib/scoreboardTrends';
 import { studyTagFor } from '../lab/studyTags';
 import { withReplica } from '../lab/replicaCache';
 import { makeFinding, type Finding } from '../lib/finding';
@@ -195,6 +196,14 @@ router.get('/insights', withReplica((_req: Request, res: Response, db) => {
   }
 
   res.json({ factoids });
+}));
+
+// GET /api/stats/scoreboard-trends
+// The scoreboard trend card (2026-10-30): death bins, wins vs losses, rank
+// break-even, week by week. Compute is lib/scoreboardTrends.ts; the verdicts
+// are lib/finding.ts. Descriptive except where a Finding is attached.
+router.get('/scoreboard-trends', withReplica((_req: Request, res: Response, db) => {
+  res.json(computeScoreboardTrends(db));
 }));
 
 export default router;
