@@ -19,6 +19,7 @@ import InspectorOverlay from './debug/InspectorOverlay';
 import DevWatermark from './components/DevWatermark';
 import SensChangeModal from './components/SensChangeModal';
 import DemoBanner from './demo/DemoBanner';
+import { DASHBOARD_PATHS } from './lib/dashSections';
 
 // The static demo has no server to rewrite deep links, so it routes on the hash.
 const Router = import.meta.env.VITE_DEMO === '1' ? HashRouter : BrowserRouter;
@@ -28,7 +29,6 @@ const Router = import.meta.env.VITE_DEMO === '1' ? HashRouter : BrowserRouter;
  * client-side routing, and renders the single-page Dashboard.
  */
 // Dashboard routes carry the tools in their section nav strip instead.
-const DASHBOARD_PATHS = ['/', '/prematch', '/log', '/trends'];
 function HeaderTools() {
   const { pathname } = useLocation();
   if (DASHBOARD_PATHS.includes(pathname)) return null;
@@ -101,9 +101,7 @@ export default function App() {
             {/* Aliases: Pre-Match, Log Match and Trends now live as sections on
                 the Dashboard. These keep any internal links resolving to the
                 same single page. */}
-            <Route path="/prematch" element={<Dashboard />} />
-            <Route path="/log" element={<Dashboard />} />
-            <Route path="/trends" element={<Dashboard />} />
+            {DASHBOARD_PATHS.filter(p => p !== '/').map(p => <Route key={p} path={p} element={<Dashboard />} />)}
             {/* Sensitivity study — a separate, intentionally unlinked page that
                 shares the same backend/DB. Not woven into the Dashboard. */}
             <Route path="/sens" element={<SensLog />} />

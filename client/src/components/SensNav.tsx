@@ -28,7 +28,7 @@ export default function SensNav({ dataInspectId }: { dataInspectId?: string }) {
           page. Coming back from the sens study, the next thing wanted is
           almost always prep-or-log, which is what that section holds. */}
       <Link
-        to="/#sec-match"
+        to="/match"
         data-inspect-id="sensNav-back-link"
         className="pill heading-display tracking-[0.08em] ml-auto border border-ow-border text-[var(--faint)] hover:text-[var(--ink)] hover:border-gray-500 transition-all"
       >

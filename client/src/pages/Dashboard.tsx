@@ -17,6 +17,7 @@ import ModeComparisonCard from '../components/dashboard/ModeComparisonCard';
 import RecentMatchesCard from '../components/dashboard/RecentMatchesCard';
 import { useFieldConfig } from '../contexts/FieldConfigContext';
 import { useMatch } from '../contexts/MatchContext';
+import { sectionFor, SECTION_PATHS } from '../lib/dashSections';
 import { SEASONS, seasonOf, seasonDay, localToday } from '../lib/roster';
 
 export default function Dashboard() {
@@ -62,23 +63,24 @@ export default function Dashboard() {
   const [activeSection, setActiveSection] = useState(sections[0].id);
 
   // A link may name a section in the URL (SensNav's "← Match Tracker" asks for
-  // #sec-match). The browser cannot honour that on its own here: this is a
+  // /match; an old #sec-match hash still works). The browser cannot honour that on its own here: this is a
   // single-page app, so arriving is a re-render, not a page load, and the
   // section is still empty at that moment. Wait for the panels above it to
   // have their data — otherwise the scroll aims at a target that the arriving
   // chart immediately pushes further down the page. Fires once; a later
   // refetch must not yank the page back.
-  const { hash } = useLocation();
+  const { pathname, hash } = useLocation();
+  const target = sectionFor(pathname, hash);
   const landed = useRef(false);
   const aboveLoaded = Boolean(overview && trends && modeComparison);
   useEffect(() => {
-    if (!hash || landed.current || !aboveLoaded) return;
-    const el = document.getElementById(hash.slice(1));
+    if (!target || landed.current || !aboveLoaded) return;
+    const el = document.getElementById(target);
     if (!el) return;
     landed.current = true;
     // One frame, so the just-rendered panels are laid out before measuring.
     requestAnimationFrame(() => el.scrollIntoView({ block: 'start' }));
-  }, [hash, aboveLoaded]);
+  }, [target, aboveLoaded]);
   // A clicked pill lights at once and holds while the smooth scroll passes
   // the sections in between (they would otherwise flicker through).
   const pinnedUntil = useRef(0);
@@ -86,7 +88,7 @@ export default function Dashboard() {
     setActiveSection(id);
     pinnedUntil.current = Date.now() + 1200;
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
-    history.replaceState(null, '', `#${id}`);
+    history.replaceState(null, '', SECTION_PATHS[id] ?? '/');
     if (id === 'sec-match') (document.getElementById('map-search') as HTMLInputElement | null)?.focus({ preventScroll: true });
   };
   useEffect(() => {
