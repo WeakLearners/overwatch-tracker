@@ -1,3 +1,5 @@
+// Since 2026-10-30 the poll only COUNTS new images; it never sends one to the vision call. Sean presses "Read"
+// (POST /api/scoreboards/read -> readNow) when the board is ready, so a mistake is never raced by the watcher.
 // Polls the SCOREBOARD_DIR folder (since 2026-10-12 the local SMB share /Users/Sean/OWScreenshots; before that the Drive
 // mode) every 10 s (was 60 s until 2026-10-10). It moved from "Other computers/My Computer" on 2026-10-09
 // because that path synced up to 2 hours late. After each poll it files processed
@@ -37,6 +39,11 @@ function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
 }
 
 let running = false;
+/** New, old-enough, unread images seen by the last poll (and not yet read). Shown on the Log Match light. */
+let unreadCount = 0;
+export const getUnreadCount = () => unreadCount;
+export const clearUnread = () => { unreadCount = 0; };
+export const isReading = () => running;
 
 /** One poll. Exported for tests; never throws. */
 export async function pollOnce(
@@ -46,8 +53,10 @@ export async function pollOnce(
   fsTimeoutMs: number = FS_TIMEOUT_MS,
   minAgeMs: number = 0,
   nowMs: number = Date.now(),
-): Promise<{ processed: number; error: string | null }> {
+  read: boolean = true,
+): Promise<{ processed: number; unread: number; error: string | null }> {
   let processed = 0;
+  let unread = 0;
   try {
     try { rematchRecent(db); } catch (e) { console.error('[scoreboard] rematch failed:', (e as Error).message); }
     let names: string[];
@@ -56,7 +65,7 @@ export async function pollOnce(
     } catch (e) {
       const msg = (e as Error).message;
       console.warn(`[scoreboard] cannot list folder (${msg}); retry next poll`);
-      return { processed, error: msg };
+      return { processed, unread, error: msg };
     }
     const known = new Set((db.prepare(`SELECT file_path FROM match_scoreboards`).all() as { file_path: string }[]).map(r => r.file_path));
     const byMove = db.prepare(`SELECT id, file_path FROM match_scoreboards WHERE file_mtime = ?`);
@@ -86,10 +95,13 @@ export async function pollOnce(
       }
     }
     fresh.sort((a, b) => a.st.mtimeMs - b.st.mtimeMs || a.name.localeCompare(b.name));
+    unread = fresh.length;
+    if (!read) fresh.length = 0; // count only: no read, no in-flight mark
     if (fresh.length > MAX_FILES_PER_TICK) {
       console.warn(`[scoreboard] ${fresh.length} new files; processing the oldest ${MAX_FILES_PER_TICK} this tick, the rest next tick`);
       fresh.length = MAX_FILES_PER_TICK;
     }
+    unread -= fresh.length;
     markInFlight(fresh.map(f => f.full));
     for (const { name, full, st } of fresh) {
       try {
@@ -111,21 +123,37 @@ export async function pollOnce(
     }
     try { finalizeGroups(db); } catch (e) { console.error('[scoreboard] group fill failed:', (e as Error).message); }
     try { organizeAll(db, dir); } catch (e) { console.error('[scoreboard] organize failed:', (e as Error).message); }
-    return { processed, error: null };
+    unreadCount = unread;
+    return { processed, unread, error: null };
   } catch (e) {
     console.error('[scoreboard] poll failed:', (e as Error).message);
-    return { processed, error: (e as Error).message };
+    return { processed, unread, error: (e as Error).message };
   }
+}
+
+/** The "Read" button: read every unread image now (same pipeline, order, per-poll cap and retry rules). Null when a poll or read is running. */
+export async function readNow(db: DatabaseSync, dir: string, vision: VisionFn = callVision): Promise<{ processed: number; unread: number } | null> {
+  if (running) return null;
+  running = true;
+  try {
+    const r = await pollOnce(db, dir, vision, FS_TIMEOUT_MS, MIN_INTAKE_AGE_MS, Date.now(), true);
+    return { processed: r.processed, unread: r.unread };
+  } finally { running = false; }
+}
+
+/** One interval tick: count new images, never read them. Exported for tests. */
+export async function countTick(db: DatabaseSync, dir: string, vision: VisionFn = callVision): Promise<void> {
+  if (running) return;
+  running = true;
+  try { await pollOnce(db, dir, vision, FS_TIMEOUT_MS, MIN_INTAKE_AGE_MS, Date.now(), false); }
+  catch (e) { console.error('[scoreboard] tick failed:', (e as Error).message); }
+  finally { running = false; }
 }
 
 export function startScoreboardWatcher(db: DatabaseSync, dir: string | null = scoreboardDir()): NodeJS.Timeout | null {
   if (!dir) { console.log('[scoreboard] SCOREBOARD_DIR not set; watcher off'); return null; }
-  console.log(`[scoreboard] watching ${dir} every ${POLL_MS / 1000}s`);
-  const tick = () => {
-    if (running) return;
-    running = true;
-    pollOnce(db, dir, callVision, FS_TIMEOUT_MS, MIN_INTAKE_AGE_MS).catch(e => console.error('[scoreboard] tick failed:', (e as Error).message)).finally(() => { running = false; });
-  };
+  console.log(`[scoreboard] watching ${dir} every ${POLL_MS / 1000}s (counts new images; "Read" starts the vision calls)`);
+  const tick = () => { void countTick(db, dir); };
   tick();
   return setInterval(tick, POLL_MS);
 }

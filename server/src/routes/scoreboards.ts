@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import { getDb } from '../db/schema';
 import { organizeBoard } from '../lib/scoreboardOrganize';
-import { scoreboardDir } from '../lib/scoreboardWatcher';
+import { scoreboardDir, getUnreadCount, clearUnread, readNow, isReading } from '../lib/scoreboardWatcher';
+import { resetCurrentMatch, resetRows } from '../lib/scoreboardReset';
+import { inFlightCount } from '../lib/scoreboardStage';
 import { REMATCH_GRACE_MIN, recheckGroup } from '../lib/scoreboard';
 import { syncMatchHeroStats } from '../lib/matchHeroStats';
 import { computeStage } from '../lib/scoreboardStage';
@@ -26,12 +28,37 @@ const router = Router();
 function livePayload(db: ReturnType<typeof getDb>) {
   const cutoff = new Date(Date.now() - REMATCH_GRACE_MIN * 60_000).toISOString();
   const g = db.prepare(`SELECT * FROM scoreboard_groups WHERE state = 'live' AND last_mtime >= ? ORDER BY summary_mtime DESC, id DESC LIMIT 1`).get(cutoff) as unknown as GroupRow | undefined;
+  // unread: new images the watcher counted but did not read (Read button). resettable: images "Reset all" would move to _trash.
+  const dir = scoreboardDir();
+  const unread = getUnreadCount();
+  const resettable = unread + (dir ? resetRows(db, dir).length : 0);
   const fill = g ? buildFill(db, g.id) : null;
   const stage = computeStage(db, g ?? null, fill?.pages ? { summary: fill.pages.summary, teams: fill.pages.teams, personal: fill.pages.personal.length } : null);
-  if (!g) return { light: 'off', group_id: null, fill: null, ...stage };
-  return { light: 'green', group_id: g.id, fill, ...stage };
+  if (!g) return { light: 'off', group_id: null, fill: null, unread, resettable, ...stage };
+  return { light: 'green', group_id: g.id, fill, unread, resettable, ...stage };
 }
 router.get('/live', (_req, res) => { res.json(livePayload(getDb())); });
+
+// "Read" button: the watcher only counts new images; this starts the vision reads now. Answers when the pass ends.
+router.post('/read', async (_req, res) => {
+  const dir = scoreboardDir();
+  if (!dir) { res.status(409).json({ error: 'SCOREBOARD_DIR is not set' }); return; }
+  const r = await readNow(getDb(), dir);
+  if (!r) { res.status(409).json({ error: 'A read is already running' }); return; }
+  res.json(livePayload(getDb()));
+});
+
+// "Reset all" button: moves the current unsaved match's screenshots to _trash/ and dismisses their rows.
+// Scope rule: lib/scoreboardReset.ts. Refused while a read runs (a vision call would write a row for a moved file).
+router.post('/reset', (_req, res) => {
+  const dir = scoreboardDir();
+  if (!dir) { res.status(409).json({ error: 'SCOREBOARD_DIR is not set' }); return; }
+  if (isReading() || inFlightCount() > 0) { res.status(409).json({ error: 'Screenshots are being read; try again in a moment' }); return; }
+  const db = getDb();
+  const r = resetCurrentMatch(db, dir);
+  clearUnread(); // the next poll recounts
+  res.json({ ...r, live: livePayload(db) });
+});
 
 // Tile picks: which Personal-page tile fills a hero's accuracy slot when the hand map does not.
 // GET lists them with their form labels (every surface that shows a slot label reads this). POST saves

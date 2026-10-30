@@ -3,7 +3,7 @@ import type { LivePayload } from '../lib/scoreboardFill';
 
 // Pipeline light in column 3 of the Recording-as grid, so the dot lines up with the
 // left edge of the Sensitivity label below. Width = column width, never follows the text.
-// A refresh button (circle arrow) sits left of the dot; it re-reads the stored group (LogMatch).
+// A "Read" button sits left of the dot. The watcher only counts new images; Read starts the vision reads (LogMatch).
 // Text wider than that scrolls as a slow marquee (.sb-marq-run in index.css, CSS
 // transform only); under reduced motion it truncates with an ellipsis instead.
 // The server decides the stage (GET /api/scoreboards/live, lib/scoreboardStage.ts);
@@ -19,20 +19,26 @@ const list = (p: NonNullable<LivePayload['pages']>) =>
 
 export function lightText(live: LivePayload | null): { stage: string; text: string } {
   const stage = live?.stage ?? 'idle';
-  const p = live?.pages ?? null;
+  const un = live?.unread ?? 0;
+  const base = lightText0(stage, live, live?.pages ?? null);
+  if (un === 0 || stage === 'detected') return { stage, text: base };
+  const n = `${un} new image${un === 1 ? '' : 's'} to read`;
+  return { stage, text: stage === 'idle' ? n : `${base} · ${n}` };
+}
+function lightText0(stage: string, live: LivePayload | null, p: LivePayload['pages']): string {
   switch (stage) {
-    case 'detected': return { stage, text: `Reading ${live?.reading ?? 1} screenshot${live?.reading === 1 ? '' : 's'}…` };
-    case 'partial': return { stage, text: `${p ? list(p) : 'Pages'} read, waiting for Summary` };
-    case 'ready': return { stage, text: `Scoreboard filled (${p ? list(p) : ''})` };
-    case 'problem': return { stage, text: `Screenshot failed: ${live?.reason ?? 'unreadable'}` };
-    default: return { stage: 'idle', text: live?.ignored ? `No scoreboard waiting (${live.ignored} other image${live.ignored === 1 ? '' : 's'} ignored)` : 'No scoreboard waiting' };
+    case 'detected': return `Reading ${live?.reading ?? 1} screenshot${live?.reading === 1 ? '' : 's'}…`;
+    case 'partial': return `${p ? list(p) : 'Pages'} read, waiting for Summary`;
+    case 'ready': return `Scoreboard filled (${p ? list(p) : ''})`;
+    case 'problem': return `Screenshot failed: ${live?.reason ?? 'unreadable'}`;
+    default: return live?.ignored ? `No scoreboard waiting (${live.ignored} other image${live.ignored === 1 ? '' : 's'} ignored)` : 'No scoreboard waiting';
   }
 }
 
 const SPEED = 30; // px per second
 const HOLD = 0.75; // seconds per side; the reverse leg doubles it to 1.5 s at each end
 
-export default function ScoreboardLight({ live, onRefresh, refreshing = false }: { live: LivePayload | null; onRefresh?: () => void; refreshing?: boolean }) {
+export default function ScoreboardLight({ live, onRead, reading = false }: { live: LivePayload | null; onRead?: () => void; reading?: boolean }) {
   const { stage, text } = lightText(live);
   const viewRef = useRef<HTMLSpanElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
@@ -57,16 +63,13 @@ export default function ScoreboardLight({ live, onRefresh, refreshing = false }:
     <div className="flex items-center gap-2 min-w-0 w-full" data-inspect-id="logmatch-scoreboard-light">
       <button
         type="button"
-        onClick={onRefresh}
-        disabled={!onRefresh || live?.light !== 'green' || refreshing}
-        aria-label="Re-read the scoreboard"
-        title="Re-read the scoreboard"
+        onClick={onRead}
+        disabled={!onRead || !(live?.unread) || reading || live?.stage === 'detected'}
+        title="Read the new screenshots now"
         data-inspect-id="logmatch-scoreboard-refresh"
-        className="shrink-0 text-[var(--faint)] hover:text-ow-accent disabled:opacity-40 disabled:hover:text-[var(--faint)] disabled:cursor-not-allowed transition-colors"
+        className="shrink-0 rounded border border-ow-border px-1.5 text-[11px] font-semibold leading-tight text-[var(--faint)] hover:text-ow-accent hover:border-ow-accent/50 disabled:opacity-40 disabled:hover:text-[var(--faint)] disabled:hover:border-ow-border disabled:cursor-not-allowed transition-colors"
       >
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={refreshing ? 'sb-spin' : undefined}>
-          <path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v6h-6" />
-        </svg>
+        Read
       </button>
       <span
         aria-hidden="true"

@@ -8,6 +8,7 @@
 //   _needs-attention/  unmatched past the grace window, and error rows
 //   _copies/           exact copies and hand-dismissed rows
 //   _other/            not_scoreboard
+//   _trash/            "Reset all" (scoreboardReset.ts); stays there, the organizer never moves it
 // A move happens only after the DB row is committed and the file is >= 60 s old.
 // The rename and the file_path update are one step: a failed update renames back.
 import fs from 'fs';
@@ -67,6 +68,7 @@ export function organizeBoard(db: DatabaseSync, id: number, root: string, nowMs:
     if (!b) return null;
     const rel = path.relative(root, b.file_path);
     if (rel.startsWith('..') || path.isAbsolute(rel)) return null; // never touch files outside the folder
+    if (path.dirname(b.file_path) === path.join(root, '_trash')) return null;
     const t = target(db, root, b, nowMs);
     if (!t) return null;
     const ext = path.extname(b.file_path);

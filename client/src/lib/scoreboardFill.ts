@@ -40,6 +40,8 @@ export interface LivePayload {
   light: 'green' | 'off'; group_id: number | null; fill: FormFill | null;
   /** Pipeline stage from the server (lib/scoreboardStage.ts); drives the light's dot and text only. */
   stage?: ScoreboardStage; reading?: number; reason?: string | null; ignored?: number;
+  /** New images counted by the watcher, not read yet (Read button). resettable: images "Reset all" would move to _trash. */
+  unread?: number; resettable?: number;
   pages?: { summary: boolean; teams: boolean; personal: number } | null;
 }
 

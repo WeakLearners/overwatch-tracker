@@ -770,20 +770,37 @@ export default function LogMatch() {
     appliedGroup.current = fill.group_id;
     appliedSig.current = fillSignature(fill);
   };
-  // Refresh button: re-read the stored group on the server (no vision call), then re-apply the
-  // fill in overwrite mode for scoreboard-sourced fields only.
-  const [rechecking, setRechecking] = useState(false);
-  const recheck = async () => {
-    if (live?.light !== 'green' || live.group_id == null || rechecking) return;
-    setRechecking(true);
+  // Read button: the watcher only counts new screenshots; this starts the vision reads. The server answers when the
+  // pass ends with the fresh /live payload; the existing fill effect then applies it as before.
+  const [readingNow, setReadingNow] = useState(false);
+  const readNow = async () => {
+    if (readingNow) return;
+    setReadingNow(true);
+    const poll = window.setInterval(refetchLive, 1_500); // show the "Reading n" stage while the pass runs
+    try { await fetch('/api/scoreboards/read', { method: 'POST' }); refetchLive(); revalidateAll(); }
+    finally { window.clearInterval(poll); setReadingNow(false); }
+  };
+  // Reset all (Match Details header): clears the whole form like a finished save does, and has the server move the
+  // current unsaved match's screenshots to _trash/ (scoreboardReset.ts). The lobby range survives, as after a save.
+  const resetAll = async () => {
+    const n = live?.resettable ?? 0;
+    if (!window.confirm(`Reset the whole form and move ${n} image${n === 1 ? '' : 's'} to _trash?`)) return;
     try {
-      const res = await fetch(`/api/scoreboards/groups/${live.group_id}/recheck`, { method: 'POST' });
-      if (res.ok) {
-        const fresh = await res.json() as LivePayload;
-        if (fresh.light === 'green' && fresh.fill) fillFromScoreboard(fresh.fill, true);
-        revalidateAll();
-      }
-    } finally { setRechecking(false); }
+      const res = await fetch('/api/scoreboards/reset', { method: 'POST' });
+      if (!res.ok) { const b = await res.json().catch(() => null); window.alert(`Not reset: ${b?.error ?? `HTTP ${res.status}`}`); return; }
+    } catch { window.alert('Not reset: could not reach the server'); return; }
+    setRankOutcome(null);
+    if (rankAtLastLog != null) setPlayerRank(rankAtLastLog);
+    clearDeathBuffer();
+    setFeelByHero({}); setTeamRating(0); setMatchQuality(null); setResultDriver(null); setLeaverSide(null);
+    setScoreUs(''); setScoreThem('');
+    dateTouched.current = false; timeTouched.current = false;
+    const n0 = new Date();
+    setForm(f => ({ ...f, hero: '', win: '', notes: '', date: format(n0, 'yyyy-MM-dd'), time: format(n0, 'HH:mm') }));
+    setCrashedGame(false); setSwitchHeroes(['', '']); setAimOpen(false); setAimStats(emptyStats([])); setMap('');
+    appliedGroup.current = null; appliedSig.current = null;
+    notifyMatchLogged();
+    refetchLive(); revalidateAll();
   };
   // Tile menus for slots the scoreboard fill cannot name (new heroes; server: heroTileLabels.ts pickableTiles).
   // A pick is saved on the server, which returns the fresh fill; it fills BLANK fields only, so typed values stay.
@@ -1320,6 +1337,15 @@ export default function LogMatch() {
               >
                 Match Cancelled
               </button>
+              <button
+                type="button"
+                onClick={resetAll}
+                title="Clear the whole form and move this match's screenshots to _trash"
+                data-inspect-id="logmatch-reset-all-button"
+                className="rounded-md border-2 border-ow-border px-3 py-1 text-xs font-semibold leading-tight text-[var(--faint)] transition-all hover:text-red-600 hover:border-red-600/50"
+              >
+                Reset all
+              </button>
             </div>
           </div>
           <form onSubmit={submit} className="space-y-4" data-inspect-id="logmatch-match-details-form">
@@ -1346,7 +1372,7 @@ export default function LogMatch() {
                 change
               </button>
               </div>
-              <ScoreboardLight live={live} onRefresh={recheck} refreshing={rechecking} />
+              <ScoreboardLight live={live} onRead={readNow} reading={readingNow} />
             </div>
 
             <div className={`grid gap-3 ${crashedGame ? 'grid-cols-2' : 'grid-cols-3'}`}>
