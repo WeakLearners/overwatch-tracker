@@ -1,5 +1,6 @@
 import { useHeroDrawer } from '../contexts/HeroDrawerContext';
 import HeroPortraitBg from './HeroPortraitBg';
+import DrawerShell from './DrawerShell';
 import { useApi } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
@@ -162,24 +163,19 @@ export default function HeroDrawer() {
   const heroCounts = useTodayHeroCounts();
 
   return (
-    <>
-      <div
-        data-inspect-id="hero-drawer-backdrop"
-        className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ${activeHero ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-        onClick={closeHero}
-      />
-      <div data-inspect-id="hero-drawer-panel" className={`fixed inset-y-0 right-0 w-96 bg-ow-dark border-l border-ow-border z-50 flex flex-col transition-transform duration-300 ${activeHero ? 'translate-x-0' : 'translate-x-full'}`}>
-        <div className="relative isolate flex items-start justify-between p-5 border-b border-ow-border shrink-0">
-          {activeHero && <HeroPortraitBg hero={activeHero} inspectId="hero-drawer-portrait-bg" />}
-          <div className="flex items-center gap-2.5">
-            <h2 data-inspect-id="hero-drawer-title-header" className="text-xl hero-name text-[var(--ink)] leading-tight">{activeHero ? withHeroCount(activeHero, heroCounts) : ''}</h2>
-          </div>
-          <button onClick={closeHero} data-inspect-id="hero-drawer-close-button" className="text-[var(--faint)] hover:text-[var(--ink)] transition-colors text-2xl leading-none ml-4">
-            ×
-          </button>
+    <DrawerShell
+      open={!!activeHero}
+      onClose={closeHero}
+      ids={{ backdrop: 'hero-drawer-backdrop', panel: 'hero-drawer-panel', close: 'hero-drawer-close-button' }}
+      headerClassName="relative isolate"
+      header={<>
+        {activeHero && <HeroPortraitBg hero={activeHero} inspectId="hero-drawer-portrait-bg" />}
+        <div className="flex items-center gap-2.5">
+          <h2 data-inspect-id="hero-drawer-title-header" className="text-xl hero-name text-[var(--ink)] leading-tight">{activeHero ? withHeroCount(activeHero, heroCounts) : ''}</h2>
         </div>
-        {activeHero && <DrawerContent key={activeHero} hero={activeHero} />}
-      </div>
-    </>
+      </>}
+    >
+      {activeHero && <DrawerContent key={activeHero} hero={activeHero} />}
+    </DrawerShell>
   );
 }

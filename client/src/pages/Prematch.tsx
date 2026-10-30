@@ -1614,7 +1614,7 @@ export default function Prematch() {
           </div>
           {/* One line (2026-09-30). The full rule: every other game logs at
               the frozen fallback sens, not the active test value. */}
-          <p className="mt-3 text-[11px] text-[var(--faint)] leading-snug" title="Everything else logs at the frozen fallback sens instead of the active test value.">
+          <p className="mt-3 text-xs text-[var(--faint)] leading-snug" title="Everything else logs at the frozen fallback sens instead of the active test value.">
             Counts Comp (any role) and QP Support only.
           </p>
 
@@ -1670,10 +1670,10 @@ export default function Prematch() {
                           .filter(h => h.role === role && !h.completed)
                           .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0))
                           .map(h => (
-                            <div key={h.hero} className="flex items-center justify-start gap-1.5 text-[11px] text-[var(--faint-2)]" data-inspect-id="prematch-next-test-hero-row">
+                            <div key={h.hero} className="flex items-center justify-start gap-1.5 text-xs text-[var(--faint-2)]" data-inspect-id="prematch-next-test-hero-row">
                               <span className="hero-name truncate">{h.hero}</span>
                               {h.cold && (
-                                <span className="text-[9px] font-bold uppercase tracking-wide text-blue-500" title={`${h.daysSinceLastPlayed} days since last played`}>
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-500" title={`${h.daysSinceLastPlayed} days since last played`}>
                                   cold
                                 </span>
                               )}

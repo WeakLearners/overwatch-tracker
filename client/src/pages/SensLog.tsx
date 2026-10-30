@@ -1590,7 +1590,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
               <button
                 type="button" onClick={() => setRows(prev => [...prev, blankRow()])}
                 data-inspect-id="sl-add-phase-add-hero-btn"
-                className={`${btnSecondary} w-full py-1 text-xs border-dashed`}
+                className={`${btnSecondary} w-full col-span-full py-1 text-xs border-dashed`}
               >
                 + Add hero
               </button>

@@ -1,4 +1,5 @@
 import { useMapDrawer } from '../contexts/MapDrawerContext';
+import DrawerShell from './DrawerShell';
 import { useApi } from '../hooks/useApi';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
@@ -173,26 +174,18 @@ export default function MapDrawer() {
   const mapCounts = useTodayMapCounts();
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        data-inspect-id="mapDrawer-backdrop"
-        className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ${activeMap ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-        onClick={closeMap}
-      />
-      {/* Drawer */}
-      <div data-inspect-id="mapDrawer-panel" className={`fixed inset-y-0 right-0 w-96 bg-ow-dark border-l border-ow-border z-50 flex flex-col transition-transform duration-300 ${activeMap ? 'translate-x-0' : 'translate-x-full'}`}>
-        <div className="flex items-start justify-between p-5 border-b border-ow-border shrink-0">
-          <div>
-            <h2 data-inspect-id="mapDrawer-title" className="text-xl map-name text-[var(--ink)] leading-tight">{activeMap ? withMapCount(activeMap, mapCounts) : ''}</h2>
-            {mapType && <span data-inspect-id="mapDrawer-type-badge" className={`pill mt-1 ${TYPE_COLORS[mapType] ?? ''}`}>{mapType}</span>}
-          </div>
-          <button onClick={closeMap} data-inspect-id="mapDrawer-close-button" className="text-[var(--faint)] hover:text-[var(--ink)] transition-colors text-2xl leading-none ml-4">
-            ×
-          </button>
+    <DrawerShell
+      open={!!activeMap}
+      onClose={closeMap}
+      ids={{ backdrop: 'mapDrawer-backdrop', panel: 'mapDrawer-panel', close: 'mapDrawer-close-button' }}
+      header={
+        <div>
+          <h2 data-inspect-id="mapDrawer-title" className="text-xl map-name text-[var(--ink)] leading-tight">{activeMap ? withMapCount(activeMap, mapCounts) : ''}</h2>
+          {mapType && <span data-inspect-id="mapDrawer-type-badge" className={`pill mt-1 ${TYPE_COLORS[mapType] ?? ''}`}>{mapType}</span>}
         </div>
-        {activeMap && <DrawerContent key={activeMap} map={activeMap} />}
-      </div>
-    </>
+      }
+    >
+      {activeMap && <DrawerContent key={activeMap} map={activeMap} />}
+    </DrawerShell>
   );
 }

@@ -4160,7 +4160,7 @@
           "kind": "badge",
           "description": "Reusable inline badge rendering a win-rate percentage, color-coded by tier (emerald ≥60%, blue ≥50%, yellow ≥40%, red below 40%), reused throughout the drawer.",
           "locate": {
-            "path": "client/src/components/HeroDrawer.tsx:22",
+            "path": "client/src/components/HeroDrawer.tsx:23",
             "grep": "grep -n -F -- 'rate >= 60 ? '\"'\"'text-emerald-600'\"'\"' : rate >= 50' client/src/components/HeroDrawer.tsx"
           }
         },
@@ -4170,7 +4170,7 @@
           "kind": "stat-tile",
           "description": "Displays the hero's overall win-rate percentage in large text, total games played, and the win/loss record beneath it.",
           "locate": {
-            "path": "client/src/components/HeroDrawer.tsx:43",
+            "path": "client/src/components/HeroDrawer.tsx:44",
             "grep": "grep -n -F -- 'tracking-wider mb-2\">Overall</div>' client/src/components/HeroDrawer.tsx"
           }
         },
@@ -4180,7 +4180,7 @@
           "kind": "section",
           "description": "Shows the hero's recent 30-day win rate compared against the prior 90-day win rate, with an arrow and a colored delta percentage indicating improvement or decline.",
           "locate": {
-            "path": "client/src/components/HeroDrawer.tsx:56",
+            "path": "client/src/components/HeroDrawer.tsx:57",
             "grep": "grep -n -F -- 'tracking-wider mb-2\">Trend</div>' client/src/components/HeroDrawer.tsx"
           }
         },
@@ -4190,7 +4190,7 @@
           "kind": "list",
           "description": "Two-part list of the hero's best and worst maps by win rate; each row shows the map name, a game-type pill badge, the win-rate badge, and games played.",
           "locate": {
-            "path": "client/src/components/HeroDrawer.tsx:74",
+            "path": "client/src/components/HeroDrawer.tsx:75",
             "grep": "grep -n -F -- 'tracking-wider mb-2\">Maps</div>' client/src/components/HeroDrawer.tsx"
           }
         },
@@ -4200,7 +4200,7 @@
           "kind": "badge",
           "description": "Small colored pill badge showing the game type (e.g. Control, Escort) next to map and game-mode rows, colored via the TYPE_COLORS map. (the same pill markup is duplicated across the Best Maps and Worst Maps loops — locate command matches both.)",
           "locate": {
-            "path": "client/src/components/HeroDrawer.tsx:81",
+            "path": "client/src/components/HeroDrawer.tsx:82",
             "grep": "grep -n -F -- 'data-inspect-id=\"hero-drawer-type-pill-badge\"' client/src/components/HeroDrawer.tsx"
           }
         },
@@ -4220,7 +4220,7 @@
           "kind": "list",
           "description": "Shows the hero's best and worst-performing game modes, each with a colored type pill, win-rate badge, and games played.",
           "locate": {
-            "path": "client/src/components/HeroDrawer.tsx:107",
+            "path": "client/src/components/HeroDrawer.tsx:108",
             "grep": "grep -n -F -- 'tracking-wider mb-2\">Game Mode</div>' client/src/components/HeroDrawer.tsx"
           }
         },
@@ -4230,7 +4230,7 @@
           "kind": "list",
           "description": "Row of small W/L squares showing outcomes of the hero's most recent games, each tooltip-labeled on hover with win/loss and the map played.",
           "locate": {
-            "path": "client/src/components/HeroDrawer.tsx:138",
+            "path": "client/src/components/HeroDrawer.tsx:139",
             "grep": "grep -n -F -- 'hero-drawer-last10-list' client/src/components/HeroDrawer.tsx"
           }
         },
@@ -4240,8 +4240,8 @@
           "kind": "modal",
           "description": "Semi-transparent black overlay shown behind the hero drawer when it is open; clicking anywhere on it calls closeHero to dismiss the drawer.",
           "locate": {
-            "path": "client/src/components/HeroDrawer.tsx:168",
-            "grep": "grep -n -F -- 'bg-black/50 z-40 transition-opacity duration-300' client/src/components/HeroDrawer.tsx"
+            "path": "client/src/components/HeroDrawer.tsx:169",
+            "grep": "grep -n -F -- 'hero-drawer-backdrop' client/src/components/HeroDrawer.tsx"
           }
         },
         {
@@ -4250,8 +4250,8 @@
           "kind": "drawer",
           "description": "The sliding right-side panel that shows the full stat breakdown for the currently selected hero; translates in/out of view depending on whether a hero is active.",
           "locate": {
-            "path": "client/src/components/HeroDrawer.tsx:171",
-            "grep": "grep -n -F -- 'w-96 bg-ow-dark border-l border-ow-border z-50' client/src/components/HeroDrawer.tsx"
+            "path": "client/src/components/HeroDrawer.tsx:169",
+            "grep": "grep -n -F -- 'hero-drawer-panel' client/src/components/HeroDrawer.tsx"
           }
         },
         {
@@ -4260,7 +4260,7 @@
           "kind": "header",
           "description": "Heading text at the top of the drawer showing the selected hero's name with today's match count appended.",
           "locate": {
-            "path": "client/src/components/HeroDrawer.tsx:175",
+            "path": "client/src/components/HeroDrawer.tsx:174",
             "grep": "grep -n -F -- 'hero-drawer-title-header' client/src/components/HeroDrawer.tsx"
           }
         },
@@ -4270,8 +4270,8 @@
           "kind": "icon-button",
           "description": "Icon-only button in the drawer's header that closes the hero drawer when clicked.",
           "locate": {
-            "path": "client/src/components/HeroDrawer.tsx:177",
-            "grep": "grep -n -F -- 'data-inspect-id=\"hero-drawer-close-button\"' client/src/components/HeroDrawer.tsx"
+            "path": "client/src/components/HeroDrawer.tsx:169",
+            "grep": "grep -n -F -- 'hero-drawer-close-button' client/src/components/HeroDrawer.tsx"
           }
         },
         {
@@ -4280,7 +4280,7 @@
           "kind": "image",
           "description": "Locally cached portrait as the drawer header background, faded out on the title side; renders nothing if not cached or images are off.",
           "locate": {
-            "path": "client/src/components/HeroDrawer.tsx:173",
+            "path": "client/src/components/HeroDrawer.tsx:172",
             "grep": "grep -n -F -- 'inspectId=\"hero-drawer-portrait-bg\"' client/src/components/HeroDrawer.tsx"
           }
         }
@@ -4300,7 +4300,7 @@
           "kind": "stat-tile",
           "description": "Shows the map's overall win rate percentage, total games played, and win/loss breakdown.",
           "locate": {
-            "path": "client/src/components/MapDrawer.tsx:90",
+            "path": "client/src/components/MapDrawer.tsx:91",
             "grep": "grep -n -F -- 'uppercase tracking-wider mb-2\">Overall</div>' client/src/components/MapDrawer.tsx"
           }
         },
@@ -4310,7 +4310,7 @@
           "kind": "stat-tile",
           "description": "Shows momentum on this map: previous win rate vs. recent win rate with an up/down/flat delta indicator, and the game counts backing each period; only rendered when both periods have data.",
           "locate": {
-            "path": "client/src/components/MapDrawer.tsx:103",
+            "path": "client/src/components/MapDrawer.tsx:104",
             "grep": "grep -n -F -- 'uppercase tracking-wider mb-2\">Trend</div>' client/src/components/MapDrawer.tsx"
           }
         },
@@ -4320,7 +4320,7 @@
           "kind": "list",
           "description": "Per-role (DPS/Tank/Support) list of heroes played on this map, each row showing an up/down win-rate indicator, hero name (with today's play count), win rate percentage, and games played.",
           "locate": {
-            "path": "client/src/components/MapDrawer.tsx:119",
+            "path": "client/src/components/MapDrawer.tsx:120",
             "grep": "grep -n -F -- '(['\"'\"'DPS'\"'\"', '\"'\"'Tank'\"'\"', '\"'\"'Support'\"'\"'] as const).map(role =>' client/src/components/MapDrawer.tsx"
           }
         },
@@ -4330,7 +4330,7 @@
           "kind": "list",
           "description": "Row of small W/L badges for the most recent matches on this map; hovering a badge shows a tooltip with the result and hero played.",
           "locate": {
-            "path": "client/src/components/MapDrawer.tsx:146",
+            "path": "client/src/components/MapDrawer.tsx:147",
             "grep": "grep -n -F -- 'mapDrawer-last5-list' client/src/components/MapDrawer.tsx"
           }
         },
@@ -4340,7 +4340,7 @@
           "kind": "list",
           "description": "Bottom of the map drawer: every map with a game, sorted by games played (ties by name). Columns Map, Games, Win rate (one decimal). No ranking, no best/worst mark, no colour on the rate. Crashed matches count (they carry a map and a result). Reads GET /api/stats/by-map?min_games=1, summed per map. Tapping a row opens that map's own drawer. Replaces the Pre-Match best/worst map tiles (split plan decision 5).",
           "locate": {
-            "path": "client/src/components/MapDrawer.tsx:41",
+            "path": "client/src/components/MapDrawer.tsx:42",
             "grep": "grep -n -F -- 'data-inspect-id=\"mapDrawer-all-maps-table\"' client/src/components/MapDrawer.tsx"
           }
         },
@@ -4351,7 +4351,7 @@
           "description": "Dimmed full-screen scrim shown behind the map drawer while it is open; clicking anywhere on it calls closeMap to dismiss the drawer.",
           "locate": {
             "path": "client/src/components/MapDrawer.tsx:180",
-            "grep": "grep -n -F -- 'bg-black/50 z-40 transition-opacity duration-300' client/src/components/MapDrawer.tsx"
+            "grep": "grep -n -F -- 'mapDrawer-backdrop' client/src/components/MapDrawer.tsx"
           }
         },
         {
@@ -4360,8 +4360,8 @@
           "kind": "drawer",
           "description": "The sliding right-hand panel that shows map-specific stats (overall win rate, trend, heroes by role, death patterns, last 5 results); slides in/out based on whether a map is active.",
           "locate": {
-            "path": "client/src/components/MapDrawer.tsx:184",
-            "grep": "grep -n -F -- 'w-96 bg-ow-dark border-l border-ow-border z-50' client/src/components/MapDrawer.tsx"
+            "path": "client/src/components/MapDrawer.tsx:180",
+            "grep": "grep -n -F -- 'mapDrawer-panel' client/src/components/MapDrawer.tsx"
           }
         },
         {
@@ -4370,7 +4370,7 @@
           "kind": "header",
           "description": "Displays the active map's name (with today's play count appended) as the drawer's title.",
           "locate": {
-            "path": "client/src/components/MapDrawer.tsx:187",
+            "path": "client/src/components/MapDrawer.tsx:183",
             "grep": "grep -n -F -- 'mapDrawer-title' client/src/components/MapDrawer.tsx"
           }
         },
@@ -4380,7 +4380,7 @@
           "kind": "badge",
           "description": "Small colored pill under the map title showing the map's type (e.g. Control, Escort), colored via TYPE_COLORS.",
           "locate": {
-            "path": "client/src/components/MapDrawer.tsx:188",
+            "path": "client/src/components/MapDrawer.tsx:184",
             "grep": "grep -n -F -- 'pill mt-1 ${TYPE_COLORS[mapType] ?? '\"'\"''\"'\"'}' client/src/components/MapDrawer.tsx"
           }
         },
@@ -4390,8 +4390,8 @@
           "kind": "icon-button",
           "description": "The × button in the drawer header; clicking it calls closeMap to close the map drawer.",
           "locate": {
-            "path": "client/src/components/MapDrawer.tsx:190",
-            "grep": "grep -n -F -- 'text-2xl leading-none ml-4' client/src/components/MapDrawer.tsx"
+            "path": "client/src/components/MapDrawer.tsx:180",
+            "grep": "grep -n -F -- 'mapDrawer-close-button' client/src/components/MapDrawer.tsx"
           }
         }
       ]
