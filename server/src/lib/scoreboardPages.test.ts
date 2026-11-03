@@ -486,7 +486,7 @@ describe('file names', () => {
     assert.equal(pageSuffix('summary', null), ' - summary'); assert.equal(pageSuffix('teams', null), ' - teams');
     assert.equal(pageSuffix('personal', 'Tracer'), ' - personal-Tracer'); assert.equal(pageSuffix(null, null), '');
   });
-  test('a matched Summary page moves to YYYY-MM-DD/<id> <Map> <Hero> - summary.png and never overwrites', () => {
+  test('a matched Summary page moves to YYYY/MM/DD/<id> <Map> <Hero> - summary.png and never overwrites', () => {
     const tmp = path.join(os.tmpdir(), `sbn-test-${process.pid}-${Date.now()}.db`); const db = getDb(tmp);
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-org-'));
     try {
@@ -494,11 +494,11 @@ describe('file names', () => {
       const mk = (n: string) => { const f = path.join(root, n); fs.writeFileSync(f, n); fs.utimesSync(f, new Date(T0 - 3_600_000), new Date(T0 - 3_600_000)); return f; };
       const ins = (f: string, type: string, hero: string | null) => Number(db.prepare(`INSERT INTO match_scoreboards (match_id, file_path, file_mtime, status, page_type, page_hero) VALUES (?, ?, ?, 'matched', ?, ?)`).run(mid, f, new Date(T0).toISOString(), type, hero).lastInsertRowid);
       const s1 = ins(mk('a.png'), 'summary', null), p1 = ins(mk('b.png'), 'personal', 'Pharah');
-      fs.mkdirSync(path.join(root, '2026-10-09')); fs.writeFileSync(path.join(root, '2026-10-09', `${mid} Nepal Tracer - summary.png`), 'existing');
+      fs.mkdirSync(path.join(root, '2026', '10', '09'), { recursive: true }); fs.writeFileSync(path.join(root, '2026', '10', '09', `${mid} Nepal Tracer - summary.png`), 'existing');
       organizeBoard(db, s1, root); organizeBoard(db, p1, root);
-      assert.equal(fs.readFileSync(path.join(root, '2026-10-09', `${mid} Nepal Tracer - summary.png`), 'utf8'), 'existing');
-      assert.ok(fs.existsSync(path.join(root, '2026-10-09', `${mid} Nepal Tracer - summary (2).png`)));
-      assert.ok(fs.existsSync(path.join(root, '2026-10-09', `${mid} Nepal Tracer - personal-Pharah.png`)));
+      assert.equal(fs.readFileSync(path.join(root, '2026', '10', '09', `${mid} Nepal Tracer - summary.png`), 'utf8'), 'existing');
+      assert.ok(fs.existsSync(path.join(root, '2026', '10', '09', `${mid} Nepal Tracer - summary (2).png`)));
+      assert.ok(fs.existsSync(path.join(root, '2026', '10', '09', `${mid} Nepal Tracer - personal-Pharah.png`)));
     } finally { closeDb(); fs.rmSync(root, { recursive: true }); for (const f of [tmp, `${tmp}-wal`, `${tmp}-shm`]) if (fs.existsSync(f)) fs.unlinkSync(f); }
   });
 });

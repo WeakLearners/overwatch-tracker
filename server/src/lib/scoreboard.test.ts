@@ -507,20 +507,20 @@ describe('rule 1 copies, rule 2 link by stats, file organizing', () => {
     fs.writeFileSync(path.join(root, 'x (2).png'), '1');
     assert.equal(path.basename(uniqueDest(root, 'x', '.png')), 'x (3).png');
   });
-  test('matched file moves to <match date>/<id> <Map> <Hero>.png and file_path follows', () => {
+  test('matched file moves to <YYYY/MM/DD of match date>/<id> <Map> <Hero>.png and file_path follows', () => {
     const m = addMatch(at(5), { hero: 'Soldier: 76', map: 'King\'s Row' });
     const f = mk('Screenshot (1).png');
     db.prepare(`INSERT INTO match_scoreboards (match_id, file_path, file_mtime, status) VALUES (?, ?, ?, 'matched')`).run(m, f, new Date(MTIME).toISOString());
     const dest = organizeBoard(db, 1, root);
-    assert.equal(dest, path.join(root, '2026-10-09', `${m} King's Row Soldier- 76.png`));
+    assert.equal(dest, path.join(root, '2026', '10', '09', `${m} King's Row Soldier- 76.png`));
     assert.ok(fs.existsSync(dest!) && !fs.existsSync(f));
     assert.equal((db.prepare(`SELECT file_path FROM match_scoreboards`).get() as any).file_path, dest);
     assert.equal(organizeBoard(db, 1, root), null); // idempotent
   });
   test('name collision gets (2); statuses route to _other, _copies, _needs-attention', () => {
     const m = addMatch(at(5)); const m2 = addMatch(at(6));
-    fs.mkdirSync(path.join(root, '2026-10-09'));
-    fs.writeFileSync(path.join(root, '2026-10-09', `${m} Numbani Mizuki.png`), 'taken');
+    fs.mkdirSync(path.join(root, '2026', '10', '09'), { recursive: true });
+    fs.writeFileSync(path.join(root, '2026', '10', '09', `${m} Numbani Mizuki.png`), 'taken');
     const ins = (name: string, st: string, mid: number | null, mtime = new Date(MTIME).toISOString()) =>
       db.prepare(`INSERT INTO match_scoreboards (match_id, file_path, file_mtime, status) VALUES (?, ?, ?, ?)`).run(mid, mk(name), mtime, st);
     ins('a.png', 'matched', m); ins('b.png', 'not_scoreboard', null); ins('c.png', 'dismissed', null); ins('d.png', 'error', null);
@@ -529,9 +529,9 @@ describe('rule 1 copies, rule 2 link by stats, file organizing', () => {
     ins('g.png', 'matched', m2);
     assert.equal(organizeAll(db, root), 6);
     const find = (n: string) => path.relative(root, (db.prepare(`SELECT file_path p FROM match_scoreboards WHERE file_path LIKE ?`).get(`%${n}`) as any)?.p ?? '');
-    assert.equal(fs.readFileSync(path.join(root, '2026-10-09', `${m} Numbani Mizuki.png`), 'utf8'), 'taken');
-    assert.ok(fs.existsSync(path.join(root, '2026-10-09', `${m} Numbani Mizuki (2).png`)));
-    assert.ok(fs.existsSync(path.join(root, '2026-10-09', `${m2} Numbani Mizuki.png`)));
+    assert.equal(fs.readFileSync(path.join(root, '2026', '10', '09', `${m} Numbani Mizuki.png`), 'utf8'), 'taken');
+    assert.ok(fs.existsSync(path.join(root, '2026', '10', '09', `${m} Numbani Mizuki (2).png`)));
+    assert.ok(fs.existsSync(path.join(root, '2026', '10', '09', `${m2} Numbani Mizuki.png`)));
     assert.ok(fs.existsSync(path.join(root, '_other', 'b.png')));
     assert.ok(fs.existsSync(path.join(root, '_copies', 'c.png')));
     assert.ok(fs.existsSync(path.join(root, '_needs-attention', 'd.png')));
@@ -551,7 +551,7 @@ describe('rule 1 copies, rule 2 link by stats, file organizing', () => {
     const m = addMatch(at(5));
     const f = mk('stuck.png');
     db.prepare(`INSERT INTO match_scoreboards (match_id, file_path, file_mtime, status) VALUES (?, ?, ?, 'matched')`).run(m, f, new Date(MTIME).toISOString());
-    fs.writeFileSync(path.join(root, '2026-10-09'), 'a file where the folder should be'); // mkdir/rename must fail
+    fs.writeFileSync(path.join(root, '2026'), 'a file where the folder should be'); // mkdir/rename must fail
     assert.equal(organizeBoard(db, 1, root), null);
     assert.ok(fs.existsSync(f));
     assert.equal((db.prepare(`SELECT file_path FROM match_scoreboards`).get() as any).file_path, f);
@@ -560,7 +560,7 @@ describe('rule 1 copies, rule 2 link by stats, file organizing', () => {
     const m = addMatch(at(5));
     const f = mk('back.png');
     db.prepare(`INSERT INTO match_scoreboards (match_id, file_path, file_mtime, status) VALUES (?, ?, ?, 'matched')`).run(m, f, new Date(MTIME).toISOString());
-    db.prepare(`INSERT INTO match_scoreboards (match_id, file_path, file_mtime, status) VALUES (NULL, ?, ?, 'error')`).run(path.join(root, '2026-10-09', `${m} Numbani Mizuki.png`), new Date(MTIME).toISOString()); // UNIQUE clash on the new path
+    db.prepare(`INSERT INTO match_scoreboards (match_id, file_path, file_mtime, status) VALUES (NULL, ?, ?, 'error')`).run(path.join(root, '2026', '10', '09', `${m} Numbani Mizuki.png`), new Date(MTIME).toISOString()); // UNIQUE clash on the new path
     assert.equal(organizeBoard(db, 1, root), null);
     assert.ok(fs.existsSync(f));
     assert.equal((db.prepare(`SELECT file_path FROM match_scoreboards WHERE id = 1`).get() as any).file_path, f);
@@ -598,7 +598,7 @@ describe('rule 1 copies, rule 2 link by stats, file organizing', () => {
       const ins = (p: string) => Number(h.db.prepare(`INSERT INTO match_scoreboards (file_path, file_mtime, status) VALUES (?, ?, 'unmatched')`).run(p, new Date(MTIME).toISOString()).lastInsertRowid);
       const a = ins(f1), d = ins(f2);
       assert.equal((await h.post(`/api/scoreboards/${a}/attach`, { match_id: mid })).status, 200);
-      assert.ok(fs.existsSync(path.join(root, '2026-10-09', `${mid} Numbani Mizuki.png`)) && !fs.existsSync(f1));
+      assert.ok(fs.existsSync(path.join(root, '2026', '10', '09', `${mid} Numbani Mizuki.png`)) && !fs.existsSync(f1));
       assert.equal((await h.post(`/api/scoreboards/${d}/dismiss`, {})).status, 200);
       assert.ok(fs.existsSync(path.join(root, '_copies', 'two.png')) && !fs.existsSync(f2));
     } finally { delete process.env.SCOREBOARD_DIR; await h.close(); }

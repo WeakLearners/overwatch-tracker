@@ -6,7 +6,7 @@
 //   2. a row with match_id NULL and status 'unmatched' or 'error' whose group is the current live group
 //      (the newest live group inside the rematch grace, the one the light shows) or has no group
 // OUT, always: a row with a match_id or status 'matched', 'not_scoreboard' or 'dismissed'; any file in a
-// subfolder (_other/, _needs-attention/, _copies/, dated folders); any file outside the folder (old Drive boards);
+// subfolder (_other/, _needs-attention/, _copies/, YYYY/MM/DD folders); any file outside the folder (old Drive boards);
 // rows of any other group.
 import fs from 'fs';
 import path from 'path';

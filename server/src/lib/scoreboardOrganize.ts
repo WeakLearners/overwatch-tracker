@@ -2,7 +2,7 @@
 // "my brain needs it to be organized"). Moves and renames only; NEVER deletes
 // and never overwrites. Layout:
 //   top level          unprocessed files, and unmatched files inside the rematch grace
-//   YYYY-MM-DD/        matched: "<matchId> <Map> <Hero> - <page>.<ext>" (the match's local date),
+//   YYYY/MM/DD/        matched: "<matchId> <Map> <Hero> - <page>.<ext>" (the match's local date; layout since 2026-11-03),
 //                      page = summary | teams | rank | personal-<hero>. A board from before page types
 //                      existed (NULL page_type) keeps "<matchId> <Map> <Hero>.<ext>".
 //   _needs-attention/  unmatched past the grace window, and error rows
@@ -39,13 +39,21 @@ export function pageSuffix(pageType: string | null, pageHero: string | null): st
   return '';
 }
 
+/** `<root>/YYYY/MM/DD` for a `YYYY-MM-DD` match date, or null when the date has another shape. */
+export function dateDir(root: string, date: string): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  return m ? path.join(root, m[1], m[2], m[3]) : null;
+}
+
 /** Target folder (absolute) and desired file stem for a board, or null to leave it where it is. */
 function target(db: DatabaseSync, root: string, b: BoardRow, nowMs: number): { dir: string; stem: string | null } | null {
   switch (b.status) {
     case 'matched': {
       const m = db.prepare(`SELECT date, map, hero FROM matches WHERE id = ?`).get(b.match_id) as { date: string; map: string; hero: string } | undefined;
       if (!m || !m.date) return null;
-      return { dir: path.join(root, windowsSafe(m.date)), stem: windowsSafe(`${b.match_id} ${m.map} ${m.hero}${pageSuffix(b.page_type, b.page_hero)}`) };
+      const dir = dateDir(root, m.date);
+      if (!dir) return null;
+      return { dir, stem: windowsSafe(`${b.match_id} ${m.map} ${m.hero}${pageSuffix(b.page_type, b.page_hero)}`) };
     }
     case 'not_scoreboard': return { dir: path.join(root, '_other'), stem: null };
     case 'dismissed': return { dir: path.join(root, '_copies'), stem: null };
