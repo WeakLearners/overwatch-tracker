@@ -29,6 +29,7 @@ export default function InspectorOverlay() {
       storageKey: STORAGE_KEY,
       repo: 'the overwatch repo',
       button: false,
+      featureRequests: true,  // dev build only (overlay is mounted under import.meta.env.DEV)
       lazy: true,
       tickets: { url: 'https://seans-mac-mini.tail4b4f99.ts.net:8793/api/tickets', app: 'overwatch' },
       // CSS var() strings so the bubble follows the class-based dark mode.

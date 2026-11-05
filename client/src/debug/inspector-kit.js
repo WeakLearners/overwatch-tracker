@@ -1,4 +1,4 @@
-/* inspector-kit 1.1.0 -- click-to-inspect overlay over a frontend map, with tickets.
+/* inspector-kit 1.2.0 -- click-to-inspect overlay over a frontend map, with tickets.
  *
  * Canonical copy: second-brain/.claude/skills/inspector-mode/assets/inspector-kit.js
  * Each app keeps a byte-identical copy. Do not edit an app's copy. Change this
@@ -18,7 +18,11 @@
  *     tickets:    { url: "https://host:8793/api/tickets", app: "overwatch" }
  *                 // optional: adds "Add ticket", the main action. The request
  *                 // goes to the org ticket log, and a scheduled agent works it.
- *   })  ->  { enable(bool), toggle(), isOn(), destroy() }
+ *   })  ->  { enable(bool), toggle(), isOn(), requestFeature(), destroy() }
+ *
+ * 1.2.0: with featureRequests:true in the config (default off), a "✚" button beside the crosshair opens "New feature request". No
+ * element is picked. "Add ticket" posts {app, type:"feature", page, request}.
+ * The agent plans first and builds only after Sean's yes (run-policy.md).
  *
  * The map is the source of truth (built by the app-map skill). Elements resolve
  * through data-inspect-id. An id in the DOM but missing from the map does not
@@ -28,7 +32,7 @@
   "use strict";
   if (window.InspectorKit) return;
 
-  var VERSION = "1.1.0";
+  var VERSION = "1.2.0";
   var Z = 2147482000;
 
   function create(cfg) {
@@ -87,6 +91,7 @@
       ".insp-btn{position:fixed;right:14px;bottom:14px;z-index:" + (Z + 1000) + ";width:38px;height:38px;",
       "border-radius:50%;border:1px solid rgba(128,128,128,.45);background:#1a1a19;color:#f6f5ef;",
       "font:16px/38px " + mono + ";text-align:center;cursor:pointer;padding:0;box-shadow:0 2px 10px rgba(0,0,0,.28)}",
+      ".insp-btn.insp-req:not([data-slot]){right:60px}",
       ".insp-btn[data-on='1']{background:" + accent + ";color:#fff;border-color:" + accent + "}",
       ".insp-btn[data-slot]{position:static;width:auto;height:auto;border:0;background:transparent;",
       "color:inherit;box-shadow:none;font-size:16px;line-height:1;padding:0 6px}",
@@ -136,7 +141,7 @@
     }
     var box = mk("insp-box"), lab = mk("insp-lab"), bub = mk("insp-bub"), toast = mk("insp-toast");
 
-    var btn = null;
+    var btn = null, slot = null;
     if (cfg.button !== false) {
       btn = mk("insp-btn", "button");
       btn.type = "button";
@@ -144,10 +149,22 @@
       btn.title = "Inspect mode: hover an element, click to compose a Claude prompt";
       btn.setAttribute("aria-label", "Toggle inspect mode");
       btn.setAttribute("data-inspector-toggle", "");
-      var slot = typeof cfg.button === "string" && cfg.button !== "float" ? document.querySelector(cfg.button)
+      slot = typeof cfg.button === "string" && cfg.button !== "float" ? document.querySelector(cfg.button)
                : (cfg.button && cfg.button.nodeType === 1 ? cfg.button : null);
       if (slot) { slot.appendChild(btn); btn.setAttribute("data-slot", "1"); }
       btn.addEventListener("click", function (ev) { ev.preventDefault(); ev.stopPropagation(); toggle(); }, true);
+    }
+
+    var reqBtn = null;
+    if (btn && cfg.featureRequests === true) {
+      reqBtn = mk("insp-btn insp-req", "button");
+      reqBtn.type = "button";
+      reqBtn.textContent = "✚";   // heavy plus
+      reqBtn.title = "Request a new feature";
+      reqBtn.setAttribute("aria-label", "Request a new feature");
+      reqBtn.setAttribute("data-inspector-toggle", "");
+      if (slot) { slot.appendChild(reqBtn); reqBtn.setAttribute("data-slot", "1"); }
+      reqBtn.addEventListener("click", function (ev) { ev.preventDefault(); ev.stopPropagation(); requestFeature(); }, true);
     }
 
     /* ---------- copying ---------- */
@@ -214,6 +231,27 @@
           return j.ticket || "ticket";
         });
       });
+    }
+
+    // Feature requests (1.2.0). Same route, no element. The server reads only
+    // app, type, page and request.
+    function sendFeature(note) {
+      var tk = cfg.tickets;
+      return fetch(tk.url, {
+        method: "POST", mode: "cors", credentials: "omit",
+        headers: { "Content-Type": "application/json", "X-Inspector": "1" },
+        body: JSON.stringify({ app: tk.app, type: "feature", page: location.pathname, request: note.trim() })
+      }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
+          return j.ticket || "ticket";
+        });
+      });
+    }
+
+    function composeFeaturePrompt(note) {
+      return "In " + (cfg.repo || meta.repo || "this repo") + ", on page " + location.pathname +
+        ", plan this new feature: " + note.trim();
     }
 
     /* ---------- hover ---------- */
@@ -332,6 +370,54 @@
       ta.focus();
     }
 
+    function requestFeature() {
+      closeBubble();
+      bub.innerHTML = "";
+      var h = document.createElement("h4");
+      var nm = document.createElement("span"); nm.textContent = "New feature request";
+      h.appendChild(nm);
+      var p = document.createElement("p"); p.className = "path"; p.textContent = "page " + location.pathname;
+      var ta = document.createElement("textarea");
+      ta.placeholder = "What should the app do that it does not do now?";
+      function copyPrompt() {
+        if (!ta.value.trim()) { say("Write the feature first"); ta.focus(); return; }
+        copy(composeFeaturePrompt(ta.value)).then(function (ok) {
+          if (!ok) { say("Copy blocked - select the text and copy by hand"); return; }
+          say("Prompt copied - paste it into Claude");
+          closeBubble();
+        });
+      }
+      var primary = copyPrompt;
+      var row = document.createElement("div");
+      row.className = "row";
+      row.appendChild(button("Cancel", "ghost", closeBubble));
+      if (cfg.tickets && cfg.tickets.url) {
+        var addTicket = function () {
+          if (!ta.value.trim()) { say("Write the feature first, then add the ticket"); ta.focus(); return; }
+          sendFeature(ta.value).then(function (id) {
+            say(id + " added - a plan comes first, then your yes");
+            ta.value = "";
+            closeBubble();
+          }, function (err) { say("Ticket not saved: " + err.message); });
+        };
+        row.appendChild(button("Copy prompt", "", copyPrompt));
+        row.appendChild(button("Add ticket", "primary", addTicket));
+        primary = addTicket;
+      } else {
+        row.appendChild(button("Copy prompt", "primary", copyPrompt));
+      }
+      ta.addEventListener("keydown", function (ev) {
+        if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); primary(); }
+        else if (ev.key === "Escape") { ev.stopPropagation(); closeBubble(); }
+      });
+      [h, p, ta, row].forEach(function (n) { bub.appendChild(n); });
+      lab.style.display = "none";
+      bub.style.display = "block";
+      bub.style.left = Math.max(8, innerWidth - bub.getBoundingClientRect().width - 14) + "px";
+      bub.style.top = Math.max(8, innerHeight - bub.getBoundingClientRect().height - 62) + "px";
+      ta.focus();
+    }
+
     function closeBubble() {
       pinned = null;
       bub.style.display = "none";
@@ -419,7 +505,7 @@
       });
     }
 
-    return { enable: enable, toggle: toggle, isOn: function () { return on; }, destroy: destroy };
+    return { enable: enable, toggle: toggle, requestFeature: requestFeature, isOn: function () { return on; }, destroy: destroy };
   }
 
   window.InspectorKit = { version: VERSION, create: create };
