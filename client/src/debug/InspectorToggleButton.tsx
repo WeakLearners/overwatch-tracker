@@ -3,14 +3,14 @@ import { createPortal } from 'react-dom';
 import { INSPECTOR_SLOT_EVENT, ToolLit } from '../components/AppTools';
 import { ACCENT_SEL } from '../components/SegmentedPills';
 
-type Props = { enabled: boolean; onToggle: () => void };
+type Props = { enabled: boolean; onToggle: () => void; onRequestFeature: () => void };
 
 // Renders into #header-inspector-slot inside AppTools, beside the settings
 // and theme buttons. AppTools lives in the Dashboard's section nav on the
 // Dashboard and in the header elsewhere (2026-09-26), so the slot moves with
 // the route; AppTools fires INSPECTOR_SLOT_EVENT on mount/unmount and this
 // re-finds it.
-export default function InspectorToggleButton({ enabled, onToggle }: Props) {
+export default function InspectorToggleButton({ enabled, onToggle, onRequestFeature }: Props) {
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   useEffect(() => {
     const find = () => setSlot(document.getElementById('header-inspector-slot'));
@@ -22,6 +22,7 @@ export default function InspectorToggleButton({ enabled, onToggle }: Props) {
   }, []);
   if (!slot) return null;
   return createPortal(
+    <>
     <button
       type="button"
       onClick={onToggle}
@@ -35,7 +36,18 @@ export default function InspectorToggleButton({ enabled, onToggle }: Props) {
     >
       {enabled && <ToolLit />}
       <span className={`relative z-10 ${enabled ? 'lit-text' : ''}`} style={{ '--sel': ACCENT_SEL } as React.CSSProperties}>⌖</span>
-    </button>,
+    </button>
+    <button
+      type="button"
+      onClick={onRequestFeature}
+      aria-label="New feature request"
+      title="New feature request"
+      data-inspect-id="inspector-feature-request"
+      className="relative px-4 flex items-center justify-center text-base leading-none transition-colors text-[var(--faint)] hover:text-[var(--ink)]"
+    >
+      <span className="relative z-10">✚</span>
+    </button>
+    </>,
     slot,
   );
 }

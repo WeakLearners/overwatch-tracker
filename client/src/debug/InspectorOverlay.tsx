@@ -8,7 +8,7 @@ import './inspector-kit.js';
 // ships to prod. Do not edit inspector-kit.js here: it is a byte-identical
 // copy of the canonical file in the vault.
 
-type Kit = { enable(on: boolean): void; toggle(): void; isOn(): boolean; destroy(): void };
+type Kit = { enable(on: boolean): void; toggle(): void; requestFeature(): void; isOn(): boolean; destroy(): void };
 declare global {
   interface Window {
     InspectorKit: { create(config: Record<string, unknown>): Kit };
@@ -46,5 +46,5 @@ export default function InspectorOverlay() {
     return () => { kit.destroy(); kitRef.current = null; };
   }, []);
 
-  return <InspectorToggleButton enabled={enabled} onToggle={() => kitRef.current?.toggle()} />;
+  return <InspectorToggleButton enabled={enabled} onToggle={() => kitRef.current?.toggle()} onRequestFeature={() => kitRef.current?.requestFeature()} />;
 }

@@ -52,6 +52,16 @@
           }
         },
         {
+          "id": "inspector-feature-request",
+          "label": "New feature request button (dev only)",
+          "kind": "icon-button",
+          "description": "Plus sign beside the inspect crosshair in the app tools tray. Dev build only (import.meta.env.DEV). Opens the inspector kit's feature-request composer, which files a ticket for the overwatch app. Same size and colours as the crosshair. Added 2026-11-05.",
+          "locate": {
+            "path": "client/src/debug/InspectorToggleButton.tsx:45",
+            "grep": "grep -n -F -- 'data-inspect-id=\"inspector-feature-request\"' client/src/debug/InspectorToggleButton.tsx"
+          }
+        },
+        {
           "id": "app-home-wordmark",
           "label": "Overwatch wordmark (home link)",
           "kind": "link",
