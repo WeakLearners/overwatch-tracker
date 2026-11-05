@@ -5,7 +5,7 @@ import os from 'os';
 import path from 'path';
 import { getDb, closeDb } from '../db/schema';
 import { resetCurrentMatch, resetRows, resetUnreadFiles } from './scoreboardReset';
-import { pollOnce, countTick, getUnreadCount } from './scoreboardWatcher';
+import { pollOnce, countTick, rescanNow, getUnreadCount, getSkippedCount } from './scoreboardWatcher';
 import { organizeAll } from './scoreboardOrganize';
 
 const NOW = Date.now();
@@ -56,6 +56,16 @@ describe('Reset all: scope rule and _trash', () => {
     fs.unlinkSync(outside);
   });
 
+  test('pages of an ambiguous group (failed Summary read) at the top level are reset too (OW-0001)', async () => {
+    const amb = group('ambiguous'); const live = group('live', 30_000);
+    const a1 = file('Screenshot (1).png'); const a2 = file('Screenshot (2).png');
+    const r1 = row(a1, 'unmatched', null, amb); const r2 = row(a2, 'error', null, amb);
+    const out = resetCurrentMatch(db, root, undefined, NOW);
+    assert.deepEqual(out, { moved: 2, failed: 0, rowsDismissed: 2 });
+    for (const id of [r1, r2]) { assert.equal(status(id).status, 'dismissed'); assert.equal(path.dirname(status(id).file_path), path.join(root, '_trash')); }
+    assert.equal((db.prepare(`SELECT state FROM scoreboard_groups WHERE id = ?`).get(live) as any).state, 'ambiguous');
+  });
+
   test('name collisions in _trash get a suffix; a new file with a reused name is not "known"', async () => {
     file('_trash/Screenshot (1).png');
     file('Screenshot (1).png');
@@ -92,5 +102,24 @@ describe('watcher no longer reads by itself', () => {
     assert.equal((db.prepare(`SELECT COUNT(*) n FROM match_scoreboards`).get() as any).n, 0);
     const r = await pollOnce(db, root, v, 50, 5_000);
     assert.equal(r.processed, 1); assert.equal(calls, 1);
+  });
+
+  test('Recheck clears the skip lists: a file made readable again (same mtime) is counted at once; nothing is moved or read', async () => {
+    const f = path.join(root, 'Screenshot (1).png'); fs.writeFileSync(f, 'x');
+    const t = Date.now() / 1000; fs.utimesSync(f, t - 60, t - 60);
+    let calls = 0; const v = async () => { calls++; return { is_scoreboard: false, rows: [] }; };
+    fs.chmodSync(f, 0o000);
+    try {
+      await countTick(db, root, v);
+      assert.equal(getUnreadCount(), 0); assert.equal(getSkippedCount(), 1);
+      fs.chmodSync(f, 0o644); // a permission fix does not change the mtime
+      await countTick(db, root, v);
+      assert.equal(getUnreadCount(), 0, 'still on the in-memory skip list until Recheck');
+      const r = await rescanNow(db, root, v);
+      assert.deepEqual(r, { unread: 1, skipped: 0, error: null });
+      assert.equal(getUnreadCount(), 1);
+    } finally { fs.chmodSync(f, 0o644); }
+    assert.equal(calls, 0); assert.ok(fs.existsSync(f));
+    assert.equal((db.prepare(`SELECT COUNT(*) n FROM match_scoreboards`).get() as any).n, 0);
   });
 });

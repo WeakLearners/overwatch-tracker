@@ -44,6 +44,9 @@ let unreadCount = 0;
 export const getUnreadCount = () => unreadCount;
 export const clearUnread = () => { unreadCount = 0; };
 export const isReading = () => running;
+/** Images the last poll left out on purpose: unreadable (EACCES/EPERM) or waiting out a failed read's backoff. */
+let skippedCount = 0;
+export const getSkippedCount = () => skippedCount;
 
 /** One poll. Exported for tests; never throws. */
 export async function pollOnce(
@@ -54,11 +57,13 @@ export async function pollOnce(
   minAgeMs: number = 0,
   nowMs: number = Date.now(),
   read: boolean = true,
+  housekeeping: boolean = true, // false = scan and count only: no rematch, group fill or file move (Recheck)
 ): Promise<{ processed: number; unread: number; error: string | null }> {
   let processed = 0;
   let unread = 0;
+  let skipped = 0;
   try {
-    try { rematchRecent(db); } catch (e) { console.error('[scoreboard] rematch failed:', (e as Error).message); }
+    try { if (housekeeping) rematchRecent(db); } catch (e) { console.error('[scoreboard] rematch failed:', (e as Error).message); }
     let names: string[];
     try {
       names = await withTimeout(fs.promises.readdir(dir), fsTimeoutMs, 'folder listing');
@@ -75,17 +80,18 @@ export async function pollOnce(
     for (const name of names.filter(isImageName).sort()) {
       const full = path.join(dir, name);
       if (known.has(full)) continue;
-      if ((retryAfter.get(full) ?? 0) > nowMs) continue;
+      if ((retryAfter.get(full) ?? 0) > nowMs) { skipped++; continue; }
       try {
         const st = await withTimeout(fs.promises.stat(full), fsTimeoutMs, 'stat');
-        if (unreadable.get(full) === st.mtimeMs) continue;
+        if (unreadable.get(full) === st.mtimeMs) { skipped++; continue; }
         if (st.isFile() && st.size > 0) {
           try { await withTimeout(fs.promises.access(full, fs.constants.R_OK), fsTimeoutMs, 'access'); unreadable.delete(full); }
           catch (e) {
             const code = (e as NodeJS.ErrnoException).code;
             if (code !== 'EACCES' && code !== 'EPERM') throw e;
             unreadable.set(full, st.mtimeMs);
-            console.warn(`[scoreboard] ${name}: not readable (${code}); skipped until the file changes`);
+            console.warn(`[scoreboard] ${name}: not readable (${code}); skipped until the file changes or Recheck`);
+            skipped++;
             continue;
           }
         }
@@ -121,9 +127,10 @@ export async function pollOnce(
         console.warn(`[scoreboard] ${name}: ${(e as Error).message}; retry next poll`);
       } finally { clearInFlight(full); }
     }
-    try { finalizeGroups(db); } catch (e) { console.error('[scoreboard] group fill failed:', (e as Error).message); }
-    try { organizeAll(db, dir); } catch (e) { console.error('[scoreboard] organize failed:', (e as Error).message); }
+    try { if (housekeeping) finalizeGroups(db); } catch (e) { console.error('[scoreboard] group fill failed:', (e as Error).message); }
+    try { if (housekeeping) organizeAll(db, dir); } catch (e) { console.error('[scoreboard] organize failed:', (e as Error).message); }
     unreadCount = unread;
+    skippedCount = skipped;
     return { processed, unread, error: null };
   } catch (e) {
     console.error('[scoreboard] poll failed:', (e as Error).message);
@@ -138,6 +145,22 @@ export async function readNow(db: DatabaseSync, dir: string, vision: VisionFn = 
   try {
     const r = await pollOnce(db, dir, vision, FS_TIMEOUT_MS, MIN_INTAKE_AGE_MS, Date.now(), true);
     return { processed: r.processed, unread: r.unread };
+  } finally { running = false; }
+}
+
+/**
+ * The "Recheck" button: forget the in-memory skip lists (`unreadable`, `retryAfter`), then run the same scan as a tick
+ * (count only, no vision call, nothing moved or deleted). `unreadable` is keyed by mtime, and a permission fix does not
+ * change the mtime, so without this a file stayed ignored until the server restarted. Null when a poll or read is running.
+ */
+export async function rescanNow(db: DatabaseSync, dir: string, vision: VisionFn = callVision): Promise<{ unread: number; skipped: number; error: string | null } | null> {
+  if (running) return null;
+  running = true;
+  try {
+    unreadable.clear();
+    retryAfter.clear();
+    const r = await pollOnce(db, dir, vision, FS_TIMEOUT_MS, MIN_INTAKE_AGE_MS, Date.now(), false, false);
+    return { unread: r.unread, skipped: skippedCount, error: r.error };
   } finally { running = false; }
 }
 

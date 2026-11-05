@@ -21,9 +21,14 @@ export function lightText(live: LivePayload | null): { stage: string; text: stri
   const stage = live?.stage ?? 'idle';
   const un = live?.unread ?? 0;
   const base = lightText0(stage, live, live?.pages ?? null);
-  if (un === 0 || stage === 'detected') return { stage, text: base };
+  if (un === 0 || stage === 'detected') return { stage, text: withSkipped(base, live) };
   const n = `${un} new image${un === 1 ? '' : 's'} to read`;
-  return { stage, text: stage === 'idle' ? n : `${base} · ${n}` };
+  return { stage, text: withSkipped(stage === 'idle' ? n : `${base} · ${n}`, live) };
+}
+/** Images the watcher left out on purpose (unreadable, or waiting out a failed read). Recheck retries them. */
+function withSkipped(text: string, live: LivePayload | null): string {
+  const sk = live?.skipped ?? 0;
+  return sk > 0 ? `${text} · ${sk} skipped (Recheck retries)` : text;
 }
 function lightText0(stage: string, live: LivePayload | null, p: LivePayload['pages']): string {
   switch (stage) {
@@ -38,7 +43,7 @@ function lightText0(stage: string, live: LivePayload | null, p: LivePayload['pag
 const SPEED = 30; // px per second
 const HOLD = 0.75; // seconds per side; the reverse leg doubles it to 1.5 s at each end
 
-export default function ScoreboardLight({ live, onRead, reading = false }: { live: LivePayload | null; onRead?: () => void; reading?: boolean }) {
+export default function ScoreboardLight({ live, onRead, reading = false, onRecheck, rechecking = false }: { live: LivePayload | null; onRead?: () => void; reading?: boolean; onRecheck?: () => void; rechecking?: boolean }) {
   const { stage, text } = lightText(live);
   const viewRef = useRef<HTMLSpanElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
@@ -70,6 +75,16 @@ export default function ScoreboardLight({ live, onRead, reading = false }: { liv
         className="shrink-0 rounded border border-ow-border px-1.5 text-[11px] font-semibold leading-tight text-[var(--faint)] hover:text-ow-accent hover:border-ow-accent/50 disabled:opacity-40 disabled:hover:text-[var(--faint)] disabled:hover:border-ow-border disabled:cursor-not-allowed transition-colors"
       >
         Read
+      </button>
+      <button
+        type="button"
+        onClick={onRecheck}
+        disabled={!onRecheck || rechecking || reading || live?.stage === 'detected'}
+        title="Rescan the share for new images. Nothing is read, moved or deleted."
+        data-inspect-id="logmatch-scoreboard-recheck"
+        className="shrink-0 rounded border border-ow-border px-1.5 text-[11px] font-semibold leading-tight text-[var(--faint)] hover:text-ow-accent hover:border-ow-accent/50 disabled:opacity-40 disabled:hover:text-[var(--faint)] disabled:hover:border-ow-border disabled:cursor-not-allowed transition-colors"
+      >
+        {rechecking ? 'Checking…' : 'Recheck'}
       </button>
       <span
         aria-hidden="true"

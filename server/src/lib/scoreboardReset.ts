@@ -4,7 +4,9 @@
 // SCOPE RULE (a file is in only if it is directly in the top level of the scoreboard folder, and one of):
 //   1. an image with no match_scoreboards row (new, not read yet)
 //   2. a row with match_id NULL and status 'unmatched' or 'error' whose group is the current live group
-//      (the newest live group inside the rematch grace, the one the light shows) or has no group
+//      (the newest live group inside the rematch grace, the one the light shows), has no group, or is 'ambiguous'
+//      (2026-11-05: a failed Summary read, e.g. map not in the roster, opens an ambiguous group at once; its pages
+//      waited at the top level and Reset skipped them as "another group". Nothing is waiting for such a group.)
 // OUT, always: a row with a match_id or status 'matched', 'not_scoreboard' or 'dismissed'; any file in a
 // subfolder (_other/, _needs-attention/, _copies/, YYYY/MM/DD folders); any file outside the folder (old Drive boards);
 // rows of any other group.
@@ -26,7 +28,8 @@ export function resetRows(db: DatabaseSync, dir: string, nowMs: number = Date.no
   const gid = currentLiveGroupId(db, nowMs);
   const rows = db.prepare(`
     SELECT id, file_path FROM match_scoreboards
-    WHERE match_id IS NULL AND status IN ('unmatched', 'error') AND (group_id IS NULL OR group_id = ?)
+    WHERE match_id IS NULL AND status IN ('unmatched', 'error')
+      AND (group_id IS NULL OR group_id = ? OR group_id IN (SELECT id FROM scoreboard_groups WHERE state = 'ambiguous'))
   `).all(gid ?? -1) as { id: number; file_path: string }[];
   return rows.filter(r => path.dirname(r.file_path) === dir);
 }

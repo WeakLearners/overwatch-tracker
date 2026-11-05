@@ -756,8 +756,27 @@ export default function LogMatch() {
     if (readingNow) return;
     setReadingNow(true);
     const poll = window.setInterval(refetchLive, 1_500); // show the "Reading n" stage while the pass runs
-    try { await fetch('/api/scoreboards/read', { method: 'POST' }); refetchLive(); revalidateAll(); }
+    try {
+      const res = await fetch('/api/scoreboards/read', { method: 'POST' });
+      if (!res.ok) { const b = await res.json().catch(() => null); window.alert(`Not read: ${b?.error ?? `HTTP ${res.status}`}`); }
+      refetchLive(); revalidateAll();
+    }
+    catch { window.alert('Not read: could not reach the server'); }
     finally { window.clearInterval(poll); setReadingNow(false); }
+  };
+  // Recheck button: rescan the share for images not yet known. Counts only; it never reads, moves or deletes.
+  // A 409/502 is shown, never swallowed (a press during a running pass used to do nothing, silently).
+  const [rechecking, setRechecking] = useState(false);
+  const recheckShare = async () => {
+    if (rechecking) return;
+    setRechecking(true);
+    try {
+      const res = await fetch('/api/scoreboards/rescan', { method: 'POST' });
+      if (!res.ok) { const b = await res.json().catch(() => null); window.alert(`Not rechecked: ${b?.error ?? `HTTP ${res.status}`}`); }
+      refetchLive();
+    }
+    catch { window.alert('Not rechecked: could not reach the server'); }
+    finally { setRechecking(false); }
   };
   // Reset all (Match Details header): clears the whole form like a finished save does, and has the server move the
   // current unsaved match's screenshots to _trash/ (scoreboardReset.ts). The lobby range survives, as after a save.
@@ -1323,7 +1342,7 @@ export default function LogMatch() {
                 change
               </button>
               </div>
-              <ScoreboardLight live={live} onRead={readNow} reading={readingNow} />
+              <ScoreboardLight live={live} onRead={readNow} reading={readingNow} onRecheck={recheckShare} rechecking={rechecking} />
             </div>
 
             <div className={`grid gap-3 ${crashedGame ? 'grid-cols-2' : 'grid-cols-3'}`}>

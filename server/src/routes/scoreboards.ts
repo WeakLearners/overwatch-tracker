@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { getDb } from '../db/schema';
 import { organizeBoard } from '../lib/scoreboardOrganize';
-import { scoreboardDir, getUnreadCount, clearUnread, readNow, isReading } from '../lib/scoreboardWatcher';
+import { scoreboardDir, getUnreadCount, getSkippedCount, clearUnread, readNow, rescanNow, isReading } from '../lib/scoreboardWatcher';
 import { resetCurrentMatch, resetRows } from '../lib/scoreboardReset';
 import { inFlightCount } from '../lib/scoreboardStage';
 import { REMATCH_GRACE_MIN, recheckGroup } from '../lib/scoreboard';
@@ -34,8 +34,9 @@ function livePayload(db: ReturnType<typeof getDb>) {
   const resettable = unread + (dir ? resetRows(db, dir).length : 0);
   const fill = g ? buildFill(db, g.id) : null;
   const stage = computeStage(db, g ?? null, fill?.pages ? { summary: fill.pages.summary, teams: fill.pages.teams, personal: fill.pages.personal.length } : null);
-  if (!g) return { light: 'off', group_id: null, fill: null, unread, resettable, ...stage };
-  return { light: 'green', group_id: g.id, fill, unread, resettable, ...stage };
+  const skipped = getSkippedCount();
+  if (!g) return { light: 'off', group_id: null, fill: null, unread, skipped, resettable, ...stage };
+  return { light: 'green', group_id: g.id, fill, unread, skipped, resettable, ...stage };
 }
 router.get('/live', (_req, res) => { res.json(livePayload(getDb())); });
 
@@ -45,6 +46,17 @@ router.post('/read', async (_req, res) => {
   if (!dir) { res.status(409).json({ error: 'SCOREBOARD_DIR is not set' }); return; }
   const r = await readNow(getDb(), dir);
   if (!r) { res.status(409).json({ error: 'A read is already running' }); return; }
+  res.json(livePayload(getDb()));
+});
+
+// "Recheck" button: rescan the share for images not yet known. Clears the watcher's skip lists, counts only, and
+// never reads, moves or deletes (lib/scoreboardWatcher.ts rescanNow). Works on the dev server too, which has no timer.
+router.post('/rescan', async (_req, res) => {
+  const dir = scoreboardDir();
+  if (!dir) { res.status(409).json({ error: 'SCOREBOARD_DIR is not set' }); return; }
+  const r = await rescanNow(getDb(), dir);
+  if (!r) { res.status(409).json({ error: 'A read is already running; try again in a moment' }); return; }
+  if (r.error) { res.status(502).json({ error: `Cannot list the share: ${r.error}` }); return; }
   res.json(livePayload(getDb()));
 });
 
