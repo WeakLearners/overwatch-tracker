@@ -30,12 +30,12 @@ export default function InspectorToggleButton({ enabled, onToggle, onRequestFeat
       data-inspector-toggle=""
       aria-pressed={enabled}
       title="Toggle inspector mode — hover a UI element, click to compose a Claude prompt for it"
-      className={`relative px-4 flex items-center justify-center text-base leading-none transition-colors ${
+      className={`relative px-3 flex items-center justify-center text-xs font-medium leading-none whitespace-nowrap transition-colors ${
         enabled ? 'text-[var(--ink)]' : 'text-[var(--faint)] hover:text-[var(--ink)]'
       }`}
     >
       {enabled && <ToolLit />}
-      <span className={`relative z-10 ${enabled ? 'lit-text' : ''}`} style={{ '--sel': ACCENT_SEL } as React.CSSProperties}>⌖</span>
+      <span className={`relative z-10 ${enabled ? 'lit-text' : ''}`} style={{ '--sel': ACCENT_SEL } as React.CSSProperties}>Inspect</span>
     </button>
     <button
       type="button"
@@ -43,9 +43,9 @@ export default function InspectorToggleButton({ enabled, onToggle, onRequestFeat
       aria-label="New feature request"
       title="New feature request"
       data-inspect-id="inspector-feature-request"
-      className="relative px-4 flex items-center justify-center text-base leading-none transition-colors text-[var(--faint)] hover:text-[var(--ink)]"
+      className="relative px-3 flex items-center justify-center text-xs font-medium leading-none whitespace-nowrap transition-colors text-[var(--faint)] hover:text-[var(--ink)]"
     >
-      <span className="relative z-10">✚</span>
+      <span className="relative z-10">Request</span>
     </button>
     </>,
     slot,
