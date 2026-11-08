@@ -78,7 +78,7 @@ function rejectBadRequest(res: Response, error: string) {
 
 router.post('/', (req: Request, res: Response) => {
   const db = getDb();
-  const { date, time, day_of_week, hour, hero, role, map, game_type, win, queue_mode, sens, feel, team_rating, notes, heroes, curve_enabled, match_deaths, match_quality, result_driver, leaver, leaver_side, player_rank, player_rank_start, lobby_low, lobby_high, placement, account, aim_stats, crashed, score_us, score_them, scoreboard_group_id } = req.body;
+  const { date, time, day_of_week, hour, hero, role, map, game_type, win, queue_mode, sens, feel, team_rating, notes, heroes, curve_enabled, match_deaths, match_quality, result_driver, leaver, leaver_side, player_rank, player_rank_start, lobby_low, lobby_high, placement, account, aim_stats, crashed, score_us, score_them, scoreboard_group_id, advisor_hero } = req.body;
   if (!validScore(score_us) || !validScore(score_them)) { rejectBadRequest(res, 'Score must be blank or a whole number from 0 to 10'); return; }
   if (crashed === true || crashed === 1) { logCrashedMatch(db, req.body, res); return; }
 
@@ -158,6 +158,9 @@ router.post('/', (req: Request, res: Response) => {
   // whatever LogMatch's manual toggle sent whenever a set actually governs
   // this match. The manual toggle only matters as the fallback for matches
   // with no active test at all (no hero-tagged or ad-hoc set running).
+  // sens_kind: what kind of sens this match was played under. 'home' comes from the
+  // control arm; 'trial' is any match that holds a blind-trial credit; else NULL.
+  const sensKind: 'trial' | 'home' | null = assign?.sensKind ?? (isStudy ? 'trial' : null);
   const finalCurveEnabled = assign?.governsCurve ? assign.curveEnabled : (curve_enabled === true || curve_enabled === 1);
 
   // Match row + heroes + blind_credits + games_on_stage all describe one
@@ -196,9 +199,9 @@ router.post('/', (req: Request, res: Response) => {
     const liveLut = finalCurveEnabled ? getCurveParams(db).lutPoints : null;
     const curveLutJson = liveLut ? JSON.stringify(liveLut) : null;
     const result = db.prepare(`
-      INSERT INTO matches (date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, dpi, blind_trial, blind_set_id, stage_index, feel, team_rating, notes, curve_enabled, curve_growth_rate, curve_midpoint, curve_motivity, curve_lut, match_quality, result_driver, leaver, leaver_side, player_rank, player_rank_start, lobby_low, lobby_high, placement, account, score_us, score_them)
-      VALUES (:date, :time, :day_of_week, :hour, :hero, :role, :map, :game_type, :win, :deaths, :queue_mode, :sens, :dpi, :blind_trial, :blind_set_id, :stage_index, :feel, :team_rating, :notes, :curve_enabled, :curve_growth_rate, :curve_midpoint, :curve_motivity, :curve_lut, :match_quality, :result_driver, :leaver, :leaver_side, :player_rank, :player_rank_start, :lobby_low, :lobby_high, :placement, :account, :score_us, :score_them)
-    `).run({ date, time: time ?? null, day_of_week: day_of_week ?? null, hour: hour ?? null, hero, role, map, game_type, win: win ? 1 : 0, deaths: deathsJson, queue_mode: queue_mode ?? 'comp_role', sens: finalSens, dpi: finalDpi, blind_trial: isStudy, blind_set_id: setId, stage_index: stageIdx, feel: feel ?? null, team_rating: team_rating ?? null, notes: notes?.trim() || null, curve_enabled: finalCurveEnabled ? 1 : 0, curve_growth_rate: null, curve_midpoint: null, curve_motivity: null, curve_lut: curveLutJson, match_quality: match_quality ?? null, result_driver: result_driver ?? null, leaver: leaver ? 1 : 0, leaver_side: finalLeaverSide, player_rank: player_rank ?? null, player_rank_start: player_rank_start ?? null, lobby_low: lobby_low ?? null, lobby_high: lobby_high ?? null, placement: placement ? 1 : null, account: account ?? null, score_us: score_us ?? null, score_them: score_them ?? null });
+      INSERT INTO matches (date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, dpi, blind_trial, blind_set_id, stage_index, feel, team_rating, notes, curve_enabled, curve_growth_rate, curve_midpoint, curve_motivity, curve_lut, match_quality, result_driver, leaver, leaver_side, player_rank, player_rank_start, lobby_low, lobby_high, placement, account, score_us, score_them, advisor_hero, sens_kind)
+      VALUES (:date, :time, :day_of_week, :hour, :hero, :role, :map, :game_type, :win, :deaths, :queue_mode, :sens, :dpi, :blind_trial, :blind_set_id, :stage_index, :feel, :team_rating, :notes, :curve_enabled, :curve_growth_rate, :curve_midpoint, :curve_motivity, :curve_lut, :match_quality, :result_driver, :leaver, :leaver_side, :player_rank, :player_rank_start, :lobby_low, :lobby_high, :placement, :account, :score_us, :score_them, :advisor_hero, :sens_kind)
+    `).run({ date, time: time ?? null, day_of_week: day_of_week ?? null, hour: hour ?? null, hero, role, map, game_type, win: win ? 1 : 0, deaths: deathsJson, queue_mode: queue_mode ?? 'comp_role', sens: finalSens, dpi: finalDpi, blind_trial: isStudy, blind_set_id: setId, stage_index: stageIdx, feel: feel ?? null, team_rating: team_rating ?? null, notes: notes?.trim() || null, curve_enabled: finalCurveEnabled ? 1 : 0, curve_growth_rate: null, curve_midpoint: null, curve_motivity: null, curve_lut: curveLutJson, match_quality: match_quality ?? null, result_driver: result_driver ?? null, leaver: leaver ? 1 : 0, leaver_side: finalLeaverSide, player_rank: player_rank ?? null, player_rank_start: player_rank_start ?? null, lobby_low: lobby_low ?? null, lobby_high: lobby_high ?? null, placement: placement ? 1 : null, account: account ?? null, score_us: score_us ?? null, score_them: score_them ?? null, advisor_hero: typeof advisor_hero === 'string' && advisor_hero.trim() ? advisor_hero.trim() : null, sens_kind: sensKind });
 
     matchId = result.lastInsertRowid as number;
 

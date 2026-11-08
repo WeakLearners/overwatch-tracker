@@ -443,6 +443,19 @@ function initSchema(db: DatabaseSync) {
     db.exec(`ALTER TABLE matches ADD COLUMN leaver_side TEXT`);
   }
 
+  // advisor_hero / sens_kind: added 2026-11-08 (play-trial story S4). Both are set
+  // by the server at save time, with no new input. advisor_hero is the advisor
+  // pick that was shown when the match was saved (hero name, NULL when no pick
+  // was shown). sens_kind is 'trial' (a blind-trial match), 'home' (control arm,
+  // one game-wide sens) or NULL. NULL on every row logged before this column
+  // existed means unknown, and those rows are never backfilled or guessed at.
+  if (!cols.find(c => c.name === 'advisor_hero')) {
+    db.exec(`ALTER TABLE matches ADD COLUMN advisor_hero TEXT`);
+  }
+  if (!cols.find(c => c.name === 'sens_kind')) {
+    db.exec(`ALTER TABLE matches ADD COLUMN sens_kind TEXT`);
+  }
+
   // score_us / score_them: final round score from the end screen (2026-10-04),
   // typed by hand, integers 0-10. Objective close/stomp signal that does not
   // depend on match_quality. Additive and nullable: every earlier row stays

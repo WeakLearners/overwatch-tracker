@@ -3,7 +3,7 @@ import { checkSensChange } from '../components/SensChangeModal';
 import { activeMapNames, HEROES, MAPS, ROLE_COLORS, ROLE_PILL_CLASS, ROLE_PILL_CLASS_DARK, TYPE_COLORS, QueueMode, QUEUE_MODES, QUEUE_MODE_COLORS, QUEUE_MODE_SEL_RGB, MODE_WASH_CLASS, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, isAccount, rankLabel, clampRank } from '../types';
 import { useMatch } from '../contexts/MatchContext';
 import { useDeathBuffer } from '../contexts/DeathBufferContext';
-import { revalidateRec } from '../contexts/AdvisorContext';
+import { revalidateRec, shownAdvisorPick } from '../contexts/AdvisorContext';
 import EmptyState from '../components/EmptyState';
 import RegistryField from '../components/RegistryField';
 import LeaverSliver from '../components/LeaverSliver';
@@ -1085,6 +1085,8 @@ export default function LogMatch() {
           win: form.win === '1',
           match_deaths: deathBuffer,
           queue_mode: queueMode,
+          // The advisor pick on screen when the match is saved. Null when none was shown.
+          advisor_hero: shownAdvisorPick(heroRole, map, queueMode),
           sens: displaySens,
           feel: feelValueFor(form.hero),
           team_rating: teamRating,

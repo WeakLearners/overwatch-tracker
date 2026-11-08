@@ -33,6 +33,19 @@ const AdvisorContext = createContext<AdvisorContextValue | null>(null);
 // this split exists to avoid — it never reads rec/recLoading/recError itself.
 let currentFetch: ((refresh: boolean) => void) | null = null;
 export function refreshRec() { currentFetch?.(true); }
+
+// The pick the Prematch advisor card is showing right now, kept as a plain
+// module value for the same reason as currentFetch above: Log Match reads it at
+// save time (advisor_hero on the match row) without subscribing to the context.
+// Tied to the map and queue mode it was fetched for, so a stale card never
+// stamps a match played on another map.
+let shown: { rec: AdvisorByRole; map: string; queueMode: string } | null = null;
+/** The stretch hero shown for `role` on `map`/`queueMode`, or null when none was shown. */
+export function shownAdvisorPick(role: string, map: string, queueMode: string): string | null {
+  if (!shown || shown.map !== map || shown.queueMode !== queueMode) return null;
+  if (role !== 'DPS' && role !== 'Support') return null;
+  return shown.rec[role]?.stretch ?? null;
+}
 export function revalidateRec() { currentFetch?.(false); }
 
 export function AdvisorProvider({ children }: { children: ReactNode }) {
@@ -45,7 +58,7 @@ export function AdvisorProvider({ children }: { children: ReactNode }) {
   const [recError, setRecError] = useState<string | null>(null);
 
   const fetchRec = useCallback(async (refresh: boolean) => {
-    if (!map) { setRec(null); setRecError(null); return; }
+    if (!map) { setRec(null); setRecError(null); shown = null; return; }
     setRecLoading(true);
     setRecError(null);
     try {
@@ -54,9 +67,11 @@ export function AdvisorProvider({ children }: { children: ReactNode }) {
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
       setRec(body);
+      shown = { rec: body, map, queueMode };
     } catch (e: any) {
       setRecError(e.message ?? 'Failed to fetch');
       setRec(null);
+      shown = null;
     } finally {
       setRecLoading(false);
     }

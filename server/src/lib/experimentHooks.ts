@@ -23,6 +23,8 @@ export interface SensAssignment {
   curveEnabled: boolean;
   governsCurve: boolean;
   credit: StageRef | null;
+  // 'home' when the control arm set this sens (one game-wide home sens). Absent otherwise.
+  sensKind?: 'home';
 }
 
 export interface ExperimentHooks {
