@@ -1191,6 +1191,17 @@ function initSchema(db: DatabaseSync) {
     );
   `);
 
+  // app_settings (2026-11-08): a small key/value table for on/off switches and
+  // single values that belong to no other table (the comp control arm, the hero
+  // focus trial's mode flags). New table, no migration step. Values are text.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+
     db.exec('COMMIT');
   } catch (err) {
     db.exec('ROLLBACK');

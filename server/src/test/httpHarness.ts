@@ -24,6 +24,7 @@ import { getDb, closeDb } from '../db/schema';
 import matchesRouter from '../routes/matches';
 import aimRouter from '../routes/aim';
 import blindRouter from '../routes/blind';
+import controlArmRouter from '../routes/controlArm';
 import statsRouter from '../routes/stats';
 import ranksRouter from '../routes/ranks';
 import configRouter from '../routes/config';
@@ -85,6 +86,7 @@ export async function startHarness(opts: { experiments?: boolean; freshReads?: b
   app.use('/api/ranks', ranksRouter);
   app.use('/api/aim', aimRouter);
   app.use('/api/blind', blindRouter);
+  app.use('/api/control-arm', controlArmRouter);
   app.use('/api/stats', statsRouter);
   app.use('/api/config', configRouter);
   app.use('/api/role-timer', roleTimerRouter);

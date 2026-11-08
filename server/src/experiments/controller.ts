@@ -5,6 +5,7 @@ import { LOCKED_DPI } from '../lib/blind';
 import { isStudyQueueMode } from '../lib/queueMode';
 import { isDfHero, dfSensForHero } from '../lib/df';
 import { creditFlagsFor, type CreditFlags } from '../lib/credits';
+import { getControlArm } from '../lib/controlArm';
 import type { ExperimentHooks, SensAssignment } from '../lib/experimentHooks';
 
 // The sensitivity-study controller: the one implementation of ExperimentHooks
@@ -179,6 +180,13 @@ function syncMatchStageColumns(db: ReturnType<typeof getDb>, matchId: number | s
     .run({ id: matchId, bt: pick ? 1 : 0, sid: pick?.blind_set_id ?? null, si: pick?.stage_index ?? null });
 }
 
+// A control-arm match (sens_kind 'home') is never a trial: later edits and the
+// Aim Stats save must not give it a stage credit or re-stamp its sens.
+function isHomeMatch(db: ReturnType<typeof getDb>, matchId: number | string): boolean {
+  const row = db.prepare('SELECT sens_kind FROM matches WHERE id = :id').get({ id: matchId }) as { sens_kind: string | null } | undefined;
+  return row?.sens_kind === 'home';
+}
+
 // Re-applies the credit rules after the Aim Stats form saves (aim.ts).
 // Narrower than syncStageCredits on purpose: it moves only credits, and
 // never re-stamps sens/dpi/curve. An old match's details can be corrected
@@ -189,6 +197,7 @@ function syncMatchStageColumns(db: ReturnType<typeof getDb>, matchId: number | s
 // stage its sens says it was played at (findStageForRecredit's loggedAt).
 // Safe to call repeatedly — it converges to the same rows.
 export function applyPlayTimeCredit(db: ReturnType<typeof getDb>, matchId: number | string) {
+  if (isHomeMatch(db, matchId)) return;
   const match = db.prepare('SELECT hero, queue_mode, created_at FROM matches WHERE id = :id')
     .get({ id: matchId }) as { hero: string; queue_mode: string; created_at: string } | undefined;
   if (!match) return;
@@ -228,6 +237,7 @@ export function applyPlayTimeCredit(db: ReturnType<typeof getDb>, matchId: numbe
 // request also set matches.sens directly — in that case the caller's
 // explicit value wins over whatever the recomputed stage would have stamped.
 function syncStageCredits(db: ReturnType<typeof getDb>, matchId: string, sensProvided: boolean) {
+  if (isHomeMatch(db, matchId)) return;
   const match = db.prepare('SELECT hero, role, queue_mode FROM matches WHERE id = :id')
     .get({ id: matchId }) as { hero: string; role: string; queue_mode: string } | undefined;
   if (!match) return;
@@ -332,6 +342,15 @@ function syncStageCredits(db: ReturnType<typeof getDb>, matchId: string, sensPro
 
 export const experimentController: ExperimentHooks = {
   sensFor(db, hero, queueMode): SensAssignment | null {
+    // Control arm: a competitive match is played at the one home sens, for every
+    // hero (a Designated Fallback too), and never credits a stage. QP falls through
+    // to the normal lookup below, so the blind trial keeps assigning test sens there.
+    if (isStudyQueueMode(queueMode)) {
+      const arm = getControlArm(db);
+      if (arm.on && arm.sens != null) {
+        return { dpi: arm.dpi, sens: arm.sens, curveEnabled: false, governsCurve: false, credit: null, sensKind: 'home' };
+      }
+    }
     const st = sensStageFor(db, hero);
     if (!st) return null;
     // A Designated Fallback comes back without a setId: it records its own

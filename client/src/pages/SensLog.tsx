@@ -10,6 +10,7 @@ import {
   MODE_COMPACT, OLDEST_DASH_FADE_STYLE,
 } from '../types';
 import { format } from 'date-fns';
+import ControlArmCard from '../components/ControlArmCard';
 import SensNav from '../components/SensNav';
 import { checkSensChange } from '../components/SensChangeModal';
 import { parseLutString, formatLut } from '../lib/lut';
@@ -208,6 +209,8 @@ export default function SensLog() {
 
       <CurveParamsCard />
       </div>
+
+      {sensStudyOn && <ControlArmCard />}
 
       <BackfillPanel pending={pending} loading={loading} />
 
