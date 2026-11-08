@@ -617,7 +617,7 @@ const DATA = {
           "kind": "nav",
           "description": "Sticky wayfinding strip under the header, styled as the Pre-Match \"Playing as\" strip (thin card, SegmentedPills). Label left, section pills centred (Mode, Match, Trends, Career; a lit block slides to the in-view section), app tools (inspector / settings / theme) on the right. Restyled 2026-09-26; pills use the large main-nav size, a click lights its pill at once, and the last section lights at the bottom of the page.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:130",
+            "path": "client/src/pages/Dashboard.tsx:131",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-section-nav\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -627,7 +627,7 @@ const DATA = {
           "kind": "button-group",
           "description": "The section jump pills in the section nav strip (SegmentedPills). Click scrolls to the section; the lit block follows whichever section is in view.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:158",
+            "path": "client/src/pages/Dashboard.tsx:159",
             "grep": "grep -n -F -- 'inspectId=\"dash-section-nav-pills\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -637,7 +637,7 @@ const DATA = {
           "kind": "button",
           "description": "Jump pill labelled 'Form' for the Form & Rank card (#sec-form), first in the strip since 2026-09-30 because the card leads the page. (Locate command matches all five section pills.)",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:159",
+            "path": "client/src/pages/Dashboard.tsx:160",
             "grep": "grep -n -F -- 'dash-section-nav-${id.replace' client/src/pages/Dashboard.tsx"
           }
         },
@@ -647,7 +647,7 @@ const DATA = {
           "kind": "button",
           "description": "Jump pill for the Mode section. (Locate command matches all five section pills.)",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:159",
+            "path": "client/src/pages/Dashboard.tsx:160",
             "grep": "grep -n -F -- 'dash-section-nav-${id.replace' client/src/pages/Dashboard.tsx"
           }
         },
@@ -657,7 +657,7 @@ const DATA = {
           "kind": "button",
           "description": "Jump pill for the Match section. (Locate command matches all five section pills.)",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:159",
+            "path": "client/src/pages/Dashboard.tsx:160",
             "grep": "grep -n -F -- 'dash-section-nav-${id.replace' client/src/pages/Dashboard.tsx"
           }
         },
@@ -667,7 +667,7 @@ const DATA = {
           "kind": "button",
           "description": "Jump pill for the Trends section. (Locate command matches all five section pills.)",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:159",
+            "path": "client/src/pages/Dashboard.tsx:160",
             "grep": "grep -n -F -- 'dash-section-nav-${id.replace' client/src/pages/Dashboard.tsx"
           }
         },
@@ -677,7 +677,7 @@ const DATA = {
           "kind": "button",
           "description": "Jump pill for the Career section. (Locate command matches all five section pills.)",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:159",
+            "path": "client/src/pages/Dashboard.tsx:160",
             "grep": "grep -n -F -- 'dash-section-nav-${id.replace' client/src/pages/Dashboard.tsx"
           }
         },
@@ -687,7 +687,7 @@ const DATA = {
           "kind": "header",
           "description": "Section header titled 'Match' with subtitle 'Prep with the advisor, then log the result.', introducing the Prematch advisor and LogMatch form below.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:181",
+            "path": "client/src/pages/Dashboard.tsx:184",
             "grep": "grep -n -F -- 'sub=\"Prep with the advisor, then log the result.\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -697,7 +697,7 @@ const DATA = {
           "kind": "link",
           "description": "Link in the Match section header that opens the sensitivity-study page (/sens) in a new tab, keeping the dashboard in place.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:191",
+            "path": "client/src/pages/Dashboard.tsx:194",
             "grep": "grep -n -F -- 'Log sens stats' client/src/pages/Dashboard.tsx"
           }
         },
@@ -707,7 +707,7 @@ const DATA = {
           "kind": "section",
           "description": "Embeds the Prematch advisor component, which lets the user prep (map/mode selection, LLM pre-match advice) before logging a result.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:194",
+            "path": "client/src/pages/Dashboard.tsx:197",
             "grep": "grep -n -F -- '<Prematch />' client/src/pages/Dashboard.tsx"
           }
         },
@@ -717,7 +717,7 @@ const DATA = {
           "kind": "section",
           "description": "Embeds the LogMatch component, the form used to record the result (hero, map, win/loss, etc.) of the just-played match.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:195",
+            "path": "client/src/pages/Dashboard.tsx:198",
             "grep": "grep -n -F -- '<LogMatch />' client/src/pages/Dashboard.tsx"
           }
         },
@@ -727,7 +727,7 @@ const DATA = {
           "kind": "section",
           "description": "Embeds KillerFrequencyCard (Who Kills Me) \u2014 field registry Phase 1's read surface for match_deaths. Gated on the 'deaths' field via FieldConfigContext; renders nothing at all if that field is off. Added 2026-09-23.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:201",
+            "path": "client/src/pages/Dashboard.tsx:204",
             "grep": "grep -n -F -- 'dash-killer-frequency-section' client/src/pages/Dashboard.tsx"
           }
         },
@@ -737,7 +737,7 @@ const DATA = {
           "kind": "text",
           "description": "Current season label and day number (e.g. \"2026 S5 \u00b7 day 1\"), from the season table (server/data/seasons.json via GET /api/roster).",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:136",
+            "path": "client/src/pages/Dashboard.tsx:137",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-season-badge\"' client/src/pages/Dashboard.tsx"
           }
         },
@@ -747,7 +747,7 @@ const DATA = {
           "kind": "select",
           "description": "Dashboard-only season filter. All seasons by default; narrows the Form chart, mode cards, career strip, session grid and killer card via ?season=.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:142",
+            "path": "client/src/pages/Dashboard.tsx:143",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-season-filter\"' client/src/pages/Dashboard.tsx"
           }
         }
@@ -5978,6 +5978,139 @@ const DATA = {
           }
         }
       ]
+    },
+    {
+      "id": "playHabitsCard",
+      "label": "PlayHabitsCard.tsx",
+      "category": "client-component",
+      "layer": 2,
+      "file": "client/src/components/dashboard/PlayHabitsCard.tsx",
+      "description": "Dashboard 'Play habits' card (S1, 2026-11-08): form vs 12-month baseline, day load, session position over the last 300 comp matches. Compute is server-side lib/habits.ts.",
+      "calls": [
+        "GET /api/stats/habits"
+      ],
+      "uiElements": [
+        {
+          "id": "dash-play-habits-card",
+          "label": "Play habits card",
+          "kind": "card",
+          "description": "Dashboard card under Form & Rank (since 2026-11-08): does recent form, a long day, or a late match in a session move the comp win rate? Last 300 comp matches, verdicts corrected over 6 groups. Data: GET /api/stats/habits (lib/habits.ts).",
+          "locate": {
+            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:36",
+            "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-card\"' client/src/components/dashboard/PlayHabitsCard.tsx"
+          }
+        },
+        {
+          "id": "dash-play-habits-title",
+          "label": "Title",
+          "kind": "heading",
+          "description": "Card title \"Play habits\".",
+          "locate": {
+            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:38",
+            "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-title\"' client/src/components/dashboard/PlayHabitsCard.tsx"
+          }
+        },
+        {
+          "id": "dash-play-habits-window",
+          "label": "Window label",
+          "kind": "text",
+          "description": "Right of the title: size and date span of the fixed 300-match comp window.",
+          "locate": {
+            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:39",
+            "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-window\"' client/src/components/dashboard/PlayHabitsCard.tsx"
+          }
+        },
+        {
+          "id": "dash-play-habits-note",
+          "label": "Rules note",
+          "kind": "text",
+          "description": "Minimum group size, the Bonferroni threshold, and how many matches lack a real start time.",
+          "locate": {
+            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:43",
+            "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-note\"' client/src/components/dashboard/PlayHabitsCard.tsx"
+          }
+        },
+        {
+          "id": "dash-play-habits-rows",
+          "label": "Rows list",
+          "kind": "list",
+          "description": "The four rows: Form last 100, Form last 200, Day load, Session position.",
+          "locate": {
+            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:47",
+            "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-rows\"' client/src/components/dashboard/PlayHabitsCard.tsx"
+          }
+        },
+        {
+          "id": "dash-play-habits-row",
+          "label": "Row",
+          "kind": "row",
+          "description": "One habit row: label, status, group rates with n.",
+          "locate": {
+            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:49",
+            "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-row\"' client/src/components/dashboard/PlayHabitsCard.tsx"
+          }
+        },
+        {
+          "id": "dash-play-habits-row-label",
+          "label": "Row label",
+          "kind": "text",
+          "description": "Row name.",
+          "locate": {
+            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:51",
+            "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-row-label\"' client/src/components/dashboard/PlayHabitsCard.tsx"
+          }
+        },
+        {
+          "id": "dash-play-habits-row-status",
+          "label": "Row status",
+          "kind": "badge",
+          "description": "Holds up / No difference found / Too few games. Same words and colours as the lab verdict chip.",
+          "locate": {
+            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:52",
+            "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-row-status\"' client/src/components/dashboard/PlayHabitsCard.tsx"
+          }
+        },
+        {
+          "id": "dash-play-habits-row-groups",
+          "label": "Group rates",
+          "kind": "text",
+          "description": "Each compared group: rate, n, the comparison rate and its n. Position has three bins.",
+          "locate": {
+            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:56",
+            "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-row-groups\"' client/src/components/dashboard/PlayHabitsCard.tsx"
+          }
+        },
+        {
+          "id": "dash-play-habits-group",
+          "label": "Group",
+          "kind": "text",
+          "description": "One group with its p-value tooltip; shows \"thin: n of 40\" or \"not reliable\" when they apply.",
+          "locate": {
+            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:58",
+            "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-group\"' client/src/components/dashboard/PlayHabitsCard.tsx"
+          }
+        },
+        {
+          "id": "dash-play-habits-action",
+          "label": "Action line",
+          "kind": "text",
+          "description": "Bold advice line. Rendered only on a row that holds.",
+          "locate": {
+            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:68",
+            "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-action\"' client/src/components/dashboard/PlayHabitsCard.tsx"
+          }
+        },
+        {
+          "id": "dash-play-habits-section",
+          "label": "Section wrapper",
+          "kind": "section",
+          "description": "Dashboard wrapper (id sec-habits) in Dashboard.tsx, after the Form & Rank section.",
+          "locate": {
+            "path": "client/src/pages/Dashboard.tsx:173",
+            "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-section\"' client/src/pages/Dashboard.tsx"
+          }
+        }
+      ]
     }
   ],
   "edges": [
@@ -6417,6 +6550,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 

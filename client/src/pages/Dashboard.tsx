@@ -15,6 +15,7 @@ import CareerStrip from '../components/dashboard/CareerStrip';
 import TrendsSection from '../components/dashboard/TrendsSection';
 import ModeComparisonCard from '../components/dashboard/ModeComparisonCard';
 import RecentMatchesCard from '../components/dashboard/RecentMatchesCard';
+import PlayHabitsCard from '../components/dashboard/PlayHabitsCard';
 import { useFieldConfig } from '../contexts/FieldConfigContext';
 import { useMatch } from '../contexts/MatchContext';
 import { sectionFor, SECTION_PATHS } from '../lib/dashSections';
@@ -168,6 +169,8 @@ export default function Dashboard() {
           play is going comes first. Its own jump target, first in the nav;
           "Mode" still lands on the tiles below it. */}
       <div id="sec-form" className="mb-6 scroll-mt-32"><RecentMatchesCard trends={trends} tilt={tilt} account={account} /></div>
+
+      <div id="sec-habits" className="mb-6 scroll-mt-32" data-inspect-id="dash-play-habits-section"><PlayHabitsCard /></div>
 
       <div id="sec-mode" className="scroll-mt-32">
         {modeComparison && (

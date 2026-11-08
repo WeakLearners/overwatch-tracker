@@ -12,6 +12,7 @@ import { computeScoreboardTrends } from '../lib/scoreboardTrends';
 import { studyTagFor } from '../lab/studyTags';
 import { withReplica } from '../lab/replicaCache';
 import { makeFinding, type Finding } from '../lib/finding';
+import { computeHabits, type HabitMatch } from '../lib/habits';
 
 // Lab side of the stats routes (split plan slice 5c). The inferential layer:
 // GET /split (field vs win rate / accuracy) and GET /insights (hot hand,
@@ -204,6 +205,18 @@ router.get('/insights', withReplica((_req: Request, res: Response, db) => {
 // are lib/finding.ts. Descriptive except where a Finding is attached.
 router.get('/scoreboard-trends', withReplica((_req: Request, res: Response, db) => {
   res.json(computeScoreboardTrends(db));
+}));
+
+// GET /api/stats/habits
+// The Play habits card: form against the 12-month baseline, day load, and
+// session position over the last 300 comp matches. Compute and the rules are in
+// lib/habits.ts (a pure function). Read-only, through the lab replica.
+router.get('/habits', withReplica((_req: Request, res: Response, db) => {
+  const rows = db.prepare(
+    `SELECT id, date, time, win, queue_mode FROM matches
+     WHERE queue_mode IN ('comp_role', 'comp_open') ORDER BY date, time, id`,
+  ).all() as unknown as HabitMatch[];
+  res.json(computeHabits(rows));
 }));
 
 export default router;
