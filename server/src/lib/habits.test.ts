@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeHabits, HABITS_GROUPS, type HabitMatch } from './habits';
+import { computeHabits, describeHabits, holdingHabits, HABITS_GROUPS, type HabitMatch } from './habits';
 
 let id = 0;
 // One comp match. `min` is minutes after 08:00 on `date`.
@@ -210,5 +210,26 @@ describe('computeHabits', () => {
     assert.equal(r.spread.window.topShare, 25);
     assert.equal(r.spread.baseline.perTwenty, null);
     assert.ok(!r.rows.some(x => x.id === ('spread' as string)));
+  });
+});
+
+describe('Slack line and holding rows (S3)', () => {
+  test('a row holds: the line carries its action text', () => {
+    id = 0;
+    const base = dates(15, '2026-01-01').flatMap(d => day(d, pattern(20, 2)));
+    const recent = dates(10, '2026-06-01').flatMap(d => day(d, pattern(10, 10)));
+    const r = computeHabits([...base, ...recent]);
+    const held = holdingHabits(r);
+    assert.ok(held.length > 0);
+    const line = describeHabits(r);
+    assert.ok(line.startsWith('*Play habits:*'));
+    assert.ok(line.includes(held[0].action));
+    assert.ok(!line.includes('\n'));
+  });
+  test('no row holds: the line says no finding', () => {
+    id = 0;
+    const r = computeHabits(day('2026-06-01', [1, 0, 1, 0]));
+    assert.equal(holdingHabits(r).length, 0);
+    assert.equal(describeHabits(r), '*Play habits:* no finding (last 4 comp, no row holds).');
   });
 });

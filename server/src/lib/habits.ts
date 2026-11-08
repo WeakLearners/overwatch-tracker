@@ -280,3 +280,19 @@ export function computeHabits(all: HabitMatch[]): HabitsResult {
     rows,
   };
 }
+
+/** The rows that hold, each with its action text. Same rule for Slack and Prematch. */
+export function holdingHabits(r: HabitsResult): { id: HabitRow['id']; label: string; action: string }[] {
+  return r.rows.filter(x => x.status === 'holds' && x.action).map(x => ({ id: x.id, label: x.label, action: x.action as string }));
+}
+
+/**
+ * The one nightly Slack line (S3). A row that holds adds its action text; when
+ * no row holds the line says so (a null result is a finding, same as the metric
+ * sweep). Never more than one line.
+ */
+export function describeHabits(r: HabitsResult): string {
+  const held = holdingHabits(r);
+  if (held.length === 0) return `*Play habits:* no finding (last ${r.window.n} comp, no row holds).`;
+  return `*Play habits:* ${held.map(h => `${h.label}: ${h.action}`).join(' | ')}`;
+}

@@ -2,6 +2,7 @@ import LobbyRankSection from '../components/LobbyRankSection';
 import SegmentedPills, { NOTCH, ACCENT_SEL } from '../components/SegmentedPills';
 import { useState, useRef, useEffect, Fragment } from 'react';
 import { useApi, revalidateAll } from '../hooks/useApi';
+import { holdingHabitLine, type HabitRowLite } from '../lib/habitsLine';
 import { useTodayMapCounts, withMapCount } from '../hooks/useMapCounts';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { format } from 'date-fns';
@@ -266,6 +267,8 @@ export default function Prematch() {
   const today = format(new Date(), 'yyyy-MM-dd');
   const { data: todayMatches } = useApi<{ rows: { win: 0 | 1; map: string; hero: string; crashed?: 0 | 1; player_rank: number | null; player_rank_start: number | null; created_at: string; time: string }[] }>(`/api/matches?from=${today}&to=${today}&limit=100`);
   const { data: streaksData } = useApi<Streaks>('/api/stats/streaks');
+  const { data: habitsData } = useApi<{ rows: HabitRowLite[] }>('/api/stats/habits');
+  const habitLine = holdingHabitLine(habitsData);
   // Map Voting picks survive a page refresh; they clear only when the match is
   // logged or cancelled (matchLoggedSignal, below).
   const [selected, setSelected] = useState<string[]>(() => {
@@ -1054,6 +1057,13 @@ export default function Prematch() {
                   </div>
                 </div>
               </div>
+              {/* Play habits one-liner (S3, 2026-11-08): the action text of a
+                  habits row that holds, nothing otherwise, so no empty line.
+                  Brief history for a quick pick; the analysis stays on the
+                  Dashboard Play habits card. Same /api/stats/habits as that card. */}
+              {habitLine && (
+                <p className="text-xs text-[var(--muted)] leading-snug pt-2" data-inspect-id="prematch-play-habits-line">{habitLine}</p>
+              )}
             </div>
           )}
           </div>

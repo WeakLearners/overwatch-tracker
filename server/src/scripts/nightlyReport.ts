@@ -23,6 +23,7 @@ import {
   describeSweep,
 } from './nightlyAnalysis';
 import { computeAnalysis } from '../routes/aimAnalysis';
+import { computeHabits, describeHabits, type HabitMatch } from '../lib/habits';
 import { abbaStageFor, deriveBlockState, CHUNK_BLOCKS, STAGE_BLOCKS } from '../lib/blind';
 
 // --dry-run prints the assembled report to stdout instead of posting it, so
@@ -254,6 +255,16 @@ export function buildReport(db: DatabaseSync, today: string): string | null {
   // for someone to think of checking it.
   lines.push('*Metric sweep — anything tracking sens?*');
   lines.push(...describeSweep(sweepFindings(computeAnalysis(db))));
+  lines.push('');
+
+  // Play habits — same function as the Dashboard card and the Prematch line
+  // (lib/habits.ts), so the three cannot disagree. One line: the rows that hold,
+  // or "no finding".
+  const habitRows = db.prepare(
+    `SELECT id, date, time, hero, win, queue_mode FROM matches
+     WHERE queue_mode IN ('comp_role', 'comp_open') ORDER BY date, time, id`,
+  ).all() as unknown as HabitMatch[];
+  lines.push(describeHabits(computeHabits(habitRows)));
   lines.push('');
 
   lines.push('*Today in context:*');
