@@ -8,7 +8,10 @@ interface Group {
   rest: { label: string; rate: number; n: number };
 }
 interface Row { id: string; label: string; status: Status; groups: Group[]; action: string | null }
+interface SpreadSide { n: number; perTwenty: number | null; topHero: string | null; topShare: number | null }
 interface Habits {
+  switchExcluded: number;
+  spread: { label: string; window: SpreadSide; baseline: SpreadSide };
   window: { n: number; from: string | null; to: string | null };
   baseline: { n: number; rate: number | null };
   minGroup: number; groupsTested: number; threshold: number; positionExcluded: number;
@@ -43,6 +46,8 @@ export default function PlayHabitsCard() {
       <p className="text-xs text-[var(--faint-2)] mb-3" data-inspect-id="dash-play-habits-note">
         Each group needs {data.minGroup}+ matches. Verdicts are corrected over {data.groupsTested} groups (p under {data.threshold.toFixed(4)}).
         {data.positionExcluded > 0 ? ` ${data.positionExcluded} matches have no real start time and are left out of session position.` : ''}
+        {data.switchExcluded > 0 ? ` ${data.switchExcluded} are left out of switch vs repeat (no real time, or first of a session).` : ''}
+        {' '}Hero experience bins: 0-4, 5-19, 20+ matches on the hero in the prior 30 days.
       </p>
       <div className="divide-y divide-ow-border" data-inspect-id="dash-play-habits-rows">
         {data.rows.map(r => (
@@ -69,6 +74,21 @@ export default function PlayHabitsCard() {
             )}
           </div>
         ))}
+        <div className="py-2" data-inspect-id="dash-play-habits-spread">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-sm font-bold text-[var(--ink)]" data-inspect-id="dash-play-habits-spread-label">{data.spread.label}</span>
+            <span className="text-xs font-bold whitespace-nowrap text-[var(--muted)]" data-inspect-id="dash-play-habits-spread-tag">Descriptive, no test</span>
+          </div>
+          <div className="mt-1 flex flex-wrap gap-x-6 gap-y-1 text-xs text-[var(--faint)]" data-inspect-id="dash-play-habits-spread-values">
+            {([['Window', data.spread.window], ['12-month baseline', data.spread.baseline]] as const).map(([name, side]) => (
+              <span key={name}>
+                {name}:{' '}
+                <b className="text-[var(--ink)]">{side.perTwenty ?? 'n/a'}</b> heroes per 20 matches
+                {side.topHero && <> · top hero {side.topHero} <b className="text-[var(--ink)]">{side.topShare?.toFixed(1)}%</b></>} (n={side.n})
+              </span>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

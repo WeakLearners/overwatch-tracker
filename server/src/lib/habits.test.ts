@@ -4,11 +4,11 @@ import { computeHabits, HABITS_GROUPS, type HabitMatch } from './habits';
 
 let id = 0;
 // One comp match. `min` is minutes after 08:00 on `date`.
-const m = (date: string, min: number, win: number, mode = 'comp_role', time?: string | null): HabitMatch => {
+const m = (date: string, min: number, win: number, mode = 'comp_role', time?: string | null, hero = 'H'): HabitMatch => {
   id += 1;
   const hh = String(8 + Math.floor(min / 60)).padStart(2, '0');
   const mm = String(min % 60).padStart(2, '0');
-  return { id, date, time: time === undefined ? `${date}T${hh}:${mm}:00` : time, win, queue_mode: mode };
+  return { id, date, time: time === undefined ? `${date}T${hh}:${mm}:00` : time, hero, win, queue_mode: mode };
 };
 // n matches on a date, 20 minutes apart (one session), with the given wins.
 const day = (date: string, wins: number[]) => wins.map((w, i) => m(date, i * 20, w));
@@ -23,8 +23,8 @@ describe('computeHabits', () => {
   test('threshold is 0.05 over the groups shown', () => {
     const r = computeHabits(day('2026-06-01', [1, 0, 1]));
     assert.equal(r.groupsTested, HABITS_GROUPS);
-    assert.equal(r.threshold, 0.05 / 6);
-    assert.equal(row(r, 'form100').groups[0].finding.threshold, 0.05 / 6);
+    assert.equal(r.threshold, 0.05 / 10);
+    assert.equal(row(r, 'form100').groups[0].finding.threshold, 0.05 / 10);
   });
 
   test('comp only: quick play is ignored, window is the last 300 comp matches', () => {
@@ -155,5 +155,60 @@ describe('computeHabits', () => {
     const total = row(r, 'position').groups[0].finding.n + row(r, 'position').groups[1].finding.n + row(r, 'position').groups[2].finding.n;
     assert.equal(total, 40);
     assert.equal(row(r, 'dayLoad').groups[0].finding.n + row(r, 'dayLoad').groups[0].rest.n, 130);   // day load keeps them
+  });
+
+  test('switch vs repeat: holds when switching loses; first of a session is excluded', () => {
+    id = 0;
+    // 20 days of 8 matches: heroes alternate A,B each match (all switches, win 10%) on even days,
+    // all A (repeats, win 60%) on odd days.
+    const rows = dates(20).flatMap((d, i) => Array.from({ length: 8 }, (_, k) =>
+      m(d, k * 20, i % 2 ? (k % 5 < 3 ? 1 : 0) : (k === 3 ? 1 : 0), 'comp_role', undefined, i % 2 ? 'A' : (k % 2 ? 'B' : 'A'))));
+    const r = computeHabits(rows);
+    const s = row(r, 'switch');
+    assert.equal(s.groups[0].finding.n, 70);      // 10 even days x 7 (first of session left out)
+    assert.equal(s.groups[0].rest.n, 70);
+    assert.equal(r.switchExcluded, 20);
+    assert.equal(s.status, 'holds');
+    assert.match(s.action ?? '', /Stay on a hero/);
+  });
+
+  test('switch vs repeat: thin with few switches, none at equal rates', () => {
+    id = 0;
+    const thin = computeHabits(dates(5).flatMap(d => day(d, pattern(8, 2))));   // all hero H, no switches
+    assert.equal(row(thin, 'switch').status, 'thin');
+    assert.equal(row(thin, 'switch').action, null);
+  });
+
+  test('hero experience: counts only the same hero in the prior 30 days', () => {
+    id = 0;
+    // Hero X once on day 1, again 31 days later: the first match is not in the 30-day count.
+    const a = m('2026-06-01', 0, 1, 'comp_role', undefined, 'X');
+    const b = m('2026-07-02', 0, 0, 'comp_role', undefined, 'X');
+    const c = m('2026-07-02', 20, 0, 'comp_role', undefined, 'X');
+    const r = computeHabits([a, b, c]);
+    // b has 0 prior (a is 31 days back); c has 1. Both in the 0-4 bin.
+    assert.equal(row(r, 'experience').groups[0].finding.n, 3);
+  });
+
+  test('hero experience: holds when the 20+ bin loses', () => {
+    id = 0;
+    // One hero played 25 per day for 4 days (first 20 of day 1 are 0-4 bin... later matches 20+), plus fresh heroes.
+    const grind = dates(6).flatMap(d => Array.from({ length: 25 }, (_, k) => m(d, k * 3, k % 10 === 0 ? 1 : 0, 'comp_role', undefined, 'G')));
+    const fresh = Array.from({ length: 60 }, (_, k) => m(dates(1, '2026-07-01')[0], k * 3, k % 2 ? 1 : 0, 'comp_role', undefined, `F${k}`));
+    const r = computeHabits([...grind, ...fresh]);
+    const e = row(r, 'experience');
+    assert.equal(e.groups.length, 3);
+    assert.equal(e.status, 'holds');
+    assert.match(e.action ?? '', /prior 30 days/);
+  });
+
+  test('hero spread: descriptive only, distinct heroes per 20', () => {
+    id = 0;
+    const heroes = ['A', 'B', 'C', 'D'];
+    const r = computeHabits(Array.from({ length: 40 }, (_, k) => m('2026-06-01', k, 1, 'comp_role', undefined, heroes[k % 4])));
+    assert.equal(r.spread.window.perTwenty, 4);
+    assert.equal(r.spread.window.topShare, 25);
+    assert.equal(r.spread.baseline.perTwenty, null);
+    assert.ok(!r.rows.some(x => x.id === ('spread' as string)));
   });
 });

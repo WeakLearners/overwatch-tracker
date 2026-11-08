@@ -5502,7 +5502,7 @@
           "kind": "card",
           "description": "Dashboard card under Form & Rank (since 2026-11-08): does recent form, a long day, or a late match in a session move the comp win rate? Last 300 comp matches, verdicts corrected over 6 groups. Data: GET /api/stats/habits (lib/habits.ts).",
           "locate": {
-            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:36",
+            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:39",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-card\"' client/src/components/dashboard/PlayHabitsCard.tsx"
           }
         },
@@ -5512,7 +5512,7 @@
           "kind": "heading",
           "description": "Card title \"Play habits\".",
           "locate": {
-            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:38",
+            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:41",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-title\"' client/src/components/dashboard/PlayHabitsCard.tsx"
           }
         },
@@ -5522,7 +5522,7 @@
           "kind": "text",
           "description": "Right of the title: size and date span of the fixed 300-match comp window.",
           "locate": {
-            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:39",
+            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:42",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-window\"' client/src/components/dashboard/PlayHabitsCard.tsx"
           }
         },
@@ -5532,7 +5532,7 @@
           "kind": "text",
           "description": "Minimum group size, the Bonferroni threshold, and how many matches lack a real start time.",
           "locate": {
-            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:43",
+            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:46",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-note\"' client/src/components/dashboard/PlayHabitsCard.tsx"
           }
         },
@@ -5542,7 +5542,7 @@
           "kind": "list",
           "description": "The four rows: Form last 100, Form last 200, Day load, Session position.",
           "locate": {
-            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:47",
+            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:52",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-rows\"' client/src/components/dashboard/PlayHabitsCard.tsx"
           }
         },
@@ -5552,7 +5552,7 @@
           "kind": "row",
           "description": "One habit row: label, status, group rates with n.",
           "locate": {
-            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:49",
+            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:54",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-row\"' client/src/components/dashboard/PlayHabitsCard.tsx"
           }
         },
@@ -5562,7 +5562,7 @@
           "kind": "text",
           "description": "Row name.",
           "locate": {
-            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:51",
+            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:56",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-row-label\"' client/src/components/dashboard/PlayHabitsCard.tsx"
           }
         },
@@ -5572,7 +5572,7 @@
           "kind": "badge",
           "description": "Holds up / No difference found / Too few games. Same words and colours as the lab verdict chip.",
           "locate": {
-            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:52",
+            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:57",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-row-status\"' client/src/components/dashboard/PlayHabitsCard.tsx"
           }
         },
@@ -5582,7 +5582,7 @@
           "kind": "text",
           "description": "Each compared group: rate, n, the comparison rate and its n. Position has three bins.",
           "locate": {
-            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:56",
+            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:61",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-row-groups\"' client/src/components/dashboard/PlayHabitsCard.tsx"
           }
         },
@@ -5592,7 +5592,7 @@
           "kind": "text",
           "description": "One group with its p-value tooltip; shows \"thin: n of 40\" or \"not reliable\" when they apply.",
           "locate": {
-            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:58",
+            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:63",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-group\"' client/src/components/dashboard/PlayHabitsCard.tsx"
           }
         },
@@ -5602,8 +5602,48 @@
           "kind": "text",
           "description": "Bold advice line. Rendered only on a row that holds.",
           "locate": {
-            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:68",
+            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:73",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-action\"' client/src/components/dashboard/PlayHabitsCard.tsx"
+          }
+        },
+        {
+          "id": "dash-play-habits-spread",
+          "label": "Hero spread row",
+          "kind": "section",
+          "description": "Descriptive row: distinct heroes per 20 matches and top hero share, window vs 12-month baseline. No test, no action line.",
+          "locate": {
+            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:77",
+            "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-spread\"' client/src/components/dashboard/PlayHabitsCard.tsx"
+          }
+        },
+        {
+          "id": "dash-play-habits-spread-label",
+          "label": "Hero spread label",
+          "kind": "text",
+          "description": "Row title.",
+          "locate": {
+            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:79",
+            "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-spread-label\"' client/src/components/dashboard/PlayHabitsCard.tsx"
+          }
+        },
+        {
+          "id": "dash-play-habits-spread-tag",
+          "label": "Descriptive tag",
+          "kind": "text",
+          "description": "Tag Descriptive, no test, in place of a verdict.",
+          "locate": {
+            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:80",
+            "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-spread-tag\"' client/src/components/dashboard/PlayHabitsCard.tsx"
+          }
+        },
+        {
+          "id": "dash-play-habits-spread-values",
+          "label": "Hero spread values",
+          "kind": "text",
+          "description": "Heroes per 20, top hero and its share, with n, for window and baseline.",
+          "locate": {
+            "path": "client/src/components/dashboard/PlayHabitsCard.tsx:82",
+            "grep": "grep -n -F -- 'data-inspect-id=\"dash-play-habits-spread-values\"' client/src/components/dashboard/PlayHabitsCard.tsx"
           }
         },
         {

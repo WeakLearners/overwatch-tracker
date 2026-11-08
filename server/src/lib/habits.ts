@@ -9,9 +9,10 @@
 //   - Window = the last HABITS_WINDOW comp matches, ordered by date, time, id.
 //   - Every group needs HABITS_MIN_GROUP matches, else the row is "thin".
 //   - Verdicts come from makeFinding. Bonferroni runs over the HABITS_GROUPS
-//     groups the card shows (form 100, form 200, day load, three position bins),
-//     counted whether or not a group is thin, so a thin group cannot loosen
-//     the bar for the others.
+//     groups the card shows (form 100, form 200, day load, three position bins,
+//     switch vs repeat, three hero-experience bins = 10), counted whether or
+//     not a group is thin, so a thin group cannot loosen the bar for the others.
+//     S2 (2026-11-08) raised the count from 6 to 10: threshold 0.05/10 = 0.005.
 //   - Order-based rows (session position) use only rows with a real start
 //     time: date 2026-03-01 or later with a time stamp. Before that, same-day
 //     matches share one time stamp and any order is invented.
@@ -24,12 +25,21 @@ export const HABITS_MIN_GROUP = 40;
 export const HABITS_BIG_DAY = 9;
 export const HABITS_SESSION_GAP_MIN = 90;
 export const HABITS_REAL_TIME_FROM = '2026-03-01';
-export const HABITS_GROUPS = 6;
+export const HABITS_GROUPS = 10;
+/** Hero experience: matches on the hero in the prior 30 days. Bins fixed in advance. */
+export const HABITS_EXPERIENCE_DAYS = 30;
+export const HABITS_EXPERIENCE_BINS = [
+  { label: '0-4 in 30 days', lo: 0, hi: 4 },
+  { label: '5-19 in 30 days', lo: 5, hi: 19 },
+  { label: '20+ in 30 days', lo: 20, hi: Infinity },
+] as const;
+export const HABITS_SPREAD_CHUNK = 20;
 
 export interface HabitMatch {
   id: number;
   date: string;          // YYYY-MM-DD
   time: string | null;   // YYYY-MM-DDTHH:MM:SS
+  hero: string;
   win: number;           // 1 or 0
   queue_mode: string | null;
 }
@@ -46,12 +56,19 @@ export interface HabitGroup {
 }
 
 export interface HabitRow {
-  id: 'form100' | 'form200' | 'dayLoad' | 'position';
+  id: 'form100' | 'form200' | 'dayLoad' | 'position' | 'switch' | 'experience';
   label: string;
   status: HabitStatus;
   groups: HabitGroup[];
   /** Shown only when status is "holds". */
   action: string | null;
+}
+
+/** Descriptive only: no test, no verdict, no action line. */
+export interface HeroSpread {
+  label: string;
+  window: { n: number; perTwenty: number | null; topHero: string | null; topShare: number | null };
+  baseline: { n: number; perTwenty: number | null; topHero: string | null; topShare: number | null };
 }
 
 export interface HabitsResult {
@@ -62,6 +79,9 @@ export interface HabitsResult {
   threshold: number;
   /** Window matches left out of the position row for lack of a real start time. */
   positionExcluded: number;
+  /** Matches left out of switch vs repeat: first of a session, or no real start time. */
+  switchExcluded: number;
+  spread: HeroSpread;
   rows: HabitRow[];
 }
 
@@ -173,6 +193,80 @@ export function computeHabits(all: HabitMatch[]): HabitsResult {
   }
   rows.push({ id: 'position', label: 'Session position', status: rowStatus(posGroups), groups: posGroups, action: posAction });
 
+  // Row 4: switch vs repeat. Order-based like position: same real-time rows and
+  // the same 90 minute session rule. A match is "switch" when its hero differs
+  // from the previous comp match in the same session. First of a session has no
+  // previous match and is left out.
+  const heroKind = new Map<number, 'switch' | 'repeat'>();
+  {
+    let prevHero: string | null = null;
+    for (const m of real) {
+      if (pos.get(m.id) === 1) prevHero = null;
+      if (prevHero !== null) heroKind.set(m.id, m.hero === prevHero ? 'repeat' : 'switch');
+      prevHero = m.hero;
+    }
+  }
+  const inSw = win.filter(m => heroKind.has(m.id));
+  {
+    const sw = inSw.filter(m => heroKind.get(m.id) === 'switch');
+    const rep = inSw.filter(m => heroKind.get(m.id) === 'repeat');
+    const g = testGroup('Switched hero', sw, rep, 'same hero as the match before');
+    let action: string | null = null;
+    if (g.status === 'holds') {
+      action = g.finding.rate < g.rest.rate
+        ? `You win ${pct(g.finding.rate)} (n=${g.finding.n}) when you switch heroes against ${pct(g.rest.rate)} (n=${g.rest.n}) when you stay. Stay on a hero.`
+        : `You win ${pct(g.finding.rate)} (n=${g.finding.n}) when you switch heroes against ${pct(g.rest.rate)} (n=${g.rest.n}) when you stay. Switch sooner after a loss streak on one hero.`;
+    }
+    rows.push({ id: 'switch', label: 'Switch vs repeat', status: g.status, groups: [g], action });
+  }
+
+  // Row 5: hero experience. Matches on the same hero in the prior 30 days
+  // (calendar days, earlier in order, counted over all comp rows).
+  const exp = new Map<number, number>();
+  {
+    const byHero = new Map<string, HabitMatch[]>();
+    for (const m of comp) {
+      const list = byHero.get(m.hero) ?? [];
+      const floor = new Date(`${m.date}T00:00:00Z`);
+      floor.setUTCDate(floor.getUTCDate() - HABITS_EXPERIENCE_DAYS);
+      const f = floor.toISOString().slice(0, 10);
+      exp.set(m.id, list.filter(x => x.date >= f).length);
+      list.push(m);
+      byHero.set(m.hero, list);
+    }
+  }
+  {
+    const eg = HABITS_EXPERIENCE_BINS.map(b => {
+      const inBin = win.filter(m => (exp.get(m.id) as number) >= b.lo && (exp.get(m.id) as number) <= b.hi);
+      const outBin = win.filter(m => !inBin.includes(m));
+      return testGroup(b.label, inBin, outBin, 'other bins');
+    });
+    const held = eg.filter(g => g.status === 'holds').sort(byP);
+    const top = held[0];
+    const action = top
+      ? `On heroes with ${top.label.replace(' in 30 days', '')} matches in the prior 30 days you win ${pct(top.finding.rate)} (n=${top.finding.n}) against ${pct(top.rest.rate)} (n=${top.rest.n}) in the other bins.`
+      : null;
+    rows.push({ id: 'experience', label: 'Hero experience', status: rowStatus(eg), groups: eg, action });
+  }
+
+  // Descriptive: hero spread. Distinct heroes per non-overlapping chunk of 20
+  // matches (a short tail is dropped), averaged; plus the share of the top hero.
+  const spreadOf = (ms: HabitMatch[]) => {
+    const chunks: number[] = [];
+    for (let i = 0; i + HABITS_SPREAD_CHUNK <= ms.length; i += HABITS_SPREAD_CHUNK) {
+      chunks.push(new Set(ms.slice(i, i + HABITS_SPREAD_CHUNK).map(x => x.hero)).size);
+    }
+    const counts = new Map<string, number>();
+    for (const x of ms) counts.set(x.hero, (counts.get(x.hero) ?? 0) + 1);
+    const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+    return {
+      n: ms.length,
+      perTwenty: chunks.length ? Math.round((chunks.reduce((a, b) => a + b, 0) / chunks.length) * 10) / 10 : null,
+      topHero: top?.[0] ?? null,
+      topShare: top ? Math.round((top[1] / ms.length) * 1000) / 10 : null,
+    };
+  };
+
   const bRate = baseline.length ? Math.round((sum(baseline) / baseline.length) * 1000) / 10 : null;
   return {
     window: { n: win.length, from: win[0]?.date ?? null, to: win[win.length - 1]?.date ?? null },
@@ -181,6 +275,8 @@ export function computeHabits(all: HabitMatch[]): HabitsResult {
     groupsTested: HABITS_GROUPS,
     threshold: 0.05 / HABITS_GROUPS,
     positionExcluded: win.length - inPos.length,
+    switchExcluded: win.length - inSw.length,
+    spread: { label: 'Hero spread', window: spreadOf(win), baseline: spreadOf(baseline) },
     rows,
   };
 }

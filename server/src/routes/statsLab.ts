@@ -209,11 +209,11 @@ router.get('/scoreboard-trends', withReplica((_req: Request, res: Response, db) 
 
 // GET /api/stats/habits
 // The Play habits card: form against the 12-month baseline, day load, and
-// session position over the last 300 comp matches. Compute and the rules are in
+// session position, switch vs repeat, hero experience and a descriptive hero spread over the last 300 comp matches. Compute and the rules are in
 // lib/habits.ts (a pure function). Read-only, through the lab replica.
 router.get('/habits', withReplica((_req: Request, res: Response, db) => {
   const rows = db.prepare(
-    `SELECT id, date, time, win, queue_mode FROM matches
+    `SELECT id, date, time, hero, win, queue_mode FROM matches
      WHERE queue_mode IN ('comp_role', 'comp_open') ORDER BY date, time, id`,
   ).all() as unknown as HabitMatch[];
   res.json(computeHabits(rows));
