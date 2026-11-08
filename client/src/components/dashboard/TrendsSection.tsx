@@ -3,6 +3,7 @@ import PageHeader from '../PageHeader';
 import TrendsSummary from '../TrendsSummary';
 import ScoreboardTrendsCard from './ScoreboardTrendsCard';
 import SessionWindowCard from './SessionWindowCard';
+import PlayHabitsCard from './PlayHabitsCard';
 
 /** Dashboard's Trends section wrapper. Pure move out of Dashboard.tsx
  * (modularization plan step 3, 2026-09-27) — no props needed, since
@@ -21,6 +22,7 @@ function TrendsSection({ season = '' }: { season?: string }) {
       <TrendsSummary />
       <div className="mt-4"><ScoreboardTrendsCard /></div>
       <div className="mt-4"><SessionWindowCard season={season} /></div>
+      <div id="sec-habits" className="mt-4 scroll-mt-32" data-inspect-id="dash-play-habits-section"><PlayHabitsCard /></div>
     </div>
   );
 }

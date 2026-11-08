@@ -15,7 +15,6 @@ import CareerStrip from '../components/dashboard/CareerStrip';
 import TrendsSection from '../components/dashboard/TrendsSection';
 import ModeComparisonCard from '../components/dashboard/ModeComparisonCard';
 import RecentMatchesCard from '../components/dashboard/RecentMatchesCard';
-import PlayHabitsCard from '../components/dashboard/PlayHabitsCard';
 import HeroFocusCard from '../components/dashboard/HeroFocusCard';
 import { useFieldConfig } from '../contexts/FieldConfigContext';
 import { useMatch } from '../contexts/MatchContext';
@@ -171,9 +170,6 @@ export default function Dashboard() {
           "Mode" still lands on the tiles below it. */}
       <div id="sec-form" className="mb-6 scroll-mt-32"><RecentMatchesCard trends={trends} tilt={tilt} account={account} /></div>
 
-      <div id="sec-hero-focus" className="mb-6 scroll-mt-32" data-inspect-id="dash-hero-focus-section"><HeroFocusCard /></div>
-      <div id="sec-habits" className="mb-6 scroll-mt-32" data-inspect-id="dash-play-habits-section"><PlayHabitsCard /></div>
-
       <div id="sec-mode" className="scroll-mt-32">
         {modeComparison && (
           <div className="reveal mb-6" style={{ '--reveal-delay': '0ms' } as React.CSSProperties}>
@@ -196,6 +192,7 @@ export default function Dashboard() {
             Log sens stats
           </a>
         </PageHeader>
+        <div id="sec-hero-focus" className="mb-4 scroll-mt-32" data-inspect-id="dash-hero-focus-section"><HeroFocusCard /></div>
         <div className="contents" data-inspect-id="dash-prematch-section"><Prematch /></div>
         <div className="contents" data-inspect-id="dash-logmatch-section"><LogMatch /></div>
       </div>
