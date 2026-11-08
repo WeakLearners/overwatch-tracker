@@ -1336,7 +1336,7 @@ export default function LogMatch() {
               <button
                 type="button"
                 onClick={() => document.getElementById('sec-mode')?.scrollIntoView({ behavior: 'smooth' })}
-                className="text-[11px] text-[var(--faint)] hover:text-ow-accent underline underline-offset-2 transition-colors"
+                className="text-xs text-[var(--faint)] hover:text-ow-accent underline underline-offset-2 transition-colors"
                 data-inspect-id="logmatch-mode-change-link"
               >
                 change
