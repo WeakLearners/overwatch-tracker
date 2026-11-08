@@ -1594,9 +1594,9 @@
           "id": "logmatch-scoreboard-light",
           "label": "Scoreboard received light",
           "kind": "container",
-          "description": "Column 3 of the Recording as grid, aligned with the Sensitivity label (moved 2026-10-10); width = column width, never follows the text. Dot and text at its left, longer text scrolls as a marquee (30 px/s, 1.5 s holds, CSS transform; ellipsis under reduced motion). The form fills itself from the group; typed values stay. Shows the pipeline stage from GET /api/scoreboards/live (`stage`, lib/scoreboardStage.ts): idle grey 'No scoreboard waiting'; detected amber 'Reading N screenshots…' (a file is queued or in the vision call); partial sky 'teams, 1 personal read, waiting for Summary'; ready green 'Scoreboard filled (summary, teams, N personal)'; problem red 'Screenshot failed: reason' (newest screenshot in the 45-min window ended as error). Polls every 10 s, every 3 s while detected or partial. A recovery group (the match was already logged) never lights it.",
+          "description": "Column 3 of the Recording as grid, aligned with the Sensitivity label (moved 2026-10-10); width = column width, never follows the text. Dot and a short status text (no scrolling; ellipsis if too narrow; the full text is the hover tooltip, OW-0002). The form fills itself from the group; typed values stay. Shows the pipeline stage from GET /api/scoreboards/live (`stage`, lib/scoreboardStage.ts): idle grey 'Nothing waiting' (or 'N to read'); detected amber 'Reading N…' (a file is queued or in the vision call); partial sky 'Waiting for Summary'; ready green 'Scoreboard filled'; problem red 'Screenshot failed' (the tooltip has the long text and the reason); ' · N skipped' is appended when files are skipped (newest screenshot in the 45-min window ended as error). Polls every 10 s, every 3 s while detected or partial. A recovery group (the match was already logged) never lights it.",
           "locate": {
-            "path": "client/src/components/ScoreboardLight.tsx:68",
+            "path": "client/src/components/ScoreboardLight.tsx:60",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-scoreboard-light\"' client/src/components/ScoreboardLight.tsx"
           }
         },
@@ -1606,7 +1606,7 @@
           "kind": "button",
           "description": "Text button \"Read\" left of the light dot (id kept from the old refresh button). The watcher only counts new screenshots; this calls POST /api/scoreboards/read, which starts the vision reads for every unread image (same order, 20-per-pass cap, retry rules). Disabled with 0 unread, while reading, or at stage detected. The status line shows the unread count.",
           "locate": {
-            "path": "client/src/components/ScoreboardLight.tsx:74",
+            "path": "client/src/components/ScoreboardLight.tsx:66",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-scoreboard-refresh\"' client/src/components/ScoreboardLight.tsx"
           }
         },
@@ -1616,7 +1616,7 @@
           "kind": "button",
           "description": "Text button \"Recheck\" right of Read (OW-0001, 2026-11-05). Calls POST /api/scoreboards/rescan: forgets the watcher's skip lists (unreadable files, failed-read backoff), runs the same top-level scan as the 10 s tick (count only), and returns the fresh /live payload. It never reads, moves or deletes. Works on the dev server too (no timer there). A 409 (read running) or 502 (share unreadable) is shown in an alert. Disabled while checking, reading, or at stage detected. The status line adds 'N skipped (Recheck retries)' from live.skipped.",
           "locate": {
-            "path": "client/src/components/ScoreboardLight.tsx:84",
+            "path": "client/src/components/ScoreboardLight.tsx:76",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-scoreboard-recheck\"' client/src/components/ScoreboardLight.tsx"
           }
         },
@@ -1626,7 +1626,7 @@
           "kind": "indicator",
           "description": "The dot pulses slowly (2.8 s opacity, off under prefers-reduced-motion) while detected or partial. Colour = stage: faint grey idle, amber-500 detected, sky-500 partial, emerald-500 ready, red-500 problem. All colours already used elsewhere in the app.",
           "locate": {
-            "path": "client/src/components/ScoreboardLight.tsx:92",
+            "path": "client/src/components/ScoreboardLight.tsx:84",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-scoreboard-light-dot\"' client/src/components/ScoreboardLight.tsx"
           }
         },
