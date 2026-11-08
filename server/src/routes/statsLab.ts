@@ -12,7 +12,7 @@ import { computeScoreboardTrends } from '../lib/scoreboardTrends';
 import { studyTagFor } from '../lab/studyTags';
 import { withReplica } from '../lab/replicaCache';
 import { makeFinding, type Finding } from '../lib/finding';
-import { computeHabits, type HabitMatch } from '../lib/habits';
+import { computeHabits, loadHabitMatches } from '../lib/habits';
 
 // Lab side of the stats routes (split plan slice 5c). The inferential layer:
 // GET /split (field vs win rate / accuracy) and GET /insights (hot hand,
@@ -212,10 +212,7 @@ router.get('/scoreboard-trends', withReplica((_req: Request, res: Response, db) 
 // session position, switch vs repeat, hero experience and a descriptive hero spread over the last 300 comp matches. Compute and the rules are in
 // lib/habits.ts (a pure function). Read-only, through the lab replica.
 router.get('/habits', withReplica((_req: Request, res: Response, db) => {
-  const rows = db.prepare(
-    `SELECT id, date, time, hero, win, queue_mode FROM matches
-     WHERE queue_mode IN ('comp_role', 'comp_open') ORDER BY date, time, id`,
-  ).all() as unknown as HabitMatch[];
+  const rows = loadHabitMatches(db);
   res.json(computeHabits(rows));
 }));
 

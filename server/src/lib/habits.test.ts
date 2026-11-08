@@ -202,14 +202,37 @@ describe('computeHabits', () => {
     assert.match(e.action ?? '', /prior 30 days/);
   });
 
-  test('hero spread: descriptive only, distinct heroes per 20', () => {
+  test('hero spread: descriptive only, distinct heroes per 60 play minutes', () => {
     id = 0;
     const heroes = ['A', 'B', 'C', 'D'];
-    const r = computeHabits(Array.from({ length: 40 }, (_, k) => m('2026-06-01', k, 1, 'comp_role', undefined, heroes[k % 4])));
-    assert.equal(r.spread.window.perTwenty, 4);
+    // 40 matches of 15 minutes, each on one hero (cycling 4). 4 matches per chunk, 10 chunks.
+    const rows = Array.from({ length: 40 }, (_, k) => {
+      const x = m('2026-06-01', k, 1, 'comp_role', undefined, heroes[k % 4]);
+      x.heroMinutes = { [heroes[k % 4]]: 15 };
+      return x;
+    });
+    const r = computeHabits(rows);
+    assert.equal(r.spread.window.perHour, 4);
+    assert.equal(r.spread.window.chunks, 10);
+    assert.equal(r.spread.window.minutes, 600);
     assert.equal(r.spread.window.topShare, 25);
-    assert.equal(r.spread.baseline.perTwenty, null);
+    assert.equal(r.spread.baseline.perHour, null);
     assert.ok(!r.rows.some(x => x.id === ('spread' as string)));
+  });
+
+  test('hero spread: overflow dropped, no-minutes matches add 0, open tail dropped, <1 minute heroes ignored', () => {
+    id = 0;
+    const mk = (hero: string, hm?: Record<string, number>) => {
+      const x = m('2026-06-01', id, 1, 'comp_role', undefined, hero);
+      x.heroMinutes = hm;
+      return x;
+    };
+    const r = computeHabits([
+      mk('A', { A: 30 }), mk('B', undefined), mk('B', { B: 40, C: 0.5 }), // closes at 70; B counts, C (<1) not: 2 heroes
+      mk('D', { D: 20 }), mk('D', { D: 20 }),                             // 40 only: open tail, dropped; no carry of the 10 overflow
+    ]);
+    assert.equal(r.spread.window.chunks, 1);
+    assert.equal(r.spread.window.perHour, 2);
   });
 });
 

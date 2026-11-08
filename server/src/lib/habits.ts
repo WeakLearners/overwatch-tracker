@@ -18,7 +18,9 @@
 //     matches share one time stamp and any order is invented.
 //   - Session rule (same as the analysis scripts): a gap of more than 90
 //     minutes between two comp matches on `time` starts a new session.
+import type { DatabaseSync } from 'node:sqlite';
 import { makeFinding, type Finding } from './finding';
+import { BLOCK_MINUTES, deriveBlockState } from './blind';
 
 export const HABITS_WINDOW = 300;
 export const HABITS_MIN_GROUP = 40;
@@ -33,7 +35,6 @@ export const HABITS_EXPERIENCE_BINS = [
   { label: '5-19 in 30 days', lo: 5, hi: 19 },
   { label: '20+ in 30 days', lo: 20, hi: Infinity },
 ] as const;
-export const HABITS_SPREAD_CHUNK = 20;
 
 export interface HabitMatch {
   id: number;
@@ -42,6 +43,30 @@ export interface HabitMatch {
   hero: string;
   win: number;           // 1 or 0
   queue_mode: string | null;
+  /** Play minutes per hero from aim_stats_heroes.duration_min. Absent or empty: the match counts 0 minutes. */
+  heroMinutes?: Record<string, number>;
+}
+
+/**
+ * Comp-and-all match rows for computeHabits, with per-hero play minutes joined
+ * from aim_stats_heroes. Shared by the route and the nightly report so they
+ * read the same rows. Read-only.
+ */
+export function loadHabitMatches(db: DatabaseSync): HabitMatch[] {
+  const rows = db.prepare(
+    `SELECT id, date, time, hero, win, queue_mode FROM matches
+     WHERE queue_mode IN ('comp_role', 'comp_open') ORDER BY date, time, id`,
+  ).all() as unknown as HabitMatch[];
+  const mins = db.prepare('SELECT match_id, hero, duration_min FROM aim_stats_heroes WHERE duration_min > 0')
+    .all() as unknown as { match_id: number; hero: string; duration_min: number }[];
+  const byMatch = new Map<number, Record<string, number>>();
+  for (const r of mins) {
+    const o = byMatch.get(r.match_id) ?? {};
+    o[r.hero] = (o[r.hero] ?? 0) + r.duration_min;
+    byMatch.set(r.match_id, o);
+  }
+  for (const m of rows) m.heroMinutes = byMatch.get(m.id);
+  return rows;
 }
 
 export type HabitStatus = 'holds' | 'none' | 'thin';
@@ -64,11 +89,20 @@ export interface HabitRow {
   action: string | null;
 }
 
+export interface SpreadSide {
+  n: number;                 // matches
+  minutes: number;           // play minutes in closed chunks only
+  chunks: number;            // closed 60-minute chunks
+  perHour: number | null;    // mean distinct heroes per closed chunk
+  topHero: string | null;
+  topShare: number | null;
+}
+
 /** Descriptive only: no test, no verdict, no action line. */
 export interface HeroSpread {
   label: string;
-  window: { n: number; perTwenty: number | null; topHero: string | null; topShare: number | null };
-  baseline: { n: number; perTwenty: number | null; topHero: string | null; topShare: number | null };
+  window: SpreadSide;
+  baseline: SpreadSide;
 }
 
 export interface HabitsResult {
@@ -249,19 +283,37 @@ export function computeHabits(all: HabitMatch[]): HabitsResult {
     rows.push({ id: 'experience', label: 'Hero experience', status: rowStatus(eg), groups: eg, action });
   }
 
-  // Descriptive: hero spread. Distinct heroes per non-overlapping chunk of 20
-  // matches (a short tail is dropped), averaged; plus the share of the top hero.
-  const spreadOf = (ms: HabitMatch[]) => {
+  // Descriptive: hero spread. Distinct heroes per closed chunk of BLOCK_MINUTES
+  // (60) comp play minutes, averaged: the same unit as the sens study blocks.
+  // Matches are walked in order, each adding its minutes; the chunk closes the
+  // instant deriveBlockState reports a closed block, and overflow is dropped,
+  // never carried. A match with no Aim Stats row gives 0 minutes and no heroes.
+  // The open tail is dropped. A hero counts when it has >= 1 minute in the chunk.
+  const spreadOf = (ms: HabitMatch[]): SpreadSide => {
     const chunks: number[] = [];
-    for (let i = 0; i + HABITS_SPREAD_CHUNK <= ms.length; i += HABITS_SPREAD_CHUNK) {
-      chunks.push(new Set(ms.slice(i, i + HABITS_SPREAD_CHUNK).map(x => x.hero)).size);
+    let durations: number[] = [];
+    let heroMin = new Map<string, number>();
+    let closedMinutes = 0;
+    for (const x of ms) {
+      const hm = x.heroMinutes ?? {};
+      let total = 0;
+      for (const [h, v] of Object.entries(hm)) { total += v; heroMin.set(h, (heroMin.get(h) ?? 0) + v); }
+      durations.push(total);
+      if (deriveBlockState(durations).closedBlocks > 0) {
+        chunks.push([...heroMin.values()].filter(v => v >= 1).length);
+        closedMinutes += BLOCK_MINUTES;
+        durations = [];
+        heroMin = new Map();
+      }
     }
     const counts = new Map<string, number>();
     for (const x of ms) counts.set(x.hero, (counts.get(x.hero) ?? 0) + 1);
     const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
     return {
       n: ms.length,
-      perTwenty: chunks.length ? Math.round((chunks.reduce((a, b) => a + b, 0) / chunks.length) * 10) / 10 : null,
+      minutes: closedMinutes,
+      chunks: chunks.length,
+      perHour: chunks.length ? Math.round((chunks.reduce((a, b) => a + b, 0) / chunks.length) * 10) / 10 : null,
       topHero: top?.[0] ?? null,
       topShare: top ? Math.round((top[1] / ms.length) * 1000) / 10 : null,
     };

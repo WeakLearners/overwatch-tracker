@@ -8,7 +8,7 @@ interface Group {
   rest: { label: string; rate: number; n: number };
 }
 interface Row { id: string; label: string; status: Status; groups: Group[]; action: string | null }
-interface SpreadSide { n: number; perTwenty: number | null; topHero: string | null; topShare: number | null }
+interface SpreadSide { n: number; minutes: number; chunks: number; perHour: number | null; topHero: string | null; topShare: number | null }
 interface Habits {
   switchExcluded: number;
   spread: { label: string; window: SpreadSide; baseline: SpreadSide };
@@ -83,8 +83,8 @@ export default function PlayHabitsCard() {
             {([['Window', data.spread.window], ['12-month baseline', data.spread.baseline]] as const).map(([name, side]) => (
               <span key={name}>
                 {name}:{' '}
-                <b className="text-[var(--ink)]">{side.perTwenty ?? 'n/a'}</b> heroes per 20 matches
-                {side.topHero && <> · top hero {side.topHero} <b className="text-[var(--ink)]">{side.topShare?.toFixed(1)}%</b></>} (n={side.n})
+                <b className="text-[var(--ink)]">{side.perHour ?? 'n/a'}</b> heroes per 60 play minutes
+                {side.topHero && <> · top hero {side.topHero} <b className="text-[var(--ink)]">{side.topShare?.toFixed(1)}%</b></>} (n={side.n}, {side.chunks} blocks)
               </span>
             ))}
           </div>
