@@ -1200,6 +1200,9 @@ function initSchema(db: DatabaseSync) {
       value TEXT NOT NULL,
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+    -- First start with matches.sens_kind in place. Rows created before this stamp keep
+    -- sens_kind NULL for good (no backfill, even through an edit).
+    INSERT OR IGNORE INTO app_settings (key, value) VALUES ('sens_kind_since', datetime('now'));
   `);
 
     db.exec('COMMIT');

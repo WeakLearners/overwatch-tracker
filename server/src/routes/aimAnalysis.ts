@@ -76,6 +76,8 @@ function groupBy<T>(items: T[], key: (t: T) => string | number): Map<string | nu
 // the Match Tracker sends a sens value on every match regardless of queue
 // mode, so QP games — which never feed the DPI study — would otherwise pad
 // this backlog too.
+// Control-arm matches (sens_kind 'home') have no credit by design but the arm is
+// judged on accuracy, so they are listed too.
 router.get('/pending', withReplica((req: Request, res: Response, db) => {
   const limit = parseInt((req.query.limit as string) ?? '20') || 20;
   const rows = db.prepare(`
@@ -83,7 +85,7 @@ router.get('/pending', withReplica((req: Request, res: Response, db) => {
            m.dpi, m.blind_trial, m.blind_set_id, m.stage_index
     FROM matches m
     LEFT JOIN aim_stats a ON a.match_id = m.id
-    WHERE a.match_id IS NULL AND EXISTS (SELECT 1 FROM blind_credits bc WHERE bc.match_id = m.id)
+    WHERE a.match_id IS NULL AND (EXISTS (SELECT 1 FROM blind_credits bc WHERE bc.match_id = m.id) OR m.sens_kind = 'home')
     ORDER BY m.id DESC
     LIMIT :limit
   `).all({ limit }) as Record<string, unknown>[];
@@ -98,7 +100,7 @@ router.get('/pending', withReplica((req: Request, res: Response, db) => {
     SELECT COUNT(*) AS total
     FROM matches m
     LEFT JOIN aim_stats a ON a.match_id = m.id
-    WHERE a.match_id IS NULL AND EXISTS (SELECT 1 FROM blind_credits bc WHERE bc.match_id = m.id)
+    WHERE a.match_id IS NULL AND (EXISTS (SELECT 1 FROM blind_credits bc WHERE bc.match_id = m.id) OR m.sens_kind = 'home')
   `).get() as { total: number };
   res.json({ rows, total });
 }));

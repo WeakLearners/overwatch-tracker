@@ -704,7 +704,9 @@ export default function LogMatch() {
   // active test set (hero-tagged, else the hero-less ad-hoc one) covering it.
   // Closed or left blank = today's behaviour: the match waits in the backlog.
   const showAimFold = !crashedGame && !!form.hero && !isQP && dfSensForHeroName(form.hero, dfMap) == null
-    && (dpiState?.actives ?? []).some(a => a.hero === form.hero || a.hero === null);
+    && ((dpiState?.actives ?? []).some(a => a.hero === form.hero || a.hero === null)
+      // Control-arm matches (home sens) are judged on accuracy, so their stats are asked for too.
+      || (!!controlArm?.on && controlArm.sens != null));
   const [aimOpen, setAimOpen] = useState(() => readDraft().aimOpen ?? false);
   const [aimStats, setAimStats] = useState<StatFieldsT>(() => (readDraft().aimStats as StatFieldsT | undefined) ?? emptyStats([]));
   // One stat row per hero played, in slot order. Rebuilt when the roster

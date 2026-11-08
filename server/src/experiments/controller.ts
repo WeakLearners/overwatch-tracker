@@ -178,6 +178,13 @@ function syncMatchStageColumns(db: ReturnType<typeof getDb>, matchId: number | s
   `).get({ id: matchId }) as { blind_set_id: number; stage_index: number } | undefined;
   db.prepare('UPDATE matches SET blind_trial = :bt, blind_set_id = :sid, stage_index = :si WHERE id = :id')
     .run({ id: matchId, bt: pick ? 1 : 0, sid: pick?.blind_set_id ?? null, si: pick?.stage_index ?? null });
+  // Keep sens_kind in step with blind_trial, but only for rows created after the
+  // column existed (app_settings 'sens_kind_since'). Older rows stay NULL: an edit
+  // must never act as a backfill. A home row never reaches here (isHomeMatch).
+  db.prepare(`
+    UPDATE matches SET sens_kind = CASE WHEN blind_trial = 1 THEN 'trial' ELSE NULL END
+    WHERE id = :id AND created_at >= COALESCE((SELECT value FROM app_settings WHERE key = 'sens_kind_since'), '9999')
+  `).run({ id: matchId });
 }
 
 // A control-arm match (sens_kind 'home') is never a trial: later edits and the

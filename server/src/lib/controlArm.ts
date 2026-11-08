@@ -1,6 +1,7 @@
 import type { getDb } from '../db/schema';
 import { getSetting, setSetting } from './appSettings';
 import { LOCKED_DPI } from './blind';
+import { NOT_QP_SQL } from './queueMode';
 
 // Comp control arm (play-trial item 2, 2026-11-08). While it is on, a competitive
 // match is played at ONE game-wide home sens for every hero. It saves with
@@ -30,9 +31,9 @@ export function setControlArm(db: Db, input: { on: boolean; sens?: number | null
   return null;
 }
 
-/** Comp matches saved as home sens. Crashed records carry no sens_kind, so they never count. */
+/** Comp matches saved as home sens. A home match later edited to QP stops counting; crashed records never do. */
 export function controlArmCount(db: Db): number {
-  const row = db.prepare(`SELECT COUNT(*) n FROM matches WHERE sens_kind = 'home'`).get() as { n: number };
+  const row = db.prepare(`SELECT COUNT(*) n FROM matches m WHERE m.sens_kind = 'home' AND m.crashed = 0 AND ${NOT_QP_SQL}`).get() as { n: number };
   return Number(row.n);
 }
 

@@ -168,6 +168,10 @@ export default function Prematch() {
   const { rec, recLoading, recError } = useAdvisor();
 
   const { data: dpiHud } = useApi<DpiTestHud>('/api/blind/state');
+  // Comp control arm: while on, comp is played at the one home sens. Every sens readout
+  // below that would show a trial stage sens in comp shows this instead (QP keeps the trial sens).
+  const { data: controlArm } = useApi<{ on: boolean; sens: number | null }>('/api/control-arm', [matchLoggedSignal]);
+  const armSens = controlArm?.on && controlArm.sens != null && queueMode !== 'qp_role' ? controlArm.sens : null;
   // Role timers: three clocks (Tank, DPS, Support), competitive minutes since each role's
   // last reset. matchLoggedSignal is a dep as well as useApi's revalidateAll(), so a logged match always refetches.
   const { data: roleTimers } = useApi<RoleTimersData>('/api/role-timer', [matchLoggedSignal]);
@@ -451,6 +455,7 @@ export default function Prematch() {
   // value here. Sens supersedes DPI post-lock; DPI is the fallback for any
   // pre-lock stage still running on the old axis.
   const testValueFor = (hero: string): string | null => {
+    if (armSens != null) return armSens.toFixed(2);
     const a = btActives.find(a => a.hero === hero);
     if (!a) return null;
     const v = a.sens ?? a.dpi;
@@ -1524,10 +1529,10 @@ export default function Prematch() {
           {/* Header row uses the same mb-2 min-h-8 classes as the sibling
               cards' headers, so the titles line up. */}
           <div className="flex items-center justify-between mb-2 min-h-8 gap-2">
-            <h2 className="text-sm card-title whitespace-nowrap">{bt?.sens != null ? 'Sens Test' : 'DPI Test'}</h2>
+            <h2 className="text-sm card-title whitespace-nowrap">{armSens != null ? 'Home Sens' : bt?.sens != null ? 'Sens Test' : 'DPI Test'}</h2>
             {bt && (
               <span className="text-xs num-display text-[var(--ink)] shrink-0" data-inspect-id="prematch-dpi-value-badge">
-                {bt.sens != null ? `${bt.sens.toFixed(2)} sens` : `${bt.dpi} DPI`}
+                {armSens != null ? `${armSens.toFixed(2)} sens` : bt.sens != null ? `${bt.sens.toFixed(2)} sens` : `${bt.dpi} DPI`}
               </span>
             )}
           </div>
@@ -1541,7 +1546,7 @@ export default function Prematch() {
             >
               {btActives.map(a => (
                 <option key={a.set_id} value={a.hero ?? AD_HOC_KEY}>
-                  {(a.hero ?? 'Ad-hoc').toUpperCase()} — {a.sens != null ? `${a.sens.toFixed(2)} sens` : `${a.dpi} DPI`}
+                  {(a.hero ?? 'Ad-hoc').toUpperCase()} — {armSens != null ? `${armSens.toFixed(2)} sens` : a.sens != null ? `${a.sens.toFixed(2)} sens` : `${a.dpi} DPI`}
                 </option>
               ))}
             </select>

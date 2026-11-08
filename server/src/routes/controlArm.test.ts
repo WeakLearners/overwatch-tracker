@@ -111,5 +111,26 @@ describe('control arm: saving matches', () => {
     assert.equal(m.sens, 3.5);
     assert.equal(m.sens_kind, 'home');
     assert.equal(creditCount(), 0);
+    assert.equal((await h.get('/api/control-arm')).body.n, 0, 'a home match moved to QP no longer counts');
+  });
+
+  test('a home match waits in the Awaiting Stats backlog', async () => {
+    await h.put('/api/control-arm', { on: true, sens: 3.5 });
+    const r = await log({});
+    const p = await h.get('/api/aim/pending');
+    assert.deepEqual(p.body.rows.map((x: any) => x.id), [r.body.id]);
+    assert.equal(p.body.total, 1);
+  });
+
+  test('editing a trial match to QP clears its trial tag; an old row stays NULL', async () => {
+    await makeSet();
+    const t = await log({});
+    assert.equal(row(t.body.id).sens_kind, 'trial');
+    await h.put(`/api/matches/${t.body.id}`, { queue_mode: 'qp_role' });
+    assert.equal(row(t.body.id).sens_kind, null);
+    h.db.prepare(`INSERT INTO matches (date, hero, role, map, game_type, win, blind_trial, created_at) VALUES ('2025-01-01','Ashe','DPS','Ilios','comp',1,1,'2025-01-01 00:00:00')`).run();
+    const oldId = Number((h.db.prepare('SELECT MAX(id) id FROM matches').get() as any).id);
+    await h.put(`/api/matches/${oldId}`, { queue_mode: 'comp_role' });
+    assert.equal(row(oldId).sens_kind, null, 'an edit is not a backfill');
   });
 });

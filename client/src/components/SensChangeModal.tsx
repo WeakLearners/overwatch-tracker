@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { sensChangesNeeded, type SensChange, type SensChangeActive } from '../lib/blind';
+import { sensChangesNeeded, isStudyQueueMode, type SensChange, type SensChangeActive } from '../lib/blind';
 
 // The one "Change sens" pop-up, mounted once in App.tsx. Any page calls
 // checkSensChange() after a mutation that can move a hero's test target sens
@@ -13,7 +13,18 @@ export async function checkSensChange(heroes: string[], queueMode: string | null
   if (list.length === 0 || !show) return;
   try {
     const d = await fetch('/api/blind/state').then(r => r.json()) as { actives?: SensChangeActive[] };
-    const changes = sensChangesNeeded(list, d.actives ?? [], queueMode);
+    // Comp control arm: the target for every hero is the one home sens, not its trial stage.
+    // Only a hero whose last logged sens is known and differs is asked to change.
+    const arm = isStudyQueueMode(queueMode)
+      ? await fetch('/api/control-arm').then(r => r.json()).catch(() => null) as { on: boolean; sens: number | null } | null
+      : null;
+    const actives: SensChangeActive[] = arm?.on && arm.sens != null
+      ? list.flatMap(hero => {
+          const a = (d.actives ?? []).find(x => x.hero === hero);
+          return a?.last_sens != null ? [{ hero, sens: arm.sens as number, last_sens: a.last_sens }] : [];
+        })
+      : d.actives ?? [];
+    const changes = sensChangesNeeded(list, actives, queueMode);
     if (changes.length > 0) show(changes);
   } catch { /* the pop-up is a convenience; a failed read must not break the save */ }
 }
