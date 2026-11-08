@@ -1345,8 +1345,8 @@ export default function LogMatch() {
                 0), and the Match Log does not re-ask it (design-language
                 section 7). This line only says what will be recorded, in that
                 queue's own wash; "change" scrolls back to the tiles. */}
-            <div className="grid grid-cols-3 gap-3 items-center" data-inspect-id="logmatch-mode-toggle">
-              <div className="col-span-2 flex items-center gap-2">
+            <div className="grid grid-cols-3 gap-3 items-start" data-inspect-id="logmatch-mode-toggle">
+              <div className="col-span-2 flex items-center gap-2 h-7">
               <span className="text-xs text-[var(--muted)]">Recording as</span>
               <span
                 style={{ '--sel': QUEUE_MODE_SEL_RGB[queueMode] } as React.CSSProperties}

@@ -2,7 +2,7 @@ import type { LivePayload } from '../lib/scoreboardFill';
 
 // Pipeline light in column 3 of the Recording-as grid, so the dot lines up with the
 // left edge of the Sensitivity label below. Width = column width, never follows the text.
-// A "Read" button sits left of the dot. The watcher only counts new images; Read starts the vision reads (LogMatch).
+// Two lines: dot + status text (full column width), then the Read and Recheck buttons. The watcher only counts new images; Read starts the vision reads (LogMatch).
 // The status text is short and truncates with an ellipsis; the full text is the hover tooltip (OW-0002).
 // The server decides the stage (GET /api/scoreboards/live, lib/scoreboardStage.ts);
 // this only draws it. The dot pulses slowly (.stage-pulse in index.css, off under
@@ -57,7 +57,16 @@ export default function ScoreboardLight({ live, onRead, reading = false, onReche
   const { stage, text } = lightText(live);
   const detail = lightDetail(live);
   return (
-    <div className="flex items-center gap-3 min-w-0 w-full py-1" data-inspect-id="logmatch-scoreboard-light">
+    <div className="flex flex-col gap-1 min-w-0 w-full" data-inspect-id="logmatch-scoreboard-light">
+      <div className="flex items-center gap-2 min-w-0 h-7">
+        <span
+          aria-hidden="true"
+          className={`inline-block w-2 h-2 rounded-full shrink-0 ${DOT[stage]}${stage === 'detected' || stage === 'partial' ? ' stage-pulse' : ''}`}
+          data-inspect-id="logmatch-scoreboard-light-dot"
+        />
+        <span className="flex-1 min-w-0 truncate text-xs text-[var(--muted)]" role="status" title={detail}>{text}</span>
+      </div>
+      <div className="flex items-center gap-2">
       <button
         type="button"
         onClick={onRead}
@@ -78,12 +87,7 @@ export default function ScoreboardLight({ live, onRead, reading = false, onReche
       >
         {rechecking ? 'Checking…' : 'Recheck'}
       </button>
-      <span
-        aria-hidden="true"
-        className={`inline-block w-2 h-2 rounded-full shrink-0 ${DOT[stage]}${stage === 'detected' || stage === 'partial' ? ' stage-pulse' : ''}`}
-        data-inspect-id="logmatch-scoreboard-light-dot"
-      />
-      <span className="flex-1 min-w-0 truncate text-xs text-[var(--faint)]" role="status" title={detail}>{text}</span>
+      </div>
     </div>
   );
 }
