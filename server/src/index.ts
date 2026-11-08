@@ -8,13 +8,15 @@ import express from 'express';
 import cors from 'cors';
 import matchesRouter from './routes/matches';
 import statsRouter from './routes/stats';
-import advisorRouter, { setAdvisorCacheStore } from './routes/advisor';
+import advisorRouter, { setAdvisorCacheStore, setFocusPickProvider } from './routes/advisor';
 import { sqliteAdvisorCache } from './db/advisorCache';
 import { trackerWriteNotifier } from './lib/trackerEvents';
 import { configureReplicaCache } from './lab/replicaCache';
 import aimRouter from './routes/aim';
 import blindRouter from './routes/blind';
 import controlArmRouter from './routes/controlArm';
+import heroFocusRouter from './routes/heroFocus';
+import { advisorFocusPicks } from './lib/heroFocus';
 import customPhasesRouter from './routes/customPhases';
 import ranksRouter from './routes/ranks';
 import configRouter from './routes/config';
@@ -34,6 +36,7 @@ installExperiments();
 
 // Advisor LLM cache lives in the tracker database for now (Stage 2 moves it).
 setAdvisorCacheStore(sqliteAdvisorCache);
+setFocusPickProvider(() => advisorFocusPicks(getDb()));
 
 const app = express();
 // 3001 = production, updated on push (launchd com.overwatch.prod, from ~/Code/overwatch-prod).
@@ -64,6 +67,7 @@ app.use('/api/advisor', advisorRouter);
 app.use('/api/aim', aimRouter);
 app.use('/api/blind', blindRouter);
 app.use('/api/control-arm', controlArmRouter);
+app.use('/api/hero-focus', heroFocusRouter);
 app.use('/api/custom-phases', customPhasesRouter);
 app.use('/api/config', configRouter);
 app.use('/api/df', dfRouter);

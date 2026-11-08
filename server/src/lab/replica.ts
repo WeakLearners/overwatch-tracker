@@ -23,7 +23,9 @@ export const TABLES: Record<string, TableSpec> = {
       // Added 2026-10-30 for the scoreboard trend card (rank ladders are account + role).
       'account',
       // Added 2026-11-08 (play-trial story S4): advisor pick shown at save, and trial/home sens tag.
-      'advisor_hero', 'sens_kind'],
+      'advisor_hero', 'sens_kind',
+      // Added 2026-11-08 (hero focus trial): 1 off-roster, 0 on-roster, NULL no trial running.
+      'off_roster'],
   },
   match_heroes: { pk: ['match_id', 'slot'], cols: ['match_id', 'slot', 'hero', 'role', 'sens', 'feel'] },
   aim_stats: {

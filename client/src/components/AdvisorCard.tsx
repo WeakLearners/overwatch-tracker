@@ -63,6 +63,9 @@ export default function AdvisorCard({ map, queueLabel, rec, loading, error, onRe
                 <b className="font-bold">{Number(rec.primary_stats.win_rate).toFixed(1)}</b>% · <b className="font-bold">{rec.primary_stats.games}</b> games
               </span>
             )}
+            {rec.focus && (
+              <span data-inspect-id="advisorCard-focusBadge" className="text-[10px] text-ow-accent font-bold uppercase tracking-wide" title="Hero focus trial: this block's roster pick">block pick</span>
+            )}
             {rec.stretch && (
               <>
                 <span className="text-[var(--faint-2)]">→</span>

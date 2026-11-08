@@ -456,6 +456,14 @@ function initSchema(db: DatabaseSync) {
     db.exec(`ALTER TABLE matches ADD COLUMN sens_kind TEXT`);
   }
 
+  // off_roster: added 2026-11-08 (hero focus trial). Set by the server at save, only for a
+  // competitive match logged while a hero focus trial is active: 1 = the starting hero was
+  // not on the trial roster (Sean confirmed it), 0 = it was. NULL = no trial was running,
+  // and for every older row. Never backfilled.
+  if (!cols.find(c => c.name === 'off_roster')) {
+    db.exec(`ALTER TABLE matches ADD COLUMN off_roster INTEGER`);
+  }
+
   // score_us / score_them: final round score from the end screen (2026-10-04),
   // typed by hand, integers 0-10. Objective close/stomp signal that does not
   // depend on match_quality. Additive and nullable: every earlier row stays
@@ -1203,6 +1211,36 @@ function initSchema(db: DatabaseSync) {
     -- First start with matches.sens_kind in place. Rows created before this stamp keep
     -- sens_kind NULL for good (no backfill, even through an edit).
     INSERT OR IGNORE INTO app_settings (key, value) VALUES ('sens_kind_since', datetime('now'));
+  `);
+
+  // Hero focus trial (2026-11-08). One row per trial. The roster is chosen by the server at
+  // start (lib/heroFocus.ts) and snapshotted in hero_focus_roster with the numbers that
+  // ranked it; nothing edits it afterwards. anchor_match_id is max(matches.id) at start:
+  // progress is counted by id > anchor, never by date (dates come from the client).
+  // end_match_id, ended_at and end_reason are set only by an early end. New tables.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS hero_focus_trials (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      started_at TEXT NOT NULL DEFAULT (datetime('now')),
+      anchor_match_id INTEGER NOT NULL,
+      target INTEGER NOT NULL,
+      block_size INTEGER NOT NULL,
+      overall_wr REAL,
+      ended_at TEXT,
+      end_match_id INTEGER,
+      end_reason TEXT
+    );
+    CREATE TABLE IF NOT EXISTS hero_focus_roster (
+      trial_id INTEGER NOT NULL REFERENCES hero_focus_trials(id),
+      role TEXT NOT NULL,
+      hero TEXT NOT NULL,
+      rank INTEGER NOT NULL,
+      basis TEXT NOT NULL CHECK(basis IN ('rank','fill')),
+      n INTEGER NOT NULL,
+      win_rate REAL,
+      shrunk_wr REAL,
+      PRIMARY KEY (trial_id, role, hero)
+    );
   `);
 
     db.exec('COMMIT');

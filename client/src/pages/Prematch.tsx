@@ -8,6 +8,7 @@ import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { format } from 'date-fns';
 import { activeMapNames, MAPS, mapShort, heroShort, QUEUE_MODES, ROLE_COLORS, ROLE_SEL_RGB, ROLE_TEXT, ROLE_PILL_CLASS, TYPE_COLORS, HEROES, MODE_COMPACT, OLDEST_DASH_FADE_STYLE, MapVotingRow, QueueMode, Streaks, RANK_TIER_RGB, ACCOUNTS, rankLabel, rankShort, rankTier, rankDivision } from '../types';
 import AdvisorCard from '../components/AdvisorCard';
+import type { HeroFocusState } from '../components/dashboard/HeroFocusCard';
 import EmptyState from '../components/EmptyState';
 import { useMapDrawer } from '../contexts/MapDrawerContext';
 import HeroPortraitBg from '../components/HeroPortraitBg';
@@ -168,6 +169,9 @@ export default function Prematch() {
   const { rec, recLoading, recError } = useAdvisor();
 
   const { data: dpiHud } = useApi<DpiTestHud>('/api/blind/state');
+  // Hero focus trial (server/src/lib/heroFocus.ts): block progress on the advisor card title line.
+  const { data: focusState } = useApi<HeroFocusState>('/api/hero-focus', [matchLoggedSignal]);
+  const focusTrial = focusState?.trial?.status === 'active' ? focusState.trial : null;
   // Comp control arm: while on, comp is played at the one home sens. Every sens readout
   // below that would show a trial stage sens in comp shows this instead (QP keeps the trial sens).
   const { data: controlArm } = useApi<{ on: boolean; sens: number | null }>('/api/control-arm', [matchLoggedSignal]);
@@ -1092,12 +1096,22 @@ export default function Prematch() {
       <div className="grid grid-cols-1 lg:grid-cols-3 lg:h-[208px] items-stretch gap-4 mb-4">
       <div id="consolidated-advisor" className="card lg:col-span-2 min-w-0 lg:flex lg:flex-col" data-inspect-id="prematch-consolidated-advisor-card">
         <div className="flex items-start justify-between gap-3 mb-1">
-          <div>
-            <h2 className="text-sm card-title">
+          <div className="flex items-baseline gap-3 min-w-0">
+            <h2 className="text-sm card-title shrink-0">
               {map ? (
                 <>Your Heroes on <button onClick={() => openMap(map)} className="text-ow-accent hover:text-ow-accent/80 transition-colors" data-inspect-id="prematch-your-heroes-map-link">{withMapCount(map, mapCounts)}</button></>
               ) : 'Your Best Heroes Overall'}
             </h2>
+            {focusTrial && queueMode !== 'qp_role' && (
+              <span
+                className="text-[10px] uppercase tracking-wider text-ow-accent truncate"
+                title="Hero focus trial: the roster pick holds for the whole block"
+                data-inspect-id="prematch-hero-focus-block"
+              >
+                block {focusTrial.block} of {focusTrial.blocks} · match {focusTrial.matchInBlock} of {focusTrial.blockSize}
+                {focusTrial.picks.Tank ? ` · Tank ${focusTrial.picks.Tank}` : ''}
+              </span>
+            )}
           </div>
           <div className="flex flex-col items-end gap-2">
             <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">Advice</span>

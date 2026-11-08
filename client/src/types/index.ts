@@ -146,6 +146,8 @@ export interface Recommendation {
   primary_stats: { games: number; win_rate: number } | null;
   user_map_stats: { games: number; win_rate: number | null };
   cached: boolean;
+  /** true while a hero focus trial runs in comp: `primary` is the block's roster pick. */
+  focus?: boolean;
 }
 
 export interface MapVotingRow {

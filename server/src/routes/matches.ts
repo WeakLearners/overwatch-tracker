@@ -1,3 +1,4 @@
+import { governFor } from '../lib/heroFocus';
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
 import { getCurveParams } from '../lib/curveParams';
@@ -78,7 +79,7 @@ function rejectBadRequest(res: Response, error: string) {
 
 router.post('/', (req: Request, res: Response) => {
   const db = getDb();
-  const { date, time, day_of_week, hour, hero, role, map, game_type, win, queue_mode, sens, feel, team_rating, notes, heroes, curve_enabled, match_deaths, match_quality, result_driver, leaver, leaver_side, player_rank, player_rank_start, lobby_low, lobby_high, placement, account, aim_stats, crashed, score_us, score_them, scoreboard_group_id, advisor_hero } = req.body;
+  const { date, time, day_of_week, hour, hero, role, map, game_type, win, queue_mode, sens, feel, team_rating, notes, heroes, curve_enabled, match_deaths, match_quality, result_driver, leaver, leaver_side, player_rank, player_rank_start, lobby_low, lobby_high, placement, account, aim_stats, crashed, score_us, score_them, scoreboard_group_id, advisor_hero, off_roster } = req.body;
   if (!validScore(score_us) || !validScore(score_them)) { rejectBadRequest(res, 'Score must be blank or a whole number from 0 to 10'); return; }
   if (crashed === true || crashed === 1) { logCrashedMatch(db, req.body, res); return; }
 
@@ -92,6 +93,20 @@ router.post('/', (req: Request, res: Response) => {
     rejectBadRequest(res, 'Missing required fields');
     return;
   }
+
+  // Hero focus trial hold. While a trial is active, a competitive match must start on a roster
+  // hero. An off-roster starting hero is refused unless the client sent the explicit confirm
+  // (off_roster: true); it then saves with off_roster = 1. The server also stamps the block's
+  // pick for that role as advisor_hero, so S4 records what the trial showed, not an old per-match pick.
+  const govern = governFor(db, queue_mode, hero, role);
+  if (govern && !govern.onRoster && off_roster !== true) {
+    res.status(409).json({ error: `${hero} is not on the hero focus roster. Confirm off-roster to save it.`, code: 'off_roster_unconfirmed' });
+    return;
+  }
+  const offRosterVal: number | null = govern ? (govern.onRoster ? 0 : 1) : null;
+  const advisorHeroFinal: string | null = govern
+    ? govern.pick
+    : (typeof advisor_hero === 'string' && advisor_hero.trim() ? advisor_hero.trim() : null);
 
   // Optional aim stats sent with the match (Log Match's "Add aim stats now"
   // fold-out). Validated up front, before anything is written, so bad stats
@@ -199,9 +214,9 @@ router.post('/', (req: Request, res: Response) => {
     const liveLut = finalCurveEnabled ? getCurveParams(db).lutPoints : null;
     const curveLutJson = liveLut ? JSON.stringify(liveLut) : null;
     const result = db.prepare(`
-      INSERT INTO matches (date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, dpi, blind_trial, blind_set_id, stage_index, feel, team_rating, notes, curve_enabled, curve_growth_rate, curve_midpoint, curve_motivity, curve_lut, match_quality, result_driver, leaver, leaver_side, player_rank, player_rank_start, lobby_low, lobby_high, placement, account, score_us, score_them, advisor_hero, sens_kind)
-      VALUES (:date, :time, :day_of_week, :hour, :hero, :role, :map, :game_type, :win, :deaths, :queue_mode, :sens, :dpi, :blind_trial, :blind_set_id, :stage_index, :feel, :team_rating, :notes, :curve_enabled, :curve_growth_rate, :curve_midpoint, :curve_motivity, :curve_lut, :match_quality, :result_driver, :leaver, :leaver_side, :player_rank, :player_rank_start, :lobby_low, :lobby_high, :placement, :account, :score_us, :score_them, :advisor_hero, :sens_kind)
-    `).run({ date, time: time ?? null, day_of_week: day_of_week ?? null, hour: hour ?? null, hero, role, map, game_type, win: win ? 1 : 0, deaths: deathsJson, queue_mode: queue_mode ?? 'comp_role', sens: finalSens, dpi: finalDpi, blind_trial: isStudy, blind_set_id: setId, stage_index: stageIdx, feel: feel ?? null, team_rating: team_rating ?? null, notes: notes?.trim() || null, curve_enabled: finalCurveEnabled ? 1 : 0, curve_growth_rate: null, curve_midpoint: null, curve_motivity: null, curve_lut: curveLutJson, match_quality: match_quality ?? null, result_driver: result_driver ?? null, leaver: leaver ? 1 : 0, leaver_side: finalLeaverSide, player_rank: player_rank ?? null, player_rank_start: player_rank_start ?? null, lobby_low: lobby_low ?? null, lobby_high: lobby_high ?? null, placement: placement ? 1 : null, account: account ?? null, score_us: score_us ?? null, score_them: score_them ?? null, advisor_hero: typeof advisor_hero === 'string' && advisor_hero.trim() ? advisor_hero.trim() : null, sens_kind: sensKind });
+      INSERT INTO matches (date, time, day_of_week, hour, hero, role, map, game_type, win, deaths, queue_mode, sens, dpi, blind_trial, blind_set_id, stage_index, feel, team_rating, notes, curve_enabled, curve_growth_rate, curve_midpoint, curve_motivity, curve_lut, match_quality, result_driver, leaver, leaver_side, player_rank, player_rank_start, lobby_low, lobby_high, placement, account, score_us, score_them, advisor_hero, sens_kind, off_roster)
+      VALUES (:date, :time, :day_of_week, :hour, :hero, :role, :map, :game_type, :win, :deaths, :queue_mode, :sens, :dpi, :blind_trial, :blind_set_id, :stage_index, :feel, :team_rating, :notes, :curve_enabled, :curve_growth_rate, :curve_midpoint, :curve_motivity, :curve_lut, :match_quality, :result_driver, :leaver, :leaver_side, :player_rank, :player_rank_start, :lobby_low, :lobby_high, :placement, :account, :score_us, :score_them, :advisor_hero, :sens_kind, :off_roster)
+    `).run({ date, time: time ?? null, day_of_week: day_of_week ?? null, hour: hour ?? null, hero, role, map, game_type, win: win ? 1 : 0, deaths: deathsJson, queue_mode: queue_mode ?? 'comp_role', sens: finalSens, dpi: finalDpi, blind_trial: isStudy, blind_set_id: setId, stage_index: stageIdx, feel: feel ?? null, team_rating: team_rating ?? null, notes: notes?.trim() || null, curve_enabled: finalCurveEnabled ? 1 : 0, curve_growth_rate: null, curve_midpoint: null, curve_motivity: null, curve_lut: curveLutJson, match_quality: match_quality ?? null, result_driver: result_driver ?? null, leaver: leaver ? 1 : 0, leaver_side: finalLeaverSide, player_rank: player_rank ?? null, player_rank_start: player_rank_start ?? null, lobby_low: lobby_low ?? null, lobby_high: lobby_high ?? null, placement: placement ? 1 : null, account: account ?? null, score_us: score_us ?? null, score_them: score_them ?? null, advisor_hero: advisorHeroFinal, sens_kind: sensKind, off_roster: offRosterVal });
 
     matchId = result.lastInsertRowid as number;
 

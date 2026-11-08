@@ -25,11 +25,13 @@ import matchesRouter from '../routes/matches';
 import aimRouter from '../routes/aim';
 import blindRouter from '../routes/blind';
 import controlArmRouter from '../routes/controlArm';
+import heroFocusRouter from '../routes/heroFocus';
+import { advisorFocusPicks } from '../lib/heroFocus';
 import statsRouter from '../routes/stats';
 import ranksRouter from '../routes/ranks';
 import configRouter from '../routes/config';
 import roleTimerRouter from '../routes/roleTimer';
-import advisorRouter, { setAdvisorCacheStore, type AdvisorCacheStore } from '../routes/advisor';
+import advisorRouter, { setAdvisorCacheStore, setFocusPickProvider, type AdvisorCacheStore } from '../routes/advisor';
 import v1Router from '../routes/v1';
 import rosterRouter from '../routes/roster';
 import customPhasesRouter from '../routes/customPhases';
@@ -87,6 +89,7 @@ export async function startHarness(opts: { experiments?: boolean; freshReads?: b
   app.use('/api/aim', aimRouter);
   app.use('/api/blind', blindRouter);
   app.use('/api/control-arm', controlArmRouter);
+  app.use('/api/hero-focus', heroFocusRouter);
   app.use('/api/stats', statsRouter);
   app.use('/api/config', configRouter);
   app.use('/api/role-timer', roleTimerRouter);
@@ -107,6 +110,7 @@ export async function startHarness(opts: { experiments?: boolean; freshReads?: b
     read: (map, mode) => memory.get(`${map}|${mode}`) ?? null,
     write: (map, mode, _p, _s, focusJson) => { memory.set(`${map}|${mode}`, { focus_json: focusJson, created_at: new Date().toISOString().slice(0, 19).replace('T', ' ') }); },
   });
+  setFocusPickProvider(() => advisorFocusPicks(getDb()));
   const fresh = opts.freshReads !== false;
 
   const call = async <T>(method: string, p: string, body?: unknown): Promise<ApiResponse<T>> => {
@@ -140,6 +144,7 @@ export async function startHarness(opts: { experiments?: boolean; freshReads?: b
       closeDb();
       resetReplicaCache();
       setAdvisorCacheStore(null);
+      setFocusPickProvider(null);
       for (const f of [tmpPath, `${tmpPath}-wal`, `${tmpPath}-shm`]) {
         if (fs.existsSync(f)) fs.unlinkSync(f);
       }

@@ -5,6 +5,7 @@ import { useMatch } from '../contexts/MatchContext';
 import { useDeathBuffer } from '../contexts/DeathBufferContext';
 import { revalidateRec, shownAdvisorPick } from '../contexts/AdvisorContext';
 import EmptyState from '../components/EmptyState';
+import type { HeroFocusState } from '../components/dashboard/HeroFocusCard';
 import RegistryField from '../components/RegistryField';
 import LeaverSliver from '../components/LeaverSliver';
 import { buildRosterEditPayload } from '../lib/matchEditRoster';
@@ -540,6 +541,9 @@ export default function LogMatch() {
   const { deathBuffer, removeDeathFromBuffer, toggleDeathUlt, clearDeathBuffer } = useDeathBuffer();
   const { data: dpiState } = useApi<DpiTestState>('/api/blind/state');
   const { data: controlArm } = useApi<{ on: boolean; sens: number | null }>('/api/control-arm');
+  // Hero focus trial (server/src/lib/heroFocus.ts): while active, a comp match starts on a roster hero
+  // or needs the explicit off-roster confirm below. The server enforces the same rule.
+  const { data: focusState } = useApi<HeroFocusState>('/api/hero-focus');
   const { isFieldEnabled, fields } = useFieldConfig();
   const registryField = (id: string) => fields.find(f => f.id === id);
   const { data: blindSets } = useApi<{ sets: BlindSetSummary[] }>('/api/blind/sets');
@@ -693,6 +697,14 @@ export default function LogMatch() {
     const otherPicks = new Set([form.hero, switchHeroes[i === 0 ? 1 : 0]].filter((h): h is string => !!h));
     return HERO_TEST_LIST.filter(([h]) => !otherPicks.has(h));
   };
+  const focusTrial = focusState?.trial?.status === 'active' ? focusState.trial : null;
+  const focusHold = !!focusTrial && !isQP;
+  const rosterHeroes = new Set((focusTrial?.roster ?? []).map(r => r.hero));
+  // Roster heroes are offered even when no sens test covers them; the rest are off-roster.
+  const rosterList = focusHold ? HERO_LIST.filter(([h, r]) => rosterHeroes.has(h) && (r === testRole || queueMode === 'comp_open')) : [];
+  const offRosterPicked = focusHold && !!form.hero && !crashedGame && !rosterHeroes.has(form.hero);
+  const [offRosterOk, setOffRosterOk] = useState(false);
+  useEffect(() => { setOffRosterOk(false); }, [form.hero]);
   const displaySens = activeSetSens ?? (parseFloat(sens) > 0 ? parseFloat(sens) : null);
   // Every hero actually played this match, in slot order, deduped (picking
   // the same hero twice in the switch dropdowns shouldn't double its slider).
@@ -1035,7 +1047,7 @@ export default function LogMatch() {
   // A crashed match needs no hero, sens, feel or stats: just the result, the map and the rank answer.
   const valid = crashedGame
     ? !!(map && form.win !== '' && form.date && rankAnswered)
-    : form.hero && map && form.win !== '' && form.date && displaySens != null && rankAnswered && feelsAnswered && !aimIncomplete;
+    : form.hero && map && form.win !== '' && form.date && displaySens != null && rankAnswered && feelsAnswered && !aimIncomplete && (!offRosterPicked || offRosterOk);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -1093,6 +1105,8 @@ export default function LogMatch() {
           queue_mode: queueMode,
           // The advisor pick on screen when the match is saved. Null when none was shown.
           advisor_hero: shownAdvisorPick(heroRole, map, queueMode),
+          // Explicit confirm for an off-roster comp hero during a hero focus trial.
+          ...(offRosterPicked && offRosterOk ? { off_roster: true } : {}),
           sens: displaySens,
           feel: feelValueFor(form.hero),
           team_rating: teamRating,
@@ -1417,19 +1431,37 @@ export default function LogMatch() {
                     className={`w-full field px-2 py-2 text-sm${ringFor(form.hero)}`}
                   >
                     <option value="">— 1st hero —</option>
-                    {(['DPS', 'Tank', 'Support'] as const).map(role => (
-                      <optgroup key={role} label={role}>
-                        {HERO_TEST_LIST.filter(([, r]) => r === role).map(([h]) => {
+                    {focusHold && (
+                      <optgroup label="Hero focus roster">
+                        {rosterList.map(([h]) => {
                           const heroSens = displaySensForHero(h);
                           return (
                             <option key={h} value={h} className="uppercase">
-                              {withDfBadge(withHeroCount(h, heroCounts), dfMap, h)}{heroSens != null && ` @ ${heroSens.toFixed(2)}`}
+                              {withHeroCount(h, heroCounts)}{heroSens != null && ` @ ${heroSens.toFixed(2)}`}
+                            </option>
+                          );
+                        })}
+                      </optgroup>
+                    )}
+                    {(['DPS', 'Tank', 'Support'] as const).map(role => (
+                      <optgroup key={role} label={focusHold ? `${role} · off-roster` : role}>
+                        {HERO_TEST_LIST.filter(([h, r]) => r === role && !(focusHold && rosterHeroes.has(h))).map(([h]) => {
+                          const heroSens = displaySensForHero(h);
+                          return (
+                            <option key={h} value={h} className="uppercase" style={focusHold ? { color: 'var(--faint-2)' } : undefined}>
+                              {withDfBadge(withHeroCount(h, heroCounts), dfMap, h)}{heroSens != null && ` @ ${heroSens.toFixed(2)}`}{focusHold && ' (off-roster)'}
                             </option>
                           );
                         })}
                       </optgroup>
                     ))}
                   </select>
+                  {offRosterPicked && (
+                    <label className="flex items-center gap-1.5 mt-1.5 text-[11px] text-amber-500 cursor-pointer" data-inspect-id="logmatch-off-roster-confirm">
+                      <input type="checkbox" checked={offRosterOk} onChange={e => setOffRosterOk(e.target.checked)} />
+                      Off-roster hero. Tick to confirm and count it on the trial card.
+                    </label>
+                  )}
                   {heroRole && <span data-inspect-id="logmatch-hero-role-badge" className={`pill mt-1.5 ${ROLE_COLORS[heroRole]}`}>{heroRole}</span>}
                 </div>
                 {([0, 1] as const).map(i => {

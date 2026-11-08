@@ -22,6 +22,13 @@ function cacheStore(): AdvisorCacheStore {
   return store;
 }
 
+// Hero focus trial seam (2026-11-08). While a trial is active the tracker owns the roster and the
+// block picks; the advisor only shows them. index.ts injects the provider, so this file imports
+// nothing tracker-side. null = no trial, the normal LLM flow runs.
+export type FocusPickProvider = () => Partial<Record<'DPS' | 'Support', string>> | null;
+let focusProvider: FocusPickProvider | null = null;
+export function setFocusPickProvider(p: FocusPickProvider | null): void { focusProvider = p; }
+
 const router = Router();
 
 const CACHE_TTL_DAYS = 7;
@@ -229,6 +236,29 @@ router.get('/recommend', withReplica(async (req: Request, res: Response, db) => 
 
   const inTesting = getInTestingHeroes(db);
   const mapCtx = getMapContext(db, map);
+
+  // Hero focus trial: in comp each role's card shows the block's roster pick, whether or not that
+  // hero has an active sens test. No model call and no cache. The pick is the card's main hero
+  // (flagged focus: true), with its own comp record.
+  const focus = mode !== 'qp_role' ? focusProvider?.() ?? null : null;
+  if (focus) {
+    const statsFor = db.prepare(`
+      SELECT COUNT(*) games, ROUND(AVG(win)*100, 1) win_rate FROM matches
+      WHERE crashed = 0 AND hero = ? AND queue_mode IN ('comp_role', 'comp_open')
+    `);
+    res.json(Object.fromEntries(ADVISOR_ROLES.map(role => {
+      const pick = focus[role];
+      if (!pick) return [role, null];
+      const st = statsFor.get(pick) as unknown as { games: number; win_rate: number | null };
+      return [role, {
+        primary: pick, stretch: null, stretch_untested: false, focus: true,
+        primary_stats: st.games ? { games: st.games, win_rate: st.win_rate } : null,
+        user_map_stats: { games: mapCtx.games, win_rate: mapCtx.win_rate },
+        cached: false,
+      }];
+    })));
+    return;
+  }
 
   // Independent primary pick per role — Coaching always shows a DPS column and
   // a Support column side by side, so this is computed for both regardless of

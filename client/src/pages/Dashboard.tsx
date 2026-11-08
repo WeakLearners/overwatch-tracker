@@ -16,6 +16,7 @@ import TrendsSection from '../components/dashboard/TrendsSection';
 import ModeComparisonCard from '../components/dashboard/ModeComparisonCard';
 import RecentMatchesCard from '../components/dashboard/RecentMatchesCard';
 import PlayHabitsCard from '../components/dashboard/PlayHabitsCard';
+import HeroFocusCard from '../components/dashboard/HeroFocusCard';
 import { useFieldConfig } from '../contexts/FieldConfigContext';
 import { useMatch } from '../contexts/MatchContext';
 import { sectionFor, SECTION_PATHS } from '../lib/dashSections';
@@ -170,6 +171,7 @@ export default function Dashboard() {
           "Mode" still lands on the tiles below it. */}
       <div id="sec-form" className="mb-6 scroll-mt-32"><RecentMatchesCard trends={trends} tilt={tilt} account={account} /></div>
 
+      <div id="sec-hero-focus" className="mb-6 scroll-mt-32" data-inspect-id="dash-hero-focus-section"><HeroFocusCard /></div>
       <div id="sec-habits" className="mb-6 scroll-mt-32" data-inspect-id="dash-play-habits-section"><PlayHabitsCard /></div>
 
       <div id="sec-mode" className="scroll-mt-32">
