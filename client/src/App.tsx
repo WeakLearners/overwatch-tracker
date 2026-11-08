@@ -21,6 +21,7 @@ import SensChangeModal from './components/SensChangeModal';
 import DemoBanner from './demo/DemoBanner';
 import { DASHBOARD_PATHS } from './lib/dashSections';
 import FirstRunPreset from './components/FirstRunPreset';
+import ControlArmChip from './components/ControlArmChip';
 
 // The static demo has no server to rewrite deep links, so it routes on the hash.
 const Router = import.meta.env.VITE_DEMO === '1' ? HashRouter : BrowserRouter;
@@ -93,6 +94,7 @@ export default function App() {
                 </div>
               </div>
             </Link>
+            <ControlArmChip />
             <HeaderTools />
           </div>
         </header>

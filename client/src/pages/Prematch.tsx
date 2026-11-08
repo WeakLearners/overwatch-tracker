@@ -1170,9 +1170,9 @@ export default function Prematch() {
                         </div>
                       </div>
                       <div className="mt-2 pt-2 border-t border-ow-border/40 flex items-center justify-between" data-inspect-id={`prematch-recommended-sens-${role.toLowerCase()}`}>
-                        <span className="text-[10px] text-[var(--muted)] uppercase tracking-wider">In-game sens</span>
+                        <span className="text-[10px] text-[var(--muted)] uppercase tracking-wider">{armSens != null ? 'home sens (baseline)' : 'In-game sens'}</span>
                         <span className="text-sm num-display font-bold text-[var(--ink)]">
-                          {sensRecFor(rec.hero) != null ? sensRecFor(rec.hero)!.toFixed(2) : 'No data yet'}
+                          {armSens != null ? armSens.toFixed(2) : sensRecFor(rec.hero) != null ? sensRecFor(rec.hero)!.toFixed(2) : 'No data yet'}
                         </span>
                       </div>
                     </>
@@ -1432,7 +1432,9 @@ export default function Prematch() {
                               ref={litSens?.ref}
                               style={litSens?.style}
                               className={litSens ? litSens.cls : sensTag.settled ? 'text-emerald-700 dark:text-emerald-400' : undefined}
-                              title={sensTag.settled
+                              title={armSens != null
+                                ? 'home sens (baseline)'
+                                : sensTag.settled
                                 ? 'Best sens this hero’s own testing landed on'
                                 : 'Sens this test is running at'}
                               data-inspect-id="prematch-hero-picker-sens-tag"

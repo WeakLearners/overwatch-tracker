@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useApi, revalidateAll } from '../hooks/useApi';
 
 interface ControlArm { on: boolean; sens: number | null; dpi: number; minutes: number; waiting: number; target: number }
 
-// Comp control arm (Sens page). While on, comp matches are played and saved at one
+// Home-sens baseline, code name comp control arm (Sens page). While on, comp matches are played and saved at one
 // home sens and count toward 1620 comp play minutes; the blind trial moves to QP. Rules live in
 // server/src/lib/controlArm.ts.
 export default function ControlArmCard() {
@@ -11,6 +12,9 @@ export default function ControlArmCard() {
   const [sens, setSens] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // The header chip links to /sens#home-sens-baseline; the card mounts after its fetch, so scroll once data is in.
+  const { hash } = useLocation();
+  useEffect(() => { if (data && hash === '#home-sens-baseline') document.getElementById('home-sens-baseline')?.scrollIntoView({ block: 'start' }); }, [data !== null, hash]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (data?.sens != null) setSens(String(data.sens)); }, [data?.sens]);
 
   async function save(on: boolean) {
@@ -37,9 +41,9 @@ export default function ControlArmCard() {
   if (!data) return null;
   const pct = Math.min(100, Math.round((data.minutes / data.target) * 100));
   return (
-    <div className="card mb-6" data-inspect-id="sl-control-arm-card">
+    <div id="home-sens-baseline" className="card mb-6 scroll-mt-20" data-inspect-id="sl-control-arm-card">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-3">
-        <h2 className="text-sm card-title shrink-0">Comp control arm</h2>
+        <h2 className="text-sm card-title shrink-0">Home-sens baseline</h2>
         <p className="text-xs text-[var(--faint)] min-w-0">
           While on, comp matches are played and saved at one home sens for every hero and do not count as trials. Sens trials run in Quick Play only.
         </p>
