@@ -665,7 +665,7 @@
           "id": "prematch-hero-focus-block",
           "label": "Hero focus block strip",
           "kind": "text",
-          "description": "Title-line text on the advisor card: block k of 10, match m of 20 and the Tank pick, while a hero focus trial runs in comp.",
+          "description": "Title-line text on the advisor card: trial minutes (of 2160) and the Tank pick with its block minutes (of 60), while a hero focus trial runs in comp.",
           "locate": {
             "path": "client/src/pages/Prematch.tsx:1109",
             "grep": "grep -n -F -- 'data-inspect-id=\"prematch-hero-focus-block\"' client/src/pages/Prematch.tsx"
@@ -2658,7 +2658,7 @@
           "id": "sl-control-arm-card",
           "label": "Comp control arm card",
           "kind": "card",
-          "description": "Sens page card: comp control arm on/off, home sens, and progress n of 150 comp matches.",
+          "description": "Sens page card: comp control arm on/off, home sens, and progress in comp play minutes (of 1620).",
           "locate": {
             "path": "client/src/components/ControlArmCard.tsx:40",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-control-arm-card\"' client/src/components/ControlArmCard.tsx"
@@ -2698,7 +2698,7 @@
           "id": "sl-control-arm-progress",
           "label": "Control arm progress",
           "kind": "display",
-          "description": "Shows n of 150 comp matches saved as home sens, with a bar.",
+          "description": "Shows comp play minutes saved as home sens (of 1620) and matches waiting for Aim Stats, with a bar.",
           "locate": {
             "path": "client/src/components/ControlArmCard.tsx:72",
             "grep": "grep -n -F -- 'data-inspect-id=\"sl-control-arm-progress\"' client/src/components/ControlArmCard.tsx"
@@ -5620,7 +5620,7 @@
           "id": "dash-hero-focus-progress",
           "label": "Hero focus progress row",
           "kind": "display",
-          "description": "n of 200 comp matches, block and match counters, off-roster count and a progress bar.",
+          "description": "Comp play minutes (of 2160), per-role block minutes (of 60), off-roster match count, matches waiting for Aim Stats and a progress bar.",
           "locate": {
             "path": "client/src/components/dashboard/HeroFocusCard.tsx:60",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-hero-focus-progress\"' client/src/components/dashboard/HeroFocusCard.tsx"

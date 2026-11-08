@@ -1105,11 +1105,11 @@ export default function Prematch() {
             {focusTrial && queueMode !== 'qp_role' && (
               <span
                 className="text-[10px] uppercase tracking-wider text-ow-accent truncate"
-                title="Hero focus trial: the roster pick holds for the whole block"
+                title="Hero focus trial: the roster pick holds for the whole 60-minute block"
                 data-inspect-id="prematch-hero-focus-block"
               >
-                block {focusTrial.block} of {focusTrial.blocks} · match {focusTrial.matchInBlock} of {focusTrial.blockSize}
-                {focusTrial.picks.Tank ? ` · Tank ${focusTrial.picks.Tank}` : ''}
+                {focusTrial.minutes} of {focusTrial.target} min
+                {focusTrial.picks.Tank ? ` · Tank ${focusTrial.picks.Tank} (${focusTrial.roles.Tank.openMinutes} of ${focusTrial.blockMinutes} min)` : ''}
               </span>
             )}
           </div>

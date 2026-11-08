@@ -95,7 +95,8 @@ describe('off-roster hold', () => {
     assert.equal(row(ok.body.id).off_roster, 1);
     const st = (await h.get('/api/hero-focus')).body.trial;
     assert.equal(st.offRoster, 1);
-    assert.equal(st.n, 2);
+    assert.equal(st.waiting, 2);
+    assert.equal(st.minutes, 0);
   });
 
   test('QP is never limited and never flagged', async () => {
@@ -104,7 +105,7 @@ describe('off-roster hold', () => {
     const r = await log({ hero: 'Sojourn', queue_mode: 'qp_role' });
     assert.equal(r.status, 200);
     assert.equal(row(r.body.id).off_roster, null);
-    assert.equal((await h.get('/api/hero-focus')).body.trial.n, 0);
+    assert.equal((await h.get('/api/hero-focus')).body.trial.minutes, 0);
   });
 
   test('the saved advisor_hero is the block pick for the hero role, not the client value', async () => {
@@ -116,26 +117,46 @@ describe('off-roster hold', () => {
   });
 });
 
-describe('blocks', () => {
-  test('the pick holds for 20 comp matches and changes at match 21', async () => {
+// Minutes arrive with the Aim Stats form: one aim_stats_heroes row per hero played.
+function playMatch(hero: string, role: string, minutes: number | null, withAim = true) {
+  const id = Number(h.db.prepare(`INSERT INTO matches (date, hero, role, map, game_type, win, queue_mode, crashed) VALUES (?, ?, ?, 'Ilios', 'comp', 1, 'comp_role', 0)`).run(today, hero, role).lastInsertRowid);
+  if (withAim) h.db.prepare('INSERT INTO aim_stats_heroes (match_id, hero, duration_min) VALUES (?, ?, ?)').run(id, hero, minutes);
+  return id;
+}
+
+describe('blocks (play minutes)', () => {
+  test('a block is 60 role-hero minutes: the pick holds, overflow is dropped, the pick flips at close', async () => {
     seedHistory();
     const s = await h.post('/api/hero-focus/start', {});
-    const first = s.body.trial.picks.DPS;
-    const other = s.body.trial.roster.filter((x: any) => x.role === 'DPS' && x.hero !== first)[0].hero;
-    assert.equal(s.body.trial.block, 1);
-    assert.equal(s.body.trial.matchInBlock, 1);
-    for (let i = 0; i < 20; i++) {
-      const st = (await h.get('/api/hero-focus')).body.trial;
-      assert.equal(st.picks.DPS, first, `match ${i + 1} keeps the block 1 pick`);
-      assert.equal(st.block, 1);
-      assert.equal(st.matchInBlock, i + 1);
-      assert.equal((await log({ hero: 'Ashe' })).status, 200);
-    }
-    const st = (await h.get('/api/hero-focus')).body.trial;
-    assert.equal(st.n, 20);
-    assert.equal(st.block, 2);
-    assert.equal(st.matchInBlock, 1);
-    assert.equal(st.picks.DPS, other);
+    const t0 = s.body.trial;
+    const first = t0.picks.DPS;
+    const other = t0.roster.filter((x: any) => x.role === 'DPS' && x.hero !== first)[0].hero;
+    assert.equal(t0.target, 2160);
+    assert.equal(t0.blockMinutes, 60);
+    assert.equal(t0.blocks, 36);
+    playMatch('Ashe', 'DPS', 50);
+    let t = (await h.get('/api/hero-focus')).body.trial;
+    assert.equal(t.picks.DPS, first);
+    assert.equal(t.roles.DPS.openMinutes, 50);
+    assert.equal(t.minutes, 50);
+    playMatch('Ashe', 'DPS', 25);              // 75 -> closes block 1, 15 overflow dropped
+    t = (await h.get('/api/hero-focus')).body.trial;
+    assert.equal(t.roles.DPS.closedBlocks, 1);
+    assert.equal(t.roles.DPS.openMinutes, 0);
+    assert.equal(t.picks.DPS, other);
+    assert.equal(t.roles.Tank.block, 1, 'another role has its own clock');
+    assert.equal(t.minutes, 75, 'the trial total counts every minute, overflow included');
+  });
+
+  test('off-roster minutes count toward the total but not toward a role block; a match with no aim row waits', async () => {
+    seedHistory();
+    await h.post('/api/hero-focus/start', {});
+    playMatch('Sojourn', 'DPS', 40);           // off roster
+    playMatch('Ashe', 'DPS', 0, false);        // no Aim Stats yet
+    const t = (await h.get('/api/hero-focus')).body.trial;
+    assert.equal(t.minutes, 40);
+    assert.equal(t.roles.DPS.openMinutes, 0);
+    assert.equal(t.waiting, 1);
   });
 
   test('the advisor shows the block picks in comp and makes no model call', async () => {
@@ -150,17 +171,13 @@ describe('blocks', () => {
     assert.notEqual(qp.body.DPS?.focus, true, 'QP keeps the normal advisor');
   });
 
-  test('the trial completes at 200 and releases the hold', async () => {
+  test('the trial completes at 2160 minutes and releases the hold', async () => {
     seedHistory();
     await h.post('/api/hero-focus/start', {});
-    const anchor = Number((h.db.prepare('SELECT MAX(id) id FROM matches').get() as any).id);
-    const ins = h.db.prepare(`INSERT INTO matches (date, hero, role, map, game_type, win, queue_mode, crashed) VALUES (?, 'Ashe', 'DPS', 'Ilios', 'comp', 1, 'comp_role', 0)`);
-    for (let i = 0; i < 200; i++) ins.run(today);
-    void anchor;
+    for (let i = 0; i < 36; i++) playMatch('Ashe', 'DPS', 60);
     const st = (await h.get('/api/hero-focus')).body.trial;
     assert.equal(st.status, 'complete');
-    assert.equal(st.n, 200);
-    assert.equal(st.block, 10);
+    assert.equal(st.minutes, 2160);
     assert.equal((await log({ hero: 'Sojourn' })).status, 200);
   });
 });

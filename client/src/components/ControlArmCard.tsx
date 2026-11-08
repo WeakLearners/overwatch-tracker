@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useApi, revalidateAll } from '../hooks/useApi';
 
-interface ControlArm { on: boolean; sens: number | null; dpi: number; n: number; target: number }
+interface ControlArm { on: boolean; sens: number | null; dpi: number; minutes: number; waiting: number; target: number }
 
 // Comp control arm (Sens page). While on, comp matches are played and saved at one
-// home sens and count toward "n of 150"; the blind trial moves to QP. Rules live in
+// home sens and count toward 1620 comp play minutes; the blind trial moves to QP. Rules live in
 // server/src/lib/controlArm.ts.
 export default function ControlArmCard() {
   const { data, refetch } = useApi<ControlArm>('/api/control-arm');
@@ -35,7 +35,7 @@ export default function ControlArmCard() {
   }
 
   if (!data) return null;
-  const pct = Math.min(100, Math.round((data.n / data.target) * 100));
+  const pct = Math.min(100, Math.round((data.minutes / data.target) * 100));
   return (
     <div className="card mb-6" data-inspect-id="sl-control-arm-card">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-3">
@@ -70,7 +70,7 @@ export default function ControlArmCard() {
           </button>
         )}
         <div className="flex items-center gap-2 flex-1 min-w-[12rem]" data-inspect-id="sl-control-arm-progress">
-          <span className="text-xs num-display whitespace-nowrap"><b className="font-bold">{data.n}</b> of {data.target} comp matches</span>
+          <span className="text-xs num-display whitespace-nowrap"><b className="font-bold">{data.minutes}</b> of {data.target} comp min{data.waiting > 0 ? ` (${data.waiting} match${data.waiting === 1 ? '' : 'es'} waiting for Aim Stats, not counted)` : ''}</span>
           <div className="h-1.5 flex-1 rounded-full bg-ow-border/40 overflow-hidden" aria-hidden="true">
             <div className="h-full bg-ow-accent" style={{ width: `${pct}%` }} />
           </div>

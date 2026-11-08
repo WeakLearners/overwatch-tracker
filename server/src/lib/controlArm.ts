@@ -10,7 +10,11 @@ import { NOT_QP_SQL } from './queueMode';
 // never earn a credit (lib/queueMode.ts). Off restores the normal behaviour.
 type Db = ReturnType<typeof getDb>;
 
-export const CONTROL_ARM_TARGET = 150;
+// Play minutes, same unit as the sens study (Sean 2026-11-08). 1620 min is about 150 matches at
+// 10.8 min, so the power estimate is unchanged. Minutes come from aim_stats_heroes.duration_min
+// (every hero row of the match, NULL = 0); a match with no aim stats row counts 0 until the Aim
+// Stats form is saved.
+export const CONTROL_ARM_TARGET = 1620;
 const KEY_ON = 'control_arm_on';
 const KEY_SENS = 'control_arm_sens';
 
@@ -31,13 +35,18 @@ export function setControlArm(db: Db, input: { on: boolean; sens?: number | null
   return null;
 }
 
-/** Comp matches saved as home sens. A home match later edited to QP stops counting; crashed records never do. */
-export function controlArmCount(db: Db): number {
-  const row = db.prepare(`SELECT COUNT(*) n FROM matches m WHERE m.sens_kind = 'home' AND m.crashed = 0 AND ${NOT_QP_SQL}`).get() as { n: number };
-  return Number(row.n);
+/** Comp play minutes saved as home sens, plus the matches still waiting for Aim Stats. A home match later edited to QP stops counting; crashed records never do. */
+export function controlArmProgress(db: Db): { minutes: number; waiting: number } {
+  const row = db.prepare(`
+    SELECT COALESCE(SUM((SELECT SUM(COALESCE(ah.duration_min, 0)) FROM aim_stats_heroes ah WHERE ah.match_id = m.id)), 0) AS minutes,
+           COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM aim_stats_heroes x WHERE x.match_id = m.id) THEN 1 ELSE 0 END), 0) AS waiting
+    FROM matches m WHERE m.sens_kind = 'home' AND m.crashed = 0 AND ${NOT_QP_SQL}
+  `).get() as { minutes: number; waiting: number };
+  return { minutes: Math.round(Number(row.minutes) * 10) / 10, waiting: Number(row.waiting) };
 }
 
 export function controlArmState(db: Db) {
   const arm = getControlArm(db);
-  return { ...arm, n: controlArmCount(db), target: CONTROL_ARM_TARGET };
+  const { minutes, waiting } = controlArmProgress(db);
+  return { ...arm, minutes, waiting, target: CONTROL_ARM_TARGET };
 }

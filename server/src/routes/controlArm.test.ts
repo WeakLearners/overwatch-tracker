@@ -20,9 +20,9 @@ const makeSet = async () => {
 };
 
 describe('control arm settings', () => {
-  test('starts off with no sens and n 0 of 150', async () => {
+  test('starts off with no sens and 0 of 1620 min', async () => {
     const r = await h.get('/api/control-arm');
-    assert.deepEqual(r.body, { on: false, sens: null, dpi: 1600, n: 0, target: 150 });
+    assert.deepEqual(r.body, { on: false, sens: null, dpi: 1600, minutes: 0, waiting: 0, target: 1620 });
   });
 
   test('cannot turn on without a home sens', async () => {
@@ -59,12 +59,17 @@ describe('control arm: saving matches', () => {
     assert.equal(creditCount(), 0);
   });
 
-  test('arm on: the page count goes to 1 of 150', async () => {
+  test('arm on: a saved match waits for Aim Stats, then counts its play minutes', async () => {
     await h.put('/api/control-arm', { on: true, sens: 3.5 });
-    await log({});
-    const r = await h.get('/api/control-arm');
-    assert.equal(r.body.n, 1);
-    assert.equal(r.body.target, 150);
+    const m = await log({});
+    let r = await h.get('/api/control-arm');
+    assert.equal(r.body.minutes, 0);
+    assert.equal(r.body.waiting, 1);
+    h.db.prepare('INSERT INTO aim_stats_heroes (match_id, hero, duration_min) VALUES (?, ?, ?)').run(m.body.id, 'Ashe', 11.5);
+    r = await h.get('/api/control-arm');
+    assert.equal(r.body.minutes, 11.5);
+    assert.equal(r.body.waiting, 0);
+    assert.equal(r.body.target, 1620);
   });
 
   test('arm on: a QP match still gets the trial sens and is not tagged home', async () => {
@@ -75,7 +80,7 @@ describe('control arm: saving matches', () => {
     assert.equal(m.sens, 2.0);
     assert.equal(m.sens_kind, null);
     assert.equal(creditCount(), 0);
-    assert.equal((await h.get('/api/control-arm')).body.n, 0);
+    assert.equal((await h.get('/api/control-arm')).body.waiting, 0);
   });
 
   test('arm off: a comp match is a trial again', async () => {
@@ -111,7 +116,7 @@ describe('control arm: saving matches', () => {
     assert.equal(m.sens, 3.5);
     assert.equal(m.sens_kind, 'home');
     assert.equal(creditCount(), 0);
-    assert.equal((await h.get('/api/control-arm')).body.n, 0, 'a home match moved to QP no longer counts');
+    assert.equal((await h.get('/api/control-arm')).body.waiting, 0, 'a home match moved to QP no longer counts');
   });
 
   test('a home match waits in the Awaiting Stats backlog', async () => {

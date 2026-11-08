@@ -1,13 +1,20 @@
 import type { getDb } from '../db/schema';
+import { BLOCK_MINUTES, deriveBlockState } from './blind';
 
 // Hero focus trial (play-trial item 3, 2026-11-08). Sean's rule: the app chooses the
 // heroes and holds him to them, so he does not spread himself thin again.
 //
-// What the trial is: 200 competitive matches in 10 blocks of 20. At start the server picks
-// 2 heroes per role (Tank, DPS, Support = 6) by a fixed rule and locks them. For each block
-// there is one pick per role, taken from that role's 2 roster heroes in ABBA order
-// (A B B A A B B A A B), so each hero gets 5 blocks and a drift in form is spread across both.
-// The pick is a pure function of the block number: the advisor makes no model call for it.
+// What the trial is: 2160 competitive PLAY MINUTES in 36 blocks of 60 (Sean 2026-11-08: "we are
+// doing play minutes, not matches"; the same unit and rules as the sens study, lib/blind.ts).
+// At start the server picks 2 heroes per role (Tank, DPS, Support = 6) by a fixed rule and
+// locks them. Each role has its own block clock: the minutes of that role's roster heroes
+// (aim_stats_heroes.duration_min) in comp matches since the start. A block closes at
+// BLOCK_MINUTES and the overflow is dropped, never carried (deriveBlockState). The pick per
+// role is taken from its 2 roster heroes in ABBA order (A B B A A B B A A B) by that role's
+// closed-block count. The pick is a pure function of that count: no model call.
+// The trial total counts ALL comp minutes since the start, off-roster heroes included, and the
+// trial ends at TRIAL_TARGET. Minutes exist only after the Aim Stats form is saved, so a match
+// with no aim stats row counts 0 until then (shown as "waiting for Aim Stats").
 //
 // Roster rule (fixed, stated here and on the trial card):
 //   data    matches with queue_mode comp_role or comp_open, crashed = 0, played in the last
@@ -21,14 +28,15 @@ import type { getDb } from '../db/schema';
 //           (n desc) from the same window, then from all comp history if still short.
 //
 // Progress is counted live by match id (id > anchor, comp, not crashed), never by date and
-// never with a stored counter. The roster is snapshotted at start and never recomputed.
+// never with a stored counter. In the hero_focus_trials row, target and block_size now hold
+// MINUTES (2160 and 60). No trial row existed when the unit changed (checked 2026-11-08). The roster is snapshotted at start and never recomputed.
 type Db = ReturnType<typeof getDb>;
 
 export const ROLES = ['Tank', 'DPS', 'Support'] as const;
 export type FocusRole = typeof ROLES[number];
-export const TRIAL_TARGET = 200;
-export const BLOCK_SIZE = 20;
-export const BLOCKS = TRIAL_TARGET / BLOCK_SIZE;
+export const TRIAL_BLOCKS = 36;
+export const TRIAL_TARGET = TRIAL_BLOCKS * BLOCK_MINUTES; // comp play minutes (2160)
+export const BLOCKS = TRIAL_BLOCKS;
 export const MIN_N = 30;
 export const PRIOR_WEIGHT = 30;
 export const WINDOW_DAYS = 365;
@@ -109,34 +117,48 @@ function rosterOf(db: Db, trialId: number): RosterEntry[] {
     }));
 }
 
-function progress(db: Db, t: TrialRow) {
-  const row = db.prepare(`
-    SELECT COUNT(*) AS n, COALESCE(SUM(CASE WHEN m.off_roster = 1 THEN 1 ELSE 0 END), 0) AS off
+const round1 = (x: number) => Math.round(x * 10) / 10;
+
+/** Minutes since the trial start, from each hero's own aim_stats_heroes.duration_min (NULL = 0), in play order. */
+function progress(db: Db, t: TrialRow, roster: RosterEntry[]) {
+  const rows = db.prepare(`
+    SELECT ah.hero AS hero, ah.duration_min AS d
+    FROM matches m JOIN aim_stats_heroes ah ON ah.match_id = m.id
+    WHERE ${COMP} AND m.id > :anchor ${t.end_match_id != null ? 'AND m.id <= :end' : ''}
+    ORDER BY m.created_at ASC, m.id ASC
+  `).all(t.end_match_id != null ? { anchor: t.anchor_match_id, end: t.end_match_id } : { anchor: t.anchor_match_id }) as { hero: string; d: number | null }[];
+  const meta = db.prepare(`
+    SELECT COALESCE(SUM(CASE WHEN m.off_roster = 1 THEN 1 ELSE 0 END), 0) AS off,
+           COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM aim_stats_heroes x WHERE x.match_id = m.id) THEN 1 ELSE 0 END), 0) AS waiting
     FROM matches m WHERE ${COMP} AND m.id > :anchor ${t.end_match_id != null ? 'AND m.id <= :end' : ''}
-  `).get(t.end_match_id != null ? { anchor: t.anchor_match_id, end: t.end_match_id } : { anchor: t.anchor_match_id }) as { n: number; off: number };
-  return { n: Math.min(Number(row.n), t.target), offRoster: Number(row.off) };
+  `).get(t.end_match_id != null ? { anchor: t.anchor_match_id, end: t.end_match_id } : { anchor: t.anchor_match_id }) as { off: number; waiting: number };
+  const total = rows.reduce((a, r) => a + (r.d ?? 0), 0);
+  const roles = Object.fromEntries(ROLES.map(role => {
+    const heroes = new Set(roster.filter(r => r.role === role).map(r => r.hero));
+    const st = deriveBlockState(rows.filter(r => heroes.has(r.hero)).map(r => r.d));
+    return [role, { closedBlocks: st.closedBlocks, openMinutes: round1(st.openMinutes), block: st.closedBlocks + 1 }];
+  })) as Record<FocusRole, { closedBlocks: number; openMinutes: number; block: number }>;
+  return { minutes: round1(Math.min(total, t.target)), roles, offRoster: Number(meta.off), waiting: Number(meta.waiting) };
 }
 
 /** The roster hero for a block (1-based) and role. ABBA over the role's two heroes. */
 export function pickFor(roster: RosterEntry[], role: FocusRole, block: number): string | null {
   const heroes = roster.filter(r => r.role === role).sort((a, b) => a.rank - b.rank);
   if (heroes.length === 0) return null;
-  return heroes[heroes.length > 1 ? ABBA[(Math.max(1, Math.min(block, BLOCKS)) - 1) % ABBA.length] : 0].hero;
+  return heroes[heroes.length > 1 ? ABBA[(Math.max(1, block) - 1) % ABBA.length] : 0].hero;
 }
 
 export type TrialStatus = 'active' | 'ended' | 'complete';
 
 function trialView(db: Db, t: TrialRow) {
   const roster = rosterOf(db, t.id);
-  const { n, offRoster } = progress(db, t);
-  const status: TrialStatus = t.ended_at ? 'ended' : n >= t.target ? 'complete' : 'active';
-  const block = Math.min(Math.floor(n / t.block_size) + 1, t.target / t.block_size);
-  const picks = Object.fromEntries(ROLES.map(r => [r, pickFor(roster, r, block)])) as Record<FocusRole, string | null>;
+  const { minutes, roles, offRoster, waiting } = progress(db, t, roster);
+  const status: TrialStatus = t.ended_at ? 'ended' : minutes >= t.target ? 'complete' : 'active';
+  const picks = Object.fromEntries(ROLES.map(r => [r, pickFor(roster, r, roles[r].block)])) as Record<FocusRole, string | null>;
   return {
     id: t.id, status, startedAt: t.started_at, endedAt: t.ended_at, endReason: t.end_reason,
-    target: t.target, blockSize: t.block_size, blocks: t.target / t.block_size,
-    n, block, matchInBlock: status === 'complete' ? t.block_size : (n % t.block_size) + 1,
-    offRoster, overallWr: t.overall_wr, roster, picks,
+    target: t.target, blockMinutes: t.block_size, blocks: t.target / t.block_size,
+    minutes, roles, offRoster, waiting, overallWr: t.overall_wr, roster, picks,
   };
 }
 
@@ -164,7 +186,7 @@ export function startTrial(db: Db): { error: string } | { id: number } {
   try {
     const id = Number(db.prepare(`
       INSERT INTO hero_focus_trials (anchor_match_id, target, block_size, overall_wr) VALUES (:a, :t, :b, :wr)
-    `).run({ a: anchor, t: TRIAL_TARGET, b: BLOCK_SIZE, wr: overallWr }).lastInsertRowid);
+    `).run({ a: anchor, t: TRIAL_TARGET, b: BLOCK_MINUTES, wr: overallWr }).lastInsertRowid);
     const ins = db.prepare(`
       INSERT INTO hero_focus_roster (trial_id, role, hero, rank, basis, n, win_rate, shrunk_wr)
       VALUES (:id, :role, :hero, :rank, :basis, :n, :wr, :s)
@@ -183,7 +205,7 @@ export function endTrial(db: Db, reason: unknown): { error: string } | { ok: tru
   const maxId = Number((db.prepare('SELECT COALESCE(MAX(id), 0) AS id FROM matches').get() as any).id);
   db.prepare(`UPDATE hero_focus_trials SET ended_at = datetime('now'), end_match_id = :m, end_reason = :r WHERE id = :id`)
     .run({ m: maxId, r: text.slice(0, 500), id: t.id });
-  console.log(`[hero-focus] trial ${t.id} ended early at ${t.n} of ${t.target}: ${text}`);
+  console.log(`[hero-focus] trial ${t.id} ended early at ${t.minutes} of ${t.target} min: ${text}`);
   return { ok: true };
 }
 

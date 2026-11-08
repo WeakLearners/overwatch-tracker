@@ -53,7 +53,7 @@ describe('chooseRoster', () => {
 
 describe('pickFor', () => {
   const roster = chooseRoster([h('DPS', 'A', 60, 40), h('DPS', 'B', 60, 30), h('Tank', 'T', 5, 2)], [], 0.5);
-  test('block 1-20 pick is stable and ABBA across blocks gives each hero 5 of 10', () => {
+  test('block 1-10 pick is stable and ABBA across blocks gives each hero 5 of 10', () => {
     const seq = Array.from({ length: 10 }, (_, i) => pickFor(roster, 'DPS', i + 1));
     assert.deepEqual(seq, ['A', 'B', 'B', 'A', 'A', 'B', 'B', 'A', 'A', 'B']);
     assert.equal(seq.filter(x => x === 'A').length, 5);
