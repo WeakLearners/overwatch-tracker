@@ -1,8 +1,8 @@
 import type { LivePayload } from '../lib/scoreboardFill';
 
-// The light is the dot + text in column 3 of the Recording-as grid, lined up with the Sensitivity label.
-// Read and Recheck are ScoreboardActions, at the right end of columns 1-2 (LogMatch). Read starts the vision reads;
-// the watcher only counts new images. Width = column width, never follows the text.
+// The light is the dot + text in a pill that is also the Read button (Recording-as row, spans from column 2 to the
+// Reset-all segment edge). Recheck is the segment under Reset all. Read starts the vision reads;
+// the watcher only counts new images.
 // The status text is short and truncates with an ellipsis; the full text is the hover tooltip (OW-0002).
 // The server decides the stage (GET /api/scoreboards/live, lib/scoreboardStage.ts);
 // this only draws it. The dot pulses slowly (.stage-pulse in index.css, off under
@@ -53,49 +53,57 @@ function lightText0(stage: string, live: LivePayload | null, p: LivePayload['pag
   }
 }
 
-const BTN = 'shrink-0 rounded-md border-2 border-ow-border px-3 py-1 text-xs font-semibold leading-tight text-[var(--faint)] hover:text-ow-accent hover:border-ow-accent/50 disabled:opacity-40 disabled:hover:text-[var(--faint)] disabled:hover:border-ow-border disabled:cursor-not-allowed transition-colors';
+const SEG = 'h-8 w-full px-3 text-xs font-semibold leading-tight text-[var(--faint)] border-2 border-ow-border transition-colors';
+const BOX: Record<string, string> = {
+  idle: 'bg-[var(--field-bg)] border-ow-border',
+  detected: 'bg-amber-500/15 border-amber-500/60',
+  partial: 'bg-sky-500/15 border-sky-500/60',
+  ready: 'bg-emerald-500/15 border-emerald-500/60',
+  problem: 'bg-red-500/15 border-red-500/60',
+};
 
-export function ScoreboardActions({ live, onRead, reading = false, onRecheck, rechecking = false }: { live: LivePayload | null; onRead?: () => void; reading?: boolean; onRecheck?: () => void; rechecking?: boolean }) {
+/** Recheck: the right-hand segment under Reset all, joined to the status pill. Keeps its width in both labels. */
+export function ScoreboardRecheck({ live, onRecheck, rechecking = false, reading = false }: { live: LivePayload | null; onRecheck?: () => void; rechecking?: boolean; reading?: boolean }) {
   return (
-    <div className="ml-auto shrink-0 flex items-center gap-2" data-inspect-id="logmatch-scoreboard-actions">
-      <button
-        type="button"
-        onClick={onRead}
-        disabled={!onRead || !(live?.unread) || reading || live?.stage === 'detected'}
-        title="Read the new screenshots now"
-        data-inspect-id="logmatch-scoreboard-refresh"
-        className={BTN}
-      >
-        Read
-      </button>
-      <button
-        type="button"
-        onClick={onRecheck}
-        disabled={!onRecheck || rechecking || reading || live?.stage === 'detected'}
-        title="Rescan the share for new images. Nothing is read, moved or deleted."
-        data-inspect-id="logmatch-scoreboard-recheck"
-        className={BTN}
-      >
-        <span className="grid text-center">
-          <span className={`col-start-1 row-start-1 ${rechecking ? 'invisible' : ''}`}>Recheck</span>
-          <span className={`col-start-1 row-start-1 ${rechecking ? '' : 'invisible'}`}>Checking…</span>
-        </span>
-      </button>
-    </div>
+    <button
+      type="button"
+      onClick={onRecheck}
+      disabled={!onRecheck || rechecking || reading || live?.stage === 'detected'}
+      title="Rescan the share for new images. Nothing is read, moved or deleted."
+      data-inspect-id="logmatch-scoreboard-recheck"
+      className={`${SEG} rounded-md rounded-l-none border-l-0 hover:text-ow-accent hover:border-ow-accent/50 disabled:opacity-40 disabled:hover:text-[var(--faint)] disabled:hover:border-ow-border disabled:cursor-not-allowed`}
+    >
+      <span className="grid text-center">
+        <span className={`col-start-1 row-start-1 ${rechecking ? 'invisible' : ''}`}>Recheck</span>
+        <span className={`col-start-1 row-start-1 ${rechecking ? '' : 'invisible'}`}>Checking…</span>
+      </span>
+    </button>
   );
 }
 
-export default function ScoreboardLight({ live }: { live: LivePayload | null }) {
+/** The status pill is also the Read button. aria-disabled (not disabled) keeps the status at full opacity;
+ *  the click does nothing when there is nothing to read. */
+export default function ScoreboardLight({ live, onRead, reading = false }: { live: LivePayload | null; onRead?: () => void; reading?: boolean }) {
   const { stage, text } = lightText(live);
   const detail = lightDetail(live);
+  const canRead = !!onRead && !!live?.unread && !reading && live?.stage !== 'detected';
   return (
-    <div className="flex items-center gap-2 min-w-0 w-full py-1" data-inspect-id="logmatch-scoreboard-light">
-      <span
-        aria-hidden="true"
-        className={`inline-block w-2 h-2 rounded-full shrink-0 ${DOT[stage]}${stage === 'detected' || stage === 'partial' ? ' stage-pulse' : ''}`}
-        data-inspect-id="logmatch-scoreboard-light-dot"
-      />
-      <span className="flex-1 min-w-0 truncate text-xs text-[var(--faint)]" role="status" title={detail}>{text}</span>
-    </div>
+    <button
+      type="button"
+      aria-disabled={!canRead}
+      onClick={() => { if (canRead) onRead!(); }}
+      title={canRead ? `${detail}. Click to read the new screenshots now.` : detail}
+      data-inspect-id="logmatch-scoreboard-refresh"
+      className={`h-8 w-full min-w-0 border-2 rounded-md rounded-r-none px-3 flex items-center transition-colors ${BOX[stage]} ${canRead ? 'cursor-pointer hover:border-ow-accent/50' : 'cursor-default'}`}
+    >
+      <span className="flex items-center gap-2 min-w-0 w-full" data-inspect-id="logmatch-scoreboard-light" role="status">
+        <span
+          aria-hidden="true"
+          className={`inline-block w-3 h-3 rounded-full shrink-0 ${DOT[stage]}${stage === 'detected' || stage === 'partial' ? ' stage-pulse' : ''}`}
+          data-inspect-id="logmatch-scoreboard-light-dot"
+        />
+        <span className="flex-1 min-w-0 truncate text-left text-xs font-semibold leading-tight text-[var(--ink)]">{text}</span>
+      </span>
+    </button>
   );
 }

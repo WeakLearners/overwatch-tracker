@@ -15,7 +15,7 @@ import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { useDfHeroes, dfSensForHeroName, withDfBadge } from '../hooks/useDfHeroes';
 import { format } from 'date-fns';
 import { useFieldConfig } from '../contexts/FieldConfigContext';
-import ScoreboardLight, { ScoreboardActions } from '../components/ScoreboardLight';
+import ScoreboardLight, { ScoreboardRecheck } from '../components/ScoreboardLight';
 import { fillPatch, fillSignature, rankPageSupplies, rankPageOutcome, heroMismatch, type FormFill, type LivePayload, type PickSlot } from '../lib/scoreboardFill';
 import { StatFields, emptyStats, statsBody, statsTouched, statsValid, type StatFieldsT, type TileMenus } from '../components/AimStatsFields';
 import ScoreInputs, { scoreOrNull } from '../components/ScoreInputs';
@@ -1280,11 +1280,11 @@ export default function LogMatch() {
 
       <div id="match-details" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card" data-inspect-id="logmatch-match-details-card">
-          <div className="flex items-center justify-between mb-4">
+          <div className="grid grid-cols-3 items-center mb-4">
             <div className="flex items-baseline gap-3 min-w-0">
               <h2 className="text-sm card-title">Match Details</h2>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="col-span-2 grid grid-cols-3">
               {/* Game crashed: log the result only. The scoreboard resets on rejoin, so any
                   stats would cover just the tail of the match; this keeps the win/loss and
                   context and drops everything scoreboard-shaped. */}
@@ -1295,7 +1295,7 @@ export default function LogMatch() {
                 title="The game crashed and the scoreboard reset: log the result only, with no hero or stats"
                 data-inspect-id="logmatch-game-crashed-toggle"
                 style={{ '--sel': '247 147 30' } as React.CSSProperties}
-                className={`rounded-md border-2 px-3 py-1 text-xs font-semibold leading-tight transition-all ${
+                className={`h-8 rounded-md rounded-r-none border-2 px-3 text-xs font-semibold leading-tight transition-all ${
                   crashedGame ? 'is-selected text-ow-accent' : 'border-ow-border text-[var(--faint)] hover-sel hover:text-[var(--ink)]'
                 }`}
               >
@@ -1325,7 +1325,7 @@ export default function LogMatch() {
                 }}
                 disabled={!form.hero && !map && deathBuffer.length === 0 && !crashedGame}
                 data-inspect-id="logmatch-cancel-match-button"
-                className="rounded-md border-2 border-ow-border px-3 py-1 text-xs font-semibold leading-tight text-[var(--faint)] transition-all hover:text-red-600 hover:border-red-600/50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--faint)] disabled:hover:border-ow-border"
+                className="h-8 rounded-none border-2 border-l-0 border-ow-border px-3 text-xs font-semibold leading-tight text-[var(--faint)] transition-all hover:text-red-600 hover:border-red-600/50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--faint)] disabled:hover:border-ow-border"
               >
                 Match Cancelled
               </button>
@@ -1334,7 +1334,7 @@ export default function LogMatch() {
                 onClick={resetAll}
                 title="Clear the whole form and move this match's screenshots to _trash"
                 data-inspect-id="logmatch-reset-all-button"
-                className="rounded-md border-2 border-ow-border px-3 py-1 text-xs font-semibold leading-tight text-[var(--faint)] transition-all hover:text-red-600 hover:border-red-600/50"
+                className="h-8 rounded-md rounded-l-none border-2 border-l-0 border-ow-border px-3 text-xs font-semibold leading-tight text-[var(--faint)] transition-all hover:text-red-600 hover:border-red-600/50"
               >
                 Reset all
               </button>
@@ -1345,22 +1345,23 @@ export default function LogMatch() {
                 0), and the Match Log does not re-ask it (design-language
                 section 7). This line only says what will be recorded, in that
                 queue's own wash; "change" scrolls back to the tiles. */}
-            <div className="grid grid-cols-3 gap-3 items-center" data-inspect-id="logmatch-mode-toggle">
-              <div className="col-span-2 flex items-center gap-2 min-w-0">
-              <span className="text-xs text-[var(--muted)] whitespace-nowrap">Recording as</span>
+            <div className="grid grid-cols-3 items-center" data-inspect-id="logmatch-mode-toggle">
+              <div className="pr-3 min-w-0">
               <button
                 type="button"
                 onClick={() => document.getElementById('sec-mode')?.scrollIntoView({ behavior: 'smooth' })}
                 title="Change the queue on the mode tiles at the top"
                 style={{ '--sel': QUEUE_MODE_SEL_RGB[queueMode] } as React.CSSProperties}
-                className={`is-selected mode-fill border-2 rounded-md px-3 py-1 text-xs font-semibold leading-tight whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ow-accent ${QUEUE_MODE_COLORS[queueMode].accent}`}
+                className={`is-selected mode-fill border-2 rounded-md h-8 px-3 text-xs font-semibold leading-tight whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ow-accent ${QUEUE_MODE_COLORS[queueMode].accent}`}
                 data-inspect-id="logmatch-recording-as-chip"
               >
                 <span className="lit-text lit-strong">{QUEUE_MODES.find(m => m.value === queueMode)?.label ?? queueMode}</span>
               </button>
-              <ScoreboardActions live={live} onRead={readNow} reading={readingNow} onRecheck={recheckShare} rechecking={rechecking} />
               </div>
-              <ScoreboardLight live={live} />
+              <div className="col-span-2 grid grid-cols-3 min-w-0">
+                <div className="col-span-2 min-w-0 flex"><ScoreboardLight live={live} onRead={readNow} reading={readingNow} /></div>
+                <ScoreboardRecheck live={live} onRecheck={recheckShare} rechecking={rechecking} reading={readingNow} />
+              </div>
             </div>
 
             <div className={`grid gap-3 ${crashedGame ? 'grid-cols-2' : 'grid-cols-3'}`}>
