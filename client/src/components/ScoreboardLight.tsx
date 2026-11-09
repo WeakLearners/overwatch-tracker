@@ -53,7 +53,7 @@ function lightText0(stage: string, live: LivePayload | null, p: LivePayload['pag
   }
 }
 
-const SEG = 'h-8 w-full px-3 text-xs font-semibold leading-tight text-[var(--faint)] border-2 border-ow-border transition-colors';
+const SEG = 'h-8 w-full px-3 text-xs font-semibold leading-tight text-[var(--faint)] border border-ow-border transition-colors';
 const BOX: Record<string, string> = {
   idle: 'bg-[var(--field-bg)] border-ow-border',
   detected: 'bg-amber-500/15 border-amber-500/60',
@@ -94,7 +94,7 @@ export default function ScoreboardLight({ live, onRead, reading = false }: { liv
       onClick={() => { if (canRead) onRead!(); }}
       title={canRead ? `${detail}. Click to read the new screenshots now.` : detail}
       data-inspect-id="logmatch-scoreboard-refresh"
-      className={`h-8 w-full min-w-0 border-2 rounded-md rounded-r-none px-3 flex items-center transition-colors ${BOX[stage]} ${canRead ? 'cursor-pointer hover:border-ow-accent/50' : 'cursor-default'}`}
+      className={`h-8 w-full min-w-0 border rounded-md rounded-r-none px-3 flex items-center transition-colors ${BOX[stage]} ${canRead ? 'cursor-pointer hover:border-ow-accent/50' : 'cursor-default'}`}
     >
       <span className="flex items-center gap-2 min-w-0 w-full" data-inspect-id="logmatch-scoreboard-light" role="status">
         <span

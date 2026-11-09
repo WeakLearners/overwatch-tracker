@@ -1295,7 +1295,7 @@ export default function LogMatch() {
                 title="The game crashed and the scoreboard reset: log the result only, with no hero or stats"
                 data-inspect-id="logmatch-game-crashed-toggle"
                 style={{ '--sel': '247 147 30' } as React.CSSProperties}
-                className={`h-8 rounded-md rounded-r-none border-2 px-3 text-xs font-semibold leading-tight transition-all ${
+                className={`h-8 rounded-md rounded-r-none border px-3 text-xs font-semibold leading-tight transition-all ${
                   crashedGame ? 'is-selected text-ow-accent' : 'border-ow-border text-[var(--faint)] hover-sel hover:text-[var(--ink)]'
                 }`}
               >
@@ -1325,7 +1325,7 @@ export default function LogMatch() {
                 }}
                 disabled={!form.hero && !map && deathBuffer.length === 0 && !crashedGame}
                 data-inspect-id="logmatch-cancel-match-button"
-                className="h-8 rounded-none border-2 border-l-0 border-ow-border px-3 text-xs font-semibold leading-tight text-[var(--faint)] transition-all hover:text-red-600 hover:border-red-600/50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--faint)] disabled:hover:border-ow-border"
+                className="h-8 rounded-none border border-l-0 border-ow-border px-3 text-xs font-semibold leading-tight text-[var(--faint)] transition-all hover:text-red-600 hover:border-red-600/50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--faint)] disabled:hover:border-ow-border"
               >
                 Match Cancelled
               </button>
@@ -1334,7 +1334,7 @@ export default function LogMatch() {
                 onClick={resetAll}
                 title="Clear the whole form and move this match's screenshots to _trash"
                 data-inspect-id="logmatch-reset-all-button"
-                className="h-8 rounded-md rounded-l-none border-2 border-l-0 border-ow-border px-3 text-xs font-semibold leading-tight text-[var(--faint)] transition-all hover:text-red-600 hover:border-red-600/50"
+                className="h-8 rounded-md rounded-l-none border border-l-0 border-ow-border px-3 text-xs font-semibold leading-tight text-[var(--faint)] transition-all hover:text-red-600 hover:border-red-600/50"
               >
                 Reset all
               </button>
@@ -1352,7 +1352,7 @@ export default function LogMatch() {
                 onClick={() => document.getElementById('sec-mode')?.scrollIntoView({ behavior: 'smooth' })}
                 title="Change the queue on the mode tiles at the top"
                 style={{ '--sel': QUEUE_MODE_SEL_RGB[queueMode] } as React.CSSProperties}
-                className={`is-selected mode-fill border-2 rounded-md h-8 w-full px-3 text-xs font-semibold leading-tight whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ow-accent ${QUEUE_MODE_COLORS[queueMode].accent}`}
+                className={`is-selected mode-fill border rounded-md h-8 w-full px-3 text-xs font-semibold leading-tight whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ow-accent ${QUEUE_MODE_COLORS[queueMode].accent}`}
                 data-inspect-id="logmatch-recording-as-chip"
               >
                 <span className="lit-text lit-strong">{QUEUE_MODES.find(m => m.value === queueMode)?.label ?? queueMode}</span>
