@@ -643,6 +643,28 @@ function processSummary(db: DatabaseSync, parsed: ParsedScoreboard, store: Store
   return d.matchId != null ? 'matched' : 'unmatched';
 }
 
+export interface ReresolveResult { id: number; before: string; after: string; matchId: number | null; reason: string | null }
+
+/**
+ * Re-run the self-row check on stored Teams pages that ended as `error: self row: ...`.
+ * No vision call: the stored raw_json stands in for the reading and the board is replaced in place
+ * (processFile replaceId), so a page whose name is now accepted links to its match by the normal rules.
+ * Pages that still fail stay as they are. Never touches the matches table.
+ */
+export async function reresolveSelfErrors(db: DatabaseSync): Promise<ReresolveResult[]> {
+  const boards = db.prepare(`SELECT id, file_path, file_mtime, raw_json FROM match_scoreboards
+    WHERE status = 'error' AND (page_type IS NULL OR page_type = 'teams') AND reason LIKE 'self row:%' AND raw_json IS NOT NULL
+    ORDER BY file_mtime, id`).all() as { id: number; file_path: string; file_mtime: string; raw_json: string }[];
+  const out: ReresolveResult[] = [];
+  for (const b of boards) {
+    const parsed = JSON.parse(b.raw_json) as ParsedScoreboard;
+    const after = await processFile(db, b.file_path, Date.parse(b.file_mtime), async () => parsed, b.id);
+    const now = db.prepare(`SELECT match_id, reason FROM match_scoreboards WHERE id = ?`).get(b.id) as { match_id: number | null; reason: string | null };
+    out.push({ id: b.id, before: 'error', after: after ?? 'error', matchId: now.match_id, reason: now.reason });
+  }
+  return out;
+}
+
 export interface RecheckResult { groupId: number; oldState: string; newState: string; matchId: number | null; changedRows: number[]; dryRun: boolean }
 
 /**

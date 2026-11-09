@@ -698,7 +698,9 @@ export default function LogMatch() {
   // Competitive, where the dropdown is otherwise restricted to heroes under
   // test: a fallback pick you can't log defeats the point of having one.
   const dfHeroForRole = dfMap[testRole]?.hero;
-  const HERO_TEST_LIST = isQP ? HERO_LIST : HERO_LIST.filter(([h, r]) => (testableHeroes.has(h) || h === dfHeroForRole) && (r === testRole || queueMode === 'comp_open'));
+  // OW-0003 part 1: every mode lists every hero, grouped by role (the optgroups). Comp used to list only heroes under test for the queue's role;
+  // a hero outside that still saves, and the hero-mismatch marker flags a hero whose role differs from the queue's.
+  const HERO_TEST_LIST = HERO_LIST;
   // In QP mode the switch dropdowns offer every hero, so without this a
   // mid-match "switch" could silently re-pick a hero already in another slot
   // — each switch slot excludes whichever hero the *other* slots hold.

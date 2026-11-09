@@ -1,0 +1,39 @@
+// Test candidates (OW-0004). A hero that has logged matches but is not in the sens-test roster is a
+// candidate. It may join active testing only after CANDIDATE_MIN_QP Quick Play matches (Sean, 2026-11-08:
+// Quick Play only, 25). Counts come from `matches`; no new column. Nothing here starts a study.
+import type { DatabaseSync } from 'node:sqlite';
+
+export const CANDIDATE_MIN_QP = 25;
+
+export interface TestCandidate { hero: string; qp_matches: number; eligible: boolean }
+
+/** True when a hero with this many Quick Play matches may be added to active testing. */
+export const candidateEligible = (qpMatches: number): boolean => qpMatches >= CANDIDATE_MIN_QP;
+
+/** Heroes already in the roster: a live or paused test set, or a slot in any custom phase plan. */
+function rosterHeroes(db: DatabaseSync): Set<string> {
+  const out = new Set<string>();
+  for (const r of db.prepare(`SELECT DISTINCT hero FROM blind_stage_sets WHERE hero IS NOT NULL AND (active = 1 OR paused_at IS NOT NULL)`).all() as { hero: string }[]) out.add(r.hero);
+  for (const p of db.prepare(`SELECT plan FROM custom_phases`).all() as { plan: string }[]) {
+    try { for (const h of JSON.parse(p.plan) as { hero?: string }[]) if (h?.hero) out.add(h.hero); } catch { /* a bad plan row adds nothing */ }
+  }
+  return out;
+}
+
+/** Quick Play matches logged on each hero (the match's first hero). */
+export function qpMatchCounts(db: DatabaseSync): Map<string, number> {
+  const rows = db.prepare(`SELECT hero, COUNT(*) n FROM matches WHERE queue_mode = 'qp_role' AND hero IS NOT NULL AND TRIM(hero) <> '' GROUP BY hero`).all() as { hero: string; n: number }[];
+  return new Map(rows.map(r => [r.hero, Number(r.n)]));
+}
+
+/** Heroes with logged matches (any mode) and no roster slot, most Quick Play first. */
+export function listTestCandidates(db: DatabaseSync): TestCandidate[] {
+  const roster = rosterHeroes(db);
+  const qp = qpMatchCounts(db);
+  const played = db.prepare(`SELECT DISTINCT hero FROM matches WHERE hero IS NOT NULL AND TRIM(hero) <> ''`).all() as { hero: string }[];
+  return played
+    .map(p => p.hero)
+    .filter(h => !roster.has(h))
+    .map(h => ({ hero: h, qp_matches: qp.get(h) ?? 0, eligible: candidateEligible(qp.get(h) ?? 0) }))
+    .sort((a, b) => b.qp_matches - a.qp_matches || a.hero.localeCompare(b.hero));
+}

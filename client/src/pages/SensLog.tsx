@@ -997,6 +997,10 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
     }
   }
 
+  // Test candidates (OW-0004): Quick Play counts decide who may join active testing.
+  const { data: candData } = useApi<{ min_qp: number; heroes: { hero: string; qp_matches: number; eligible: boolean }[] }>('/api/blind/candidates');
+  const candMin = candData?.min_qp ?? 25;
+  const qpOf = (hero: string) => candData?.heroes.find(c => c.hero === hero)?.qp_matches ?? 0;
   // "+ Add hero" on the fallback strip — appends one hero to a custom phase.
   // Range is either the archetype's default bracket or typed by hand.
   const [addHeroRow, setAddHeroRowRaw] = useState<NewPhaseRow | null>(null);
@@ -1010,6 +1014,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
     if (!r) return;
     const low = parseFloat(r.low), high = parseFloat(r.high);
     if (!r.hero || !(low > 0) || !(high > low)) { alert('Pick a hero and enter a low sens below the high sens.'); return; }
+    if (qpOf(r.hero) < candMin) { alert(`${r.hero} has ${qpOf(r.hero)} Quick Play matches. It needs ${candMin} before it can join testing.`); return; }
     const nStages = plan[0] ? valuesOf(plan[0]).length : 2;
     const res = await fetch(`/api/custom-phases/${encodeURIComponent(tabKey)}/heroes`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1277,7 +1282,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                   className={`${compactField} col-span-3`} aria-label="Hero"
                 >
                   <option value="">Hero</option>
-                  {Object.keys(HEROES).filter(n => !plan.some(p => p.hero === n)).sort().map(n => <option key={n} value={n}>{n}</option>)}
+                  {Object.keys(HEROES).filter(n => !plan.some(p => p.hero === n)).sort().map(n => <option key={n} value={n}>{n} · {qpOf(n)}/{candMin} QP</option>)}
                 </select>
                 <select
                   value={addHeroRow.archetype} onChange={e => setAddHeroRow({ ...addHeroRow, archetype: e.target.value })}
@@ -1296,8 +1301,13 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                 <input type="number" step="0.01" min={0.01} placeholder="Low" value={addHeroRow.low} disabled={!addHeroManual} onChange={e => setAddHeroRow({ ...addHeroRow, low: e.target.value })} className={`${compactField} col-span-2 disabled:opacity-60`} aria-label="Low sens" />
                 <input type="number" step="0.01" placeholder="High" value={addHeroRow.high} disabled={!addHeroManual} onChange={e => setAddHeroRow({ ...addHeroRow, high: e.target.value })} className={`${compactField} col-span-2 disabled:opacity-60`} aria-label="High sens" />
                 <input placeholder="Note (optional)" value={addHeroRow.note} onChange={e => setAddHeroRow({ ...addHeroRow, note: e.target.value })} className={`${compactField} col-span-2`} aria-label="Note" />
-                <button type="button" onClick={saveAddedHero} className="btn-primary col-span-2 py-1 text-xs">Add</button>
+                <button type="button" onClick={saveAddedHero} disabled={!!addHeroRow.hero && qpOf(addHeroRow.hero) < candMin} className="btn-primary col-span-2 py-1 text-xs disabled:opacity-50">Add</button>
                 <button type="button" onClick={() => setAddHeroRow(null)} className={`${btnSecondary} col-span-2 py-1 text-xs`}>Cancel</button>
+                {addHeroRow.hero && qpOf(addHeroRow.hero) < candMin && (
+                  <div className="col-span-6 text-xs text-[var(--muted)]" data-inspect-id="sl-plan-add-hero-needs-qp">
+                    {addHeroRow.hero} has {qpOf(addHeroRow.hero)} of {candMin} Quick Play matches.
+                  </div>
+                )}
               </div>
             ) : (
               <button
@@ -1309,6 +1319,15 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
               </button>
             ))}
             </div>
+            {candData && candData.heroes.some(c => c.qp_matches > 0) && (
+              <div className="mt-2 text-xs text-[var(--muted)] truncate" data-inspect-id="sl-plan-candidates"
+                title={`Heroes you play that are not in the roster. A hero needs ${candMin} Quick Play matches to join testing.`}>
+                <span className="text-[10px] uppercase tracking-wide text-[var(--faint-2)] mr-2">Candidates (Quick Play)</span>
+                {candData.heroes.filter(c => c.qp_matches > 0).slice(0, 8).map((c, i) => (
+                  <span key={c.hero} className={c.eligible ? 'text-[var(--ink-2)]' : undefined}>{i > 0 && ' · '}{c.hero} {c.qp_matches}/{candMin}</span>
+                ))}
+              </div>
+            )}
           </div>
         );
       })()}
