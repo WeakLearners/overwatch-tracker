@@ -1,8 +1,8 @@
 import type { LivePayload } from '../lib/scoreboardFill';
 
-// Pipeline light in column 3 of the Recording-as grid, so the dot lines up with the
-// left edge of the Sensitivity label below. Width = column width, never follows the text.
-// A "Read" button sits left of the dot. The watcher only counts new images; Read starts the vision reads (LogMatch).
+// The light is the dot + text in column 3 of the Recording-as grid, lined up with the Sensitivity label.
+// Read and Recheck are ScoreboardActions, at the right end of columns 1-2 (LogMatch). Read starts the vision reads;
+// the watcher only counts new images. Width = column width, never follows the text.
 // The status text is short and truncates with an ellipsis; the full text is the hover tooltip (OW-0002).
 // The server decides the stage (GET /api/scoreboards/live, lib/scoreboardStage.ts);
 // this only draws it. The dot pulses slowly (.stage-pulse in index.css, off under
@@ -53,18 +53,18 @@ function lightText0(stage: string, live: LivePayload | null, p: LivePayload['pag
   }
 }
 
-export default function ScoreboardLight({ live, onRead, reading = false, onRecheck, rechecking = false }: { live: LivePayload | null; onRead?: () => void; reading?: boolean; onRecheck?: () => void; rechecking?: boolean }) {
-  const { stage, text } = lightText(live);
-  const detail = lightDetail(live);
+const BTN = 'shrink-0 rounded-md border-2 border-ow-border px-3 py-1 text-xs font-semibold leading-tight text-[var(--faint)] hover:text-ow-accent hover:border-ow-accent/50 disabled:opacity-40 disabled:hover:text-[var(--faint)] disabled:hover:border-ow-border disabled:cursor-not-allowed transition-colors';
+
+export function ScoreboardActions({ live, onRead, reading = false, onRecheck, rechecking = false }: { live: LivePayload | null; onRead?: () => void; reading?: boolean; onRecheck?: () => void; rechecking?: boolean }) {
   return (
-    <div className="flex items-center gap-3 min-w-0 w-full py-1" data-inspect-id="logmatch-scoreboard-light">
+    <div className="ml-auto shrink-0 flex items-center gap-2" data-inspect-id="logmatch-scoreboard-actions">
       <button
         type="button"
         onClick={onRead}
         disabled={!onRead || !(live?.unread) || reading || live?.stage === 'detected'}
         title="Read the new screenshots now"
         data-inspect-id="logmatch-scoreboard-refresh"
-        className="shrink-0 rounded border border-ow-border px-1.5 text-xs font-semibold leading-tight text-[var(--faint)] hover:text-ow-accent hover:border-ow-accent/50 disabled:opacity-40 disabled:hover:text-[var(--faint)] disabled:hover:border-ow-border disabled:cursor-not-allowed transition-colors"
+        className={BTN}
       >
         Read
       </button>
@@ -74,10 +74,22 @@ export default function ScoreboardLight({ live, onRead, reading = false, onReche
         disabled={!onRecheck || rechecking || reading || live?.stage === 'detected'}
         title="Rescan the share for new images. Nothing is read, moved or deleted."
         data-inspect-id="logmatch-scoreboard-recheck"
-        className="shrink-0 rounded border border-ow-border px-1.5 text-xs font-semibold leading-tight text-[var(--faint)] hover:text-ow-accent hover:border-ow-accent/50 disabled:opacity-40 disabled:hover:text-[var(--faint)] disabled:hover:border-ow-border disabled:cursor-not-allowed transition-colors"
+        className={BTN}
       >
-        {rechecking ? 'Checking…' : 'Recheck'}
+        <span className="grid text-center">
+          <span className={`col-start-1 row-start-1 ${rechecking ? 'invisible' : ''}`}>Recheck</span>
+          <span className={`col-start-1 row-start-1 ${rechecking ? '' : 'invisible'}`}>Checking…</span>
+        </span>
       </button>
+    </div>
+  );
+}
+
+export default function ScoreboardLight({ live }: { live: LivePayload | null }) {
+  const { stage, text } = lightText(live);
+  const detail = lightDetail(live);
+  return (
+    <div className="flex items-center gap-2 min-w-0 w-full py-1" data-inspect-id="logmatch-scoreboard-light">
       <span
         aria-hidden="true"
         className={`inline-block w-2 h-2 rounded-full shrink-0 ${DOT[stage]}${stage === 'detected' || stage === 'partial' ? ' stage-pulse' : ''}`}

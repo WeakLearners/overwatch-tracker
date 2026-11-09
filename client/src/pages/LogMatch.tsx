@@ -15,7 +15,7 @@ import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 import { useDfHeroes, dfSensForHeroName, withDfBadge } from '../hooks/useDfHeroes';
 import { format } from 'date-fns';
 import { useFieldConfig } from '../contexts/FieldConfigContext';
-import ScoreboardLight from '../components/ScoreboardLight';
+import ScoreboardLight, { ScoreboardActions } from '../components/ScoreboardLight';
 import { fillPatch, fillSignature, rankPageSupplies, rankPageOutcome, heroMismatch, type FormFill, type LivePayload, type PickSlot } from '../lib/scoreboardFill';
 import { StatFields, emptyStats, statsBody, statsTouched, statsValid, type StatFieldsT, type TileMenus } from '../components/AimStatsFields';
 import ScoreInputs, { scoreOrNull } from '../components/ScoreInputs';
@@ -1346,25 +1346,21 @@ export default function LogMatch() {
                 section 7). This line only says what will be recorded, in that
                 queue's own wash; "change" scrolls back to the tiles. */}
             <div className="grid grid-cols-3 gap-3 items-center" data-inspect-id="logmatch-mode-toggle">
-              <div className="col-span-2 flex items-center gap-2">
-              <span className="text-xs text-[var(--muted)]">Recording as</span>
-              <span
-                style={{ '--sel': QUEUE_MODE_SEL_RGB[queueMode] } as React.CSSProperties}
-                className={`is-selected mode-fill border-2 rounded-md px-3 py-1 text-xs font-semibold leading-tight ${QUEUE_MODE_COLORS[queueMode].accent}`}
-                data-inspect-id="logmatch-recording-as-chip"
-              >
-                <span className="lit-text lit-strong">{QUEUE_MODES.find(m => m.value === queueMode)?.label ?? queueMode}</span>
-              </span>
+              <div className="col-span-2 flex items-center gap-2 min-w-0">
+              <span className="text-xs text-[var(--muted)] whitespace-nowrap">Recording as</span>
               <button
                 type="button"
                 onClick={() => document.getElementById('sec-mode')?.scrollIntoView({ behavior: 'smooth' })}
-                className="text-xs text-[var(--faint)] hover:text-ow-accent underline underline-offset-2 transition-colors"
-                data-inspect-id="logmatch-mode-change-link"
+                title="Change the queue on the mode tiles at the top"
+                style={{ '--sel': QUEUE_MODE_SEL_RGB[queueMode] } as React.CSSProperties}
+                className={`is-selected mode-fill border-2 rounded-md px-3 py-1 text-xs font-semibold leading-tight whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ow-accent ${QUEUE_MODE_COLORS[queueMode].accent}`}
+                data-inspect-id="logmatch-recording-as-chip"
               >
-                change
+                <span className="lit-text lit-strong">{QUEUE_MODES.find(m => m.value === queueMode)?.label ?? queueMode}</span>
               </button>
+              <ScoreboardActions live={live} onRead={readNow} reading={readingNow} onRecheck={recheckShare} rechecking={rechecking} />
               </div>
-              <ScoreboardLight live={live} onRead={readNow} reading={readingNow} onRecheck={recheckShare} rechecking={rechecking} />
+              <ScoreboardLight live={live} />
             </div>
 
             <div className={`grid gap-3 ${crashedGame ? 'grid-cols-2' : 'grid-cols-3'}`}>
@@ -1406,14 +1402,14 @@ export default function LogMatch() {
               <div className="flex items-center gap-2" data-inspect-id="logmatch-crashed-role-line">
                 <span className="text-xs text-[var(--muted)]">Role</span>
                 <span className={`pill ${ROLE_COLORS[testRole]}`}>{testRole}</span>
-                <span className="text-[11px] text-[var(--faint-2)]">from Playing As. No hero or stats for a crashed game.</span>
+                <span className="text-xs text-[var(--faint-2)]">from Playing As. No hero or stats for a crashed game.</span>
               </div>
             ) : (
             <div>
               <label className="block text-xs text-[var(--muted)] mb-1.5">
                 Hero <span className="text-[var(--faint-2)]">— 2nd/3rd only if you switched mid-match</span>
                 {heroMis && (
-                  <span className="ml-2 text-[11px] text-amber-500" title={heroMisTitle} data-inspect-id="logmatch-hero-mismatch-marker">
+                  <span className="ml-2 text-xs text-amber-500" title={heroMisTitle} data-inspect-id="logmatch-hero-mismatch-marker">
                     Scoreboard: {heroMis.board.map(b => `${b.hero} ${Math.round(b.percent)}%`).join(', ')}
                   </span>
                 )}

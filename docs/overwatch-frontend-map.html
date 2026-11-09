@@ -1960,7 +1960,7 @@ const DATA = {
           "kind": "input",
           "description": "Date picker for the match being logged; defaults to today and auto-advances with the clock until the user hand-edits it (backfill).",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1374",
+            "path": "client/src/pages/LogMatch.tsx:1370",
             "grep": "grep -n -F -- 'type=\"date\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1970,7 +1970,7 @@ const DATA = {
           "kind": "input",
           "description": "Time picker for the match being logged; defaults to the current clock time and stops auto-following once hand-edited (backfill).",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1384",
+            "path": "client/src/pages/LogMatch.tsx:1380",
             "grep": "grep -n -F -- 'type=\"time\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1980,7 +1980,7 @@ const DATA = {
           "kind": "stat-tile",
           "description": "Read-only display of the in-game sensitivity this match will actually be logged at: the picked hero's active DPI test stage value if one's running (Competitive, or Quickplay-as-Support), otherwise the frozen fallback sens. Not editable from this form.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1398",
+            "path": "client/src/pages/LogMatch.tsx:1394",
             "grep": "grep -n -F -- 'num-display text-[var(--ink)] whitespace-nowrap' client/src/pages/LogMatch.tsx"
           }
         },
@@ -1990,7 +1990,7 @@ const DATA = {
           "kind": "indicator",
           "description": "Amber text beside the Hero label, e.g. Scoreboard: Pharah 97%, Ashe 3%. Shown when the picked hero set differs from the scoreboard heroes; hover title says which. The mismatched pickers get an amber ring. Never blocks submit.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1416",
+            "path": "client/src/pages/LogMatch.tsx:1412",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-hero-mismatch-marker\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2000,7 +2000,7 @@ const DATA = {
           "kind": "select",
           "description": "Dropdown grouped by role (DPS/Tank/Support) for choosing the match's starting hero (pre-filled from the Pre-Match picker); each option shows today's play count for that hero. First of three hero slots \u2014 see logmatch-hero-switch-select-2/3 for the optional mid-match switches, all of which share the match's result on submit.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1430",
+            "path": "client/src/pages/LogMatch.tsx:1426",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-hero-select\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2010,7 +2010,7 @@ const DATA = {
           "kind": "input",
           "description": "Shown when a comp hero outside the hero focus roster is picked; must be ticked to save.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1460",
+            "path": "client/src/pages/LogMatch.tsx:1456",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-off-roster-confirm\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2020,7 +2020,7 @@ const DATA = {
           "kind": "select",
           "description": "Optional second hero slot for a mid-match hero switch; grouped by role like the 1st hero select. The logged result and death buffer apply to every filled hero slot, not just the first.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1475",
+            "path": "client/src/pages/LogMatch.tsx:1471",
             "grep": "grep -n -F -- 'logmatch-hero-switch-select-${i + 2}' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2030,7 +2030,7 @@ const DATA = {
           "kind": "select",
           "description": "Optional third hero slot for a second mid-match hero switch; grouped by role like the 1st hero select. The logged result and death buffer apply to every filled hero slot, not just the first. (Rendered by the same map as logmatch-hero-switch-select-2 \u2014 locate command matches both.)",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1475",
+            "path": "client/src/pages/LogMatch.tsx:1471",
             "grep": "grep -n -F -- 'logmatch-hero-switch-select-${i + 2}' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2040,7 +2040,7 @@ const DATA = {
           "kind": "badge",
           "description": "Colored pill (DPS/Tank/Support) that appears under the Hero select once a hero has been chosen, reflecting that hero's role.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1465",
+            "path": "client/src/pages/LogMatch.tsx:1461",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-hero-role-badge\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2050,7 +2050,7 @@ const DATA = {
           "kind": "stat-tile",
           "description": "Shows the map currently picked in the Pre-Match section along with its type pill, or a prompt to pick one there if none is selected yet.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1508",
+            "path": "client/src/pages/LogMatch.tsx:1504",
             "grep": "grep -n -F -- 'Pick a map in the Pre-Match section above to log a result.' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2060,7 +2060,7 @@ const DATA = {
           "kind": "badge",
           "description": "Pill showing the selected map's type (e.g. Control, Escort, Hybrid, Push) next to the map name.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1505",
+            "path": "client/src/pages/LogMatch.tsx:1501",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-map-type-badge\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2068,7 +2068,7 @@ const DATA = {
           "id": "logmatch-mode-toggle",
           "label": "Recording as line (queue, read-only)",
           "kind": "container",
-          "description": "Read-only \"Recording as {queue}\" line at the top of the Match Details form (2026-09-29): the queue is chosen once on the mode tiles and the log form no longer re-asks it (design-language section 7). Holds logmatch-recording-as-chip and logmatch-mode-change-link. The sens-test explainer paragraph that sat under the old toggle moved to prematch-experiment-card.",
+          "description": "Read-only \"Recording as {queue}\" line at the top of the Match Details form (2026-09-29): the queue is chosen once on the mode tiles and the log form no longer re-asks it (design-language section 7). Holds logmatch-recording-as-chip and logmatch-scoreboard-actions in columns 1-2, and the light in column 3. The sens-test explainer paragraph that sat under the old toggle moved to prematch-experiment-card.",
           "locate": {
             "path": "client/src/pages/LogMatch.tsx:1348",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-mode-toggle\"' client/src/pages/LogMatch.tsx"
@@ -2078,20 +2078,10 @@ const DATA = {
           "id": "logmatch-recording-as-chip",
           "label": "Recording as chip",
           "kind": "badge",
-          "description": "Read-only chip inside logmatch-mode-toggle showing the queue this match will be recorded as, in that queue's own wash (QUEUE_MODE_SEL_RGB). Reads MatchContext.queueMode, which only the mode tiles set.",
+          "description": "Button chip (2026-11-09; the old \"change\" link is gone) inside logmatch-mode-toggle that scrolls to the mode tiles (#sec-mode). Shows the queue this match will be recorded as, in that queue's own wash (QUEUE_MODE_SEL_RGB). Reads MatchContext.queueMode, which only the mode tiles set.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1354",
+            "path": "client/src/pages/LogMatch.tsx:1357",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-recording-as-chip\"' client/src/pages/LogMatch.tsx"
-          }
-        },
-        {
-          "id": "logmatch-mode-change-link",
-          "label": "Change queue link",
-          "kind": "link",
-          "description": "The \"change\" link next to the Recording as chip. Scrolls back to the mode tiles (#sec-mode) where the queue is chosen.",
-          "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1362",
-            "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-mode-change-link\"' client/src/pages/LogMatch.tsx"
           }
         },
         {
@@ -2100,15 +2090,25 @@ const DATA = {
           "kind": "container",
           "description": "Column 3 of the Recording as grid, aligned with the Sensitivity label (moved 2026-10-10); width = column width, never follows the text. Dot and a short status text (no scrolling; ellipsis if too narrow; the full text is the hover tooltip, OW-0002). The form fills itself from the group; typed values stay. Shows the pipeline stage from GET /api/scoreboards/live (`stage`, lib/scoreboardStage.ts): idle grey 'Nothing waiting' (or 'N to read'); detected amber 'Reading N\u2026' (a file is queued or in the vision call); partial sky 'Waiting for Summary'; ready green 'Scoreboard filled'; problem red 'Screenshot failed' (the tooltip has the long text and the reason); ' \u00b7 N skipped' is appended when files are skipped (newest screenshot in the 45-min window ended as error). Polls every 10 s, every 3 s while detected or partial. A recovery group (the match was already logged) never lights it.",
           "locate": {
-            "path": "client/src/components/ScoreboardLight.tsx:60",
+            "path": "client/src/components/ScoreboardLight.tsx:92",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-scoreboard-light\"' client/src/components/ScoreboardLight.tsx"
+          }
+        },
+        {
+          "id": "logmatch-scoreboard-actions",
+          "label": "Scoreboard actions (Read, Recheck)",
+          "kind": "container",
+          "description": "ScoreboardActions (2026-11-09): Read and Recheck at the right end of columns 1-2 of the Recording as row (ml-auto, next to the chip), so the light in column 3 keeps the Sensitivity label edge. Same small-button style as Reset all.",
+          "locate": {
+            "path": "client/src/components/ScoreboardLight.tsx:60",
+            "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-scoreboard-actions\"' client/src/components/ScoreboardLight.tsx"
           }
         },
         {
           "id": "logmatch-scoreboard-refresh",
           "label": "Scoreboard Read button",
           "kind": "button",
-          "description": "Text button \"Read\" left of the light dot (id kept from the old refresh button). The watcher only counts new screenshots; this calls POST /api/scoreboards/read, which starts the vision reads for every unread image (same order, 20-per-pass cap, retry rules). Disabled with 0 unread, while reading, or at stage detected. The status line shows the unread count.",
+          "description": "Text button \"Read\" in logmatch-scoreboard-actions, right end of columns 1-2 (id kept from the old refresh button). The watcher only counts new screenshots; this calls POST /api/scoreboards/read, which starts the vision reads for every unread image (same order, 20-per-pass cap, retry rules). Disabled with 0 unread, while reading, or at stage detected. The status line shows the unread count.",
           "locate": {
             "path": "client/src/components/ScoreboardLight.tsx:66",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-scoreboard-refresh\"' client/src/components/ScoreboardLight.tsx"
@@ -2118,7 +2118,7 @@ const DATA = {
           "id": "logmatch-scoreboard-recheck",
           "label": "Scoreboard Recheck button",
           "kind": "button",
-          "description": "Text button \"Recheck\" right of Read (OW-0001, 2026-11-05). Calls POST /api/scoreboards/rescan: forgets the watcher's skip lists (unreadable files, failed-read backoff), runs the same top-level scan as the 10 s tick (count only), and returns the fresh /live payload. It never reads, moves or deletes. Works on the dev server too (no timer there). A 409 (read running) or 502 (share unreadable) is shown in an alert. Disabled while checking, reading, or at stage detected. The status line adds 'N skipped (Recheck retries)' from live.skipped.",
+          "description": "Text button \"Recheck\" right of Read (fixed width, reserves \"Checking\u2026\") (OW-0001, 2026-11-05). Calls POST /api/scoreboards/rescan: forgets the watcher's skip lists (unreadable files, failed-read backoff), runs the same top-level scan as the 10 s tick (count only), and returns the fresh /live payload. It never reads, moves or deletes. Works on the dev server too (no timer there). A 409 (read running) or 502 (share unreadable) is shown in an alert. Disabled while checking, reading, or at stage detected. The status line adds 'N skipped (Recheck retries)' from live.skipped.",
           "locate": {
             "path": "client/src/components/ScoreboardLight.tsx:76",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-scoreboard-recheck\"' client/src/components/ScoreboardLight.tsx"
@@ -2130,7 +2130,7 @@ const DATA = {
           "kind": "indicator",
           "description": "The dot pulses slowly (2.8 s opacity, off under prefers-reduced-motion) while detected or partial. Colour = stage: faint grey idle, amber-500 detected, sky-500 partial, emerald-500 ready, red-500 problem. All colours already used elsewhere in the app.",
           "locate": {
-            "path": "client/src/components/ScoreboardLight.tsx:84",
+            "path": "client/src/components/ScoreboardLight.tsx:96",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-scoreboard-light-dot\"' client/src/components/ScoreboardLight.tsx"
           }
         },
@@ -2150,7 +2150,7 @@ const DATA = {
           "kind": "container",
           "description": "Replaces the Hero row while Game crashed is on: shows the role the match is recorded under (taken from Playing As).",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1406",
+            "path": "client/src/pages/LogMatch.tsx:1402",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-crashed-role-line\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2160,7 +2160,7 @@ const DATA = {
           "kind": "radio-group",
           "description": "Win/Loss toggle with an animated sliding fill and chevron rank-insignia buttons; selecting Win or Loss sets the outcome to be logged for this match.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1513",
+            "path": "client/src/pages/LogMatch.tsx:1509",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-result-toggle\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2170,7 +2170,7 @@ const DATA = {
           "kind": "textarea",
           "description": "Free-text field for notes on perceived factors affecting the match (e.g. fatigue, warmup, stage change), saved with the logged match. Rendered via the generic RegistryField component (client/src/components/RegistryField.tsx) as of 2026-09-23's field-registry contract freeze \u2014 re-anchored on the field-id call site since the actual <textarea> and its data-inspect-id now live in RegistryField.tsx, not here.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1571",
+            "path": "client/src/pages/LogMatch.tsx:1567",
             "grep": "grep -n -F -- \"registryField('notes')!\" client/src/pages/LogMatch.tsx"
           }
         },
@@ -2180,7 +2180,7 @@ const DATA = {
           "kind": "slider",
           "description": "One range slider (0-100) per filled hero slot, capturing whether the sensitivity felt floaty (slow) or jittery (fast), snappy in the middle, on that hero during this specific match \u2014 captured live since the sensation fades before the next match. Container is logmatch-feel-sliders; each individual input shares this same data-inspect-id.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1594",
+            "path": "client/src/pages/LogMatch.tsx:1590",
             "grep": "grep -n -F -- \"registryField('feel')!\" client/src/pages/LogMatch.tsx"
           }
         },
@@ -2240,7 +2240,7 @@ const DATA = {
           "kind": "button",
           "description": "Primary submit button that saves the match to the database (POST /api/matches); shows Saving\u2026/\u2713 Saved states and is disabled until hero, map, result, date, and sens are all valid.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1698",
+            "path": "client/src/pages/LogMatch.tsx:1694",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-log-match-button\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2250,7 +2250,7 @@ const DATA = {
           "kind": "card",
           "description": "Closed-by-default optional section above the Log Match button. Appears only for a match that would land in the Awaiting Stats backlog (Competitive, hero not a Designated Fallback, an active test set covering the hero). Open and filled: POST /api/matches carries an aim_stats block and the server saves match + stats in one transaction, so the match never enters the backlog. Closed or blank: unchanged, the match waits in the backlog.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1662",
+            "path": "client/src/pages/LogMatch.tsx:1658",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-aim-stats-fold\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2260,7 +2260,7 @@ const DATA = {
           "kind": "button",
           "description": "Header row of the fold-out; click to open/close. The closed label hints that skipping sends the match to Awaiting Stats.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1667",
+            "path": "client/src/pages/LogMatch.tsx:1663",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-aim-stats-toggle\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2270,7 +2270,7 @@ const DATA = {
           "kind": "card",
           "description": "Expanded body: the shared per-hero stat fields plus the combat scoreboard. One stat row per hero played (rebuilt when the switch heroes change, keeping typed values).",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1674",
+            "path": "client/src/pages/LogMatch.tsx:1670",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-aim-stats-body\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2280,7 +2280,7 @@ const DATA = {
           "kind": "text",
           "description": "Shown only when stats are partly filled but invalid (needs a duration for every hero and the first hero's overall accuracy); the Log Match button stays disabled until fixed or cleared.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1686",
+            "path": "client/src/pages/LogMatch.tsx:1682",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-aim-stats-hint\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2370,7 +2370,7 @@ const DATA = {
           "kind": "banner",
           "description": "Inline error message shown briefly under the Log Match button if saving the match to the server fails.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1704",
+            "path": "client/src/pages/LogMatch.tsx:1700",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-save-error-banner\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2380,7 +2380,7 @@ const DATA = {
           "kind": "indicator",
           "description": "Header line of the Today's Matches card: today's wins and losses, plus the current streak once it reaches two. Read from the same rows as the list below, newest first.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1716",
+            "path": "client/src/pages/LogMatch.tsx:1712",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-todays-matches-summary\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2390,7 +2390,7 @@ const DATA = {
           "kind": "card",
           "description": "Card showing today's logged matches, read live from the database so it stays accurate and resets automatically when the day rolls over. Each row expands in place into an inline edit form (logmatch-inline-edit-form) instead of a side drawer \u2014 this is the app's only surface for correcting a match's hero/map/mode/result after logging, or deleting it.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1708",
+            "path": "client/src/pages/LogMatch.tsx:1704",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-todays-matches-card\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2400,7 +2400,7 @@ const DATA = {
           "kind": "list",
           "description": "List of today's logged matches; each row's background is a subtle queue-mode-tinted wash (blue QP / red Comp Role / orange Comp Open) and shows an oversized W/L result watermark, a role-colored hero pill (mid-match switch heroes peek out behind it in progressively darker shades), a timestamp + stage/sens line, and the map name. Clicking the row toggles its inline edit form (logmatch-todays-matches-card-row / logmatch-inline-edit-form) open below it.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1724",
+            "path": "client/src/pages/LogMatch.tsx:1720",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-recently-logged-list\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2410,7 +2410,7 @@ const DATA = {
           "kind": "list-item",
           "description": "One row in the Today's Matches list. Clicking anywhere on the collapsed header (outside the mode toggle group) toggles logmatch-inline-edit-form open/closed beneath it for that match.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1731",
+            "path": "client/src/pages/LogMatch.tsx:1727",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-todays-matches-card-row\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2420,7 +2420,7 @@ const DATA = {
           "kind": "indicator",
           "description": "Up to 5 colored dashes below a Today's Matches row's hero pill \u2014 one per prior match on that hero, newest leftmost, green for a win / red for a loss; the oldest dash mask-fades out on its own trailing edge. Fixed to w-24, the same width as the hero pill. Backed by GET /api/matches/:id/hero-history.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1788",
+            "path": "client/src/pages/LogMatch.tsx:1784",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-todays-matches-hero-history\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2430,7 +2430,7 @@ const DATA = {
           "kind": "indicator",
           "description": "Same win/loss dash treatment as the hero history strip, shown below the map name for the last 5 matches played on that map. Backed by GET /api/matches/:id/map-history.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1818",
+            "path": "client/src/pages/LogMatch.tsx:1814",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-todays-matches-map-history\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2440,7 +2440,7 @@ const DATA = {
           "kind": "label",
           "description": "This row's timestamp and stage/sens readout, absolutely positioned between the hero and map columns with fixed left/right rem offsets off the row card \u2014 holds its position regardless of how wide mid-match-switch peek pills make the hero column, instead of living in normal flex flow.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1808",
+            "path": "client/src/pages/LogMatch.tsx:1804",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-todays-matches-time-sens\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2450,7 +2450,7 @@ const DATA = {
           "kind": "form",
           "description": "Expanded editable-fields panel for a Today's Matches row, matching the Awaiting Stats/Logged Today collapsed-row/inline-form pattern on the Sens page instead of a side drawer. Contains the Mode toggle, Hero (1st/2nd/3rd) selects, Map select, Result toggle, a Save Changes button, and a Delete this match control (with a confirm step).",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1834",
+            "path": "client/src/pages/LogMatch.tsx:1830",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-inline-edit-form\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2670,7 +2670,7 @@ const DATA = {
           "kind": "banner",
           "description": "Empty-state message shown in the Today's Matches card when no matches have been logged yet for the current day.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1852",
+            "path": "client/src/pages/LogMatch.tsx:1848",
             "grep": "grep -n -F -- 'title=\"Nothing logged today\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2680,7 +2680,7 @@ const DATA = {
           "kind": "input",
           "description": "Perceived teammate-quality rating, 0-5 stars in half-star steps, captured live at log time. Rendered via the generic RegistryField component (client/src/components/RegistryField.tsx) as of 2026-09-23's field-registry contract freeze \u2014 re-anchored on the field-id call site since the actual <StarRating> and its data-inspect-id now live in RegistryField.tsx, not here.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1611",
+            "path": "client/src/pages/LogMatch.tsx:1607",
             "grep": "grep -n -F -- \"registryField('team_rating')!\" client/src/pages/LogMatch.tsx"
           }
         },
@@ -2690,7 +2690,7 @@ const DATA = {
           "kind": "input",
           "description": "Stomp/Close two-option toggle \u2014 a fact about how decisive the score was, not a judgment. Starts unselected and stays null if untouched; clicking the selected option again deselects it.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1621",
+            "path": "client/src/pages/LogMatch.tsx:1617",
             "grep": "grep -n -F -- \"registryField('match_quality')!\" client/src/pages/LogMatch.tsx"
           }
         },
@@ -2700,7 +2700,7 @@ const DATA = {
           "kind": "button",
           "description": "One of the two Stomp/Close buttons inside the match-quality toggle.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1621",
+            "path": "client/src/pages/LogMatch.tsx:1617",
             "grep": "grep -n -F -- \"registryField('match_quality')!\" client/src/pages/LogMatch.tsx"
           }
         },
@@ -2710,7 +2710,7 @@ const DATA = {
           "kind": "input",
           "description": "Me/Team two-option toggle \u2014 collective-effort vs. individually-decided, NOT a rating of teammates ('Team' includes Sean himself). Starts unselected and stays null if untouched; clicking the selected option again deselects it.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1632",
+            "path": "client/src/pages/LogMatch.tsx:1628",
             "grep": "grep -n -F -- \"registryField('result_driver')!\" client/src/pages/LogMatch.tsx"
           }
         },
@@ -2720,7 +2720,7 @@ const DATA = {
           "kind": "button",
           "description": "One of the two Me/Team buttons inside the result-driver toggle.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1632",
+            "path": "client/src/pages/LogMatch.tsx:1628",
             "grep": "grep -n -F -- \"registryField('result_driver')!\" client/src/pages/LogMatch.tsx"
           }
         },
@@ -2730,7 +2730,7 @@ const DATA = {
           "kind": "input",
           "description": "Two buttons in the app's shared selected style. Win carries teal, Loss pink, via --sel; .is-selected draws the bottom-lit treatment. Replaced a sliding fill and an animated chevron insignia, whose 'is-selected' class name collided with the new shared one.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1520",
+            "path": "client/src/pages/LogMatch.tsx:1516",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-result-buttons\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2740,7 +2740,7 @@ const DATA = {
           "kind": "button",
           "description": "Sets the match result. Selected shows the bottom-lit state in its own hue; unselected previews that hue on hover via .hover-sel.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1533",
+            "path": "client/src/pages/LogMatch.tsx:1529",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-result-option\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2750,7 +2750,7 @@ const DATA = {
           "kind": "button-group",
           "description": "Two thin sliver buttons directly below the Win/Loss row, each spanning one result button: enemy leaver (left, under Win, muted teal) and friendly leaver (right, under Loss, muted pink). A lit bar gets .leaver-lamp: tinted fill with an inner glow rising from the bottom edge, no outer glow. Replaced the old square Leaver checkbox 2026-09-24 \u2014 which team the leaver was on matters more than a bare yes/no. Tap the selected side again to clear back to 'no leaver'. Extracted into the shared LeaverSliver.tsx component 2026-09-24 (same day MatchEditDrawer needed an identical control) \u2014 the id itself is built there from a `dataInspectPrefix` prop, so the anchor below points at LogMatch's call site, which passes dataInspectPrefix=\"logmatch-leaver-side\".",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1558",
+            "path": "client/src/pages/LogMatch.tsx:1554",
             "grep": "grep -n -F -- 'dataInspectPrefix=\"logmatch-leaver-side\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2760,7 +2760,7 @@ const DATA = {
           "kind": "input",
           "description": "Added 2026-10-04. Two small number inputs for the final round score, shared ScoreInputs.tsx. Blank saves NULL; whole numbers 0-10 (server 400s otherwise). Writes matches.score_us / score_them via POST /api/matches (Log Match) or PUT /api/matches/:id (drawer, prefilled from GET /api/matches/:id). Hidden for a crashed game.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1562",
+            "path": "client/src/pages/LogMatch.tsx:1558",
             "grep": "grep -n -F -- 'ScoreInputs us=' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2770,7 +2770,7 @@ const DATA = {
           "kind": "button",
           "description": "One of the two sliver buttons inside logmatch-leaver-side-toggle. Shared id across both (mine/theirs) \u2014 same convention as the identity-group toggles elsewhere on this app. Selected state lights with .leaver-lamp in its side's muted Win/Loss hue (SIDE_HUES in LeaverSliver.tsx); tapping the already-selected one clears leaverSide back to null. Rendered by LeaverSliver.tsx (see logmatch-leaver-side-toggle) \u2014 anchor points at the same LogMatch.tsx call site.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1558",
+            "path": "client/src/pages/LogMatch.tsx:1554",
             "grep": "grep -n -F -- 'dataInspectPrefix=\"logmatch-leaver-side\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2780,7 +2780,7 @@ const DATA = {
           "kind": "text",
           "description": "Tiny captions, one under each leaver-side sliver: 'Enemy Leaver - Free win?' (left, under Win) and 'Friendly Leaver - GG go next' (right, under Loss). The picked side's caption is .lit-text, lit from above (brightest at the top, next to its bar). Rendered by LeaverSliver.tsx (see logmatch-leaver-side-toggle) \u2014 anchor points at the same LogMatch.tsx call site.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1558",
+            "path": "client/src/pages/LogMatch.tsx:1554",
             "grep": "grep -n -F -- 'dataInspectPrefix=\"logmatch-leaver-side\"' client/src/pages/LogMatch.tsx"
           }
         }
@@ -6820,6 +6820,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 
