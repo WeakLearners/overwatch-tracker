@@ -1280,7 +1280,7 @@ export default function LogMatch() {
 
       <div id="match-details" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card" data-inspect-id="logmatch-match-details-card">
-          <div className="grid grid-cols-3 items-center mb-4">
+          <div className="grid grid-cols-3 gap-3 items-center mb-4">
             <div className="flex items-baseline gap-3 min-w-0">
               <h2 className="text-sm card-title">Match Details</h2>
             </div>
@@ -1345,14 +1345,14 @@ export default function LogMatch() {
                 0), and the Match Log does not re-ask it (design-language
                 section 7). This line only says what will be recorded, in that
                 queue's own wash; "change" scrolls back to the tiles. */}
-            <div className="grid grid-cols-3 items-center" data-inspect-id="logmatch-mode-toggle">
-              <div className="pr-3 min-w-0">
+            <div className="grid grid-cols-3 gap-3 items-center" data-inspect-id="logmatch-mode-toggle">
+              <div className="min-w-0">
               <button
                 type="button"
                 onClick={() => document.getElementById('sec-mode')?.scrollIntoView({ behavior: 'smooth' })}
                 title="Change the queue on the mode tiles at the top"
                 style={{ '--sel': QUEUE_MODE_SEL_RGB[queueMode] } as React.CSSProperties}
-                className={`is-selected mode-fill border-2 rounded-md h-8 px-3 text-xs font-semibold leading-tight whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ow-accent ${QUEUE_MODE_COLORS[queueMode].accent}`}
+                className={`is-selected mode-fill border-2 rounded-md h-8 w-full px-3 text-xs font-semibold leading-tight whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ow-accent ${QUEUE_MODE_COLORS[queueMode].accent}`}
                 data-inspect-id="logmatch-recording-as-chip"
               >
                 <span className="lit-text lit-strong">{QUEUE_MODES.find(m => m.value === queueMode)?.label ?? queueMode}</span>
