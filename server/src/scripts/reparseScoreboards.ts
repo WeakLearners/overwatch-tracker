@@ -10,7 +10,7 @@ import path from 'path';
 import dotenv from 'dotenv';
 import fs from 'fs';
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
-import { getDb } from '../db/schema';
+import { getDb, DB_PATH } from '../db/schema';
 import { processFile, readScoreboard } from '../lib/scoreboard';
 import { finalizeGroups } from '../lib/scoreboardPages';
 import { organizeAll } from '../lib/scoreboardOrganize';
@@ -19,6 +19,8 @@ import { scoreboardDir } from '../lib/scoreboardWatcher';
 async function main() {
   const ids = process.argv.slice(2).map(Number).filter(Number.isInteger);
   if (!ids.length) { console.error('give board ids'); process.exit(2); }
+  const dbPath = DB_PATH;
+  if (!fs.existsSync(dbPath)) { console.error(`refusing to run: DB file not found at ${dbPath}. Set OVERWATCH_DB_PATH to the real database.`); process.exit(2); }
   const db = getDb();
   const rows = (db.prepare(`SELECT id, file_path, file_mtime, status FROM match_scoreboards WHERE id IN (${ids.map(() => '?').join(',')}) ORDER BY file_mtime, id`).all(...ids) as unknown as { id: number; file_path: string; file_mtime: string; status: string }[]);
   for (const r of rows) {

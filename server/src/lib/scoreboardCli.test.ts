@@ -1,7 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'path';
-import { makeCallVisionCli, readScoreboard, SCOREBOARD_MODEL, type CliRunner } from './scoreboard';
+import { makeCallVisionCli, cliEnv, CLI_AUTH_ENV_VARS, readScoreboard, SCOREBOARD_MODEL, type CliRunner } from './scoreboard';
 
 const FIXTURE = path.resolve(__dirname, '../test/fixtures/scoreboard-36.png');
 const parsedOk = { page_type: 'other', is_scoreboard: false, rows: [] };
@@ -17,6 +17,23 @@ describe('callVisionCli (stubbed process)', () => {
     assert.equal(seen[seen.indexOf('--setting-sources') + 1], 'user');
     assert.equal(seen[seen.indexOf('--tools') + 1], 'Read');
     assert.ok(seen.includes('--json-schema'));
+  });
+  test('spawn env has no auth-forcing variables even when process.env sets them', async () => {
+    const saved: Record<string, string | undefined> = {};
+    for (const k of CLI_AUTH_ENV_VARS) { saved[k] = process.env[k]; process.env[k] = 'x'; }
+    process.env.OW_KEEP_ME = '1';
+    try {
+      let env: NodeJS.ProcessEnv = {};
+      const run: CliRunner = async (_b, _a, o) => { env = o.env; return { stdout: JSON.stringify({ is_error: false, structured_output: parsedOk }), stderr: '', code: 0, timedOut: false }; };
+      await makeCallVisionCli(run)(FIXTURE);
+      for (const k of CLI_AUTH_ENV_VARS) assert.equal(env[k], undefined, k);
+      assert.equal(env.OW_KEEP_ME, '1');
+      assert.equal(process.env.ANTHROPIC_API_KEY, 'x', 'process.env itself is untouched');
+      assert.equal(cliEnv({ ANTHROPIC_API_KEY: 'k', PATH: '/bin' }).ANTHROPIC_API_KEY, undefined);
+    } finally {
+      for (const k of CLI_AUTH_ENV_VARS) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; }
+      delete process.env.OW_KEEP_ME;
+    }
   });
   test('falls back to a fenced JSON result string', async () => {
     const p = await makeCallVisionCli(ok(JSON.stringify({ result: '```json\n' + JSON.stringify(parsedOk) + '\n```' })))(FIXTURE);

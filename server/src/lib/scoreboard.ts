@@ -492,10 +492,23 @@ export function claudeBin(): string {
 }
 
 export interface CliRunResult { stdout: string; stderr: string; code: number | null; timedOut: boolean }
-export type CliRunner = (bin: string, args: string[], opts: { cwd: string; timeoutMs: number }) => Promise<CliRunResult>;
+export type CliRunner = (bin: string, args: string[], opts: { cwd: string; timeoutMs: number; env: NodeJS.ProcessEnv }) => Promise<CliRunResult>;
 
-const runCliProcess: CliRunner = (bin, args, { cwd, timeoutMs }) => new Promise((resolve, reject) => {
-  const child = execFile(bin, args, { cwd, timeout: timeoutMs, maxBuffer: 32 * 1024 * 1024, killSignal: 'SIGKILL' }, (err, stdout, stderr) => {
+/** Env vars that make the CLI use an API key or another provider instead of the claude.ai login. */
+export const CLI_AUTH_ENV_VARS = [
+  'ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL',
+  'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX', 'CLAUDE_CODE_USE_FOUNDRY',
+  'ANTHROPIC_BEDROCK_BASE_URL', 'ANTHROPIC_VERTEX_BASE_URL', 'ANTHROPIC_FOUNDRY_API_KEY', 'ANTHROPIC_FOUNDRY_BASE_URL',
+];
+/** Copy of the env for the spawned CLI, with every forced-auth variable removed (server/.env sets the API key). */
+export function cliEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const env = { ...base };
+  for (const k of CLI_AUTH_ENV_VARS) delete env[k];
+  return env;
+}
+
+const runCliProcess: CliRunner = (bin, args, { cwd, timeoutMs, env }) => new Promise((resolve, reject) => {
+  const child = execFile(bin, args, { cwd, env, timeout: timeoutMs, maxBuffer: 32 * 1024 * 1024, killSignal: 'SIGKILL' }, (err, stdout, stderr) => {
     const e = err as (NodeJS.ErrnoException & { killed?: boolean; code?: number | string }) | null;
     if (e && e.code === 'ENOENT') return reject(new Error(`claude CLI not found (${bin}); set CLAUDE_BIN`));
     resolve({ stdout, stderr, code: e ? (typeof e.code === 'number' ? e.code : 1) : 0, timedOut: !!e?.killed });
@@ -530,7 +543,7 @@ export function makeCallVisionCli(run: CliRunner = runCliProcess, timeoutMs: num
         '--strict-mcp-config',
         '--no-session-persistence',
       ];
-      const r = await run(claudeBin(), args, { cwd: dir, timeoutMs });
+      const r = await run(claudeBin(), args, { cwd: dir, timeoutMs, env: cliEnv() });
       if (r.timedOut) throw new Error(`claude CLI timed out after ${Math.round(timeoutMs / 1000)}s`);
       if (r.code !== 0) throw new Error(`claude CLI exited ${r.code}: ${(r.stderr || r.stdout).trim().slice(0, 300)}`);
       let env: any;
