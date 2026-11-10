@@ -14,7 +14,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { organizeAll } from './scoreboardOrganize';
 import { markInFlight, clearInFlight } from './scoreboardStage';
 import { finalizeGroups } from './scoreboardPages';
-import { processFile, rematchRecent, isImageName, type VisionFn, callVision } from './scoreboard';
+import { processFile, rematchRecent, isImageName, type VisionFn, readScoreboard } from './scoreboard';
 
 export const POLL_MS = 10_000;
 /** A file whose mtime is younger than this is left for the next tick (Drive may still be writing it). */
@@ -52,7 +52,7 @@ export const getSkippedCount = () => skippedCount;
 export async function pollOnce(
   db: DatabaseSync,
   dir: string,
-  vision: VisionFn = callVision,
+  vision: VisionFn = readScoreboard,
   fsTimeoutMs: number = FS_TIMEOUT_MS,
   minAgeMs: number = 0,
   nowMs: number = Date.now(),
@@ -139,7 +139,7 @@ export async function pollOnce(
 }
 
 /** The "Read" button: read every unread image now (same pipeline, order, per-poll cap and retry rules). Null when a poll or read is running. */
-export async function readNow(db: DatabaseSync, dir: string, vision: VisionFn = callVision): Promise<{ processed: number; unread: number } | null> {
+export async function readNow(db: DatabaseSync, dir: string, vision: VisionFn = readScoreboard): Promise<{ processed: number; unread: number } | null> {
   if (running) return null;
   running = true;
   try {
@@ -153,7 +153,7 @@ export async function readNow(db: DatabaseSync, dir: string, vision: VisionFn = 
  * (count only, no vision call, nothing moved or deleted). `unreadable` is keyed by mtime, and a permission fix does not
  * change the mtime, so without this a file stayed ignored until the server restarted. Null when a poll or read is running.
  */
-export async function rescanNow(db: DatabaseSync, dir: string, vision: VisionFn = callVision): Promise<{ unread: number; skipped: number; error: string | null } | null> {
+export async function rescanNow(db: DatabaseSync, dir: string, vision: VisionFn = readScoreboard): Promise<{ unread: number; skipped: number; error: string | null } | null> {
   if (running) return null;
   running = true;
   try {
@@ -165,7 +165,7 @@ export async function rescanNow(db: DatabaseSync, dir: string, vision: VisionFn 
 }
 
 /** One interval tick: count new images, never read them. Exported for tests. */
-export async function countTick(db: DatabaseSync, dir: string, vision: VisionFn = callVision): Promise<void> {
+export async function countTick(db: DatabaseSync, dir: string, vision: VisionFn = readScoreboard): Promise<void> {
   if (running) return;
   running = true;
   try { await pollOnce(db, dir, vision, FS_TIMEOUT_MS, MIN_INTAKE_AGE_MS, Date.now(), false); }

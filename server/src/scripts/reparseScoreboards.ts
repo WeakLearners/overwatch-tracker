@@ -4,14 +4,14 @@
 // the pages that follow. Only rows whose status is 'not_scoreboard' or 'error' are touched, and
 // never a matches row.
 //
-// Usage (from server/, needs ANTHROPIC_API_KEY from server/.env; back up the DB first):
+// Usage (from server/, reader set by SCOREBOARD_READER (default cli = Claude plan; api needs ANTHROPIC_API_KEY from server/.env); back up the DB first):
 //   tsx --experimental-sqlite src/scripts/reparseScoreboards.ts 7 13 15 16
 import path from 'path';
 import dotenv from 'dotenv';
 import fs from 'fs';
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 import { getDb } from '../db/schema';
-import { processFile, callVision } from '../lib/scoreboard';
+import { processFile, readScoreboard } from '../lib/scoreboard';
 import { finalizeGroups } from '../lib/scoreboardPages';
 import { organizeAll } from '../lib/scoreboardOrganize';
 import { scoreboardDir } from '../lib/scoreboardWatcher';
@@ -24,7 +24,7 @@ async function main() {
   for (const r of rows) {
     if (r.status !== 'not_scoreboard' && r.status !== 'error') { console.log(`board ${r.id}: status ${r.status}, skipped`); continue; }
     if (!fs.existsSync(r.file_path)) { console.log(`board ${r.id}: file missing, skipped`); continue; }
-    const out = await processFile(db, r.file_path, Date.parse(r.file_mtime), callVision, r.id);
+    const out = await processFile(db, r.file_path, Date.parse(r.file_mtime), readScoreboard, r.id);
     console.log(`board ${r.id}: ${out}`);
   }
   // The groups are old enough now: fill the empty aim fields and file the pages.

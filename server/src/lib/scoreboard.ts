@@ -480,6 +480,76 @@ export const callVision: VisionFn = async (filePath) => {
   return JSON.parse(block.text) as ParsedScoreboard;
 };
 
+// ------------------------------------------------------------ CLI reader
+
+export const CLI_TIMEOUT_MS = 120_000;
+/** Absolute path wins; launchd gives the prod server a short PATH, so config can pin the binary. */
+export function claudeBin(): string {
+  if (process.env.CLAUDE_BIN) return process.env.CLAUDE_BIN;
+  const home = process.env.HOME || os.homedir();
+  const local = path.join(home, '.local', 'bin', 'claude');
+  return fs.existsSync(local) ? local : 'claude';
+}
+
+export interface CliRunResult { stdout: string; stderr: string; code: number | null; timedOut: boolean }
+export type CliRunner = (bin: string, args: string[], opts: { cwd: string; timeoutMs: number }) => Promise<CliRunResult>;
+
+const runCliProcess: CliRunner = (bin, args, { cwd, timeoutMs }) => new Promise((resolve, reject) => {
+  const child = execFile(bin, args, { cwd, timeout: timeoutMs, maxBuffer: 32 * 1024 * 1024, killSignal: 'SIGKILL' }, (err, stdout, stderr) => {
+    const e = err as (NodeJS.ErrnoException & { killed?: boolean; code?: number | string }) | null;
+    if (e && e.code === 'ENOENT') return reject(new Error(`claude CLI not found (${bin}); set CLAUDE_BIN`));
+    resolve({ stdout, stderr, code: e ? (typeof e.code === 'number' ? e.code : 1) : 0, timedOut: !!e?.killed });
+  });
+  child.stdin?.end();
+});
+
+/**
+ * Read a screenshot through the Claude plan with `claude -p` (no API credit). The image is
+ * downscaled into a private temp dir that is the CLI's cwd, so the model reads it with the
+ * Read tool and no project settings, hooks or CLAUDE.md apply. Same prompt, schema and
+ * parsed shape as callVision.
+ */
+export function makeCallVisionCli(run: CliRunner = runCliProcess, timeoutMs: number = CLI_TIMEOUT_MS): VisionFn {
+  return async (filePath) => {
+    const img = await prepareImage(filePath);
+    const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'ow-sb-cli-'));
+    try {
+      const imgName = `board${img.mediaType === 'image/png' ? '.png' : '.jpg'}`;
+      await fs.promises.writeFile(path.join(dir, imgName), img.data);
+      const args = [
+        '-p', `Read the screenshot image file ./${imgName} with the Read tool, then parse it. Output only the JSON object that matches the schema.`,
+        '--model', SCOREBOARD_MODEL,
+        '--system-prompt', systemPrompt(),
+        '--json-schema', JSON.stringify(SCHEMA),
+        '--output-format', 'json',
+        '--setting-sources', 'user',
+        '--tools', 'Read',
+        '--allowedTools', 'Read',
+        '--add-dir', dir,
+        '--disable-slash-commands',
+        '--strict-mcp-config',
+        '--no-session-persistence',
+      ];
+      const r = await run(claudeBin(), args, { cwd: dir, timeoutMs });
+      if (r.timedOut) throw new Error(`claude CLI timed out after ${Math.round(timeoutMs / 1000)}s`);
+      if (r.code !== 0) throw new Error(`claude CLI exited ${r.code}: ${(r.stderr || r.stdout).trim().slice(0, 300)}`);
+      let env: any;
+      try { env = JSON.parse(r.stdout); } catch { throw new Error(`claude CLI output is not JSON: ${r.stdout.slice(0, 200)}`); }
+      if (env?.is_error) throw new Error(`claude CLI error: ${String(env.result ?? '').slice(0, 300)}`);
+      if (env?.structured_output && typeof env.structured_output === 'object') return env.structured_output as ParsedScoreboard;
+      const text = String(env?.result ?? '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+      try { return JSON.parse(text) as ParsedScoreboard; } catch { throw new Error(`claude CLI result is not valid JSON: ${text.slice(0, 200)}`); }
+    } finally {
+      fs.promises.rm(dir, { recursive: true, force: true }).catch(() => {});
+    }
+  };
+}
+export const callVisionCli: VisionFn = makeCallVisionCli();
+
+/** SCOREBOARD_READER=cli (default, Claude plan) or api (Anthropic API, costs credit). Read at call time. */
+export const readScoreboard: VisionFn = (filePath) =>
+  (process.env.SCOREBOARD_READER || 'cli').toLowerCase() === 'api' ? callVision(filePath) : callVisionCli(filePath);
+
 // ------------------------------------------------------------ file pipeline
 
 const attempts = new Map<string, number>();
@@ -495,7 +565,7 @@ export async function processFile(
   db: DatabaseSync,
   filePath: string,
   mtimeMs: number,
-  vision: VisionFn = callVision,
+  vision: VisionFn = readScoreboard,
   replaceId?: number,
 ): Promise<string | null> {
   let parsed: ParsedScoreboard;
