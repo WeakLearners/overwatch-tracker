@@ -105,6 +105,22 @@ analysis_region() {
   esac | sed -e 's://.*::' -e '/^[[:space:]]*\*/d' -e '/^[[:space:]]*\/\*/d'
 }
 
+# Columns retired on purpose (decided 2026-11-09, queue item "the 6 write-only
+# columns"). All six are leftovers of the earlier hidden-DPI design. No code
+# writes them any more (the INSERTs in routes/matches.ts and routes/blind.ts
+# leave them off) and none of them is a study variable: the DPI is shown on
+# screen the whole time, so there is nothing hidden to analyse. The old rows
+# keep their values, and the columns stay because dropping a column from a
+# live SQLite DB is not worth the risk. Do not add a column here to silence the
+# audit. Add it only after you decide to stop writing it and say why.
+is_retired() {
+  case "$1" in
+    matches.rel_pos|matches.revealed) return 0 ;;
+    blind_stage_sets.scramble_done|blind_stage_sets.resolved|blind_stage_sets.revealed_slot|blind_stage_sets.last_click_count) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 red=$'\033[31m'; yellow=$'\033[33m'; green=$'\033[32m'; dim=$'\033[2m'; off=$'\033[0m'
 flagged=0
 
@@ -118,6 +134,10 @@ for table in "${TABLES[@]}"; do
     # Ambiguous short names (id, hero, date, win) collide with everything and
     # tell us nothing; skip rather than print noise.
     case "$col" in id|hero|role|map|date|time|win|sens|dpi|notes|created_at|match_id|set_id) continue ;; esac
+
+    if is_retired "$table.$col"; then
+      printf "  %-22s ${dim}retired${off}   (hidden-DPI leftover, no longer written)\n" "$col"; continue
+    fi
 
         # -w so a short column name can't match a longer one that contains it
     # (plain 'damage' otherwise scores a hit on every 'torpedo_damage' line).
