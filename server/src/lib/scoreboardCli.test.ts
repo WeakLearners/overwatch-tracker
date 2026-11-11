@@ -47,6 +47,11 @@ describe('callVisionCli (stubbed process)', () => {
     const run: CliRunner = async () => ({ stdout: '', stderr: 'Not logged in', code: 1, timedOut: false });
     await assert.rejects(makeCallVisionCli(run)(FIXTURE), /exited 1: Not logged in/);
   });
+  test('non-zero exit with a JSON envelope reports its result, not the usage data before it', async () => {
+    const stdout = JSON.stringify({ duration_api_ms: 0, stop_reason: 'stop_sequence', usage: { pad: 'x'.repeat(800) }, is_error: true, result: "You've hit your limit" });
+    const run: CliRunner = async () => ({ stdout, stderr: '', code: 1, timedOut: false });
+    await assert.rejects(makeCallVisionCli(run)(FIXTURE), /exited 1: You've hit your limit/);
+  });
   test('CLI-reported error throws', async () => {
     await assert.rejects(makeCallVisionCli(ok(JSON.stringify({ is_error: true, result: 'rate limited' })))(FIXTURE), /rate limited/);
   });

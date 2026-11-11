@@ -545,7 +545,13 @@ export function makeCallVisionCli(run: CliRunner = runCliProcess, timeoutMs: num
       ];
       const r = await run(claudeBin(), args, { cwd: dir, timeoutMs, env: cliEnv() });
       if (r.timedOut) throw new Error(`claude CLI timed out after ${Math.round(timeoutMs / 1000)}s`);
-      if (r.code !== 0) throw new Error(`claude CLI exited ${r.code}: ${(r.stderr || r.stdout).trim().slice(0, 300)}`);
+      if (r.code !== 0) {
+        // On a failed run the CLI prints a JSON envelope whose `result` holds the reason (limit, login, overload).
+        // The envelope has about 700 chars of usage data first, so slicing raw stdout hid the reason (2026-11-11).
+        let reason = (r.stderr || '').trim();
+        try { const j = JSON.parse(r.stdout); if (typeof j?.result === 'string' && j.result.trim()) reason = j.result.trim(); } catch { /* not JSON */ }
+        throw new Error(`claude CLI exited ${r.code}: ${(reason || r.stdout.trim()).slice(0, 300)}`);
+      }
       let env: any;
       try { env = JSON.parse(r.stdout); } catch { throw new Error(`claude CLI output is not JSON: ${r.stdout.slice(0, 200)}`); }
       if (env?.is_error) throw new Error(`claude CLI error: ${String(env.result ?? '').slice(0, 300)}`);
