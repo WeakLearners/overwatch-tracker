@@ -152,8 +152,8 @@ function DrawerContent({ map }: { map: string }) {
                 title={`${m.win ? 'W' : 'L'} · ${withHeroCount(m.hero, heroCounts).toUpperCase()}`}
                 className={`w-7 h-7 rounded flex items-center justify-center text-xs font-bold border ${
                   m.win
-                    ? 'bg-emerald-500/20 text-emerald-600 border-emerald-500/30'
-                    : 'bg-red-500/20 text-red-600 border-red-500/30'
+                    ? 'bg-emerald-500/20 text-emerald-800 dark:text-emerald-600 border-emerald-500/30'
+                    : 'bg-red-500/20 text-red-800 dark:text-red-600 border-red-500/30'
                 }`}
               >
                 {m.win ? 'W' : 'L'}

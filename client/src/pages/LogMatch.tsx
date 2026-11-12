@@ -371,8 +371,8 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone }: {
       <div>
         <label className="block text-xs text-[var(--muted)] mb-1.5">Result</label>
         <div className="flex gap-3">
-          {[{ v: 1, label: 'Win', cls: 'border-emerald-500 bg-emerald-500/20 text-emerald-600' },
-            { v: 0, label: 'Loss', cls: 'border-red-500 bg-red-500/20 text-red-600' }].map(({ v, label, cls }) => (
+          {[{ v: 1, label: 'Win', cls: 'border-emerald-500 bg-emerald-500/20 text-emerald-800 dark:text-emerald-600' },
+            { v: 0, label: 'Loss', cls: 'border-red-500 bg-red-500/20 text-red-800 dark:text-red-600' }].map(({ v, label, cls }) => (
             <button
               key={v}
               type="button"

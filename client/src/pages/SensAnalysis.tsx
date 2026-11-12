@@ -528,7 +528,7 @@ function HeroBoxTooltip({ active, payload, label }: { active?: boolean; payload?
       <div style={{ fontWeight: 700 }}>{label} sens (@{MOUSE_DPI} DPI)</div>
       {entries.map(e => (
         <div key={e.hero} style={{ marginTop: 4 }}>
-          <div style={{ fontWeight: 600, color: heroColor(e.hero), textTransform: 'uppercase', letterSpacing: '0.02em' }}>{e.hero}</div>
+          <div style={{ fontWeight: 600, color: 'var(--ink)', textTransform: 'uppercase', letterSpacing: '0.02em' }}><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: heroColor(e.hero), marginRight: 6 }} />{e.hero}</div>
           <div>Typical <b style={{ fontWeight: 700 }}>{f1(e.stats.median)}</b>% (middle half between <b style={{ fontWeight: 700 }}>{f1(e.stats.q1)}</b>–<b style={{ fontWeight: 700 }}>{f1(e.stats.q3)}</b>%)</div>
           <div style={{ opacity: 0.7 }}>Range <b style={{ fontWeight: 700 }}>{f1(e.stats.min)}</b>–<b style={{ fontWeight: 700 }}>{f1(e.stats.max)}</b>% · {e.stats.n} game{e.stats.n === 1 ? '' : 's'}</div>
         </div>

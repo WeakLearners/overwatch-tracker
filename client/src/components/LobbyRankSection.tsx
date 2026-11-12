@@ -90,7 +90,7 @@ export default function LobbyRankSection({ className = '' }: { className?: strin
           aria-pressed={placement}
           data-inspect-id="lobby-rank-placement-toggle"
           className={`ml-auto shrink-0 px-2 py-0.5 rounded-md border text-xs transition-colors ${
-            placement ? 'border-ow-accent text-ow-accent bg-ow-accent/10' : 'border-ow-border text-[var(--faint)] hover:text-ow-accent hover:border-ow-accent/60'
+            placement ? 'border-ow-accent text-orange-800 dark:text-ow-accent bg-ow-accent/10' : 'border-ow-border text-[var(--faint)] hover:text-ow-accent hover:border-ow-accent/60'
           }`}
         >
           Placements

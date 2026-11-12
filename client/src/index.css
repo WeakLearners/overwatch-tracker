@@ -281,6 +281,16 @@
   html:not(.dark) .text-amber-500   { color: #92400E; } /* 2.15 -> 7.09 on white */
   html:not(.dark) .text-amber-600   { color: #92400E; } /* 3.19 -> 7.09 */
   html:not(.dark) .text-amber-700   { color: #92400E; }
+  /* OW-0005 readability pass (2026-11-12, merges the 2026-11-08 text fix). Text colours still unfixed in light theme:
+     cyan ow-blue 1.80:1 on white (FindingChip "Holds up", Play habits, win-rate colour in the hero and map drawers),
+     yellow-400 1.53 (the 40-49% win-rate band in the same drawers), blue-500 3.68 ("cold" tags on Prematch and Sens),
+     rose-600 3.97 on the recessed grey (Form card best/worst/now). Each keeps its hue and clears 4.5 on white and on
+     the recessed grey: #155E75 7.27 / 6.15, #854D0E 6.85 / 5.80, #1D4ED8 6.70 / 5.67, rose joins the loss red #B91C1C.
+     Dark theme is not touched. */
+  html:not(.dark) .text-ow-blue     { color: #155E75; }
+  html:not(.dark) .text-yellow-400  { color: #854D0E; }
+  html:not(.dark) .text-blue-500    { color: #1D4ED8; }
+  html:not(.dark) .text-rose-600    { color: #B91C1C; }
   .pill {
     @apply inline-flex items-center px-2 py-0.5 text-xs font-medium whitespace-nowrap;
     clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);

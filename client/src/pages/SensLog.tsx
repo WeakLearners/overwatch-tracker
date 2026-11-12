@@ -1206,7 +1206,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
       </div>
       <p className="text-xs text-[var(--faint)] mb-3">
         {tabCurveEnabled && (
-          <span data-inspect-id="sl-plan-curve-enabled-badge" className="inline-block mr-1.5 px-1.5 py-0.5 rounded bg-ow-accent/15 text-ow-accent text-[10px] font-semibold align-middle">
+          <span data-inspect-id="sl-plan-curve-enabled-badge" className="inline-block mr-1.5 px-1.5 py-0.5 rounded bg-ow-accent/15 text-orange-800 dark:text-ow-accent text-[10px] font-semibold align-middle">
             Mouse Accel ON
           </span>
         )}
@@ -1528,7 +1528,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                       aria-pressed={phaseCurveEnabled === v}
                       className={`py-1.5 rounded border-2 text-[10px] font-semibold transition-all ${
                         phaseCurveEnabled === v
-                          ? 'is-selected text-orange-700 dark:text-ow-accent'
+                          ? 'is-selected text-orange-800 dark:text-ow-accent'
                           : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)] bg-ow-darker'
                       }`}
                     >
@@ -1821,7 +1821,7 @@ function CreateTestCard() {
                 aria-pressed={curveEnabled === v}
                 className={`py-2 rounded-md border-2 text-xs font-semibold transition-all ${
                   curveEnabled === v
-                    ? 'is-selected text-orange-700 dark:text-ow-accent'
+                    ? 'is-selected text-orange-800 dark:text-ow-accent'
                     : 'border-transparent text-[var(--faint)] hover:text-[var(--ink)] bg-ow-darker'
                 }`}
               >

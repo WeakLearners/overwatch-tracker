@@ -1243,7 +1243,7 @@ export default function Prematch() {
                 data-inspect-id={`prematch-role-timer-row-${k}`}
               >
                 <div className="flex items-baseline justify-between gap-2 mb-1.5">
-                  <b className="text-sm font-semibold" style={{ color: `rgb(${ROLE_SEL_RGB[r.role]})` }}>{r.role}</b>
+                  <b className={`text-sm font-semibold ${ROLE_TEXT[r.role]}`}>{r.role}</b>
                   <span className="text-sm text-[var(--ink-2)] whitespace-nowrap" data-inspect-id={`prematch-role-timer-readout-${k}`}>
                     {fmtHM(r.totalMin)} / {fmtHM(roleTimers!.thresholdMin)}
                     {r.estimatedMin > 0 && <span className="text-[var(--faint-2)]"> (+{Math.round(r.estimatedMin)}m est.)</span>}

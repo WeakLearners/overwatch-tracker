@@ -316,9 +316,9 @@ export const heroShort = (h: string) => HERO_SHORT[h] ?? h;
 // Support badge read as an outcome/mode signal instead of a role one. Tank
 // keeps blue since nothing else in the app claims that hue.
 export const ROLE_COLORS: Record<string, string> = {
-  DPS: 'bg-teal-600/15 text-teal-700 dark:text-teal-400',
+  DPS: 'bg-teal-600/15 text-teal-800 dark:text-teal-400',
   Tank: 'bg-blue-500/15 text-blue-700 dark:text-blue-400',
-  Support: 'bg-pink-500/15 text-pink-700 dark:text-pink-400',
+  Support: 'bg-pink-500/15 text-pink-800 dark:text-pink-400',
 };
 
 // Each role's selected-state hue, as bare RGB channels for the --sel custom
@@ -362,10 +362,10 @@ export const ROLE_PILL_CLASS_DARK: Record<string, [string, string]> = {
 export const TYPE_COLORS: Record<string, string> = {
   Control: 'bg-purple-500/15 text-purple-700 dark:text-purple-400',
   Hybrid: 'bg-yellow-600/15 text-yellow-800 dark:text-yellow-400',
-  Escort: 'bg-orange-500/15 text-orange-700 dark:text-orange-400',
+  Escort: 'bg-orange-500/15 text-orange-800 dark:text-orange-400',
   Push: 'bg-cyan-600/15 text-cyan-800 dark:text-cyan-400',
-  Flashpoint: 'bg-pink-500/15 text-pink-700 dark:text-pink-400',
-  Clash: 'bg-rose-500/15 text-rose-700 dark:text-rose-400',
+  Flashpoint: 'bg-pink-500/15 text-pink-800 dark:text-pink-400',
+  Clash: 'bg-rose-500/15 text-rose-800 dark:text-rose-400',
 };
 
 // ---------------------------------------------------------------------------
