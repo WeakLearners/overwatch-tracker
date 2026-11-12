@@ -825,7 +825,7 @@ export default function Prematch() {
               {selected.map(m => (
                 <div key={m} className="min-w-0 flex flex-col gap-0.5">
                 <span
-                  className={`relative w-full min-w-0 aspect-square flex flex-col items-center justify-center border-2 text-[11px] font-semibold transition-colors ${
+                  className={`relative w-full min-w-0 aspect-square flex flex-col items-center justify-center border-2 text-xs font-semibold transition-colors ${
                     m === map ? 'is-selected mode-fill fill-strong'
                       : m === recommended ? 'is-selected mode-fill'
                       : 'border-ow-border text-[var(--ink-2)]'
@@ -868,7 +868,7 @@ export default function Prematch() {
             </div>
               <button
                 onClick={() => { setSelected([]); setMap(''); setTimeout(() => inputRef.current?.focus(), 0); }}
-                className="w-full mt-[2px] flex items-center justify-center px-2 py-1 border-2 border-ow-border text-[11px] font-semibold text-[var(--faint)] hover:text-[var(--ink)] hover:border-[var(--faint-2)] transition-colors"
+                className="w-full mt-[2px] flex items-center justify-center px-2 py-1 border-2 border-ow-border text-xs font-semibold text-[var(--faint)] hover:text-[var(--ink)] hover:border-[var(--faint-2)] transition-colors"
                 style={{ clipPath: NOTCH }}
                 data-inspect-id="prematch-map-voting-clear-button"
               >
@@ -1490,7 +1490,7 @@ export default function Prematch() {
                           // shown so Sean can see the whole phase at a glance,
                           // not just whichever hero is still running.
                           <span
-                            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[11px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-800 dark:text-emerald-600 pointer-events-none whitespace-nowrap"
+                            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-800 dark:text-emerald-600 pointer-events-none whitespace-nowrap"
                             title="Already tested this phase"
                             data-inspect-id="prematch-hero-picker-done-badge"
                           >
@@ -1556,7 +1556,7 @@ export default function Prematch() {
             <select
               value={bt ? (bt.hero ?? AD_HOC_KEY) : ''}
               onChange={e => setBtHeroPick(e.target.value)}
-              className="text-[11px] field px-1.5 py-1 mb-1 w-full"
+              className="text-xs field px-1.5 py-1 mb-1 w-full"
               aria-label="Hero to show DPI-test progress for"
               data-inspect-id="prematch-dpi-hero-picker-select"
             >

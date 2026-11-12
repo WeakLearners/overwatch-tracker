@@ -457,7 +457,7 @@ function MiniCurveChart({ fit, points, label }: { fit: CurveFit | null; points: 
   if (!fit) {
     return (
       <div className="border border-ow-border chamfer p-2.5" data-inspect-id="sensAnalysis-mini-curve-chart">
-        <div className="text-[11px] font-bold text-[var(--ink)] mb-1 truncate" title={label}>{label}</div>
+        <div className="text-xs font-bold text-[var(--ink)] mb-1 truncate" title={label}>{label}</div>
         <p className="text-[10px] text-[var(--faint-2)]">Needs 3+ reliable scales.</p>
       </div>
     );
@@ -469,7 +469,7 @@ function MiniCurveChart({ fit, points, label }: { fit: CurveFit | null; points: 
   return (
     <div className="border border-ow-border chamfer p-2.5" data-inspect-id="sensAnalysis-mini-curve-chart">
       <div className="flex items-baseline justify-between gap-2 mb-1">
-        <span className="text-[11px] font-bold text-[var(--ink)] truncate" title={label}>{label}</span>
+        <span className="text-xs font-bold text-[var(--ink)] truncate" title={label}>{label}</span>
         <span className={`text-[10px] font-bold shrink-0 ${r2Class}`}>R²={fit.r2.toFixed(2)}</span>
       </div>
       <ResponsiveContainer width="100%" height={100}>
@@ -1006,7 +1006,7 @@ export default function SensAnalysis() {
         dataInspectId="sensAnalysis-recommendation-card"
       >
         <div className="flex items-start gap-3 flex-wrap">
-          <span data-inspect-id="sensAnalysis-recommendation-verdict-badge" className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${recommendation.verdict === 'narrow' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-ow-accent/15 text-ow-accent'}`}>
+          <span data-inspect-id="sensAnalysis-recommendation-verdict-badge" className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${recommendation.verdict === 'narrow' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-ow-accent/15 text-ow-accent'}`}>
             <span data-inspect-id="sensAnalysis-recommendation-badge">{recommendation.verdict === 'narrow' ? 'Narrow focus' : 'Continue testing'}</span>
           </span>
           <p className="text-sm text-[var(--ink)] font-semibold flex-1 min-w-[200px]">{recommendation.headline}</p>
@@ -1128,9 +1128,9 @@ export default function SensAnalysis() {
           <div className="grid grid-cols-2 gap-3" data-inspect-id="sensAnalysis-cold-warm-stat-grid sensAnalysis-cold-warm-tiles">
             {coldWarm.map(b => (
               <div key={b.bucket} className="chamfer bg-ow-darker border border-ow-border p-3">
-                <div className="text-[11px] text-[var(--faint)] mb-1">{b.bucket}</div>
+                <div className="text-xs text-[var(--faint)] mb-1">{b.bucket}</div>
                 <div className="text-2xl num-display text-[var(--ink)]">{f1(b.avgOverall)}<span className="text-xs text-[var(--faint)] ml-0.5">%</span></div>
-                <div className="text-[11px] text-[var(--faint-2)] mt-1 font-bold">{signed(b.avgDelta)} vs. avg · {fmtFeel(b.feelCounts)} · {b.n} game{b.n === 1 ? '' : 's'}</div>
+                <div className="text-xs text-[var(--faint-2)] mt-1 font-bold">{signed(b.avgDelta)} vs. avg · {fmtFeel(b.feelCounts)} · {b.n} game{b.n === 1 ? '' : 's'}</div>
               </div>
             ))}
           </div>
@@ -1140,9 +1140,9 @@ export default function SensAnalysis() {
           <div className="grid grid-cols-2 gap-3" data-inspect-id="sensAnalysis-adaptation-stat-grid sensAnalysis-adaptation-tiles">
             {adaptation.map(b => (
               <div key={b.bucket} className="chamfer bg-ow-darker border border-ow-border p-3">
-                <div className="text-[11px] text-[var(--faint)] mb-1">{b.bucket}</div>
+                <div className="text-xs text-[var(--faint)] mb-1">{b.bucket}</div>
                 <div className="text-2xl num-display text-[var(--ink)]">{f1(b.avgOverall)}<span className="text-xs text-[var(--faint)] ml-0.5">%</span></div>
-                <div className="text-[11px] text-[var(--faint-2)] mt-1 font-bold">{signed(b.avgDelta)} vs. avg · {fmtFeel(b.feelCounts)} · {b.n} game{b.n === 1 ? '' : 's'}</div>
+                <div className="text-xs text-[var(--faint-2)] mt-1 font-bold">{signed(b.avgDelta)} vs. avg · {fmtFeel(b.feelCounts)} · {b.n} game{b.n === 1 ? '' : 's'}</div>
               </div>
             ))}
           </div>
@@ -1154,7 +1154,7 @@ export default function SensAnalysis() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
+              <tr className="text-xs text-[var(--muted)] uppercase tracking-wider text-left">
                 <th className="py-1.5 pr-3">{`Sens @${MOUSE_DPI}`}</th><th className="py-1.5 pr-3">eDPI</th><th className="py-1.5 pr-3">Sens</th><th className="py-1.5 pr-3">n</th>
                 <th className="py-1.5 pr-3" title="Reference only — not a factor in any pick or recommendation on this page">Win % <span className="text-[9px] font-normal text-[var(--faint-2)]">(info only)</span></th><th className="py-1.5 pr-3">Overall</th><th className="py-1.5 pr-3">Crit</th><th className="py-1.5 pr-3" title="Feel answers: Floaty (too slow), Snappy (right), Jittery (too fast)">Feel (F·S·J)</th><th className="py-1.5">vs. Avg</th>
               </tr>
@@ -1211,7 +1211,7 @@ export default function SensAnalysis() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
+              <tr className="text-xs text-[var(--muted)] uppercase tracking-wider text-left">
                 <th className="py-1.5 pr-3">Hero</th><th className="py-1.5 pr-3">Type</th><th className="py-1.5 pr-3">n</th>
                 <th className="py-1.5 pr-3" title="Reference only — plays no part in picking Best Sens">Win % <span className="text-[9px] font-normal text-[var(--faint-2)]">(info only)</span></th><th className="py-1.5 pr-3">Overall</th><th className="py-1.5 pr-3">Signature Stat</th><th className="py-1.5 pr-3">Best Sens</th>
                 <th className="py-1.5 pr-3">Overall vs. Avg</th><th className="py-1.5">Signature vs. Avg</th>
@@ -1415,7 +1415,7 @@ export default function SensAnalysis() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
+                  <tr className="text-xs text-[var(--muted)] uppercase tracking-wider text-left">
                     <th className="py-1.5 pr-3">Metric</th>
                     <th className="py-1.5 pr-3">Games</th>
                     <th className="py-1.5 pr-3">Scales</th>
@@ -1577,7 +1577,7 @@ export default function SensAnalysis() {
                 each tile against its own name. */}
             <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
               <h3 className="text-xs font-bold text-[var(--ink)]">Every Category's Curve</h3>
-              <div className="inline-flex rounded-md border border-ow-border overflow-hidden text-[11px]" data-inspect-id="sensAnalysis-mini-curve-grid-toggle">
+              <div className="inline-flex rounded-md border border-ow-border overflow-hidden text-xs" data-inspect-id="sensAnalysis-mini-curve-grid-toggle">
                 {([['accuracy', 'Accuracy'], ['hero-stat', 'Hero-specific stat']] as const).map(([k, label]) => (
                   <button
                     key={k} type="button" onClick={() => setMiniGrid(k)} aria-pressed={miniGrid === k}
@@ -1616,7 +1616,7 @@ export default function SensAnalysis() {
               <div className="overflow-x-auto mb-6">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
+                    <tr className="text-xs text-[var(--muted)] uppercase tracking-wider text-left">
                       <th className="py-1.5 pr-3">Category</th><th className="py-1.5 pr-3">Scales Tested</th><th className="py-1.5 pr-3">Games Logged</th>
                       <th className="py-1.5 pr-3">R²</th><th className="py-1.5 pr-3">Estimated Best Sens</th><th className="py-1.5 pr-3">Estimated Result</th><th className="py-1.5">Read</th>
                     </tr>
@@ -1660,7 +1660,7 @@ export default function SensAnalysis() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
+                    <tr className="text-xs text-[var(--muted)] uppercase tracking-wider text-left">
                       <th className="py-1.5 pr-3">Category (channel)</th><th className="py-1.5 pr-3">Scales Tested</th><th className="py-1.5 pr-3">Games Logged</th>
                       <th className="py-1.5 pr-3">R²</th><th className="py-1.5 pr-3">Estimated Best Sens</th><th className="py-1.5 pr-3">Estimated Result</th><th className="py-1.5">Read</th>
                     </tr>
@@ -1814,7 +1814,7 @@ export default function SensAnalysis() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
+                  <tr className="text-xs text-[var(--muted)] uppercase tracking-wider text-left">
                     <th className="py-1.5 pr-3">Curve</th><th className="py-1.5 pr-3">n</th><th className="py-1.5 pr-3">Overall</th><th className="py-1.5">vs. Avg</th>
                   </tr>
                 </thead>
@@ -1891,7 +1891,7 @@ export default function SensAnalysis() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
+                  <tr className="text-xs text-[var(--muted)] uppercase tracking-wider text-left">
                     <th className="py-1.5 pr-3">Hero</th><th className="py-1.5 pr-3">Scales tested</th><th className="py-1.5 pr-3">Reliable (n≥{RELIABLE_N})</th><th className="py-1.5 pr-3">Thin (excluded)</th><th className="py-1.5">Pick basis</th>
                   </tr>
                 </thead>

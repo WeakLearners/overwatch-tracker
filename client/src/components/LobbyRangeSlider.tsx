@@ -278,7 +278,7 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
               // to say opposite things in the two themes and an inline style
               // cannot carry a media or class query.
               style={{ '--tier': RANK_TIER_RGB[rankTier(r)] } as React.CSSProperties}
-              className={`rank-pane h-7 rounded text-[11px] num-display font-bold transition-colors ${
+              className={`rank-pane h-7 rounded text-xs num-display font-bold transition-colors ${
                 isMine ? 'ring-1 ring-[var(--ink)] ring-inset' : ''
               } ${inRange ? 'is-lit' : 'text-[var(--faint-2)]'}`}
             >

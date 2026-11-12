@@ -23,7 +23,7 @@ import ScoreInputs, { scoreOrNull } from '../components/ScoreInputs';
 import type { RankOutcomeValue, RankOutcomeChange } from '../components/RankOutcomeControl';
 
 // Shared by the two rank-outcome buttons so they cannot drift apart.
-const btnSmall = 'border border-ow-border rounded-md px-2.5 py-1 text-[11px] font-semibold text-[var(--ink-2)] transition-colors';
+const btnSmall = 'border border-ow-border rounded-md px-2.5 py-1 text-xs font-semibold text-[var(--ink-2)] transition-colors';
 
 interface FormState {
   date: string;
@@ -1429,7 +1429,7 @@ export default function LogMatch() {
                   from the Pre-Match picker above), 2nd/3rd are optional
                   switches made mid-match. The match's result attaches to
                   every hero filled in, not just the first. */}
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <select
                     value={form.hero}
@@ -1464,7 +1464,7 @@ export default function LogMatch() {
                     ))}
                   </select>
                   {offRosterPicked && (
-                    <label className="flex items-center gap-1.5 mt-1.5 text-[11px] text-amber-500 cursor-pointer" data-inspect-id="logmatch-off-roster-confirm">
+                    <label className="flex items-center gap-1.5 mt-1.5 text-xs text-amber-500 cursor-pointer" data-inspect-id="logmatch-off-roster-confirm">
                       <input type="checkbox" checked={offRosterOk} onChange={e => setOffRosterOk(e.target.checked)} />
                       Off-roster hero. Tick to confirm and count it on the trial card.
                     </label>

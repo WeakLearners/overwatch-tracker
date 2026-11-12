@@ -3435,7 +3435,7 @@
           "description": "Badge reading 'Narrow focus' or 'Continue testing' depending on whether the leading scale is unbracketed, thin, or close to a runner-up.",
           "locate": {
             "path": "client/src/pages/SensAnalysis.tsx:1009",
-            "grep": "grep -n -F -- 'text-[11px] font-semibold ${recommendation.verdict === '\"'\"'narrow'\"'\"'' client/src/pages/SensAnalysis.tsx"
+            "grep": "grep -n -F -- 'sensAnalysis-recommendation-verdict-badge' client/src/pages/SensAnalysis.tsx"
           }
         },
         {

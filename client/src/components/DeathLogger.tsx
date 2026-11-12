@@ -102,7 +102,7 @@ export default function DeathLogger() {
               type="button"
               data-inspect-id="deathLogger-heroGridButton"
               onClick={() => logKill(hero)}
-              className="px-1 py-1.5 rounded-md bg-ow-card border border-ow-border text-[11px] leading-tight font-medium text-[var(--ink-2)] hover:text-[var(--ink)] hover:border-ow-accent/50 active:scale-95 transition-all truncate"
+              className="px-1 py-1.5 rounded-md bg-ow-card border border-ow-border text-xs leading-tight font-medium text-[var(--ink-2)] hover:text-[var(--ink)] hover:border-ow-accent/50 active:scale-95 transition-all truncate"
             >
               {hero}
             </button>

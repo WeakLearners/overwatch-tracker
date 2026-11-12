@@ -536,7 +536,7 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt, accoun
                       data-inspect-id="dash-recent-form-tier-mark"
                       title={`[${label}] ${rankLabel(m.prev)} → ${rankLabel(m.rank)}${m.from !== m.tier ? ` · ${m.up ? 'promoted' : 'demoted'} out of ${m.from}` : ''} · ${format(parseISO(m.date), 'MMM d')}`}
                       aria-label={`${m.account ?? ''} ${m.role} ${m.up ? 'up' : 'down'} from ${rankLabel(m.prev)} to ${rankLabel(m.rank)} on ${format(parseISO(m.date), 'MMMM d')}`}
-                      className="absolute flex flex-col items-center text-[11px] leading-none pointer-events-none select-none"
+                      className="absolute flex flex-col items-center text-xs leading-none pointer-events-none select-none"
                       style={{
                         left: `calc(1.75rem + ${(slotX(m.j) / CH_W) * 100}% - ${(slotX(m.j) / CH_W) * 1.75}rem)`,
                         top: `${(y / CH_H) * 100}%`,
@@ -737,7 +737,7 @@ const RecentMatchesCard = memo(function RecentMatchesCard({ trends, tilt, accoun
                       one entry explaining a symbol you have not hit yet. */}
                   <div className="flex items-start gap-2 min-w-0">
                     <span className={LEGEND_SWATCH} aria-hidden="true">
-                      <span className="inline-flex flex-col leading-[0.75] text-[11px]">
+                      <span className="inline-flex flex-col leading-[0.75] text-xs">
                         <span className="font-black" style={{ color: RANK_SERIES_COLOR.Pinx.DPS }}>+</span>
                         <span className="font-black" style={{ color: RANK_SERIES_COLOR.Jinx.DPS }}>−</span>
                       </span>

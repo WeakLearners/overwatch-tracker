@@ -219,6 +219,10 @@
     box-shadow: var(--field-shadow);
   }
   .field::placeholder { color: var(--faint-2); }
+  /* Keyboard focus ring (design-language 2.12): one global rule, accent outline 2px (--vol-base, the accent token, lighter in dark theme), offset 2px.
+     :focus-visible shows it for Tab, not for mouse clicks. .field keeps its own glow on :focus. */
+  :focus-visible { outline: 2px solid var(--vol-base); outline-offset: 2px; }
+  .field:focus-visible { outline: none; }
   .field:focus {
     outline: none;
     border-color: rgba(247, 147, 30, 0.7);

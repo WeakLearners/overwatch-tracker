@@ -360,7 +360,7 @@ function LutEditor({ data }: { data: CurveParams }) {
                           type="button" onClick={() => setRows(rs => rs.filter((_, j) => j !== i))}
                           title="Remove this point" aria-label={`Remove point ${i + 1}`}
                           data-inspect-id="sl-lut-row-remove-btn"
-                          className="absolute right-0 top-0 hidden group-hover:block bg-ow-darker text-[var(--faint-2)] hover:text-red-400 px-0.5 text-[11px] leading-none"
+                          className="absolute right-0 top-0 hidden group-hover:block bg-ow-darker text-[var(--faint-2)] hover:text-red-400 px-0.5 text-xs leading-none"
                         >×</button>
                       )}
                     </td>
@@ -1394,7 +1394,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                   <p className="text-[10px] text-[var(--faint-2)] text-center mb-1">× <b className="font-bold">{h.gamesPerSlot}</b>/slot</p>
                 )}
                 {h.note && (
-                  <p className="text-[11px] text-[var(--faint)] truncate mb-1" title={h.note}>{h.note}</p>
+                  <p className="text-xs text-[var(--faint)] truncate mb-1" title={h.note}>{h.note}</p>
                 )}
                 {/* Single fixed-height footer, its content switching by status — replaces the old
                     top-badge + bottom-button pair (each separately reserved via `invisible`), which
@@ -1710,17 +1710,17 @@ function ActiveTestCard({ active }: { active: DpiTestActive }) {
             {active.sens != null ? (
               <>
                 <span className="text-3xl heading-display text-[var(--ink)] num-display">{active.sens.toFixed(2)}</span>
-                <span className="text-[11px] text-[var(--faint)]">sens · DPI <b className="num-display">{active.dpi}</b></span>
+                <span className="text-xs text-[var(--faint)]">sens · DPI <b className="num-display">{active.dpi}</b></span>
               </>
             ) : (
               <>
                 <span className="text-3xl heading-display text-[var(--ink)] num-display">{active.dpi ?? '—'}</span>
-                <span className="text-[11px] text-[var(--faint)]">DPI · sens <b className="num-display">{active.in_game_sens.toFixed(2)}</b></span>
+                <span className="text-xs text-[var(--faint)]">DPI · sens <b className="num-display">{active.in_game_sens.toFixed(2)}</b></span>
               </>
             )}
           </div>
         </div>
-        <button type="button" onClick={restart} disabled={busy} data-inspect-id="sl-restart-test-btn" className="shrink-0 text-[11px] text-[var(--faint-2)] hover:text-red-400" title="Restart test from the beginning">↺ Restart</button>
+        <button type="button" onClick={restart} disabled={busy} data-inspect-id="sl-restart-test-btn" className="shrink-0 text-xs text-[var(--faint-2)] hover:text-red-400" title="Restart test from the beginning">↺ Restart</button>
       </div>
       {active.needSwitch ? (
         <div className="mt-1.5 flex items-center gap-2 flex-wrap">
@@ -1731,7 +1731,7 @@ function ActiveTestCard({ active }: { active: DpiTestActive }) {
             // Chunked sets alternate automatically (see lib/blind.ts's
             // abbaStageFor) — nothing to click. Change the physical setting,
             // then log the next match; it auto-credits to the new stage.
-            <span className="text-[11px] text-[var(--faint-2)]" data-inspect-id="sl-chunk-autoswitch-note">
+            <span className="text-xs text-[var(--faint-2)]" data-inspect-id="sl-chunk-autoswitch-note">
               No button — set the value above, then log your next match.
             </span>
           ) : (
@@ -1740,12 +1740,12 @@ function ActiveTestCard({ active }: { active: DpiTestActive }) {
         </div>
       ) : active.chunk ? (
         // A chunked (ABBA) set reports progress in 60-minute blocks (2026-09-27), not games.
-        <div className="mt-1.5 text-[11px] text-[var(--faint-2)]" data-inspect-id="sl-chunk-progress">
+        <div className="mt-1.5 text-xs text-[var(--faint-2)]" data-inspect-id="sl-chunk-progress">
           <b className="num-display text-[var(--ink)]">{blocksLeft}</b> block{blocksLeft === 1 ? '' : 's'} left in this stage (of {active.chunk.stageBlocksTarget})
           {' · '}chunk <b className="font-bold">{active.chunk.label}</b> · <b className="num-display">{Math.floor(active.chunk.openMinutes)}</b> min played
         </div>
       ) : (
-        <div className="mt-1.5 text-[11px] text-[var(--faint-2)]">
+        <div className="mt-1.5 text-xs text-[var(--faint-2)]">
           <b className="num-display text-[var(--ink)]">{gamesLeft}</b> game{gamesLeft === 1 ? '' : 's'} left in this batch (of {active.batch_size})
         </div>
       )}
@@ -2066,7 +2066,7 @@ function BackfillPanel({ pending, loading }: {
                             </span>
                           ))}
                         </div>
-                        <div className="flex items-center gap-3 mt-1 text-[11px] text-[var(--faint)]">
+                        <div className="flex items-center gap-3 mt-1 text-xs text-[var(--faint)]">
                           <span>{m.time ? format(new Date(m.time), 'MMM d, h:mm a') : m.date}</span><span>·</span>
                           <span>{m.stage_index != null ? <>stage <b className="font-bold">{m.stage_index}</b> · sens <b className="font-bold">{m.sens}</b></> : m.sens != null ? <>sens <b className="font-bold">{m.sens}</b></> : 'no sens'}</span>
                         </div>
@@ -2184,8 +2184,8 @@ function BackfillPanel({ pending, loading }: {
                         className="absolute inset-y-0 left-[6.75rem] right-[8.625rem] z-10 flex flex-col items-center justify-center gap-0.5 text-center pointer-events-none"
                         data-inspect-id="sl-logged-today-time-sens"
                       >
-                        <span className="text-[11px] text-[var(--faint)]">{m.time ? format(new Date(m.time), 'MMM d, h:mm a') : m.date}</span>
-                        <span className="text-[11px] text-[var(--faint)]">{m.stage_index != null ? <>stage <b className="font-bold">{m.stage_index}</b> · sens <b className="font-bold">{m.sens}</b></> : m.sens != null ? <>sens <b className="font-bold">{m.sens}</b></> : 'no sens'}</span>
+                        <span className="text-xs text-[var(--faint)]">{m.time ? format(new Date(m.time), 'MMM d, h:mm a') : m.date}</span>
+                        <span className="text-xs text-[var(--faint)]">{m.stage_index != null ? <>stage <b className="font-bold">{m.stage_index}</b> · sens <b className="font-bold">{m.sens}</b></> : m.sens != null ? <>sens <b className="font-bold">{m.sens}</b></> : 'no sens'}</span>
                       </div>
                       <div className="relative z-10 flex flex-col items-end shrink-0 self-center mr-1.5 w-[7.5rem]">
                         <span className="block text-xs map-name text-[var(--ink)] text-right leading-tight whitespace-normal break-words">{m.map}</span>
