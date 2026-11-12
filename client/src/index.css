@@ -312,6 +312,10 @@
      teal and the light-mode card-title orange, for contrast on white. */
   :root          { --gauge-full: #0F766E; --gauge-empty: #B44309; }
   html.dark      { --gauge-full: #29D3F2; --gauge-empty: #FFC069; }
+  /* OW-0007: hero portrait backgrounds are too faint on white cards, so light theme lifts every
+     HeroPortraitBg opacity by 0.45/0.32 (default 0.32 -> 0.45). Dark theme multiplies by 1. */
+  :root          { --portrait-boost: 1.40625; }
+  html.dark      { --portrait-boost: 1; }
   html.dark .grad-brand   { @apply bg-gradient-to-br from-ow-accentLight to-ow-blue bg-clip-text text-transparent; }
   html.dark .grad-win     { @apply from-emerald-300 to-emerald-500; }
   html.dark .grad-loss    { @apply from-rose-300 to-red-500; }

@@ -32,7 +32,9 @@ export default function HeroPortraitBg({ hero, opacity = 0.32, inspectId, positi
         src={url} alt="" loading="lazy" onError={onError}
         className="absolute right-0 top-0 h-full w-3/5 object-cover"
         style={{
-          opacity,
+          // Light theme multiplies by --portrait-boost (index.css: 0.45/0.32), so the default
+          // 0.32 reads 0.45 and a caller's 0.22 reads about 0.31. Dark theme keeps the value as given.
+          opacity: `calc(${opacity} * var(--portrait-boost, 1))`,
           objectPosition: position,
           WebkitMaskImage: 'linear-gradient(to right, transparent, #000 70%)',
           maskImage: 'linear-gradient(to right, transparent, #000 70%)',
