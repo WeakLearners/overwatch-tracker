@@ -8,6 +8,7 @@ import {
 import { getCurveParams } from '../lib/curveParams';
 import { isStudyQueueMode } from '../lib/queueMode';
 import { eraCounts, spannedPatchNotes } from '../lib/patchEra';
+import { feelCounts } from '../lib/feel';
 
 // Lab side of the aim routes (split plan B3): read-only analysis. Must not
 // write, and must not be imported by aimIngest.ts (see aimBoundary.test.ts).
@@ -447,7 +448,9 @@ export function computeAnalysis(db: DatabaseSync) {
           reliable: ps.length >= MIN_SCALE_N,
           avgOverall: mean(ps.map(p => p.overall_acc)),
           avgCrit: mean(ps.filter(p => p.crit_acc != null).map(p => p.crit_acc as number)),
-          avgFeel: mean(ps.filter(p => p.feel != null).map(p => p.feel as number)),
+          // Feel is categorical since OW-0009 (2026-11-12): Floaty / Snappy / Jittery
+          // counts replace the old mean (avgFeel). Nothing else read the mean.
+          feelCounts: feelCounts(ps.map(p => p.feel)),
           avgDelta: mean(ps.filter(p => p.delta != null).map(p => p.delta as number)),
           // Standard error of avgDelta (sample sd / sqrt(n)), so the page can
           // show a 95% interval beside the recommended scale. Null below 2 points.
@@ -674,7 +677,7 @@ export function computeAnalysis(db: DatabaseSync) {
     n: items.length,
     avgOverall: mean(items.map(p => p.overall_acc)),
     avgDelta: mean(items.filter(p => p.delta != null).map(p => p.delta as number)),
-    avgFeel: mean(items.filter(p => p.feel != null).map(p => p.feel as number)),
+    feelCounts: feelCounts(items.map(p => p.feel)),
     winRate: mult100(mean(items.filter(p => p.result_share === 1).map(p => p.win))),
   });
 

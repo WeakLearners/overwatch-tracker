@@ -23,7 +23,7 @@ interface Props {
   onChange?: (v: unknown) => void;
   placeholder?: string;
   // Additive, Phase 2 (2026-09-24) — neither breaks an existing call site
-  // that omits them. `className` lets `feel`'s per-hero slider keep its
+  // that omits them. `className` lets `feel`'s per-hero control keep its
   // opacity-50-when-unanswered treatment; `ariaLabel` lets it keep its
   // per-hero aria-label. `dataInspectId` overrides the field.id-templated
   // default for a control whose pre-existing id doesn't match that
@@ -129,6 +129,42 @@ export default function RegistryField({ field, value, onChange, placeholder, cla
                 }`}
               >
                 {selected ? <span className="lit-text">{v}</span> : v}
+              </button>
+            );
+          })}
+        </div>
+      );
+    }
+
+    // Three-way answer shown as one row of equal buttons (OW-0009: Feel is
+    // Floaty / Snappy / Jittery). Same button look and tap-again-to-clear
+    // as toggle-pair; clearing calls onChange(null). A value that matches
+    // no option (an old slider value) highlights nothing.
+    case 'segmented': {
+      const prefix = dataInspectId ?? `logmatch-${field.id}`;
+      return (
+        <div
+          role="group"
+          aria-label={ariaLabel}
+          className={`grid grid-cols-3 gap-2 ${className ?? ''}`}
+          data-inspect-id={prefix}
+        >
+          {field.control.options.map((o) => {
+            const selected = value === o.value;
+            return (
+              <button
+                key={o.value}
+                type="button"
+                aria-pressed={selected}
+                data-inspect-id={`${prefix}-option`}
+                onClick={() => onChange?.(selected ? null : o.value)}
+                className={`text-xs font-semibold py-2 rounded-md border transition-colors ${
+                  selected
+                    ? 'is-selected text-[var(--ink)]'
+                    : 'border-ow-border text-[var(--faint)] hover:text-[var(--ink)]'
+                }`}
+              >
+                {selected ? <span className="lit-text">{o.label}</span> : o.label}
               </button>
             );
           })}

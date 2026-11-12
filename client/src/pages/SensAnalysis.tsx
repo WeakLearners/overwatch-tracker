@@ -8,6 +8,7 @@ import { useApi } from '../hooks/useApi';
 import { formatLut } from '../lib/lut';
 import SensNav from '../components/SensNav';
 import { MOUSE_DPI } from '../lib/aim';
+import type { FeelCounts } from '../lib/feel';
 import { useTodayHeroCounts, withHeroCount } from '../hooks/useHeroCounts';
 // Per-hero stat-slot names, shared with the SensLog entry form. Without these
 // this page printed Ana's sleep dart hit rate under a column headed "Crit".
@@ -43,7 +44,8 @@ interface ScaleRow {
   avgHeal10: number | null; avgHeal10Delta: number | null;
   avgElims10: number | null; avgElims10Delta: number | null;
   avgDeaths10: number | null; avgDeaths10Delta: number | null;
-  avgFeel: number | null; avgDelta: number | null; seDelta: number | null; winRate: number | null;
+  // Feel is categorical (OW-0009): Floaty / Snappy / Jittery counts. Old 0-100 rows are banded by the server.
+  feelCounts: FeelCounts; avgDelta: number | null; seDelta: number | null; winRate: number | null;
   min: number | null; q1: number | null; median: number | null; q3: number | null; max: number | null;
   absorbedN: number; distinctDates: number; dateSpanDays: number;
   // n >= MIN_SCALE_N (5) on the server. A bucket below this is still
@@ -69,7 +71,7 @@ interface CurveVariant {
 
 interface Bucket {
   bucket: string; n: number;
-  avgOverall: number | null; avgDelta: number | null; avgFeel: number | null; winRate: number | null;
+  avgOverall: number | null; avgDelta: number | null; feelCounts: FeelCounts; winRate: number | null;
 }
 export interface CurveFit {
   points: number; totalN: number; r2: number;
@@ -144,6 +146,9 @@ interface Analysis {
 }
 
 const FEEL = '#F7931E';
+// Feel vs. Data segments (no new hex): Snappy uses ow-blue; the two ends use muted inks.
+const FEEL_FLOATY = 'var(--faint-2)';
+const FEEL_JITTERY = 'color-mix(in srgb, var(--faint-2), var(--ink-2))';
 
 // created_at is stored as a bare UTC datetime('now') string (no 'Z'); append
 // it before parsing so the browser doesn't mistake it for local time.
@@ -153,21 +158,18 @@ const fmtUpdated = (iso: string | null) =>
   });
 
 const f1 = (x: number | null | undefined) => (x == null ? '—' : x.toFixed(1));
+// Feel counts as text. Order is always floaty, snappy, jittery; zeros show.
+const fmtFeel = (c: FeelCounts | null | undefined) =>
+  c && c.n ? `${c.floaty} floaty · ${c.snappy} snappy · ${c.jittery} jittery` : 'no feel answers';
+const fmtFeelFSJ = (c: FeelCounts | null | undefined) => (c && c.n ? `${c.floaty} · ${c.snappy} · ${c.jittery}` : '—');
+// Net speed lean in -1 (all Floaty) to +1 (all Jittery). Null with no answers.
+const feelLean = (c: FeelCounts) => (c.n ? (c.jittery - c.floaty) / c.n : null);
 const signed = (x: number | null | undefined) =>
   x == null ? '—' : `${x > 0 ? '+' : ''}${x.toFixed(1)}`;
 // -500 fails WCAG AA text contrast (4.5:1) on the light card surface — -700
 // clears it; dark mode swaps back to -500/-400, which already clear it there.
 const deltaColor = (x: number | null | undefined) =>
   x == null ? '' : x > 0 ? 'text-emerald-700 dark:text-emerald-500' : x < 0 ? 'text-red-700 dark:text-red-400' : '';
-
-// A domain centered on `center`, spanning the farthest point from it (+10%
-// pad), so a crosshair drawn at `center` lands at the plot's midpoint — the
-// basis for the four-quadrant Feel vs. Data view.
-const centeredDomain = (vals: (number | null | undefined)[], center: number): [number, number] => {
-  const r = Math.max(0, ...vals.filter((v): v is number => v != null).map(v => Math.abs(v - center)));
-  const pad = r * 1.15 || 1;
-  return [center - pad, center + pad];
-};
 
 // Fixed-step gridline positions across a domain (independent of the axis's
 // own — often sparse, label-driven — ticks), rounded to kill float drift
@@ -177,30 +179,6 @@ const gridTicks = (min: number, max: number, step: number): number[] => {
   const count = Math.max(0, Math.floor((max - start) / step + 1e-9) + 1);
   return Array.from({ length: count }, (_, i) => Math.round((start + i * step) * 1000) / 1000);
 };
-
-// n-weighted mean of a bucket field — reconstructs the grand mean across the
-// underlying matches from the per-scale aggregates (avg × n = bucket sum).
-const wMean = (rows: ScaleRow[], key: 'avgFeel' | 'avgDelta'): number => {
-  const valid = rows.filter(r => r[key] != null);
-  const totalN = valid.reduce((s, r) => s + r.n, 0);
-  return totalN ? valid.reduce((s, r) => s + (r[key] as number) * r.n, 0) / totalN : 0;
-};
-
-// Custom tooltip for the Feel vs. Data quadrant chart — the point identity is
-// its sens scale, which neither axis carries, so the default two-axis readout
-// isn't enough.
-function QuadrantTooltip({ active, payload }: { active?: boolean; payload?: { payload: ScaleRow & { sensAt1600: number; feelOff: number } }[] }) {
-  if (!active || !payload?.length) return null;
-  const p = payload[0].payload;
-  return (
-    <div style={{ background: 'rgb(var(--ow-card))', border: '1px solid rgb(var(--ow-border))', borderRadius: 8, fontSize: 12, padding: '6px 10px' }}>
-      <div style={{ fontWeight: 700 }}>{p.sensAt1600.toFixed(2)} sens @ {MOUSE_DPI} DPI</div>
-      <div>Felt speed: <b style={{ fontWeight: 700 }}>{f1(p.avgFeel)}</b>/100 <span style={{ opacity: 0.7 }}>({f1(p.feelOff)} from neutral)</span></div>
-      <div>Accuracy vs. your average: <b style={{ fontWeight: 700 }}>{signed(p.avgDelta)}</b></div>
-      <div style={{ opacity: 0.7 }}>{p.n} game{p.n === 1 ? '' : 's'}</div>
-    </div>
-  );
-}
 
 // Page-wide standard of measure: in-game sens once the mouse is back at
 // MOUSE_DPI. DPI is the varied test variable — the mouse settles at MOUSE_DPI
@@ -824,7 +802,7 @@ function buildInsights(data: Analysis, heroCounts: Record<string, number>): stri
 
   if (reliable.length >= 2) {
     const bestByData = reliable.reduce((a, b) => ((b.avgDelta ?? -Infinity) > (a.avgDelta ?? -Infinity) ? b : a));
-    const fastestFeel = reliable.reduce((a, b) => ((b.avgFeel ?? -Infinity) > (a.avgFeel ?? -Infinity) ? b : a));
+    const fastestFeel = reliable.reduce((a, b) => ((feelLean(b.feelCounts) ?? -Infinity) > (feelLean(a.feelCounts) ?? -Infinity) ? b : a));
     const worst = reliable.reduce((a, b) => ((b.avgDelta ?? Infinity) < (a.avgDelta ?? Infinity) ? b : a));
     // Lead with the best performer on its own terms — it's the "just right"
     // scale, not necessarily the fastest- or slowest-feeling one tested. Only
@@ -832,11 +810,11 @@ function buildInsights(data: Analysis, heroCounts: Record<string, number>): stri
     // it as a correction ("feeling fast isn't the same as performing well"),
     // never as a virtue in its own right.
     notes.push(
-      `Your best performer by accuracy is ${fmtScale(bestByData)} (${signed(bestByData.avgDelta)}% vs. your average, over ${bestByData.n} games), which felt ${f1(bestByData.avgFeel)}/100 for speed — accuracy peaks at the scale that's right for you, not at whichever end of the speed range you tested.`,
+      `Your best performer by accuracy is ${fmtScale(bestByData)} (${signed(bestByData.avgDelta)}% vs. your average, over ${bestByData.n} games), which felt (${fmtFeel(bestByData.feelCounts)}) — accuracy peaks at the scale that's right for you, not at whichever end of the speed range you tested.`,
     );
-    if (fastestFeel.cm360 !== bestByData.cm360 && fastestFeel.avgFeel != null) {
+    if (fastestFeel.cm360 !== bestByData.cm360 && feelLean(fastestFeel.feelCounts) != null) {
       notes.push(
-        `${fmtScale(fastestFeel)} felt fastest to you (${f1(fastestFeel.avgFeel)}/100), but it isn't your top performer (${signed(fastestFeel.avgDelta)}% vs. your average, ${fastestFeel.n} games) — feeling fast doesn't mean it's the right sens.`,
+        `${fmtScale(fastestFeel)} leaned most jittery for you (${fmtFeel(fastestFeel.feelCounts)}), but it isn't your top performer (${signed(fastestFeel.avgDelta)}% vs. your average, ${fastestFeel.n} games) — feeling fast doesn't mean it's the right sens.`,
       );
     }
     // Win rate is shown, never ranked on — a match outcome is decided by four
@@ -856,7 +834,7 @@ function buildInsights(data: Analysis, heroCounts: Record<string, number>): stri
     const worstGap = (bestByData.avgDelta ?? 0) - (worst.avgDelta ?? 0);
     if (worst.cm360 !== bestByData.cm360 && worstGap >= MEANINGFUL_DELTA_GAP) {
       notes.push(
-        `Weakest scale with enough games to trust: ${fmtScale(worst)} runs ${signed(worst.avgDelta)}% vs. your average — felt speed ${f1(worst.avgFeel)}/100, ${worst.n} games.`,
+        `Weakest scale with enough games to trust: ${fmtScale(worst)} runs ${signed(worst.avgDelta)}% vs. your average — felt ${fmtFeel(worst.feelCounts)}, ${worst.n} games.`,
       );
     }
   }
@@ -867,7 +845,7 @@ function buildInsights(data: Analysis, heroCounts: Record<string, number>): stri
     if (Math.abs(diff) >= 1) {
       const winner = diff > 0 ? 'Cold starts' : 'Warmed-up games';
       notes.push(
-        `${winner} perform better so far — cold ${signed(cold.avgDelta)}% vs. warm ${signed(warm.avgDelta)}%. Felt speed: cold ${f1(cold.avgFeel)}/100, warm ${f1(warm.avgFeel)}/100.`,
+        `${winner} perform better so far — cold ${signed(cold.avgDelta)}% vs. warm ${signed(warm.avgDelta)}%. Felt: cold ${fmtFeel(cold.feelCounts)}, warm ${fmtFeel(warm.feelCounts)}.`,
       );
     } else {
       notes.push(`Cold vs. warm isn't showing up in accuracy yet (${signed(cold.avgDelta)}% vs. ${signed(warm.avgDelta)}%).`);
@@ -952,31 +930,15 @@ export default function SensAnalysis() {
   // verdict; the Peak Sens by Category chart itself was cut (audit A5).
   const spread = buildSensSpread(data);
 
-  // Feel vs. Data quadrant: each scale plotted at (how far its felt speed sat
-  // from neutral, accuracy delta).
-  //
-  // The X axis is FOLDED to |avgFeel - 50| rather than plotting avgFeel raw.
-  // A scale rated 25 and a scale rated 75 are equally far from feeling neutral,
-  // one slow and one fast, but the raw axis put them at opposite extremes. That
-  // invited reading left-to-right as a preference ranking ("over-rated" vs
-  // "under-rated") when the only thing the axis can actually support is the
-  // SIZE of the mismatch between how a scale felt and how it scored.
-  //
-  // The crosshair sits at Sean's own n-weighted mean of the folded value, not
-  // at 0. At 0 every point would land on one side and the four quadrants would
-  // collapse into two. Centering on his own mean also matches every other chart
-  // on this page, which compares him against himself rather than an absolute.
-  const FEEL_NEUTRAL = 50;
-  const feelPts = byScaleSpeed
-    .filter(r => r.avgFeel != null && r.avgDelta != null)
-    .map(r => ({ ...r, feelOff: Math.abs((r.avgFeel as number) - FEEL_NEUTRAL) }));
-  const feelOffTotalN = feelPts.reduce((s, r) => s + r.n, 0);
-  const meanFeelOff = feelOffTotalN
-    ? feelPts.reduce((s, r) => s + r.feelOff * r.n, 0) / feelOffTotalN
-    : 0;
-  const meanDelta = wMean(byScaleSpeed, 'avgDelta');
-  const feelXDomain = centeredDomain(feelPts.map(r => r.feelOff), meanFeelOff);
-  const feelYDomain = centeredDomain(feelPts.map(r => r.avgDelta), meanDelta);
+  // Feel vs. Data: one 100% stacked bar per tested scale, low sens at the top
+  // (byScaleSpeed is sorted that way). Segments run Floaty, Snappy, Jittery in
+  // a fixed order, so a low-sens scale should read floaty and a high-sens scale
+  // jittery. Descriptive only: it makes no claim, so it carries no finding chip.
+  // Scales with no feel answers are left out. Thin scales (below RELIABLE_N)
+  // sit under a hairline in muted ink.
+  const feelRows = byScaleSpeed.filter(r => r.feelCounts.n > 0);
+  const feelMain = feelRows.filter(r => r.reliable);
+  const feelThin = feelRows.filter(r => !r.reliable);
 
   const insights = buildInsights(data, heroCounts);
   const recommendation = buildRecommendation(data, spread);
@@ -1068,32 +1030,48 @@ export default function SensAnalysis() {
       <div>
         <Section
           title="Feel vs. Data"
-          hint={`Each dot is a tested scale. Left/right is how far its felt speed sat from neutral — a scale you rated 25 and one you rated 75 both read as equally far off, one slow and one fast. Up/down is how well you actually aimed on it. The crosshair marks your own averages for both. Bottom-right = the scales that felt furthest from neutral are also the ones you aim worst on. Top-right = a scale feels strongly one way and you aim better on it anyway, so the feeling is worth keeping.`}
+          hint="how each tested scale felt, one bar per scale: floaty (too slow), snappy (right), jittery (too fast)"
           dataInspectId="sensAnalysis-feel-vs-data-card"
         >
-          <div className="flex gap-2">
-            <div className="flex flex-col justify-between text-[10px] text-[var(--faint-2)] py-3 w-12 shrink-0 text-right">
-              <span>More accurate</span>
-              <span>Less accurate</span>
-            </div>
-            <div className="flex-1 min-w-0" data-inspect-id="sensAnalysis-feel-vs-data-chart">
-              <ResponsiveContainer width="100%" height={280}>
-                <ScatterChart data={feelPts} margin={{ top: 12, right: 12, bottom: 4, left: 0 }}>
-                  <CartesianGrid stroke="rgb(var(--ow-border))" />
-                  <XAxis type="number" dataKey="feelOff" name="Distance from neutral feel" domain={feelXDomain} tick={false} tickLine={false} axisLine={false} />
-                  <YAxis type="number" dataKey="avgDelta" name="Accuracy vs. avg" domain={feelYDomain} tick={false} tickLine={false} axisLine={false} width={4} />
-                  <Tooltip content={<QuadrantTooltip />} cursor={{ strokeDasharray: '3 3' }} />
-                  <ReferenceLine x={meanFeelOff} stroke="var(--faint-2)" strokeDasharray="4 4" />
-                  <ReferenceLine y={meanDelta} stroke="var(--faint-2)" strokeDasharray="4 4" />
-                  <Scatter dataKey="avgDelta" fill={FEEL}>
-                    <LabelList dataKey="sensAt1600" position="top" formatter={(v: number) => v.toFixed(2)} style={{ fontSize: 10, fill: 'var(--faint)' }} />
-                  </Scatter>
-                </ScatterChart>
-              </ResponsiveContainer>
-              <div className="flex justify-between text-[10px] text-[var(--faint-2)] px-0.5">
-                <span>Felt close to neutral</span><span>Felt far from neutral</span>
-              </div>
-            </div>
+          <div data-inspect-id="sensAnalysis-feel-vs-data-chart">
+            {feelRows.length === 0 ? (
+              <p className="text-xs text-[var(--faint)]">No feel answers logged yet. Answer Feel in Log Match to fill this in.</p>
+            ) : (
+              <>
+                <div className="flex items-center gap-4 text-[10px] text-[var(--faint)] mb-2">
+                  <span className="inline-flex items-center gap-1"><span className="inline-block w-3 h-2 rounded-sm" style={{ background: FEEL_FLOATY }} />Floaty</span>
+                  <span className="inline-flex items-center gap-1"><span className="inline-block w-3 h-2 rounded-sm bg-ow-blue" />Snappy</span>
+                  <span className="inline-flex items-center gap-1"><span className="inline-block w-3 h-2 rounded-sm" style={{ background: FEEL_JITTERY }} />Jittery</span>
+                </div>
+                {[feelMain, feelThin].map((rows, gi) => rows.length === 0 ? null : (
+                  <div key={gi} className={gi === 1 && feelMain.length ? 'mt-2 pt-2 border-t border-ow-border' : ''}>
+                    {gi === 1 && <div className="text-[10px] text-[var(--muted)] mb-1">Below {RELIABLE_N} games, thin and not used in picks</div>}
+                    {rows.map(r => {
+                      const c = r.feelCounts;
+                      const pctSnappy = Math.round((c.snappy / c.n) * 100);
+                      return (
+                        <div
+                          key={r.cm360}
+                          className={`grid grid-cols-[7rem_1fr_16rem] items-center gap-3 py-1 ${gi === 1 ? 'text-[var(--muted)]' : 'text-[var(--ink)]'}`}
+                          title={`${c.floaty} floaty · ${c.snappy} snappy · ${c.jittery} jittery · ${c.n} answers`}
+                        >
+                          <span className="text-xs tabular-nums">{r.sensAt1600.toFixed(2)} sens</span>
+                          <div className="flex h-3 rounded-sm overflow-hidden border border-ow-border">
+                            <div style={{ width: `${(c.floaty / c.n) * 100}%`, background: FEEL_FLOATY }} />
+                            <div className="bg-ow-blue" style={{ width: `${(c.snappy / c.n) * 100}%` }} />
+                            <div style={{ width: `${(c.jittery / c.n) * 100}%`, background: FEEL_JITTERY }} />
+                          </div>
+                          <span className="text-xs tabular-nums flex items-baseline gap-2">
+                            <span>{pctSnappy}% snappy · {c.n} games</span>
+                            <span className={gi === 0 ? deltaColor(r.avgDelta) : ''}>{signed(r.avgDelta)}</span>
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         </Section>
       </div>
@@ -1152,7 +1130,7 @@ export default function SensAnalysis() {
               <div key={b.bucket} className="chamfer bg-ow-darker border border-ow-border p-3">
                 <div className="text-[11px] text-[var(--faint)] mb-1">{b.bucket}</div>
                 <div className="text-2xl num-display text-[var(--ink)]">{f1(b.avgOverall)}<span className="text-xs text-[var(--faint)] ml-0.5">%</span></div>
-                <div className="text-[11px] text-[var(--faint-2)] mt-1 font-bold">{signed(b.avgDelta)} vs. avg · felt speed {f1(b.avgFeel)}/100 · {b.n} game{b.n === 1 ? '' : 's'}</div>
+                <div className="text-[11px] text-[var(--faint-2)] mt-1 font-bold">{signed(b.avgDelta)} vs. avg · {fmtFeel(b.feelCounts)} · {b.n} game{b.n === 1 ? '' : 's'}</div>
               </div>
             ))}
           </div>
@@ -1164,7 +1142,7 @@ export default function SensAnalysis() {
               <div key={b.bucket} className="chamfer bg-ow-darker border border-ow-border p-3">
                 <div className="text-[11px] text-[var(--faint)] mb-1">{b.bucket}</div>
                 <div className="text-2xl num-display text-[var(--ink)]">{f1(b.avgOverall)}<span className="text-xs text-[var(--faint)] ml-0.5">%</span></div>
-                <div className="text-[11px] text-[var(--faint-2)] mt-1 font-bold">{signed(b.avgDelta)} vs. avg · felt speed {f1(b.avgFeel)}/100 · {b.n} game{b.n === 1 ? '' : 's'}</div>
+                <div className="text-[11px] text-[var(--faint-2)] mt-1 font-bold">{signed(b.avgDelta)} vs. avg · {fmtFeel(b.feelCounts)} · {b.n} game{b.n === 1 ? '' : 's'}</div>
               </div>
             ))}
           </div>
@@ -1178,7 +1156,7 @@ export default function SensAnalysis() {
             <thead>
               <tr className="text-[11px] text-[var(--muted)] uppercase tracking-wider text-left">
                 <th className="py-1.5 pr-3">{`Sens @${MOUSE_DPI}`}</th><th className="py-1.5 pr-3">eDPI</th><th className="py-1.5 pr-3">Sens</th><th className="py-1.5 pr-3">n</th>
-                <th className="py-1.5 pr-3" title="Reference only — not a factor in any pick or recommendation on this page">Win % <span className="text-[9px] font-normal text-[var(--faint-2)]">(info only)</span></th><th className="py-1.5 pr-3">Overall</th><th className="py-1.5 pr-3">Crit</th><th className="py-1.5 pr-3">Felt speed</th><th className="py-1.5">vs. Avg</th>
+                <th className="py-1.5 pr-3" title="Reference only — not a factor in any pick or recommendation on this page">Win % <span className="text-[9px] font-normal text-[var(--faint-2)]">(info only)</span></th><th className="py-1.5 pr-3">Overall</th><th className="py-1.5 pr-3">Crit</th><th className="py-1.5 pr-3" title="Feel answers: Floaty (too slow), Snappy (right), Jittery (too fast)">Feel (F·S·J)</th><th className="py-1.5">vs. Avg</th>
               </tr>
             </thead>
             <tbody className="font-bold">
@@ -1219,7 +1197,7 @@ export default function SensAnalysis() {
                   <td className="py-1.5 pr-3 font-normal text-[var(--faint-2)]">{f1(r.winRate)}%</td>
                   <td className="py-1.5 pr-3">{f1(r.avgOverall)}%</td>
                   <td className="py-1.5 pr-3">{f1(r.avgCrit)}%</td>
-                  <td className="py-1.5 pr-3">{f1(r.avgFeel)}/100</td>
+                  <td className="py-1.5 pr-3 tabular-nums">{fmtFeelFSJ(r.feelCounts)}</td>
                   <td className={`py-1.5 ${r.reliable ? deltaColor(r.avgDelta) : ''}`}>{signed(r.avgDelta)}</td>
                 </tr>
               ))}

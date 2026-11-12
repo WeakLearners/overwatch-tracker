@@ -71,7 +71,7 @@ async function main() {
           day_of_week: DAYS[d.getUTCDay()], hour: hour % 24,
           hero: hero.name, role: hero.role, map: pick(mapNames),
           game_type: 'comp', queue_mode: 'comp_role', win,
-          feel: Math.round(30 + rnd() * 40),
+          feel: [0, 50, 100][Math.floor(rnd() * 3)],
           player_rank: Math.round(rank), player_rank_start: Math.round(rankStart),
           match_deaths: deaths,
         });

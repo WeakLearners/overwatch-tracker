@@ -42,14 +42,14 @@ afterEach(() => {
 // match.
 function insertStudyPoint(db: ReturnType<typeof getDb>, opts: {
   date: string; hero: string; role?: string; sens: number; dpi?: number;
-  win: 0 | 1; blindTrial?: 0 | 1; overallAcc: number; queueMode?: string;
+  win: 0 | 1; blindTrial?: 0 | 1; overallAcc: number; queueMode?: string; feel?: number | null;
 }) {
   const matchId = insertMatch(db, {
     date: opts.date, hero: opts.hero, role: opts.role ?? 'DPS', win: opts.win,
     sens: opts.sens, dpi: opts.dpi ?? 1600, blind_trial: opts.blindTrial ?? 0,
     queue_mode: opts.queueMode ?? 'comp_role',
   });
-  insertHeroSlot(db, { match_id: matchId, slot: 1, hero: opts.hero, role: opts.role ?? 'DPS', sens: opts.sens });
+  insertHeroSlot(db, { match_id: matchId, slot: 1, hero: opts.hero, role: opts.role ?? 'DPS', sens: opts.sens, feel: opts.feel });
   insertAimStats(db, { match_id: matchId, overall_acc: opts.overallAcc, duration_min: 10 });
   insertAimStatsHero(db, { match_id: matchId, hero: opts.hero, overall_acc: opts.overallAcc });
   return matchId;
@@ -185,6 +185,20 @@ describe('computeAnalysis', () => {
 // that were actually CREDITED (blind_trial=1) and tagged QP are affected —
 // a legacy manual-sens QP match (blind_trial=0) was never part of the
 // study's stage comparison and keeps appearing exactly as before.
+describe('computeAnalysis: feel is category counts (OW-0009)', () => {
+  test('byScale carries Floaty/Snappy/Jittery counts: old slider values banded, nulls skipped', () => {
+    // One scale, five games: 0 and 12 (Floaty), 50 and 45 (Snappy), 80 (Jittery), plus one unanswered.
+    const feels = [0, 12, 50, 45, 80, null];
+    feels.forEach((feel, i) => insertStudyPoint(db, {
+      date: `2026-10-0${i + 1}`, hero: 'Ashe', sens: 2.5, win: 1, blindTrial: 1, overallAcc: 30, feel,
+    }));
+    const r = computeAnalysis(db);
+    assert.equal(r.byScale.length, 1);
+    assert.deepEqual(r.byScale[0].feelCounts, { floaty: 2, snappy: 2, jittery: 1, n: 5 });
+    assert.equal('avgFeel' in r.byScale[0], false, 'the mean is gone');
+  });
+});
+
 describe('computeAnalysis: QP-credited rows excluded from analysis (2026-09-23)', () => {
   test('a QP-credited row does not enter byScale at all', () => {
     for (const acc of [40, 44, 48]) {

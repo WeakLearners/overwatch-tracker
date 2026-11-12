@@ -11,6 +11,7 @@ import { loadRoleTimerReplay } from './roleTimer';
 import { HEROES_BY_ROLE } from '../lib/heroes';
 import { isDfHero } from '../lib/df';
 import { eraCounts, spannedPatchNotes } from '../lib/patchEra';
+import { feelCounts } from '../lib/feel';
 
 const router = Router();
 
@@ -593,9 +594,9 @@ router.get('/sets/:id', (req: Request, res: Response) => {
       JOIN matches m ON m.id = bc.match_id
       WHERE bc.blind_set_id = :sid AND bc.stage_index = :si AND bc.counts_result = 1 AND ${NOT_QP_SQL}
     `).all({ sid: set.id, si: st.stage_index }) as { feel: number | null }[];
-    const feels = trials.map(t => t.feel).filter((f): f is number => f != null);
-    const feelMean = feels.length ? feels.reduce((a, b) => a + b, 0) / feels.length : null;
-    const feelVar = feels.length > 1 ? feels.reduce((a, b) => a + (b - (feelMean as number)) ** 2, 0) / feels.length : null;
+    // Feel is categorical since OW-0009 (2026-11-12): Floaty / Snappy / Jittery
+    // counts replace the mean and variance. Old 0-100 rows are banded by feelBand.
+    const feelCts = feelCounts(trials.map(t => t.feel));
 
     // Win rate, accuracy, and output-per-10min for this stage — the same
     // signals the hand-written phase notes cite ("led on accuracy and
@@ -655,7 +656,7 @@ router.get('/sets/:id', (req: Request, res: Response) => {
     return {
       stage_index: st.stage_index, dpi: st.dpi, sens: st.sens, pct_delta: st.pct_delta,
       eDPI: eDPI(stageSens, st.dpi), cm360: Math.round(cm360(stageSens, st.dpi) * 100) / 100,
-      n: trials.length, feelMean, feelVar,
+      n: trials.length, feelCounts: feelCts,
       // Matches before / on-or-after the 2026-10-06 patch (lib/patchEra.ts).
       // Informational only: stages are compared pooled, as one period.
       eraN: stageEraN,

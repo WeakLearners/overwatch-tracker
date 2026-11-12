@@ -23,6 +23,7 @@ export type FieldControl =
   | { kind: 'slider'; min: number; max: number }
   | { kind: 'select'; options: string[] }
   | { kind: 'toggle-pair'; options: string[] }
+  | { kind: 'segmented'; options: { label: string; value: number }[] }
   | { kind: 'rank-outcome' }
   | { kind: 'text' };
 

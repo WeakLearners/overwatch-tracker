@@ -6,6 +6,7 @@ import { useDeathBuffer } from '../contexts/DeathBufferContext';
 import { revalidateRec, shownAdvisorPick } from '../contexts/AdvisorContext';
 import EmptyState from '../components/EmptyState';
 import type { HeroFocusState } from '../components/dashboard/HeroFocusCard';
+import { feelBand, FEEL_VALUE } from '../lib/feel';
 import RegistryField from '../components/RegistryField';
 import LeaverSliver from '../components/LeaverSliver';
 import { buildRosterEditPayload } from '../lib/matchEditRoster';
@@ -470,17 +471,14 @@ function TodayMatchEditForm({ match, heroCounts, mapCounts, onDone }: {
   );
 }
 
-// Perceived sens speed, 0 (felt slow) to 10 (felt fast) — not a quality rating.
-// Captured here, live, rather than backfilled later on /sens: the sensation is
-// gone by the next match, so this is the only point it can honestly be logged.
-// FEEL_MID is a display-only starting position for the slider thumb — it is
-// never allowed to reach the database on its own. 50 is also the fulcrum the
-// whole sens study scores against (|feel - 50|, minimised), so an untouched
-// slider silently recording 50 was indistinguishable from Sean deliberately
-// rating a sens "just right". Fixed 2026-09-21 — see the CUTOVER note by
-// matches.feel in server/src/db/schema.ts for the full history and the
-// pre-cutover rows this deliberately left ambiguous rather than backfilling.
-const FEEL_MIN = 0, FEEL_MAX = 100, FEEL_MID = 50;
+// Perceived sens speed: Floaty (too slow) = 0, Snappy (right) = 50, Jittery
+// (too fast) = 100 (OW-0009, 2026-11-12; was a 0-100 slider). Captured here,
+// live, rather than backfilled later on /sens: the sensation is gone by the
+// next match, so this is the only point it can honestly be logged. There is
+// no default pick: an untouched control must never reach the database. 50 is
+// a real answer ("Snappy") and the value the whole sens study scores against,
+// so a silent 50 would be indistinguishable from a deliberate one. See the
+// CUTOVER note by matches.feel in server/src/db/schema.ts.
 
 
 
@@ -502,6 +500,16 @@ interface MatchDraft {
   leaverSide?: 'mine' | 'theirs' | null; scoreUs?: string; scoreThem?: string;
   aimOpen?: boolean; aimStats?: unknown;
 }
+// A draft saved while Feel was still a 0-100 slider can hold values like 37.
+// Snap each to its band's button value so the control shows an answer.
+const normalizeFeelDraft = (d: Record<string, number> | undefined): Record<string, number> => {
+  const out: Record<string, number> = {};
+  for (const [h, v] of Object.entries(d ?? {})) {
+    const b = feelBand(v);
+    if (b) out[h] = FEEL_VALUE[b];
+  }
+  return out;
+};
 const readDraft = (): MatchDraft => {
   try { const v = JSON.parse(localStorage.getItem(PENDING_KEY) ?? '{}'); return v && typeof v === 'object' ? v : {}; } catch { return {}; }
 };
@@ -557,11 +565,13 @@ export default function LogMatch() {
   // below is a DISPLAY position only, so the slider thumb has somewhere to
   // rest before it's touched, and must never be read to decide what gets
   // saved. feelAnswered/feelValueFor are the only things submit() may read.
-  const [feelByHero, setFeelByHero] = useState<Record<string, number>>(() => readDraft().feelByHero ?? {});
-  const feelFor = (h: string) => feelByHero[h] ?? FEEL_MID;
+  const [feelByHero, setFeelByHero] = useState<Record<string, number>>(() => normalizeFeelDraft(readDraft().feelByHero));
   const feelAnswered = (h: string) => Object.prototype.hasOwnProperty.call(feelByHero, h);
   const feelValueFor = (h: string): number | null => feelAnswered(h) ? feelByHero[h] : null;
-  const setFeelFor = (h: string, v: number) => setFeelByHero(prev => ({ ...prev, [h]: v }));
+  const setFeelFor = (h: string, v: number | null) => setFeelByHero(prev => {
+    if (v == null) { const { [h]: _drop, ...rest } = prev; return rest; }
+    return { ...prev, [h]: v };
+  });
   const [teamRating, setTeamRating] = useState(() => readDraft().teamRating ?? 0);
   // Both start unselected and stay null if untouched — no pre-selection, and
   // clicking the already-selected option deselects it back to null.
@@ -1037,7 +1047,7 @@ export default function LogMatch() {
   const rankFromPage = pageRank != null;
   const rankAnswered = isQP || isPlacement || !isFieldEnabled('player_rank') || playerRank == null || rankOutcome != null || rankFromPage;
   // Every hero actually played needs an explicit feel answer — an untouched
-  // slider must not reach the database at all (see FEEL_MID note above).
+  // control must not reach the database at all (see the Feel note above).
   // Bypassed the same way rankAnswered bypasses on QP above: RegistryField
   // gates the slider itself on `isFieldEnabled('feel')` (the field-registry
   // Phase 2 conversion, 2026-09-24), so a user with sens-study turned off
@@ -1583,19 +1593,18 @@ export default function LogMatch() {
                     <label className="block text-xs text-[var(--muted)] mb-1.5 flex items-baseline justify-between gap-2">
                       <span>
                         Feel <span className="text-[var(--ink)] font-bold">— {h}{heroSens != null ? ` @ ${heroSens.toFixed(2)}` : ''}</span>
-                        <span className="text-[var(--faint-2)]"> — did the sens feel floaty or jittery?</span>
+                        <span className="text-[var(--faint-2)]"> — floaty is too slow, snappy is right, jittery is too fast</span>
                       </span>
                       {!answered && <span className="text-[10px] font-bold text-ow-accent shrink-0">required</span>}
                     </label>
                     <RegistryField
                       field={registryField('feel')!}
-                      value={feelFor(h)}
-                      onChange={(v) => setFeelFor(h, v as number)}
-                      className={!answered ? 'opacity-50' : ''}
-                      ariaLabel={`Feel — floaty to jittery — ${h}`}
+                      value={feelValueFor(h)}
+                      onChange={(v) => setFeelFor(h, v as number | null)}
+                      ariaLabel={`Feel — floaty, snappy or jittery — ${h}`}
+                      dataInspectId="logmatch-feel-slider"
                     />
-                    {!answered && <p className="text-[10px] text-[var(--faint-2)] mt-0.5">Not touched yet — drag it to answer. Left alone, this match records no feel for {h} rather than a silent 50.</p>}
-                    <div className="flex justify-between text-xs text-[var(--muted)] mt-0.5 px-0.5"><span>Floaty</span><span>Snappy</span><span>Jittery</span></div>
+                    {!answered && <p className="text-[10px] text-[var(--faint-2)] mt-0.5">Not answered yet. Left alone, this match records no feel for {h} rather than a silent 50.</p>}
                   </div>
                 );
               })}

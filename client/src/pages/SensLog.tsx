@@ -89,7 +89,7 @@ interface DpiTestSetSummary {
 }
 interface AnswerStage {
   stage_index: number; dpi: number; sens: number | null; pct_delta: number;
-  eDPI: number; cm360: number; n: number; feelMean: number | null; feelVar: number | null;
+  eDPI: number; cm360: number; n: number; feelCounts: { floaty: number; snappy: number; jittery: number; n: number };
   games: number; winRate: number | null; accMean: number | null; elimsPer10: number | null; dmgPer10: number | null;
   // How many of this stage's own games got bailed on mid-match (Sean switched
   // to a different hero) — derived server-side from match_heroes, not stored.
@@ -1854,7 +1854,7 @@ function AnswerTable({ stages }: { stages: AnswerStage[] }) {
       <table className="w-full text-xs">
         <thead>
           <tr className="text-[var(--faint-2)] text-left">
-            {['Stage', 'DPI', 'Δ%', 'eDPI', 'Sens @1600', 'Trials', 'Feel avg', 'Feel var', 'Switched out'].map(h => <th key={h} className="py-1.5 pr-3">{h}</th>)}
+            {['Stage', 'DPI', 'Δ%', 'eDPI', 'Sens @1600', 'Trials', 'Feel (F·S·J)', 'Switched out'].map(h => <th key={h} className="py-1.5 pr-3" title={h === 'Feel (F·S·J)' ? 'Feel answers: Floaty (too slow), Snappy (right), Jittery (too fast)' : undefined}>{h}</th>)}
           </tr>
         </thead>
         <tbody className="num-display">
@@ -1866,8 +1866,7 @@ function AnswerTable({ stages }: { stages: AnswerStage[] }) {
               <td className="py-1.5 pr-3">{s.eDPI}</td>
               <td className="py-1.5 pr-3">{(s.eDPI / MOUSE_DPI).toFixed(2)}</td>
               <td className="py-1.5 pr-3">{s.n}</td>
-              <td className="py-1.5 pr-3">{s.feelMean != null ? s.feelMean.toFixed(1) : '—'}</td>
-              <td className="py-1.5 pr-3">{s.feelVar != null ? s.feelVar.toFixed(2) : '—'}</td>
+              <td className="py-1.5 pr-3 tabular-nums">{s.feelCounts.n ? `${s.feelCounts.floaty} · ${s.feelCounts.snappy} · ${s.feelCounts.jittery}` : '—'}</td>
               <td className="py-1.5 pr-3" title="Games where this stage's starting hero got switched off of mid-match — still counted in every other column, this is its own signal.">
                 {s.switchedOutRate != null ? `${s.switchedOutRate}% (${s.switchedOut}/${s.games})` : '—'}
               </td>

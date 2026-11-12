@@ -58,7 +58,7 @@ export const CATEGORY_REGISTRY: CategoryEntry[] = [
   {
     id: 'sens-study',
     label: 'Sensitivity study',
-    description: 'Curve fit, blind-trial stage/phase bookkeeping, and the feel rating scored against the sens fulcrum.',
+    description: 'Curve fit, blind-trial stage/phase bookkeeping, and the feel answer (Floaty, Snappy or Jittery) read against the sens.',
     // Hard, confirmed against schema.ts's own comment: `feel` is "perceived
     // sens speed... the fulcrum the sens study scores against" — a feel
     // reading with no sens value has nothing to be a reading of, and
@@ -148,6 +148,7 @@ export interface FieldEntry {
     | { kind: 'slider'; min: number; max: number }
     | { kind: 'select'; options: string[] }
     | { kind: 'toggle-pair'; options: string[] }
+    | { kind: 'segmented'; options: { label: string; value: number }[] }
     | { kind: 'rank-outcome' }
     | { kind: 'text' };
   writesTo: {
@@ -318,11 +319,13 @@ export const FIELD_REGISTRY: FieldEntry[] = [
   },
   // Phase 2 group 5: feel, per hero (match_heroes.feel — see schema.ts's
   // own comment: "perceived sens speed... the fulcrum the sens study
-  // scores against", not a general mood rating). One slider per hero
-  // actually played, same generic `slider` kind Phase 1 shipped but never
-  // exercised until now — LogMatch.tsx's per-hero loop still owns the
-  // required/unanswered styling and the "Floaty/Snappy/Jittery" labels;
-  // only the bare <input type=range> moved into RegistryField. No `study`
+  // scores against", not a general mood rating). One control per hero
+  // actually played. Since OW-0009 (2026-11-12) it is a three-button
+  // `segmented` control: Floaty (too slow) = 0, Snappy (right) = 50,
+  // Jittery (too fast) = 100, stored in the same integer column. Old
+  // 0-100 slider rows keep their values and are banded by lib/feel.ts
+  // (<40 Floaty, 40-60 Snappy, >60 Jittery). LogMatch.tsx's per-hero
+  // loop still owns the required/unanswered styling. No `study`
   // tag: GET /api/stats/split only accepts a field whose `writesTo.table`
   // is `matches` (enforced in routes/stats.ts, not just this comment) —
   // `feel` lives on `match_heroes`, so tagging it would be silently
@@ -331,9 +334,9 @@ export const FIELD_REGISTRY: FieldEntry[] = [
   // chart (`sensAnalysis-feel-vs-data-chart`).
   {
     id: 'feel',
-    label: 'Feel (per hero)',
+    label: 'Feel (per hero): Floaty, Snappy or Jittery',
     category: 'sens-study',
-    control: { kind: 'slider', min: 0, max: 100 },
+    control: { kind: 'segmented', options: [{ label: 'Floaty', value: 0 }, { label: 'Snappy', value: 50 }, { label: 'Jittery', value: 100 }] },
     writesTo: { table: 'match_heroes', columns: ['feel'] },
     feedsCards: ['sensAnalysis-feel-vs-data-chart'],
     defaultOn: true,
