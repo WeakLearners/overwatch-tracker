@@ -1,39 +1,52 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import SegmentedPills from './SegmentedPills';
+import AppTools from './AppTools';
 
-// Tab strip shared by the two sens-study pages (entry + analysis). The study
-// lives on its own /sens routes, unlinked from the main Dashboard.
+// Nav strip shared by the two sens-study pages (entry + analysis). Same card,
+// same three slots and same SegmentedPills as the tracker's dash-section-nav
+// (Dashboard.tsx): back link left (where the tracker has its season badge),
+// tabs on the true centre, app tools right. HeaderTools in App.tsx hides the
+// header copy of the tools on these routes, so there is one inspector slot.
+const TABS = ['/sens', '/sens/analysis'] as const;
+const LABEL: Record<string, string> = { '/sens': 'Study', '/sens/analysis': 'Analysis' };
+const TAB_ID: Record<string, string> = { '/sens': 'sensNav-study-tab', '/sens/analysis': 'sensNav-analysis-tab' };
+
 export default function SensNav({ dataInspectId }: { dataInspectId?: string }) {
   const { pathname } = useLocation();
-  const tab = (to: string, label: string, inspectId: string) => {
-    const active = pathname === to;
-    return (
-      <Link
-        to={to}
-        data-inspect-id={inspectId}
-        className={`pill heading-display tracking-[0.08em] border transition-all ${
-          active
-            ? 'is-selected text-orange-800 dark:text-ow-accent'
-            : 'text-[var(--faint)] border-ow-border hover:text-[var(--ink)] hover:border-gray-500'
-        }`}
-      >
-        {active ? <span className="lit-text">{label}</span> : label}
-      </Link>
-    );
-  };
+  const navigate = useNavigate();
+  const value = (TABS as readonly string[]).includes(pathname) ? (pathname as typeof TABS[number]) : null;
   return (
-    <div className="flex items-center gap-2 mb-5" data-inspect-id={dataInspectId}>
-      {tab('/sens', 'Study', 'sensNav-study-tab')}
-      {tab('/sens/analysis', 'Analysis', 'sensNav-analysis-tab')}
-      {/* Lands on the dashboard's Match section rather than the top of the
-          page. Coming back from the sens study, the next thing wanted is
-          almost always prep-or-log, which is what that section holds. */}
-      <Link
-        to="/match"
-        data-inspect-id="sensNav-back-link"
-        className="pill heading-display tracking-[0.08em] ml-auto border border-ow-border text-[var(--faint)] hover:text-[var(--ink)] hover:border-gray-500 transition-all"
-      >
-        ← Match Tracker
-      </Link>
-    </div>
+    <nav
+      data-inspect-id={dataInspectId}
+      aria-label="Sens study pages"
+      className="card !py-0 sticky top-16 z-20 mb-6 flex items-stretch gap-2.5 min-h-[42px]"
+    >
+      <div className="flex flex-1 basis-0 min-w-0 items-center self-center">
+        {/* Lands on the dashboard's Match section rather than the top of the
+            page. Coming back from the sens study, the next thing wanted is
+            almost always prep-or-log, which is what that section holds. */}
+        <Link
+          to="/match"
+          data-inspect-id="sensNav-back-link"
+          className="text-sm heading-display text-[var(--faint)] hover:text-[var(--ink)] whitespace-nowrap transition-colors"
+        >
+          ← Match Tracker
+        </Link>
+      </div>
+      <SegmentedPills
+        options={TABS}
+        value={value}
+        onPick={to => navigate(to)}
+        labelFor={to => LABEL[to]}
+        size="lg"
+        strong
+        inspectId="sensNav-pills"
+        idFor={to => TAB_ID[to]}
+        titleFor={to => `Go to ${LABEL[to]}`}
+      />
+      <div className="flex-1 basis-0 min-w-0 flex justify-end">
+        <AppTools />
+      </div>
+    </nav>
   );
 }

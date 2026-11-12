@@ -6,7 +6,7 @@ import { useTodayHeroCounts } from '../hooks/useHeroCounts';
 import { Overview, Streaks, TrendPoint, ModeComparison } from '../types';
 import PageHeader from '../components/PageHeader';
 import SegmentedPills from '../components/SegmentedPills';
-import AppTools from '../components/AppTools';
+import AppTools, { TOOL } from '../components/AppTools';
 import type { Finding } from '../components/FindingChip';
 import Prematch from './Prematch';
 import LogMatch from './LogMatch';
@@ -160,7 +160,18 @@ export default function Dashboard() {
           idFor={id => `dash-section-nav-${id.replace('sec-', '')}`}
           titleFor={id => `Jump to ${sections.find(s => s.id === id)!.label}`}
         />
-        <div className="flex-1 basis-0 min-w-0 flex justify-end">
+        <div className="flex-1 basis-0 min-w-0 flex justify-end items-stretch gap-2.5">
+          {/* Link to the sensitivity-study pages (design-lead, OW-0006: a page
+              link belongs in the nav). Opens a new tab so the dashboard stays
+              put while stats are logged. */}
+          <a
+            href="/sens" target="_blank" rel="noreferrer"
+            data-inspect-id="dash-nav-sens-study-link"
+            title="Open the sensitivity study in a new tab"
+            className={`${TOOL} my-[3px] shrink-0 whitespace-nowrap`}
+          >
+            Sens Study
+          </a>
           <AppTools />
         </div>
       </nav>
@@ -179,19 +190,7 @@ export default function Dashboard() {
       </div>
 
       <div id="sec-match" className="mt-8 border-t border-ow-border pt-6 reveal scroll-mt-32" style={{ '--reveal-delay': '120ms' } as React.CSSProperties}>
-        <PageHeader dataInspectId="dash-match-section-header" title="Match" sub="Prep with the advisor, then log the result.">
-          {/* Links to the (otherwise unlinked) sensitivity-study pages, on the
-              right of the section header. Open in a new tab so the dashboard
-              stays put while stats are logged. */}
-          <a
-            href="/sens" target="_blank" rel="noreferrer"
-            data-inspect-id="dash-log-sens-stats-link"
-            className="shrink-0 bg-ow-card border border-ow-border px-4 py-2 text-sm heading-display text-[var(--ink)] hover:text-ow-accent transition-colors shadow-[var(--card-shadow)]"
-            style={{ clipPath: 'polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)' }}
-          >
-            Log sens stats
-          </a>
-        </PageHeader>
+        <PageHeader dataInspectId="dash-match-section-header" title="Match" sub="Prep with the advisor, then log the result." />
         <div id="sec-hero-focus" className="mb-4 scroll-mt-32" data-inspect-id="dash-hero-focus-section"><HeroFocusCard /></div>
         <div className="contents" data-inspect-id="dash-prematch-section"><Prematch /></div>
         <div className="contents" data-inspect-id="dash-logmatch-section"><LogMatch /></div>

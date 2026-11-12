@@ -561,7 +561,7 @@ const DATA = {
           "kind": "link",
           "description": "The header wordmark (slash mark + OVERWATCH / MATCH TRACKER) is a link to the Dashboard (/). Added 2026-09-26: Settings and the Sens pages had no way back.",
           "locate": {
-            "path": "client/src/App.tsx:77",
+            "path": "client/src/App.tsx:78",
             "grep": "grep -n -F -- 'data-inspect-id=\"app-home-wordmark\"' client/src/App.tsx"
           }
         },
@@ -697,18 +697,18 @@ const DATA = {
           "kind": "header",
           "description": "Section header titled 'Match' with subtitle 'Prep with the advisor, then log the result.', introducing the Prematch advisor and LogMatch form below.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:182",
+            "path": "client/src/pages/Dashboard.tsx:193",
             "grep": "grep -n -F -- 'sub=\"Prep with the advisor, then log the result.\"' client/src/pages/Dashboard.tsx"
           }
         },
         {
-          "id": "dash-log-sens-stats-link",
-          "label": "Log sens stats link",
+          "id": "dash-nav-sens-study-link",
+          "label": "Sens Study link",
           "kind": "link",
-          "description": "Link in the Match section header that opens the sensitivity-study page (/sens) in a new tab, keeping the dashboard in place.",
+          "description": "Link in the right slot of the sticky section nav, left of the app tools, that opens the sensitivity-study page (/sens) in a new tab, keeping the dashboard in place.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:192",
-            "grep": "grep -n -F -- 'Log sens stats' client/src/pages/Dashboard.tsx"
+            "path": "client/src/pages/Dashboard.tsx:169",
+            "grep": "grep -n -F -- 'dash-nav-sens-study-link' client/src/pages/Dashboard.tsx"
           }
         },
         {
@@ -717,7 +717,7 @@ const DATA = {
           "kind": "section",
           "description": "Embeds the Prematch advisor component, which lets the user prep (map/mode selection, LLM pre-match advice) before logging a result.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:196",
+            "path": "client/src/pages/Dashboard.tsx:195",
             "grep": "grep -n -F -- '<Prematch />' client/src/pages/Dashboard.tsx"
           }
         },
@@ -727,7 +727,7 @@ const DATA = {
           "kind": "section",
           "description": "Embeds the LogMatch component, the form used to record the result (hero, map, win/loss, etc.) of the just-played match.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:197",
+            "path": "client/src/pages/Dashboard.tsx:196",
             "grep": "grep -n -F -- '<LogMatch />' client/src/pages/Dashboard.tsx"
           }
         },
@@ -737,7 +737,7 @@ const DATA = {
           "kind": "section",
           "description": "Embeds KillerFrequencyCard (Who Kills Me) \u2014 field registry Phase 1's read surface for match_deaths. Gated on the 'deaths' field via FieldConfigContext; renders nothing at all if that field is off. Added 2026-09-23.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:203",
+            "path": "client/src/pages/Dashboard.tsx:202",
             "grep": "grep -n -F -- 'dash-killer-frequency-section' client/src/pages/Dashboard.tsx"
           }
         },
@@ -5461,15 +5461,25 @@ const DATA = {
       "category": "client-component",
       "layer": 2,
       "file": "client/src/components/SensNav.tsx",
-      "description": "Tab strip shared by the two /sens pages: Study / Analysis tabs plus a 'Match Tracker' back-link to the main Dashboard.",
+      "description": "Nav strip shared by the two /sens pages, same card and slots as the tracker's section nav: 'Match Tracker' back-link left, Study / Analysis SegmentedPills centre, app tools right.",
       "uiElements": [
+        {
+          "id": "sensNav-pills",
+          "label": "Sens nav pills",
+          "kind": "tab",
+          "description": "SegmentedPills group (Study / Analysis) on the centre of the sens nav strip, same component and size as the tracker's section nav.",
+          "locate": {
+            "path": "client/src/components/SensNav.tsx:43",
+            "grep": "grep -n -F -- 'sensNav-pills' client/src/components/SensNav.tsx"
+          }
+        },
         {
           "id": "sensNav-study-tab",
           "label": "Study Tab",
           "kind": "tab",
-          "description": "Nav tab linking to the /sens sensitivity-study entry page; styled with a violet highlight when that route is active.",
+          "description": "Nav tab linking to the /sens sensitivity-study entry page; a SegmentedPills option, lit when that route is active.",
           "locate": {
-            "path": "client/src/components/SensNav.tsx:25",
+            "path": "client/src/components/SensNav.tsx:12",
             "grep": "grep -n -F -- 'sensNav-study-tab' client/src/components/SensNav.tsx"
           }
         },
@@ -5477,9 +5487,9 @@ const DATA = {
           "id": "sensNav-analysis-tab",
           "label": "Analysis Tab",
           "kind": "tab",
-          "description": "Nav tab linking to the /sens/analysis page; styled with a violet highlight when that route is active.",
+          "description": "Nav tab linking to the /sens/analysis page; a SegmentedPills option, lit when that route is active.",
           "locate": {
-            "path": "client/src/components/SensNav.tsx:26",
+            "path": "client/src/components/SensNav.tsx:12",
             "grep": "grep -n -F -- 'sensNav-analysis-tab' client/src/components/SensNav.tsx"
           }
         },
@@ -5487,9 +5497,9 @@ const DATA = {
           "id": "sensNav-back-link",
           "label": "Match Tracker Back Link",
           "kind": "link",
-          "description": "Right-aligned link that navigates back to the main Match Tracker dashboard, separate from the sens-study tabs. Targets /#sec-match, so the page lands on the Match section header rather than wherever it was last scrolled.",
+          "description": "Left-slot link that navigates back to the main Match Tracker dashboard, separate from the sens-study tabs. Targets /#sec-match, so the page lands on the Match section header rather than wherever it was last scrolled.",
           "locate": {
-            "path": "client/src/components/SensNav.tsx:35",
+            "path": "client/src/components/SensNav.tsx:33",
             "grep": "grep -n -F -- '\u2190 Match Tracker' client/src/components/SensNav.tsx"
           }
         }
@@ -6366,7 +6376,7 @@ const DATA = {
           "kind": "section",
           "description": "Wrapper (id sec-hero-focus) under the Match header, above Prematch, wrapping the hero focus trial card.",
           "locate": {
-            "path": "client/src/pages/Dashboard.tsx:195",
+            "path": "client/src/pages/Dashboard.tsx:194",
             "grep": "grep -n -F -- 'data-inspect-id=\"dash-hero-focus-section\"' client/src/pages/Dashboard.tsx"
           }
         }
@@ -6810,6 +6820,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 

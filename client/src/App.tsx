@@ -33,7 +33,8 @@ const Router = import.meta.env.VITE_DEMO === '1' ? HashRouter : BrowserRouter;
 // Dashboard routes carry the tools in their section nav strip instead.
 function HeaderTools() {
   const { pathname } = useLocation();
-  if (DASHBOARD_PATHS.includes(pathname)) return null;
+  // The sens pages carry the tools in their own SensNav strip (one inspector slot per page).
+  if (DASHBOARD_PATHS.includes(pathname) || pathname === '/sens' || pathname === '/sens/analysis') return null;
   return (
     <div className="card !py-0 !px-0 flex items-stretch min-h-[40px] shrink-0">
       <AppTools home />
