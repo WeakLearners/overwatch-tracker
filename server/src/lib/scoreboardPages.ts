@@ -296,6 +296,21 @@ export function linkGroup(db: DatabaseSync, groupId: number, matchId: number, st
   if (syncLeaver) syncLeaverFromBoard(db, matchId);
 }
 
+/** Reason prefix of a failed-read page settled when its group's match was saved by hand. */
+export const SAVED_BY_HAND = 'saved by hand';
+
+/**
+ * Sean saved the match by hand (Log Match submit, OW-0010). Pages of the linked group whose read failed
+ * (status 'error') never become 'matched', because their reading is bad. They become 'dismissed' with a
+ * "saved by hand" reason so the organizer files them in the match's date folder (scoreboardOrganize.ts),
+ * the queue stops listing them and Reset skips them. Only this group's rows change. Returns the count.
+ */
+export function settleFailedPages(db: DatabaseSync, groupId: number): number {
+  return Number(db.prepare(`
+    UPDATE match_scoreboards SET status = 'dismissed', reason = ? || ': ' || COALESCE(reason, 'read failed')
+    WHERE group_id = ? AND status = 'error'
+  `).run(SAVED_BY_HAND, groupId).changes);
+}
 
 // ------------------------------------------------ leaver from a short board
 

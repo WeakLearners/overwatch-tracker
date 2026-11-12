@@ -15,6 +15,7 @@ import fs from 'fs';
 import path from 'path';
 import type { DatabaseSync } from 'node:sqlite';
 import { REMATCH_GRACE_MIN } from './scoreboard';
+import { SAVED_BY_HAND } from './scoreboardPages';
 
 export const MIN_FILE_AGE_MS = 60_000;
 
@@ -30,7 +31,7 @@ export function uniqueDest(dir: string, stem: string, ext: string): string {
   return cand;
 }
 
-interface BoardRow { id: number; match_id: number | null; file_path: string; file_mtime: string; status: string; page_type: string | null; page_hero: string | null }
+interface BoardRow { id: number; match_id: number | null; file_path: string; file_mtime: string; status: string; page_type: string | null; page_hero: string | null; reason: string | null; group_match_id: number | null }
 
 /** The page part of a matched file name, or '' for a board from before page types existed. */
 export function pageSuffix(pageType: string | null, pageHero: string | null): string {
@@ -45,18 +46,23 @@ export function dateDir(root: string, date: string): string | null {
   return m ? path.join(root, m[1], m[2], m[3]) : null;
 }
 
+function matchedTarget(db: DatabaseSync, root: string, b: BoardRow, matchId: number | null): { dir: string; stem: string } | null {
+  const m = db.prepare(`SELECT date, map, hero FROM matches WHERE id = ?`).get(matchId) as { date: string; map: string; hero: string } | undefined;
+  if (!m || !m.date) return null;
+  const dir = dateDir(root, m.date);
+  if (!dir) return null;
+  return { dir, stem: windowsSafe(`${matchId} ${m.map} ${m.hero}${pageSuffix(b.page_type, b.page_hero)}`) };
+}
+
 /** Target folder (absolute) and desired file stem for a board, or null to leave it where it is. */
 function target(db: DatabaseSync, root: string, b: BoardRow, nowMs: number): { dir: string; stem: string | null } | null {
   switch (b.status) {
-    case 'matched': {
-      const m = db.prepare(`SELECT date, map, hero FROM matches WHERE id = ?`).get(b.match_id) as { date: string; map: string; hero: string } | undefined;
-      if (!m || !m.date) return null;
-      const dir = dateDir(root, m.date);
-      if (!dir) return null;
-      return { dir, stem: windowsSafe(`${b.match_id} ${m.map} ${m.hero}${pageSuffix(b.page_type, b.page_hero)}`) };
-    }
+    case 'matched': return matchedTarget(db, root, b, b.match_id);
+    case 'dismissed':
+      // A failed-read page of a group whose match was saved by hand goes to the date folder, like a good read.
+      if (b.reason?.startsWith(SAVED_BY_HAND) && b.group_match_id != null) return matchedTarget(db, root, b, b.group_match_id);
+      return { dir: path.join(root, '_copies'), stem: null };
     case 'not_scoreboard': return { dir: path.join(root, '_other'), stem: null };
-    case 'dismissed': return { dir: path.join(root, '_copies'), stem: null };
     case 'error': return { dir: path.join(root, '_needs-attention'), stem: null };
     case 'unmatched':
       // Stays on top while rematchRecent can still retry it.
@@ -72,7 +78,7 @@ function target(db: DatabaseSync, root: string, b: BoardRow, nowMs: number): { d
  */
 export function organizeBoard(db: DatabaseSync, id: number, root: string, nowMs: number = Date.now()): string | null {
   try {
-    const b = db.prepare(`SELECT id, match_id, file_path, file_mtime, status, page_type, page_hero FROM match_scoreboards WHERE id = ?`).get(id) as unknown as BoardRow | undefined;
+    const b = db.prepare(`SELECT s.id, s.match_id, s.file_path, s.file_mtime, s.status, s.page_type, s.page_hero, s.reason, g.match_id AS group_match_id FROM match_scoreboards s LEFT JOIN scoreboard_groups g ON g.id = s.group_id WHERE s.id = ?`).get(id) as unknown as BoardRow | undefined;
     if (!b) return null;
     const rel = path.relative(root, b.file_path);
     if (rel.startsWith('..') || path.isAbsolute(rel)) return null; // never touch files outside the folder
@@ -112,5 +118,13 @@ export function organizeAll(db: DatabaseSync, root: string, nowMs: number = Date
   let moved = 0;
   const ids = db.prepare(`SELECT id FROM match_scoreboards ORDER BY id`).all() as { id: number }[];
   for (const { id } of ids) if (organizeBoard(db, id, root, nowMs)) moved++;
+  return moved;
+}
+
+/** Move every placeable page of a group (good pages and settled failed pages). Moves only; the 60 s age rule and the watcher retry still apply. */
+export function organizeGroup(db: DatabaseSync, groupId: number, root: string): number {
+  const ids = db.prepare(`SELECT id FROM match_scoreboards WHERE group_id = ? AND (status = 'matched' OR (status = 'dismissed' AND reason LIKE '${SAVED_BY_HAND}%')) ORDER BY id`).all(groupId) as { id: number }[];
+  let moved = 0;
+  for (const { id } of ids) if (organizeBoard(db, id, root)) moved++;
   return moved;
 }

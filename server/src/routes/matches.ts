@@ -6,8 +6,8 @@ import { getExperimentHooks } from '../lib/experimentHooks';
 import { saveAimStatsRows, validateAimStats, type AimStatsPayload } from '../lib/aimStatsWrite';
 import { CRASHED_HERO, CRASHED_EDITABLE } from '../lib/crashed';
 import { syncLadderRank, ladderOf, resyncLadderSlot } from '../lib/ladderRank';
-import { groupMapMismatch, linkGroup, shortBoardConflicts } from '../lib/scoreboardPages';
-import { organizeBoard } from '../lib/scoreboardOrganize';
+import { groupMapMismatch, linkGroup, settleFailedPages, shortBoardConflicts } from '../lib/scoreboardPages';
+import { organizeGroup } from '../lib/scoreboardOrganize';
 import { scoreboardDir } from '../lib/scoreboardWatcher';
 
 const router = Router();
@@ -292,7 +292,7 @@ router.post('/', (req: Request, res: Response) => {
       const g = db.prepare(`SELECT state FROM scoreboard_groups WHERE id = ?`).get(scoreboard_group_id) as { state: string } | undefined;
       const mm = g?.state === 'live' ? groupMapMismatch(db, scoreboard_group_id, map) : null;
       if (mm) console.warn(`[scoreboard] not linking group ${scoreboard_group_id} to match ${matchId}: group Summary map "${mm.summaryMap}" does not match match map "${map}"; group stays live`);
-      else if (g?.state === 'live') { linkGroup(db, scoreboard_group_id, matchId, 'linked', 'linked at submit', false); linkedGroup = scoreboard_group_id; }
+      else if (g?.state === 'live') { linkGroup(db, scoreboard_group_id, matchId, 'linked', 'linked at submit', false); settleFailedPages(db, scoreboard_group_id); linkedGroup = scoreboard_group_id; }
     }
     syncLadderRank(db, matchId);
     db.exec('COMMIT');
@@ -305,7 +305,7 @@ router.post('/', (req: Request, res: Response) => {
   if (linkedGroup != null) {
     try {
       const root = scoreboardDir();
-      if (root) for (const r of db.prepare(`SELECT id FROM match_scoreboards WHERE group_id = ? AND status = 'matched'`).all(linkedGroup) as { id: number }[]) organizeBoard(db, r.id, root);
+      if (root) organizeGroup(db, linkedGroup, root);
     } catch { /* retried by the watcher */ }
   }
   res.json({ id: matchId });
