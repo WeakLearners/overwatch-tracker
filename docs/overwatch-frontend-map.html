@@ -2360,7 +2360,7 @@ const DATA = {
           "kind": "banner",
           "description": "Inline error message shown briefly under the Log Match button if saving the match to the server fails.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1710",
+            "path": "client/src/pages/LogMatch.tsx:1709",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-save-error-banner\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2370,7 +2370,7 @@ const DATA = {
           "kind": "indicator",
           "description": "Header line of the Today's Matches card: today's wins and losses, plus the current streak once it reaches two. Read from the same rows as the list below, newest first.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1722",
+            "path": "client/src/pages/LogMatch.tsx:1721",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-todays-matches-summary\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2380,7 +2380,7 @@ const DATA = {
           "kind": "card",
           "description": "Card showing today's logged matches, read live from the database so it stays accurate and resets automatically when the day rolls over. Each row expands in place into an inline edit form (logmatch-inline-edit-form) instead of a side drawer \u2014 this is the app's only surface for correcting a match's hero/map/mode/result after logging, or deleting it.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1714",
+            "path": "client/src/pages/LogMatch.tsx:1713",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-todays-matches-card\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2390,7 +2390,7 @@ const DATA = {
           "kind": "list",
           "description": "List of today's logged matches; each row's background is a subtle queue-mode-tinted wash (blue QP / red Comp Role / orange Comp Open) and shows an oversized W/L result watermark, a role-colored hero pill (mid-match switch heroes peek out behind it in progressively darker shades), a timestamp + stage/sens line, and the map name. Clicking the row toggles its inline edit form (logmatch-todays-matches-card-row / logmatch-inline-edit-form) open below it.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1730",
+            "path": "client/src/pages/LogMatch.tsx:1729",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-recently-logged-list\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2400,7 +2400,7 @@ const DATA = {
           "kind": "list-item",
           "description": "One row in the Today's Matches list. Clicking anywhere on the collapsed header (outside the mode toggle group) toggles logmatch-inline-edit-form open/closed beneath it for that match.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1737",
+            "path": "client/src/pages/LogMatch.tsx:1736",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-todays-matches-card-row\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2410,7 +2410,7 @@ const DATA = {
           "kind": "indicator",
           "description": "Up to 5 colored dashes below a Today's Matches row's hero pill \u2014 one per prior match on that hero, newest leftmost, green for a win / red for a loss; the oldest dash mask-fades out on its own trailing edge. Fixed to w-24, the same width as the hero pill. Backed by GET /api/matches/:id/hero-history.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1794",
+            "path": "client/src/pages/LogMatch.tsx:1793",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-todays-matches-hero-history\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2420,7 +2420,7 @@ const DATA = {
           "kind": "indicator",
           "description": "Same win/loss dash treatment as the hero history strip, shown below the map name for the last 5 matches played on that map. Backed by GET /api/matches/:id/map-history.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1824",
+            "path": "client/src/pages/LogMatch.tsx:1823",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-todays-matches-map-history\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2430,7 +2430,7 @@ const DATA = {
           "kind": "label",
           "description": "This row's timestamp and stage/sens readout, absolutely positioned between the hero and map columns with fixed left/right rem offsets off the row card \u2014 holds its position regardless of how wide mid-match-switch peek pills make the hero column, instead of living in normal flex flow.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1814",
+            "path": "client/src/pages/LogMatch.tsx:1813",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-todays-matches-time-sens\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2440,7 +2440,7 @@ const DATA = {
           "kind": "form",
           "description": "Expanded editable-fields panel for a Today's Matches row, matching the Awaiting Stats/Logged Today collapsed-row/inline-form pattern on the Sens page instead of a side drawer. Contains the Mode toggle, Hero (1st/2nd/3rd) selects, Map select, Result toggle, a Save Changes button, and a Delete this match control (with a confirm step).",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1840",
+            "path": "client/src/pages/LogMatch.tsx:1839",
             "grep": "grep -n -F -- 'data-inspect-id=\"logmatch-inline-edit-form\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -2660,7 +2660,7 @@ const DATA = {
           "kind": "banner",
           "description": "Empty-state message shown in the Today's Matches card when no matches have been logged yet for the current day.",
           "locate": {
-            "path": "client/src/pages/LogMatch.tsx:1858",
+            "path": "client/src/pages/LogMatch.tsx:1857",
             "grep": "grep -n -F -- 'title=\"Nothing logged today\"' client/src/pages/LogMatch.tsx"
           }
         },
@@ -6820,6 +6820,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 
