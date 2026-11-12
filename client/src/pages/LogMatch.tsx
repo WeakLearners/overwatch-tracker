@@ -1703,7 +1703,6 @@ export default function LogMatch() {
               disabled={!valid || status === 'saving'}
               data-inspect-id="logmatch-log-match-button"
               className="btn-primary w-full py-2.5 text-sm"
-              style={{ backgroundImage: 'linear-gradient(to bottom right, rgb(247 147 30 / 0.1), rgb(247 147 30 / 0.04), transparent)' }}
             >
               {status === 'saving' ? 'Saving…' : status === 'success' ? '✓ Saved' : crashedGame ? 'Log Crashed Match' : 'Log Match'}
             </button>
