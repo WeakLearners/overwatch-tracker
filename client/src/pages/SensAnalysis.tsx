@@ -1156,7 +1156,7 @@ export default function SensAnalysis() {
             <thead>
               <tr className="text-xs text-[var(--muted)] uppercase tracking-wider text-left">
                 <th className="py-1.5 pr-3">{`Sens @${MOUSE_DPI}`}</th><th className="py-1.5 pr-3">eDPI</th><th className="py-1.5 pr-3">Sens</th><th className="py-1.5 pr-3">n</th>
-                <th className="py-1.5 pr-3" title="Reference only — not a factor in any pick or recommendation on this page">Win % <span className="text-[9px] font-normal text-[var(--faint-2)]">(info only)</span></th><th className="py-1.5 pr-3">Overall</th><th className="py-1.5 pr-3">Crit</th><th className="py-1.5 pr-3" title="Feel answers: Floaty (too slow), Snappy (right), Jittery (too fast)">Feel (F·S·J)</th><th className="py-1.5">vs. Avg</th>
+                <th className="py-1.5 pr-3" title="Reference only — not a factor in any pick or recommendation on this page">Win % <span className="text-[10px] font-normal text-[var(--faint-2)]">(info only)</span></th><th className="py-1.5 pr-3">Overall</th><th className="py-1.5 pr-3">Crit</th><th className="py-1.5 pr-3" title="Feel answers: Floaty (too slow), Snappy (right), Jittery (too fast)">Feel (F·S·J)</th><th className="py-1.5">vs. Avg</th>
               </tr>
             </thead>
             <tbody className="font-bold">
@@ -1213,7 +1213,7 @@ export default function SensAnalysis() {
             <thead>
               <tr className="text-xs text-[var(--muted)] uppercase tracking-wider text-left">
                 <th className="py-1.5 pr-3">Hero</th><th className="py-1.5 pr-3">Type</th><th className="py-1.5 pr-3">n</th>
-                <th className="py-1.5 pr-3" title="Reference only — plays no part in picking Best Sens">Win % <span className="text-[9px] font-normal text-[var(--faint-2)]">(info only)</span></th><th className="py-1.5 pr-3">Overall</th><th className="py-1.5 pr-3">Signature Stat</th><th className="py-1.5 pr-3">Best Sens</th>
+                <th className="py-1.5 pr-3" title="Reference only — plays no part in picking Best Sens">Win % <span className="text-[10px] font-normal text-[var(--faint-2)]">(info only)</span></th><th className="py-1.5 pr-3">Overall</th><th className="py-1.5 pr-3">Signature Stat</th><th className="py-1.5 pr-3">Best Sens</th>
                 <th className="py-1.5 pr-3">Overall vs. Avg</th><th className="py-1.5">Signature vs. Avg</th>
               </tr>
             </thead>

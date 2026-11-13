@@ -187,7 +187,7 @@ export default function SensLog() {
                   {h.daysSinceLastPlayed == null ? 'never played' : `${h.daysSinceLastPlayed}d ago`}
                 </span>
                 {!h.completed && h.daysSinceLastPlayed != null && h.daysSinceLastPlayed >= COLD_DAYS && (
-                  <span className="text-[9px] font-bold uppercase tracking-wide text-blue-500">cold</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-blue-500">cold</span>
                 )}
                 <span className={`num-display ${h.completed ? 'text-emerald-700 dark:text-emerald-400' : ''}`}>
                   {h.completed ? 'Done' : h.targetMinutes != null ? `${h.playedMinutes ?? 0}/${h.targetMinutes} min` : `${h.credited}/${h.target}`}
