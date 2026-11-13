@@ -45,7 +45,7 @@
           "id": "app-tools-toggle",
           "label": "App tools trigger (show/hide)",
           "kind": "icon-button",
-          "description": "Gear button at the right edge of the nav strip (and header on other pages), styled like the other tool buttons (TOOL class); lit (ink colour) while open. Title \"Tools\"; aria-label flips Show tools / Hide tools. Slides the inspector, settings and theme buttons out to its left, or tucks them away. Open/closed is remembered in localStorage key ow-app-tools-open; default closed. aria-expanded, so keyboard-reachable. Added 2026-10-02 as a chevron; became a gear 2026-10-02.",
+          "description": "Gear button at the right edge of the nav strip (and header on other pages), styled like the other tool buttons (TOOL class); lit (ink colour) while open. Title \"Tools\"; aria-label flips Show tools / Hide tools. Drops the inspector, settings and theme buttons down below it as a vertical list, or tucks them away. Open/closed is remembered in localStorage key ow-app-tools-open; default closed. aria-expanded, so keyboard-reachable. Added 2026-10-02 as a chevron; became a gear 2026-10-02.",
           "locate": {
             "path": "client/src/components/AppTools.tsx:81",
             "grep": "grep -n -F -- 'data-inspect-id=\"app-tools-toggle\"' client/src/components/AppTools.tsx"
