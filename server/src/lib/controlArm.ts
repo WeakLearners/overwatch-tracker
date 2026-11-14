@@ -6,8 +6,9 @@ import { NOT_QP_SQL } from './queueMode';
 // Comp control arm (play-trial item 2, 2026-11-08). While it is on, a competitive
 // match is played at ONE game-wide home sens for every hero. It saves with
 // matches.sens_kind = 'home', blind_trial = 0 and no blind_credits row, so it never
-// counts as a trial. The blind trial keeps assigning stage sens to QP matches, which
-// never earn a credit (lib/queueMode.ts). Off restores the normal behaviour.
+// counts as a trial. A QP match is saved the same way while the arm is on (Sean
+// 2026-11-14), but it never counts toward the arm or the fit (lib/queueMode.ts).
+// Off restores the normal behaviour.
 type Db = ReturnType<typeof getDb>;
 
 // Play minutes, same unit as the sens study (Sean 2026-11-08). 1620 min is about 150 matches at

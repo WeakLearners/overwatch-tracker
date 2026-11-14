@@ -1,5 +1,5 @@
 // Play-trial item 2: the comp control arm. On: comp matches save as home sens and
-// are never trials. QP still gets the blind trial's test sens. Off: unchanged.
+// are never trials. QP saves the same way (Sean 2026-11-14), but never counts toward the arm or the fit. Off: unchanged.
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { startHarness, type Harness } from '../test/httpHarness';
@@ -72,15 +72,44 @@ describe('control arm: saving matches', () => {
     assert.equal(r.body.target, 1620);
   });
 
-  test('arm on: a QP match still gets the trial sens and is not tagged home', async () => {
+  test('arm on: a QP match saves as home at the home sens, with no credit', async () => {
     await makeSet();
     await h.put('/api/control-arm', { on: true, sens: 3.5 });
     const r = await log({ queue_mode: 'qp_role' });
     const m = row(r.body.id);
+    assert.equal(m.sens, 3.5);
+    assert.equal(m.dpi, 1600);
+    assert.equal(m.sens_kind, 'home');
+    assert.equal(m.blind_trial, 0);
+    assert.equal(m.blind_set_id, null);
+    assert.equal(creditCount(), 0);
+    assert.equal((await h.get('/api/control-arm')).body.waiting, 0, 'QP does not add to the arm');
+    assert.equal((await h.get('/api/aim/pending')).body.total, 0, 'a QP home match is not in the Awaiting Stats list');
+  });
+
+  test('arm off: a QP match keeps the stage sens, with no credit and no tag', async () => {
+    await makeSet();
+    const r = await log({ queue_mode: 'qp_role' });
+    const m = row(r.body.id);
     assert.equal(m.sens, 2.0);
     assert.equal(m.sens_kind, null);
+    assert.equal(m.blind_trial, 0);
     assert.equal(creditCount(), 0);
-    assert.equal((await h.get('/api/control-arm')).body.waiting, 0);
+  });
+
+  test('the fit rows drop a QP home match and keep a comp home match', async () => {
+    await h.put('/api/control-arm', { on: true, sens: 3.5 });
+    const addStats = (id: number) => {
+      h.db.prepare('INSERT INTO aim_stats (match_id, duration_min) VALUES (?, ?)').run(id, 10);
+      h.db.prepare('INSERT INTO aim_stats_heroes (match_id, hero, overall_acc, duration_min) VALUES (?, ?, ?, ?)').run(id, 'Ashe', 40, 10);
+    };
+    const qp = await log({ queue_mode: 'qp_role' });
+    addStats(qp.body.id);
+    const nIn = async () => ((await h.get('/api/aim/analysis')).body.byScale as any[]).reduce((n, s) => n + s.n, 0);
+    assert.equal(await nIn(), 0);
+    const comp = await log({});
+    addStats(comp.body.id);
+    assert.equal(await nIn(), 1);
   });
 
   test('arm off: a comp match is a trial again', async () => {

@@ -6,7 +6,7 @@ import {
   fitQuadraticPeak, fitLinearTrend, CurvePoint,
 } from '../lib/aim';
 import { getCurveParams } from '../lib/curveParams';
-import { isStudyQueueMode } from '../lib/queueMode';
+import { isStudyQueueMode, NOT_QP_SQL } from '../lib/queueMode';
 import { eraCounts, spannedPatchNotes } from '../lib/patchEra';
 import { feelCounts } from '../lib/feel';
 
@@ -78,7 +78,8 @@ function groupBy<T>(items: T[], key: (t: T) => string | number): Map<string | nu
 // mode, so QP games — which never feed the DPI study — would otherwise pad
 // this backlog too.
 // Control-arm matches (sens_kind 'home') have no credit by design but the arm is
-// judged on accuracy, so they are listed too.
+// judged on accuracy, so they are listed too. QP home matches are not (NOT_QP_SQL,
+// same as controlArmProgress).
 router.get('/pending', withReplica((req: Request, res: Response, db) => {
   const limit = parseInt((req.query.limit as string) ?? '20') || 20;
   const rows = db.prepare(`
@@ -86,7 +87,7 @@ router.get('/pending', withReplica((req: Request, res: Response, db) => {
            m.dpi, m.blind_trial, m.blind_set_id, m.stage_index
     FROM matches m
     LEFT JOIN aim_stats a ON a.match_id = m.id
-    WHERE a.match_id IS NULL AND (EXISTS (SELECT 1 FROM blind_credits bc WHERE bc.match_id = m.id) OR m.sens_kind = 'home')
+    WHERE a.match_id IS NULL AND (EXISTS (SELECT 1 FROM blind_credits bc WHERE bc.match_id = m.id) OR (m.sens_kind = 'home' AND ${NOT_QP_SQL}))
     ORDER BY m.id DESC
     LIMIT :limit
   `).all({ limit }) as Record<string, unknown>[];
@@ -101,7 +102,7 @@ router.get('/pending', withReplica((req: Request, res: Response, db) => {
     SELECT COUNT(*) AS total
     FROM matches m
     LEFT JOIN aim_stats a ON a.match_id = m.id
-    WHERE a.match_id IS NULL AND (EXISTS (SELECT 1 FROM blind_credits bc WHERE bc.match_id = m.id) OR m.sens_kind = 'home')
+    WHERE a.match_id IS NULL AND (EXISTS (SELECT 1 FROM blind_credits bc WHERE bc.match_id = m.id) OR (m.sens_kind = 'home' AND ${NOT_QP_SQL}))
   `).get() as { total: number };
   res.json({ rows, total });
 }));
@@ -181,7 +182,7 @@ export function computeAnalysis(db: DatabaseSync) {
   // curveParams.smooth/input/output into exactly those three columns in that
   // order — not inferred from value agreement alone).
   const rowsUnfiltered = db.prepare(`
-    SELECT m.id, ah.hero, mh.sens, m.dpi, m.win, m.date, mh.feel, m.blind_trial, m.queue_mode,
+    SELECT m.id, ah.hero, mh.sens, m.dpi, m.win, m.date, mh.feel, m.blind_trial, m.queue_mode, m.sens_kind,
            m.curve_enabled, m.curve_growth_rate, m.curve_midpoint, m.curve_motivity, m.curve_lut,
            ah.overall_acc, ah.crit_acc, ah.extra_acc, ah.duration_min AS hero_duration_min,
            -- Result share (2026-10-01): this hero played >= 1/3 of the match, so
@@ -211,7 +212,7 @@ export function computeAnalysis(db: DatabaseSync) {
     WHERE mh.sens IS NOT NULL AND ah.overall_acc IS NOT NULL
   `).all() as unknown as {
     id: number; hero: string; sens: number; dpi: number | null; win: 0 | 1; blind_trial: 0 | 1 | null;
-    queue_mode: string | null;
+    queue_mode: string | null; sens_kind: string | null;
     curve_enabled: 0 | 1; curve_growth_rate: number | null; curve_midpoint: number | null; curve_motivity: number | null; curve_lut: string | null;
     overall_acc: number; crit_acc: number | null; extra_acc: number | null;
     hero_stat_label: string | null; hero_stat_value: number | null; primary_hero: string;
@@ -230,7 +231,9 @@ export function computeAnalysis(db: DatabaseSync) {
   // are affected; a legacy manual-sens QP match (blind_trial != 1) was never
   // part of the study's stage comparison and is untouched by this filter.
   // Reverse by removing this filter.
-  const rows = rowsUnfiltered.filter(r => r.blind_trial !== 1 || isStudyQueueMode(r.queue_mode));
+  // Control-arm QP matches (sens_kind 'home', Sean 2026-11-14) are dropped the same way:
+  // the arm is comp only. Reverse by removing the sens_kind clause.
+  const rows = rowsUnfiltered.filter(r => (r.blind_trial !== 1 || isStudyQueueMode(r.queue_mode)) && !(r.sens_kind === 'home' && !isStudyQueueMode(r.queue_mode)));
 
   // Most recent aim_stats write among the rows actually feeding this analysis.
   // String comparison is safe: datetime('now') always formats as

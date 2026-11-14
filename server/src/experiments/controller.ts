@@ -349,14 +349,13 @@ function syncStageCredits(db: ReturnType<typeof getDb>, matchId: string, sensPro
 
 export const experimentController: ExperimentHooks = {
   sensFor(db, hero, queueMode): SensAssignment | null {
-    // Control arm: a competitive match is played at the one home sens, for every
-    // hero (a Designated Fallback too), and never credits a stage. QP falls through
-    // to the normal lookup below, so the blind trial keeps assigning test sens there.
-    if (isStudyQueueMode(queueMode)) {
-      const arm = getControlArm(db);
-      if (arm.on && arm.sens != null) {
-        return { dpi: arm.dpi, sens: arm.sens, curveEnabled: false, governsCurve: false, credit: null, sensKind: 'home' };
-      }
+    // Control arm: every match, comp or QP, is played at the one home sens, for every
+    // hero (a Designated Fallback too), and never credits a stage. Sean 2026-11-14:
+    // "if home sens test is turned on, then it should show that sens, not the one being
+    // tested". Arm off, QP falls through to the normal lookup below (stage sens, no credit).
+    const arm = getControlArm(db);
+    if (arm.on && arm.sens != null) {
+      return { dpi: arm.dpi, sens: arm.sens, curveEnabled: false, governsCurve: false, credit: null, sensKind: 'home' };
     }
     const st = sensStageFor(db, hero);
     if (!st) return null;

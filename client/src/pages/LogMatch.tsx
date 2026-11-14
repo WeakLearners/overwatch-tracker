@@ -633,9 +633,9 @@ export default function LogMatch() {
   // at, since a mid-match switch can land on a different hero's own test.
   const sensForHero = (h: string): number | null => {
     if (!h) return null;
-    // Comp control arm: every hero is played at the one home sens in comp
-    // (the server stamps the same value, lib/controlArm.ts). QP keeps the trial sens.
-    if (controlArm?.on && controlArm.sens != null && queueMode !== 'qp_role') return controlArm.sens;
+    // Control arm: every hero is played at the one home sens, comp and QP alike
+    // (the server stamps the same value, lib/controlArm.ts). Arm off, QP keeps the trial sens.
+    if (controlArm?.on && controlArm.sens != null) return controlArm.sens;
     // Designated Fallback always shows/records its own fixed sens (never the
     // 2.5 study fallback, never an ad-hoc set it was never actually part of)
     // — same priority the server enforces in matches.ts's dfSensForHero.
