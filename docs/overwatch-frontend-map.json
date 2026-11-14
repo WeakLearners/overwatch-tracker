@@ -27,7 +27,7 @@
           "kind": "icon-button",
           "description": "Sun/moon cell in the app tools group (AppTools): flips dark/light mode and persists the choice to localStorage. Sits in the Dashboard section nav strip, or in the header on non-Dashboard pages (2026-09-26). Since 2026-10-02 it is one of three tools that tuck behind the app-tools-toggle trigger.",
           "locate": {
-            "path": "client/src/components/AppTools.tsx:69",
+            "path": "client/src/components/AppTools.tsx:111",
             "grep": "grep -n -F -- 'data-inspect-id=\"app-theme-toggle\"' client/src/components/AppTools.tsx"
           }
         },
@@ -37,7 +37,7 @@
           "kind": "icon-button",
           "description": "Text cell reading \"Settings\" in the app tools tray (AppTools; shows text, not a gear, since 2026-10-02, because the tray trigger is now the gear), next to the theme toggle, that navigates to /settings — the field registry's category toggle page. Added 2026-09-23; moved into the Dashboard section nav strip 2026-09-26 (header on other pages).",
           "locate": {
-            "path": "client/src/components/AppTools.tsx:68",
+            "path": "client/src/components/AppTools.tsx:110",
             "grep": "grep -n -F -- 'data-inspect-id=\"app-settings-link\"' client/src/components/AppTools.tsx"
           }
         },
@@ -45,9 +45,9 @@
           "id": "app-tools-toggle",
           "label": "App tools trigger (show/hide)",
           "kind": "icon-button",
-          "description": "Gear button at the right edge of the nav strip (and header on other pages), styled like the other tool buttons (TOOL class); lit (ink colour) while open. Title \"Tools\"; aria-label flips Show tools / Hide tools. Drops the inspector, settings and theme buttons down below it as a vertical list, or tucks them away. Open/closed is remembered in localStorage key ow-app-tools-open; default closed. aria-expanded, so keyboard-reachable. Added 2026-10-02 as a chevron; became a gear 2026-10-02.",
+          "description": "Gear button at the right edge of the nav strip (and header on other pages), styled like the other tool buttons (TOOL class); lit (ink colour) while open. Title \"Tools\"; aria-label flips Show tools / Hide tools. Drops the inspector, settings and theme buttons down below it as a vertical list (portaled to body, fixed under the button, closes on Escape or an outside click), or tucks them away. Open/closed is remembered in localStorage key ow-app-tools-open; default closed. aria-expanded, so keyboard-reachable. Added 2026-10-02 as a chevron; became a gear 2026-10-02.",
           "locate": {
-            "path": "client/src/components/AppTools.tsx:81",
+            "path": "client/src/components/AppTools.tsx:126",
             "grep": "grep -n -F -- 'data-inspect-id=\"app-tools-toggle\"' client/src/components/AppTools.tsx"
           }
         },

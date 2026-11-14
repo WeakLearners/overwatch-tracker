@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { NOTCH, ACCENT_SEL } from './SegmentedPills';
 
@@ -39,10 +40,47 @@ export default function AppTools({ home = false }: { home?: boolean }) {
   const [open, setOpen] = useState(() => {
     try { return localStorage.getItem(TOOLS_OPEN_KEY) === '1'; } catch { return false; }
   });
-  const flip = () => setOpen(o => {
-    try { localStorage.setItem(TOOLS_OPEN_KEY, o ? '0' : '1'); } catch { /* storage blocked: still works this visit */ }
-    return !o;
-  });
+  const store = (v: boolean) => {
+    try { localStorage.setItem(TOOLS_OPEN_KEY, v ? '1' : '0'); } catch { /* storage blocked: still works this visit */ }
+  };
+  const flip = () => setOpen(o => { store(!o); return !o; });
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const trayRef = useRef<HTMLDivElement>(null);
+  // The tray is portaled to <body> and pinned with `fixed`: every parent of
+  // AppTools is a .card, and .card's clip-path clips all descendants, which
+  // hid the open tray. Right edge = button right edge, top = button bottom + 4px.
+  const [pos, setPos] = useState({ top: 0, right: 0 });
+  const place = useCallback(() => {
+    const b = btnRef.current?.getBoundingClientRect();
+    if (!b) return;
+    setPos({ top: b.bottom + 4, right: document.documentElement.clientWidth - b.right });
+  }, []);
+  useLayoutEffect(() => {
+    if (!open) return;
+    place();
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => {
+      window.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
+    };
+  }, [open, place]);
+  useEffect(() => {
+    if (!open) return;
+    const close = () => { store(false); setOpen(false); };
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (trayRef.current?.contains(t) || btnRef.current?.contains(t)) return;
+      close();
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
   useEffect(() => {
     window.dispatchEvent(new Event(INSPECTOR_SLOT_EVENT));
     return () => { window.dispatchEvent(new Event(INSPECTOR_SLOT_EVENT)); };
@@ -54,25 +92,32 @@ export default function AppTools({ home = false }: { home?: boolean }) {
     // 2026-09-26 when this wrapper briefly carried "app-tools").
     <div className="relative flex my-[3px] shrink-0">
       {home && <Link to="/" aria-label="Home" title="Back to the Dashboard" data-inspect-id="app-home-link" className={TOOL}>Home</Link>}
-      {/* Drops down under the Tools button as a vertical list (OW-0012). Closed, the
+      {/* Drops down under the Tools button as a vertical list (OW-0012). Portaled
+          to <body> so no clipped .card ancestor contains it. Closed, the
           tools are invisible (so Tab skips them) but stay mounted, because
           the inspector button portals into the slot below. */}
-      <div
-        id="app-tools-tray"
-        className={`absolute right-0 top-full mt-1 z-30 min-w-[8rem] bg-ow-card border border-ow-border shadow-[var(--card-shadow)] transition-[opacity,visibility] duration-200 ease-out ${
-          open ? 'opacity-100 visible' : 'opacity-0 invisible'
-        }`}
-      >
-        <div className="flex flex-col min-w-0 py-1 [&>*]:py-2 [&>*]:justify-start [&>span>*]:py-2 [&>span>*]:justify-start">
-          <span id="header-inspector-slot" className="contents" />
-          <Link to="/settings" aria-label="Settings" title="Settings" data-inspect-id="app-settings-link" className={TOOL}>Settings</Link>
-          <button type="button" onClick={toggle} aria-label="Toggle theme" title={dark ? 'Switch to light theme' : 'Switch to dark theme'} data-inspect-id="app-theme-toggle" className={TOOL}>
-            {dark ? 'Light' : 'Dark'}
-          </button>
-        </div>
-      </div>
+      {createPortal(
+        <div
+          id="app-tools-tray"
+          ref={trayRef}
+          style={{ top: pos.top, right: pos.right }}
+          className={`fixed z-50 min-w-[8rem] bg-ow-card border border-ow-border shadow-[var(--card-shadow)] transition-[opacity,visibility] duration-200 ease-out ${
+            open ? 'opacity-100 visible' : 'opacity-0 invisible'
+          }`}
+        >
+          <div className="flex flex-col min-w-0 py-1 [&>*]:py-2 [&>*]:justify-start [&>span>*]:py-2 [&>span>*]:justify-start">
+            <span id="header-inspector-slot" className="contents" />
+            <Link to="/settings" aria-label="Settings" title="Settings" data-inspect-id="app-settings-link" className={TOOL}>Settings</Link>
+            <button type="button" onClick={toggle} aria-label="Toggle theme" title={dark ? 'Switch to light theme' : 'Switch to dark theme'} data-inspect-id="app-theme-toggle" className={TOOL}>
+              {dark ? 'Light' : 'Dark'}
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
       <button
         type="button"
+        ref={btnRef}
         onClick={flip}
         aria-expanded={open}
         aria-controls="app-tools-tray"
