@@ -54,16 +54,16 @@ export default function AppTools({ home = false }: { home?: boolean }) {
     // 2026-09-26 when this wrapper briefly carried "app-tools").
     <div className="relative flex my-[3px] shrink-0">
       {home && <Link to="/" aria-label="Home" title="Back to the Dashboard" data-inspect-id="app-home-link" className={TOOL}>Home</Link>}
-      {/* Slides open by animating the column from 0fr to 1fr. Closed, the
+      {/* Drops down under the Tools button as a vertical list (OW-0012). Closed, the
           tools are invisible (so Tab skips them) but stay mounted, because
           the inspector button portals into the slot below. */}
       <div
         id="app-tools-tray"
-        className={`grid transition-[grid-template-columns,opacity,visibility] duration-200 ease-out ${
-          open ? 'grid-cols-[1fr] opacity-100 visible' : 'grid-cols-[0fr] opacity-0 invisible'
+        className={`absolute right-0 top-full mt-1 z-30 min-w-[8rem] bg-ow-card border border-ow-border shadow-[var(--card-shadow)] transition-[opacity,visibility] duration-200 ease-out ${
+          open ? 'opacity-100 visible' : 'opacity-0 invisible'
         }`}
       >
-        <div className="grid grid-flow-col auto-cols-fr min-w-0 overflow-hidden">
+        <div className="flex flex-col min-w-0 py-1 [&>*]:py-2 [&>*]:justify-start [&>span>*]:py-2 [&>span>*]:justify-start">
           <span id="header-inspector-slot" className="contents" />
           <Link to="/settings" aria-label="Settings" title="Settings" data-inspect-id="app-settings-link" className={TOOL}>Settings</Link>
           <button type="button" onClick={toggle} aria-label="Toggle theme" title={dark ? 'Switch to light theme' : 'Switch to dark theme'} data-inspect-id="app-theme-toggle" className={TOOL}>

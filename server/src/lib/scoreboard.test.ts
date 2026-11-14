@@ -6,7 +6,7 @@ import os from 'os';
 import path from 'path';
 import { getDb, closeDb } from '../db/schema';
 import {
-  decideMatch, MATCH_WINDOW_MIN, processFile, rematchRecent, validateParsed, isShortBoard, callVision, resolveSelf, recomputeScoreboards, storeScoreboard, systemPrompt, SCHEMA, TEAMS_PROMPT,
+  decideMatch, MATCH_WINDOW_MIN, processFile, rematchRecent, validateParsed, isShortBoard, callVision, resolveSelf, recomputeScoreboards, reresolveSelfErrors, storeScoreboard, systemPrompt, SCHEMA, TEAMS_PROMPT,
   type MatchCandidate, type ParsedRow, type ParsedScoreboard, type SelfRow,
 } from './scoreboard';
 import { pollOnce } from './scoreboardWatcher';
@@ -148,6 +148,27 @@ describe('processFile + rematch on a temp DB', () => {
     const b = board(6); b.rows.forEach(r => { if (r.is_self) r.player_name = 'STRANGER'; });
     assert.equal(await processFile(db, '/x/a.png', MTIME, async () => b), 'error');
     assert.match((db.prepare(`SELECT reason FROM match_scoreboards`).get() as any).reason, /self row/);
+  });
+  test('reresolveSelfErrors: a stored self-row error links once the name is known; no vision call; a still-unknown name stays an error', async () => {
+    addMatch(at(5), 'Linx');
+    const b = board(6); b.rows.forEach(r => { if (r.is_self) r.player_name = 'STRANGER'; });
+    assert.equal(await processFile(db, '/x/a.png', MTIME, async () => b), 'error');
+    const errId = (db.prepare(`SELECT id FROM match_scoreboards`).get() as any).id;
+    // still unknown: stays an error, same row, nothing else changes
+    let res = await reresolveSelfErrors(db);
+    assert.deepEqual(res.map(r => [r.id, r.after]), [[errId, 'error']]);
+    assert.equal((db.prepare(`SELECT COUNT(*) n FROM match_scoreboards`).get() as any).n, 1);
+    // the account becomes known (a Stranger match is logged): the stored reading now resolves
+    db.prepare(`UPDATE matches SET account = 'Stranger'`).run();
+    res = await reresolveSelfErrors(db);
+    assert.deepEqual(res.map(r => [r.id, r.after]), [[errId, 'matched']]);
+    const sb = db.prepare(`SELECT status, match_id FROM match_scoreboards WHERE id = ?`).get(errId) as any;
+    assert.equal(sb.status, 'matched');
+    assert.ok(sb.match_id != null);
+    assert.equal((db.prepare(`SELECT COUNT(*) n FROM scoreboard_rows WHERE scoreboard_id = ? AND is_self = 1`).get(errId) as any).n, 1);
+    assert.equal((db.prepare(`SELECT COUNT(*) n FROM match_scoreboards`).get() as any).n, 1);
+    // nothing left to re-resolve
+    assert.deepEqual(await reresolveSelfErrors(db), []);
   });
   test('no candidate -> unmatched with a reason; matches table untouched', async () => {
     addMatch(at(120));

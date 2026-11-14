@@ -4,7 +4,7 @@ import { organizeBoard } from '../lib/scoreboardOrganize';
 import { scoreboardDir, getUnreadCount, getSkippedCount, clearUnread, readNow, rescanNow, isReading } from '../lib/scoreboardWatcher';
 import { resetCurrentMatch, resetRows } from '../lib/scoreboardReset';
 import { inFlightCount } from '../lib/scoreboardStage';
-import { REMATCH_GRACE_MIN, recheckGroup } from '../lib/scoreboard';
+import { REMATCH_GRACE_MIN, recheckGroup, reresolveSelfErrors } from '../lib/scoreboard';
 import { syncMatchHeroStats } from '../lib/matchHeroStats';
 import { computeStage } from '../lib/scoreboardStage';
 import { listPicks, savePick, resetPick, isSlot } from '../lib/heroTilePicks';
@@ -111,6 +111,15 @@ router.post('/groups/:id/recheck', (req, res) => {
   if (g.state === 'linked') { res.status(409).json({ error: 'That group is already linked to a logged match' }); return; }
   try { recheckGroup(db, id); } catch (e) { res.status(409).json({ error: (e as Error).message }); return; }
   res.json(livePayload(db));
+});
+
+// Re-run the self-row check on stored Teams pages that errored with "self row: ..." (a name misread by one letter).
+// No vision call: it reads the saved raw_json. Pages that still fail stay as they are. Never touches the matches table.
+router.post('/reresolve-self', async (_req, res) => {
+  try {
+    const results = await reresolveSelfErrors(getDb());
+    res.json({ checked: results.length, fixed: results.filter(r => r.after !== 'error').length, results });
+  } catch (e) { res.status(500).json({ error: (e as Error).message }); }
 });
 
 // Unmatched / error images plus a count of ignored non-scoreboard images, and

@@ -88,7 +88,7 @@ export default function HeroFocusCard() {
               return (
                 <div key={r.hero} className="flex items-baseline gap-2 text-xs py-0.5">
                   <span className={`hero-name truncate ${isPick ? 'text-ow-accent' : ''}`}>{r.hero}</span>
-                  {isPick && <span className="text-[9px] font-bold uppercase tracking-wide text-ow-accent">this block</span>}
+                  {isPick && <span className="text-[10px] font-bold uppercase tracking-wide text-ow-accent">this block</span>}
                   <span className="ml-auto num-display text-[var(--faint)] whitespace-nowrap">
                     n {r.n} · {pct(r.shrunkWr)}{r.basis === 'fill' ? ' · most played' : ''}
                   </span>

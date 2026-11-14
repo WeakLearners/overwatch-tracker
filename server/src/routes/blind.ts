@@ -12,6 +12,7 @@ import { HEROES_BY_ROLE } from '../lib/heroes';
 import { isDfHero } from '../lib/df';
 import { eraCounts, spannedPatchNotes } from '../lib/patchEra';
 import { feelCounts } from '../lib/feel';
+import { listTestCandidates, qpMatchCounts, CANDIDATE_MIN_QP } from '../lib/testCandidates';
 
 const router = Router();
 
@@ -215,6 +216,13 @@ export function syncSetActive(db: ReturnType<typeof getDb>, setId: number) {
 // heroes test independently and can be run in parallel. The only restriction
 // is one active, unfinished set per hero (or per the ad-hoc slot) at a time —
 // a second one would leave match auto-tagging ambiguous.
+// Candidate list (OW-0004): heroes played but not in the test roster, with Quick Play counts.
+// `eligible` is true from `min_qp` matches. Read only; it never starts a study.
+router.get('/candidates', (_req: Request, res: Response) => {
+  // qp_counts: the real Quick Play count of EVERY hero with Quick Play matches, roster or not (the Add hero picker reads this).
+  res.json({ min_qp: CANDIDATE_MIN_QP, heroes: listTestCandidates(getDb()), qp_counts: Object.fromEntries(qpMatchCounts(getDb())) });
+});
+
 router.post('/sets', (req: Request, res: Response) => {
   const db = getDb();
   const batch_size = Number(req.body.batch_size ?? 10);

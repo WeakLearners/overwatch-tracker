@@ -127,6 +127,15 @@ export function computeTrendsDerived(trends: TrendPoint[] | null) {
       for (const g of withRank) {
         drums.set(`${g.account ?? ''}|${g.role}`, { rank: g.player_rank!, account: g.account, role: g.role });
       }
+      // Who played the day: one "account role" entry per account+role pair,
+      // in the order first played, with a game count when it was more than
+      // one. A competitive Open queue match reads "Open", not its hero role.
+      const lineupCounts = new Map<string, number>();
+      for (const g of games) {
+        const who = `${g.account ?? 'no account'} ${g.queue_mode === 'comp_open' ? 'Open' : g.role}`;
+        lineupCounts.set(who, (lineupCounts.get(who) ?? 0) + 1);
+      }
+      const lineups = [...lineupCounts].map(([who, n]) => (n > 1 ? `${who} ×${n}` : who)).join(', ');
       const open = carry;
       const close = open + compW - compL;
       carry = close;
@@ -139,7 +148,7 @@ export function computeTrendsDerived(trends: TrendPoint[] | null) {
       const top = Math.max(open, close);
       const bottom = Math.min(open, close);
       return {
-        date, open, close, compW, compL, qpW, qpL, placements, top, bottom, nOpen, nClose, rank, drums,
+        date, open, close, compW, compL, qpW, qpL, placements, top, bottom, nOpen, nClose, rank, drums, lineups,
         volume: games.length,
         // Which way the day went, as hue. Normally that is the competitive
         // running total: close above open means a winning day.
