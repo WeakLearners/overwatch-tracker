@@ -87,7 +87,7 @@
           "kind": "icon-button",
           "description": "House cell in the app tools group, shown only on non-Dashboard pages (header). Links to the Dashboard. Added 2026-09-26.",
           "locate": {
-            "path": "client/src/components/AppTools.tsx:56",
+            "path": "client/src/components/AppTools.tsx:94",
             "grep": "grep -n -F -- 'data-inspect-id=\"app-home-link\"' client/src/components/AppTools.tsx"
           }
         },
