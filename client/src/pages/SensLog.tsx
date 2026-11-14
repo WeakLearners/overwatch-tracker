@@ -1303,7 +1303,7 @@ function PlanCard({ tabs, state }: { tabs: readonly PlanTab[]; state: DpiTestSta
                 <input type="number" step="0.01" min={0.01} placeholder="Low" value={addHeroRow.low} disabled={!addHeroManual} onChange={e => setAddHeroRow({ ...addHeroRow, low: e.target.value })} className={`${compactField} col-span-2 disabled:opacity-60`} aria-label="Low sens" />
                 <input type="number" step="0.01" placeholder="High" value={addHeroRow.high} disabled={!addHeroManual} onChange={e => setAddHeroRow({ ...addHeroRow, high: e.target.value })} className={`${compactField} col-span-2 disabled:opacity-60`} aria-label="High sens" />
                 <input placeholder="Note (optional)" value={addHeroRow.note} onChange={e => setAddHeroRow({ ...addHeroRow, note: e.target.value })} className={`${compactField} col-span-2`} aria-label="Note" />
-                <button type="button" onClick={saveAddedHero} disabled={!!addHeroRow.hero && qpShort(addHeroRow.hero)} className="btn-primary col-span-2 py-1 text-xs disabled:opacity-50">Add</button>
+                <button type="button" onClick={saveAddedHero} disabled={!!addHeroRow.hero && qpShort(addHeroRow.hero)} className="btn-primary col-span-2 py-1 text-xs">Add</button>
                 <button type="button" onClick={() => setAddHeroRow(null)} className={`${btnSecondary} col-span-2 py-1 text-xs`}>Cancel</button>
                 {addHeroRow.hero && qpShort(addHeroRow.hero) && (
                   <div className="col-span-6 text-xs text-[var(--muted)]" data-inspect-id="sl-plan-add-hero-needs-qp">

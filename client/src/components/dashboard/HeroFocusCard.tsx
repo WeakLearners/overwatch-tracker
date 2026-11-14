@@ -108,7 +108,7 @@ export default function HeroFocusCard() {
           <button
             type="button" data-inspect-id="dash-hero-focus-start-btn" disabled={busy || roster.length < 2}
             onClick={() => post('start', {})}
-            className="btn-primary px-3 py-1.5 text-xs disabled:opacity-40"
+            className="btn-primary px-3 py-1.5 text-xs"
           >Start hero focus trial (2160 comp min)</button>
         )}
         {active && !ending && (

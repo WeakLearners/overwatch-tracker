@@ -40,6 +40,11 @@
        not: hue 22 at 3.31:1 is 40% more contrast on the same card, and still
        reads orange rather than red. */
     --vol-base: #F55A00;
+    /* Label on the orange accent fill. Fixed in both themes: the fill does
+       not change with the theme, so its label must not either. Same value as
+       light --ink and dark --surface. Not var(--ink): that flips to light
+       text in dark theme and puts light text on orange again (2026-11-14). */
+    --on-accent: #14161c;
     --ink: #14161c;
     --ink-2: #2c2f38;
 --muted: #565c6b;
@@ -759,13 +764,30 @@
   }
   html.dark .card-title { @apply bg-gradient-to-br from-ow-accentLight to-ow-blue bg-clip-text text-transparent; }
 
+  /* Primary action (2026-11-14, design/btn-primary-states-2026-11-14.md).
+     Dark label on the orange ramp: white measured 1.62-2.30:1, ink measures
+     7.88-11.19:1. No shadow: clip-path cuts it off, so it never showed.
+     No translate or scale: hover and press change brightness only. */
   .btn-primary {
-    @apply bg-gradient-to-r from-ow-accent to-ow-accentLight text-white font-bold
-           shadow-lg shadow-ow-accent/30 transition-all duration-200
-           hover:shadow-ow-accent/40 hover:brightness-110 hover:-translate-y-px active:brightness-95 active:translate-y-0 active:scale-[0.98]
-           disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:hover:brightness-100;
+    @apply bg-gradient-to-r from-ow-accent to-ow-accentLight font-bold
+           transition-[filter] duration-150;
+    color: var(--on-accent);
     clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
     transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .btn-primary:not(:disabled):hover  { filter: brightness(0.95); }
+  .btn-primary:not(:disabled):active { filter: brightness(0.90); }
+  /* The global :focus-visible ring sits 2px outside the box, and clip-path
+     cuts it off. Draw it 4px inside instead. */
+  .btn-primary:focus-visible { outline: 2px solid var(--on-accent); outline-offset: -4px; }
+  /* Disabled: a grey button with an edge, not a faded orange one. */
+  .btn-primary:disabled {
+    background-image: none;
+    background-color: rgb(var(--ow-border));
+    color: var(--ink-2);
+    box-shadow: inset 0 0 0 1px var(--faint-2);
+    filter: none;
+    cursor: not-allowed;
   }
 
   /* Page-load cascade: sections settle in with a short stagger instead of
