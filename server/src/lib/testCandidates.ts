@@ -10,12 +10,22 @@ export interface TestCandidate { hero: string; qp_matches: number; eligible: boo
 /** True when a hero with this many Quick Play matches may be added to active testing. */
 export const candidateEligible = (qpMatches: number): boolean => qpMatches >= CANDIDATE_MIN_QP;
 
-/** Heroes already in the roster: a live or paused test set, or a slot in any custom phase plan. */
-function rosterHeroes(db: DatabaseSync): Set<string> {
+/** Phase tag of the newest set that carries one (the same rule as currentPhaseKey in routes/blind.ts). */
+function currentPhase(db: DatabaseSync): string | null {
+  const r = db.prepare(`SELECT phase FROM blind_stage_sets WHERE phase IS NOT NULL AND TRIM(phase) <> '' ORDER BY id DESC LIMIT 1`).get() as { phase: string } | undefined;
+  return r?.phase ?? null;
+}
+
+/** Heroes already in the roster: a live or paused test set, or a hero of the CURRENT phase (its sets or its custom plan). Old phases do not count. */
+export function rosterHeroes(db: DatabaseSync): Set<string> {
   const out = new Set<string>();
   for (const r of db.prepare(`SELECT DISTINCT hero FROM blind_stage_sets WHERE hero IS NOT NULL AND (active = 1 OR paused_at IS NOT NULL)`).all() as { hero: string }[]) out.add(r.hero);
-  for (const p of db.prepare(`SELECT plan FROM custom_phases`).all() as { plan: string }[]) {
-    try { for (const h of JSON.parse(p.plan) as { hero?: string }[]) if (h?.hero) out.add(h.hero); } catch { /* a bad plan row adds nothing */ }
+  const phase = currentPhase(db);
+  if (phase) {
+    for (const r of db.prepare(`SELECT DISTINCT hero FROM blind_stage_sets WHERE hero IS NOT NULL AND phase = :phase`).all({ phase }) as { hero: string }[]) out.add(r.hero);
+    for (const p of db.prepare(`SELECT plan FROM custom_phases WHERE key = :phase`).all({ phase }) as { plan: string }[]) {
+      try { for (const h of JSON.parse(p.plan) as { hero?: string }[]) if (h?.hero) out.add(h.hero); } catch { /* a bad plan row adds nothing */ }
+    }
   }
   return out;
 }

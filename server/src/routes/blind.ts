@@ -12,7 +12,7 @@ import { HEROES_BY_ROLE } from '../lib/heroes';
 import { isDfHero } from '../lib/df';
 import { eraCounts, spannedPatchNotes } from '../lib/patchEra';
 import { feelCounts } from '../lib/feel';
-import { listTestCandidates, CANDIDATE_MIN_QP } from '../lib/testCandidates';
+import { listTestCandidates, qpMatchCounts, CANDIDATE_MIN_QP } from '../lib/testCandidates';
 
 const router = Router();
 
@@ -219,7 +219,8 @@ export function syncSetActive(db: ReturnType<typeof getDb>, setId: number) {
 // Candidate list (OW-0004): heroes played but not in the test roster, with Quick Play counts.
 // `eligible` is true from `min_qp` matches. Read only; it never starts a study.
 router.get('/candidates', (_req: Request, res: Response) => {
-  res.json({ min_qp: CANDIDATE_MIN_QP, heroes: listTestCandidates(getDb()) });
+  // qp_counts: the real Quick Play count of EVERY hero with Quick Play matches, roster or not (the Add hero picker reads this).
+  res.json({ min_qp: CANDIDATE_MIN_QP, heroes: listTestCandidates(getDb()), qp_counts: Object.fromEntries(qpMatchCounts(getDb())) });
 });
 
 router.post('/sets', (req: Request, res: Response) => {
