@@ -1249,14 +1249,14 @@ export default function SensAnalysis() {
                       : <span className="text-[var(--faint-2)]">— <span className="text-[10px]">(no scale with {RELIABLE_N}+ games)</span></span>}
                     {tie.runnerUp && (tie.isNearTie ? (
                       <span
-                        className="ml-1.5 inline-flex items-center rounded px-1 py-0 text-[9px] font-semibold bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                        className="ml-1.5 inline-flex items-center rounded px-1 py-0 text-[10px] font-semibold bg-amber-500/15 text-amber-600 dark:text-amber-400"
                         title={`Effectively tied with ${(tie.runnerUp.eDPI / MOUSE_DPI).toFixed(2)} sens (accuracy gap ${tie.accGap != null ? tie.accGap.toFixed(2) : '—'} pts${tie.heroStatGap != null ? `, hero-stat gap ${tie.heroStatGap.toFixed(2)} pts` : ''}) — the rank math had to break a near-tie, not identify a clear winner.`}
                       >
                         ≈ tie
                       </span>
                     ) : (
                       <span
-                        className="ml-1.5 text-[9px] text-emerald-600 dark:text-emerald-500"
+                        className="ml-1.5 text-[10px] text-emerald-600 dark:text-emerald-500"
                         title={`Clearly ahead of runner-up ${(tie.runnerUp.eDPI / MOUSE_DPI).toFixed(2)} sens (accuracy gap ${tie.accGap != null ? tie.accGap.toFixed(2) : '—'} pts${tie.heroStatGap != null ? `, hero-stat gap ${tie.heroStatGap.toFixed(2)} pts` : ''})`}
                       >
                         ✓

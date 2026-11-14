@@ -63,7 +63,7 @@ export default function AppTools({ home = false }: { home?: boolean }) {
           open ? 'opacity-100 visible' : 'opacity-0 invisible'
         }`}
       >
-        <div className="flex flex-col min-w-0 py-1 [&>*]:py-2 [&>*]:justify-start">
+        <div className="flex flex-col min-w-0 py-1 [&>*]:py-2 [&>*]:justify-start [&>span>*]:py-2 [&>span>*]:justify-start">
           <span id="header-inspector-slot" className="contents" />
           <Link to="/settings" aria-label="Settings" title="Settings" data-inspect-id="app-settings-link" className={TOOL}>Settings</Link>
           <button type="button" onClick={toggle} aria-label="Toggle theme" title={dark ? 'Switch to light theme' : 'Switch to dark theme'} data-inspect-id="app-theme-toggle" className={TOOL}>
