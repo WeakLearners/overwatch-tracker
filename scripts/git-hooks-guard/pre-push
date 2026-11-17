@@ -1,0 +1,12 @@
+#!/bin/sh
+# overwatch: the push guard first, then the existing deploy hook (scripts/git-hooks/pre-push, untouched)
+# with the same ref lines. The deploy hook finds the repo root from its own path, so it runs as it always did.
+# Needs: git config qa.mainGuard <path to main_guard.sh>. Without it only the deploy hook runs.
+INPUT="$(cat)"
+G="$(git config --get qa.mainGuard 2>/dev/null)"
+if [ -n "$G" ] && [ -x "$G" ]; then
+  printf '%s\n' "$INPUT" | "$G" pre-push "$@" || exit 1
+fi
+DEPLOY="$(dirname "$0")/../git-hooks/pre-push"
+if [ -x "$DEPLOY" ]; then printf '%s\n' "$INPUT" | "$DEPLOY" "$@"; exit $?; fi
+exit 0

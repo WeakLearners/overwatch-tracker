@@ -1,0 +1,7 @@
+#!/bin/sh
+# Stub for the commit guard (scaling Phase 1 item 2). The logic lives in one place outside this repo.
+# Needs:  git config qa.mainGuard <path to .claude/automation/hooks/main_guard.sh>   (set per checkout, not tracked)
+# Without that setting this hook does nothing, so a clone of this repo is not affected.
+G="$(git config --get qa.mainGuard 2>/dev/null)"
+[ -n "$G" ] && [ -x "$G" ] && exec "$G" commit-msg "$@"
+exit 0
