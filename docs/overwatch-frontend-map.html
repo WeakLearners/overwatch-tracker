@@ -4297,7 +4297,7 @@ const DATA = {
           "kind": "card",
           "description": "One category's label, description, and checkbox. Shows 'Always on' for core, or a locked reason instead of a plain switch when the category is currently locked.",
           "locate": {
-            "path": "client/src/pages/Settings.tsx:31",
+            "path": "client/src/pages/Settings.tsx:32",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-category-row\"' client/src/pages/Settings.tsx"
           }
         },
@@ -4307,8 +4307,38 @@ const DATA = {
           "kind": "checkbox",
           "description": "Toggles one category on/off via setCategoryEnabled -> PUT /api/config. Disabled (not just unchecked) when the category is alwaysOn or locked.",
           "locate": {
-            "path": "client/src/pages/Settings.tsx:38",
+            "path": "client/src/pages/Settings.tsx:41",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-category-checkbox\"' client/src/pages/Settings.tsx"
+          }
+        },
+        {
+          "id": "settings-subitem-list",
+          "label": "Sub-item list",
+          "kind": "list",
+          "description": "One checkbox for each sub-item under an enabled category (Combat, Subjective, Rank): fields with subItem true in GET /api/config. Hidden while the category is off.",
+          "locate": {
+            "path": "client/src/pages/Settings.tsx:65",
+            "grep": "grep -n -F -- 'data-inspect-id=\"settings-subitem-list\"' client/src/pages/Settings.tsx"
+          }
+        },
+        {
+          "id": "settings-subitem-row",
+          "label": "Sub-item row",
+          "kind": "checkbox",
+          "description": "One sub-item's label and checkbox. Switching it off keeps the category on and hides that field (OW-0014).",
+          "locate": {
+            "path": "client/src/pages/Settings.tsx:69",
+            "grep": "grep -n -F -- 'data-inspect-id=\"settings-subitem-row\"' client/src/pages/Settings.tsx"
+          }
+        },
+        {
+          "id": "settings-subitem-checkbox",
+          "label": "Sub-item checkbox",
+          "kind": "checkbox",
+          "description": "Toggles one sub-item via setFieldEnabled -> PUT /api/config with disabledFields.",
+          "locate": {
+            "path": "client/src/pages/Settings.tsx:73",
+            "grep": "grep -n -F -- 'data-inspect-id=\"settings-subitem-checkbox\"' client/src/pages/Settings.tsx"
           }
         },
         {
@@ -4317,7 +4347,7 @@ const DATA = {
           "kind": "text",
           "description": "'Always on' caption shown under core \u2014 the one category with no disable control at all.",
           "locate": {
-            "path": "client/src/pages/Settings.tsx:53",
+            "path": "client/src/pages/Settings.tsx:56",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-always-on-note\"' client/src/pages/Settings.tsx"
           }
         },
@@ -4327,7 +4357,7 @@ const DATA = {
           "kind": "text",
           "description": "One-line reason shown under a category GET /config reports as locked (e.g. 'locked \u2014 a sensitivity study stage is running' for sens-study while a blind stage set is open).",
           "locate": {
-            "path": "client/src/pages/Settings.tsx:56",
+            "path": "client/src/pages/Settings.tsx:59",
             "grep": "grep -n -F -- 'data-inspect-id=\"settings-locked-reason\"' client/src/pages/Settings.tsx"
           }
         },
@@ -6840,6 +6870,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 

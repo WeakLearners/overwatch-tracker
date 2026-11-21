@@ -118,17 +118,17 @@ describe('POST /api/config/preset — first-run presets', () => {
     assert.equal(r.body.fields.filter((f: any) => f.enabled).length, 4);
   });
 
-  test('improver adds subjective and combat: 9 registry fields, feel off', async () => {
+  test('improver adds subjective and combat: 10 registry fields, feel off', async () => {
     const r = await h.post('/api/config/preset', { preset: 'improver' });
     assert.deepEqual(sorted(r.body.enabledCategories), ['combat', 'core', 'rank', 'subjective']);
-    assert.equal(r.body.fields.filter((f: any) => f.enabled).length, 9);
+    assert.equal(r.body.fields.filter((f: any) => f.enabled).length, 10);
     assert.equal(r.body.fields.find((f: any) => f.id === 'feel').enabled, false);
   });
 
-  test('scientist is every category: 10 registry fields', async () => {
+  test('scientist is every category: 11 registry fields', async () => {
     const r = await h.post('/api/config/preset', { preset: 'scientist' });
     assert.deepEqual(sorted(r.body.enabledCategories), ['combat', 'core', 'mouse-settings', 'rank', 'sens-study', 'subjective']);
-    assert.equal(r.body.fields.filter((f: any) => f.enabled).length, 10);
+    assert.equal(r.body.fields.filter((f: any) => f.enabled).length, 11);
   });
 
   test('a user who already has a saved row is refused and keeps their setup', async () => {
@@ -151,5 +151,71 @@ describe('POST /api/config/preset — first-run presets', () => {
     assert.equal(r.status, 200);
     assert.ok(r.body.enabledCategories.includes('sens-study'));
     assert.ok(r.body.enabledCategories.includes('mouse-settings'));
+  });
+});
+
+// OW-0014 (2026-11-21): one more level under a category. A user can switch off
+// one sub-item (Aim stats) and keep another (Match deaths) in the same category.
+describe('sub-items under a category (OW-0014)', () => {
+  const field = (r: any, id: string) => r.body.fields.find((f: any) => f.id === id);
+
+  test('a saved setup from before this change keeps every sub-item on', async () => {
+    // A row saved with the old shape: the new column takes its default, '[]'.
+    h.db.prepare("INSERT INTO user_config (user_id, enabled_categories) VALUES (1, '[\"combat\",\"subjective\",\"rank\"]')").run();
+    const r = await h.get('/api/config');
+    assert.deepEqual(r.body.disabledFields, []);
+    for (const id of ['aim_stats', 'deaths', 'team_rating', 'notes', 'match_quality', 'result_driver', 'player_rank', 'lobby_range']) {
+      assert.equal(field(r, id).enabled, true, id);
+    }
+  });
+
+  test('sub-items are the fields of combat, subjective and rank only', async () => {
+    const r = await h.get('/api/config');
+    const subs = r.body.fields.filter((f: any) => f.subItem).map((f: any) => f.id).sort();
+    assert.deepEqual(subs, ['aim_stats', 'deaths', 'lobby_range', 'match_quality', 'notes', 'player_rank', 'result_driver', 'team_rating']);
+    for (const id of ['feel', 'leaver', 'leaver_side']) assert.equal(field(r, id).subItem, false, id);
+  });
+
+  test('switching off Aim stats keeps Match deaths on, and the choice persists', async () => {
+    const put = await h.put('/api/config', { enabledCategories: ['combat', 'mouse-settings', 'sens-study', 'subjective', 'rank'], disabledFields: ['aim_stats'] });
+    assert.equal(put.status, 200);
+    assert.equal(field(put, 'aim_stats').enabled, false);
+    assert.equal(field(put, 'deaths').enabled, true);
+    const r = await h.get('/api/config');
+    assert.deepEqual(r.body.disabledFields, ['aim_stats']);
+    assert.equal(field(r, 'aim_stats').enabled, false);
+    assert.equal(field(r, 'deaths').enabled, true);
+  });
+
+  test('a PUT without disabledFields keeps the stored list', async () => {
+    await h.put('/api/config', { enabledCategories: ['combat', 'subjective', 'rank'], disabledFields: ['notes'] });
+    const r = await h.put('/api/config', { enabledCategories: ['combat', 'subjective'] });
+    assert.deepEqual(r.body.disabledFields, ['notes']);
+  });
+
+  test('turning a category off and on again turns all of its sub-items on', async () => {
+    await h.put('/api/config', { enabledCategories: ['combat', 'subjective', 'rank'], disabledFields: ['aim_stats', 'notes'] });
+    const off = await h.put('/api/config', { enabledCategories: ['subjective', 'rank'] });
+    assert.equal(field(off, 'deaths').enabled, false);
+    assert.deepEqual(off.body.disabledFields, ['notes']);
+    const on = await h.put('/api/config', { enabledCategories: ['combat', 'subjective', 'rank'] });
+    assert.equal(field(on, 'aim_stats').enabled, true);
+    assert.deepEqual(on.body.disabledFields, ['notes']);
+  });
+
+  test('an unknown id, or a field that is not a sub-item, is refused', async () => {
+    const a = await h.put('/api/config', { enabledCategories: ['combat'], disabledFields: ['nope'] });
+    assert.equal(a.status, 400);
+    const b = await h.put('/api/config', { enabledCategories: ['sens-study', 'mouse-settings'], disabledFields: ['feel'] });
+    assert.equal(b.status, 400);
+    const c = await h.put('/api/config', { enabledCategories: ['combat'], disabledFields: 'aim_stats' });
+    assert.equal(c.status, 400);
+  });
+
+  test('a preset turns on every sub-item of its categories', async () => {
+    const r = await h.post('/api/config/preset', { preset: 'improver' });
+    assert.deepEqual(r.body.disabledFields, []);
+    assert.equal(field(r, 'aim_stats').enabled, true);
+    assert.equal(field(r, 'deaths').enabled, true);
   });
 });

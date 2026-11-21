@@ -43,6 +43,8 @@ export interface FieldMeta {
   category: string;
   control: FieldControl;
   enabled: boolean;
+  // OW-0014: true when Settings shows this field as its own checkbox under its category.
+  subItem?: boolean;
   appliesTo?: FieldAppliesTo;
 }
 
@@ -62,6 +64,7 @@ interface ConfigPayload {
   needsPreset?: boolean;
   presets?: PresetMeta[];
   enabledCategories: string[];
+  disabledFields?: string[];
   lockedCategories: LockedCategory[];
   categories: CategoryMeta[];
   fields: FieldMeta[];
@@ -85,6 +88,8 @@ interface FieldConfigCtx {
   // Sends the full desired non-core set. Throws with the server's message
   // on a 400/409 refusal so the settings page can show it inline.
   setCategoryEnabled: (id: string, on: boolean) => Promise<void>;
+  // OW-0014: switch one sub-item on or off inside an enabled category.
+  setFieldEnabled: (id: string, on: boolean) => Promise<void>;
   // This context is a plain fetch, so revalidateAll() never reaches it. Anything
   // that opens or closes a sens-study set changes lockedCategories and must call this.
   refetch: () => Promise<void>;
@@ -106,6 +111,7 @@ const FieldConfigContext = createContext<FieldConfigCtx>({
   isCategoryLocked: () => undefined,
   isFieldEnabled: () => false,
   setCategoryEnabled: async () => {},
+  setFieldEnabled: async () => {},
   refetch: async () => {},
 });
 
@@ -139,6 +145,22 @@ export function FieldConfigProvider({ children }: { children: ReactNode }) {
     setConfig(body);
   }, [config.enabledCategories]);
 
+  const setFieldEnabled = useCallback(async (id: string, on: boolean) => {
+    const off = new Set(config.disabledFields ?? []);
+    if (on) off.delete(id); else off.add(id);
+    const res = await fetch('/api/config', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        enabledCategories: config.enabledCategories.filter(c => c !== 'core'),
+        disabledFields: [...off],
+      }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
+    setConfig(body);
+  }, [config.enabledCategories, config.disabledFields]);
+
   const choosePreset = useCallback(async (id: string) => {
     const res = await fetch('/api/config/preset', {
       method: 'POST',
@@ -164,6 +186,7 @@ export function FieldConfigProvider({ children }: { children: ReactNode }) {
     isCategoryLocked: (id) => config.lockedCategories.find(l => l.id === id),
     isFieldEnabled: (id) => config.fields.find(f => f.id === id)?.enabled ?? false,
     setCategoryEnabled,
+    setFieldEnabled,
     refetch,
   };
 

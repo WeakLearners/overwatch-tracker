@@ -1014,6 +1014,13 @@ function initSchema(db: DatabaseSync) {
       enabled_categories TEXT NOT NULL DEFAULT '[]'
     )
   `);
+  // OW-0014 (2026-11-21): sub-items a user switched OFF inside an enabled
+  // category (JSON array of field ids). Additive and nullable-by-default: a
+  // row saved before this change reads '[]', which means every sub-item on.
+  const ucCols = db.prepare(`PRAGMA table_info(user_config)`).all() as { name: string }[];
+  if (!ucCols.find(c => c.name === 'disabled_fields')) {
+    db.exec(`ALTER TABLE user_config ADD COLUMN disabled_fields TEXT NOT NULL DEFAULT '[]'`);
+  }
 
   // Designated Fallback (DF) heroes — added 2026-09-24, mid-match-switch
   // build. A DF is a role's "safe pick when nothing else fits": it never

@@ -152,7 +152,7 @@ export interface FieldEntry {
     | { kind: 'rank-outcome' }
     | { kind: 'text' };
   writesTo: {
-    table: 'matches' | 'match_deaths' | 'match_heroes';
+    table: 'matches' | 'match_deaths' | 'match_heroes' | 'aim_stats';
     columns: string[];
   };
   appliesTo?: { modes?: QueueMode[]; roles?: Role[] };
@@ -165,6 +165,20 @@ export interface FieldEntry {
 }
 
 export const FIELD_REGISTRY: FieldEntry[] = [
+  // OW-0014 (2026-11-21): the self-reported aim stats fold on Log Match is its
+  // own sub-item of Combat, so a user can track deaths and not aim stats. Gated
+  // directly with `isFieldEnabled('aim_stats')` in LogMatch.tsx (the fold is a
+  // bespoke block, not a RegistryField control), like lobby_range.
+  {
+    id: 'aim_stats',
+    label: 'Aim stats (accuracy, damage, healing)',
+    category: 'combat',
+    control: { kind: 'number' },
+    writesTo: { table: 'aim_stats', columns: ['overall_acc', 'crit_acc', 'damage', 'healing', 'duration_min'] },
+    // Read by the Sens Analysis fit and the per-minute rates, not by a registry card id.
+    feedsCards: [],
+    defaultOn: false,
+  },
   {
     id: 'deaths',
     label: 'Track who kills me',
@@ -362,6 +376,16 @@ export const FIELD_REGISTRY: FieldEntry[] = [
   // sens/dpi's own real registry entry, if one is ever added, still
   // belongs to `mouse-settings` per the roadmap's inventory table.
 ];
+
+// OW-0014 (2026-11-21): categories that offer one more level in Settings. A
+// field in one of these categories is a sub-item: the user can switch it off
+// while the category stays on. Mouse settings, the sensitivity study and core
+// have no sub-items (Sean, 2026-11-21: "yes to the list").
+export const SUBITEM_CATEGORIES: CategoryId[] = ['combat', 'subjective', 'rank'];
+
+export function isSubItem(f: FieldEntry): boolean {
+  return SUBITEM_CATEGORIES.includes(f.category);
+}
 
 export function fieldById(id: string): FieldEntry | undefined {
   return FIELD_REGISTRY.find(f => f.id === id);

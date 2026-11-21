@@ -720,7 +720,7 @@ export default function LogMatch() {
   // credits slot 1: not Quick Play, not a Designated Fallback hero, and an
   // active test set (hero-tagged, else the hero-less ad-hoc one) covering it.
   // Closed or left blank = today's behaviour: the match waits in the backlog.
-  const showAimFold = !crashedGame && !!form.hero && !isQP && dfSensForHeroName(form.hero, dfMap) == null
+  const showAimFold = isFieldEnabled('aim_stats') && !crashedGame && !!form.hero && !isQP && dfSensForHeroName(form.hero, dfMap) == null
     && ((dpiState?.actives ?? []).some(a => a.hero === form.hero || a.hero === null)
       // Control-arm matches (home sens) are judged on accuracy, so their stats are asked for too.
       || (!!controlArm?.on && controlArm.sens != null));

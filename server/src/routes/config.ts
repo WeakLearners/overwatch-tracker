@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
-import { CATEGORY_REGISTRY, FIELD_REGISTRY, PRESET_REGISTRY, CategoryId, categoryById, presetById } from '../lib/fieldRegistry';
+import { CATEGORY_REGISTRY, FIELD_REGISTRY, PRESET_REGISTRY, CategoryId, categoryById, presetById, isSubItem, fieldById } from '../lib/fieldRegistry';
 import { activeSets } from './blind';
 
 const router = Router();
@@ -28,6 +28,19 @@ function currentEnabled(db: ReturnType<typeof getDb>): CategoryId[] {
   return ['core', ...stored.filter(c => c !== 'core')] as CategoryId[];
 }
 
+// Sub-items the owner switched off (OW-0014). No row, or a row saved before the
+// column existed, reads as none: every sub-item is on. Unknown ids are dropped,
+// so a field removed from the registry later cannot hide anything.
+function currentDisabled(db: ReturnType<typeof getDb>): string[] {
+  const row = db.prepare('SELECT disabled_fields FROM user_config WHERE user_id = :user_id')
+    .get({ user_id: OWNER }) as { disabled_fields: string | null } | undefined;
+  const stored: unknown = row?.disabled_fields ? JSON.parse(row.disabled_fields) : [];
+  return (Array.isArray(stored) ? stored : []).filter((id): id is string => {
+    const f = typeof id === 'string' ? fieldById(id) : undefined;
+    return !!f && isSubItem(f);
+  });
+}
+
 // The sens-study lock: while any blind_stage_sets row is still open (active,
 // unrevealed — activeSets() is the same source of truth blind.ts's own
 // /state endpoint and nightlyReport.ts use), the whole sens-study category
@@ -48,14 +61,16 @@ function hasStoredConfig(db: ReturnType<typeof getDb>): boolean {
 
 export function buildConfigPayload(db: ReturnType<typeof getDb>) {
   const enabled = new Set(currentEnabled(db));
+  const disabled = new Set(currentDisabled(db));
   const locked = lockedCategories(db);
   return {
     enabledCategories: [...enabled],
+    disabledFields: [...disabled].filter(id => enabled.has(fieldById(id)!.category)),
     lockedCategories: locked,
     needsPreset: !hasStoredConfig(db),
     presets: PRESET_REGISTRY,
     categories: CATEGORY_REGISTRY,
-    fields: FIELD_REGISTRY.map(f => ({ ...f, enabled: enabled.has(f.category) })),
+    fields: FIELD_REGISTRY.map(f => ({ ...f, subItem: isSubItem(f), enabled: enabled.has(f.category) && !disabled.has(f.id) })),
   };
 }
 
@@ -63,7 +78,10 @@ router.get('/', (_req: Request, res: Response) => {
   res.json(buildConfigPayload(getDb()));
 });
 
-// Body: { enabledCategories: string[] } — the full desired non-core set.
+// Body: { enabledCategories: string[], disabledFields?: string[] } — the full
+// desired non-core set, and (OW-0014) the sub-items switched off. Omitting
+// disabledFields keeps the stored list. A category that goes from off to on
+// brings all of its sub-items on, because the category box turns them all on.
 // Enforcement (see modular-tracking-roadmap.md's "Enforcement rules,
 // server-side"):
 //   1. A locked category can't leave the desired set.
@@ -83,6 +101,19 @@ router.put('/', (req: Request, res: Response) => {
   if (unknown.length) {
     res.status(400).json({ error: `unknown category id(s): ${unknown.join(', ')}` });
     return;
+  }
+
+  const requestedOff = req.body?.disabledFields;
+  if (requestedOff !== undefined) {
+    if (!Array.isArray(requestedOff) || !requestedOff.every((c: unknown) => typeof c === 'string')) {
+      res.status(400).json({ error: 'disabledFields must be an array of field id strings' });
+      return;
+    }
+    const bad = requestedOff.filter((id: string) => { const f = fieldById(id); return !f || !isSubItem(f); });
+    if (bad.length) {
+      res.status(400).json({ error: `not a sub-item: ${bad.join(', ')}` });
+      return;
+    }
   }
 
   const desired = new Set<string>(requested);
@@ -120,10 +151,15 @@ router.put('/', (req: Request, res: Response) => {
   }
 
   const toStore = [...desired].filter(c => c !== 'core');
+  let off = (requestedOff as string[] | undefined) ?? currentDisabled(db);
+  // A category that turns on now (it was off before) starts with every sub-item on.
+  off = off.filter(id => !(desired.has(fieldById(id)!.category) && !current.has(fieldById(id)!.category as CategoryId)));
+  // A sub-item of a category that is off is not stored.
+  off = [...new Set(off)].filter(id => desired.has(fieldById(id)!.category));
   db.prepare(`
-    INSERT INTO user_config (user_id, enabled_categories) VALUES (:user_id, :cats)
-    ON CONFLICT(user_id) DO UPDATE SET enabled_categories = :cats
-  `).run({ user_id: OWNER, cats: JSON.stringify(toStore) });
+    INSERT INTO user_config (user_id, enabled_categories, disabled_fields) VALUES (:user_id, :cats, :off)
+    ON CONFLICT(user_id) DO UPDATE SET enabled_categories = :cats, disabled_fields = :off
+  `).run({ user_id: OWNER, cats: JSON.stringify(toStore), off: JSON.stringify(off) });
 
   res.json(buildConfigPayload(db));
 });
