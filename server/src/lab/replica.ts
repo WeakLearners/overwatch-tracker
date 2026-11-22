@@ -25,7 +25,9 @@ export const TABLES: Record<string, TableSpec> = {
       // Added 2026-11-08 (play-trial story S4): advisor pick shown at save, and trial/home sens tag.
       'advisor_hero', 'sens_kind',
       // Added 2026-11-08 (hero focus trial): 1 off-roster, 0 on-roster, NULL no trial running.
-      'off_roster'],
+      'off_roster',
+      // Added 2026-11-22: 1 = saved while Aim stats was off, so not in the Awaiting Stats backlog.
+      'aim_stats_skipped'],
   },
   match_heroes: { pk: ['match_id', 'slot'], cols: ['match_id', 'slot', 'hero', 'role', 'sens', 'feel'] },
   aim_stats: {

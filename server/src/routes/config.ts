@@ -31,7 +31,7 @@ function currentEnabled(db: ReturnType<typeof getDb>): CategoryId[] {
 // Sub-items the owner switched off (OW-0014). No row, or a row saved before the
 // column existed, reads as none: every sub-item is on. Unknown ids are dropped,
 // so a field removed from the registry later cannot hide anything.
-function currentDisabled(db: ReturnType<typeof getDb>): string[] {
+export function currentDisabled(db: ReturnType<typeof getDb>): string[] {
   const row = db.prepare('SELECT disabled_fields FROM user_config WHERE user_id = :user_id')
     .get({ user_id: OWNER }) as { disabled_fields: string | null } | undefined;
   const stored: unknown = row?.disabled_fields ? JSON.parse(row.disabled_fields) : [];

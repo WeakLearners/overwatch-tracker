@@ -40,7 +40,7 @@ export function setControlArm(db: Db, input: { on: boolean; sens?: number | null
 export function controlArmProgress(db: Db): { minutes: number; waiting: number } {
   const row = db.prepare(`
     SELECT COALESCE(SUM((SELECT SUM(COALESCE(ah.duration_min, 0)) FROM aim_stats_heroes ah WHERE ah.match_id = m.id)), 0) AS minutes,
-           COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM aim_stats_heroes x WHERE x.match_id = m.id) THEN 1 ELSE 0 END), 0) AS waiting
+           COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM aim_stats_heroes x WHERE x.match_id = m.id) AND COALESCE(m.aim_stats_skipped, 0) = 0 THEN 1 ELSE 0 END), 0) AS waiting
     FROM matches m WHERE m.sens_kind = 'home' AND m.crashed = 0 AND ${NOT_QP_SQL}
   `).get() as { minutes: number; waiting: number };
   return { minutes: Math.round(Number(row.minutes) * 10) / 10, waiting: Number(row.waiting) };

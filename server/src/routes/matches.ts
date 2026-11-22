@@ -1,4 +1,5 @@
 import { governFor } from '../lib/heroFocus';
+import { currentDisabled } from './config';
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/schema';
 import { getCurveParams } from '../lib/curveParams';
@@ -219,6 +220,12 @@ router.post('/', (req: Request, res: Response) => {
     `).run({ date, time: time ?? null, day_of_week: day_of_week ?? null, hour: hour ?? null, hero, role, map, game_type, win: win ? 1 : 0, deaths: deathsJson, queue_mode: queue_mode ?? 'comp_role', sens: finalSens, dpi: finalDpi, blind_trial: isStudy, blind_set_id: setId, stage_index: stageIdx, feel: feel ?? null, team_rating: team_rating ?? null, notes: notes?.trim() || null, curve_enabled: finalCurveEnabled ? 1 : 0, curve_growth_rate: null, curve_midpoint: null, curve_motivity: null, curve_lut: curveLutJson, match_quality: match_quality ?? null, result_driver: result_driver ?? null, leaver: leaver ? 1 : 0, leaver_side: finalLeaverSide, player_rank: player_rank ?? null, player_rank_start: player_rank_start ?? null, lobby_low: lobby_low ?? null, lobby_high: lobby_high ?? null, placement: placement ? 1 : null, account: account ?? null, score_us: score_us ?? null, score_them: score_them ?? null, advisor_hero: advisorHeroFinal, sens_kind: sensKind, off_roster: offRosterVal });
 
     matchId = result.lastInsertRowid as number;
+
+    // Aim stats switched off in Settings: this match must not join the Awaiting
+    // Stats backlog. Matches saved earlier keep 0 and stay in the list.
+    if (currentDisabled(db).includes('aim_stats')) {
+      db.prepare('UPDATE matches SET aim_stats_skipped = 1 WHERE id = :id').run({ id: matchId });
+    }
 
     // Per-death facts (who killed Sean, whether it was an ult) — seq is
     // 1-based in the order the client buffered them, matching the order

@@ -74,3 +74,25 @@ describe('POST /api/matches with aim_stats', () => {
     assert.equal(count('SELECT COUNT(*) n FROM aim_stats'), 0);
   });
 });
+
+describe('Aim stats switched off in Settings', () => {
+  const switchAimStats = (off: boolean) => h.db.prepare(
+    `INSERT INTO user_config (user_id, enabled_categories, disabled_fields) VALUES (1, :cats, :off)
+     ON CONFLICT(user_id) DO UPDATE SET enabled_categories = :cats, disabled_fields = :off`,
+  ).run({ cats: JSON.stringify(['core', 'rank', 'subjective', 'combat', 'sens-study', 'sens']), off: JSON.stringify(off ? ['aim_stats'] : []) });
+
+  test('a new study match is not added to the backlog; an older one stays; the switch back adds again', async () => {
+    await makeSet('Ashe');
+    const older = await h.post('/api/matches', base);
+    switchAimStats(true);
+    const skipped = await h.post('/api/matches', { ...base, time: '13:00' });
+    assert.equal(skipped.status, 200);
+    assert.deepEqual(await pendingIds(), [older.body.id], 'only the match saved before the switch waits');
+    assert.equal(count(`SELECT aim_stats_skipped n FROM matches WHERE id = ${skipped.body.id}`), 1);
+    // The study credit is untouched: the match still counts toward its stage.
+    assert.deepEqual(credits(skipped.body.id), ['Ashe:r1m1']);
+    switchAimStats(false);
+    const back = await h.post('/api/matches', { ...base, time: '14:00' });
+    assert.deepEqual(await pendingIds(), [back.body.id, older.body.id]);
+  });
+});

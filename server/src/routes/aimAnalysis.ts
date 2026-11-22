@@ -87,7 +87,7 @@ router.get('/pending', withReplica((req: Request, res: Response, db) => {
            m.dpi, m.blind_trial, m.blind_set_id, m.stage_index
     FROM matches m
     LEFT JOIN aim_stats a ON a.match_id = m.id
-    WHERE a.match_id IS NULL AND (EXISTS (SELECT 1 FROM blind_credits bc WHERE bc.match_id = m.id) OR (m.sens_kind = 'home' AND ${NOT_QP_SQL}))
+    WHERE a.match_id IS NULL AND COALESCE(m.aim_stats_skipped, 0) = 0 AND (EXISTS (SELECT 1 FROM blind_credits bc WHERE bc.match_id = m.id) OR (m.sens_kind = 'home' AND ${NOT_QP_SQL}))
     ORDER BY m.id DESC
     LIMIT :limit
   `).all({ limit }) as Record<string, unknown>[];
@@ -102,7 +102,7 @@ router.get('/pending', withReplica((req: Request, res: Response, db) => {
     SELECT COUNT(*) AS total
     FROM matches m
     LEFT JOIN aim_stats a ON a.match_id = m.id
-    WHERE a.match_id IS NULL AND (EXISTS (SELECT 1 FROM blind_credits bc WHERE bc.match_id = m.id) OR (m.sens_kind = 'home' AND ${NOT_QP_SQL}))
+    WHERE a.match_id IS NULL AND COALESCE(m.aim_stats_skipped, 0) = 0 AND (EXISTS (SELECT 1 FROM blind_credits bc WHERE bc.match_id = m.id) OR (m.sens_kind = 'home' AND ${NOT_QP_SQL}))
   `).get() as { total: number };
   res.json({ rows, total });
 }));

@@ -546,6 +546,13 @@ function initSchema(db: DatabaseSync) {
     db.exec(`ALTER TABLE matches ADD COLUMN crashed INTEGER NOT NULL DEFAULT 0`);
   }
 
+  // aim_stats_skipped: 1 = the match was saved while the Aim stats item was off
+  // in Settings, so it never joins the Awaiting Stats backlog (2026-11-22).
+  // Matches saved before the switch keep 0 and stay in the list.
+  if (!cols.find(c => c.name === 'aim_stats_skipped')) {
+    db.exec(`ALTER TABLE matches ADD COLUMN aim_stats_skipped INTEGER NOT NULL DEFAULT 0`);
+  }
+
   // match_deaths: one row per death, FACT only — who killed Sean and whether
   // it was an ult. Replaces the old matches.deaths JSON column's per-death
   // capture (that column stays frozen, untouched, as historical v1/v2/v3
