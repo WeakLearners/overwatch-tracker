@@ -61,7 +61,7 @@ export default function Settings() {
               </label>
               {enabled && subItems.length > 0 && (
                 <ul
-                  className="col-start-2 mt-2 pt-2 border-t border-[var(--ow-border)] space-y-1"
+                  className="col-start-2 mt-2 pt-2 border-t border-ow-border space-y-1"
                   data-inspect-id="settings-subitem-list"
                 >
                   {subItems.map(f => (
