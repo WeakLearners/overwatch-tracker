@@ -3707,7 +3707,7 @@
           "kind": "card",
           "description": "The card that asks how much to track. Gone once a setup is saved.",
           "locate": {
-            "path": "client/src/components/FirstRunPreset.tsx:22",
+            "path": "client/src/components/FirstRunPreset.tsx:23",
             "grep": "grep -n -F -- 'data-inspect-id=\"first-run-preset\"' client/src/components/FirstRunPreset.tsx"
           }
         },
@@ -3717,7 +3717,7 @@
           "kind": "button",
           "description": "One preset (label, one-line description, the categories it turns on). Click saves it.",
           "locate": {
-            "path": "client/src/components/FirstRunPreset.tsx:32",
+            "path": "client/src/components/FirstRunPreset.tsx:33",
             "grep": "grep -n -F -- 'data-inspect-id=\"first-run-preset-option\"' client/src/components/FirstRunPreset.tsx"
           }
         },
@@ -3727,7 +3727,7 @@
           "kind": "text",
           "description": "The server's refusal message if saving the preset fails.",
           "locate": {
-            "path": "client/src/components/FirstRunPreset.tsx:43",
+            "path": "client/src/components/FirstRunPreset.tsx:44",
             "grep": "grep -n -F -- 'data-inspect-id=\"first-run-preset-error\"' client/src/components/FirstRunPreset.tsx"
           }
         }

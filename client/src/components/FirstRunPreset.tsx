@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useFieldConfig } from '../contexts/FieldConfigContext';
+import { showFirstRunPreset } from '../lib/firstRunPreset';
 
 // Phase 3 first-run screen. Shows only while the owner has no saved setup, so a
 // user who already has a row never sees it. Each preset is a list of categories
@@ -10,7 +11,7 @@ export default function FirstRunPreset() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  if (import.meta.env.VITE_DEMO === '1' || loading || !needsPreset || presets.length === 0) return null;
+  if (!showFirstRunPreset({ demo: import.meta.env.VITE_DEMO === '1', loading, needsPreset, presetCount: presets.length })) return null;
 
   const pick = async (id: string) => {
     setSaving(true);
