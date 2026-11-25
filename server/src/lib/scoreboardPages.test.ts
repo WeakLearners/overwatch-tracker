@@ -387,6 +387,19 @@ describe('groups on a temp DB (match 3842 is a recovery)', () => {
       const f = buildFill(db, gidOf())!;
       assert.deepEqual([f.damage, f.healing, f.source_conflicts], [8, 5, []]);
     });
+    test('(g) 4068 shape: a second game\'s All Heroes page (other eliminations) is ignored, the page for this game wins', async () => {
+      await feed(SUMMARY_49, '49', 0); await feed(teams(), 'teams', 3); // self row: 5 eliminations, damage 8, healing 5
+      await feed(allHeroes([['ELIMINATIONS', '5'], ['HERO DAMAGE DONE', '8'], ['HEALING DONE', '5']]), 'allA', 5);
+      await feed(allHeroes([['ELIMINATIONS', '20'], ['HERO DAMAGE DONE', '7,722'], ['HEALING DONE', '19,946']]), 'allB', 6);
+      const f = buildFill(db, gidOf())!;
+      assert.deepEqual([f.damage, f.healing, f.source_conflicts], [8, 5, []]);
+    });
+    test('(h) 4068 shape: no All Heroes page matches the Teams eliminations -> Teams values stand', async () => {
+      await feed(SUMMARY_49, '49', 0); await feed(teams(), 'teams', 3);
+      await feed(allHeroes([['ELIMINATIONS', '20'], ['HERO DAMAGE DONE', '7,722'], ['HEALING DONE', '19,946']]), 'allB', 6);
+      const f = buildFill(db, gidOf())!;
+      assert.deepEqual([f.damage, f.healing, f.source_conflicts, f.pages.all_heroes], [8, 5, [], false]);
+    });
     test('(f) 3940 shape: Teams 4043 vs All Heroes 4843 -> 4843 is used and the conflict is logged with both values', async () => {
       await feed(SUMMARY_49, '49', 0);
       const t = teams(); t.rows[4].dmg = 4043; t.rows[4].h = 0;

@@ -465,12 +465,12 @@ export function buildFill(db: DatabaseSync, groupId: number): FormFill | null {
 
   // One Personal page per hero (the newest wins); the ALL HEROES tab has no roster hero and is left out.
   const personal = new Map<string, Tile[]>();
-  let allHeroesTiles: Tile[] | null = null;
+  const allHeroesPages: Tile[][] = [];
   for (const p of pages) {
     if (p.page_type !== 'personal') continue;
     if (isAllHeroes(parse(p)?.personal?.hero)) {
       const t = parse(p)?.personal?.tiles;
-      if (Array.isArray(t) && p.status !== 'dismissed') allHeroesTiles = t;
+      if (Array.isArray(t) && p.status !== 'dismissed') allHeroesPages.push(t);
       continue;
     }
     const hero = rosterHero(p.page_hero);
@@ -479,8 +479,14 @@ export function buildFill(db: DatabaseSync, groupId: number): FormFill | null {
   }
 
   const tp = [...pages].reverse().find(p => (p.page_type === 'teams' || p.page_type == null) && db.prepare(`SELECT 1 FROM scoreboard_rows WHERE scoreboard_id = ? AND is_self = 1`).get(p.id));
-  const self = tp ? db.prepare(`SELECT dmg, h, mit FROM scoreboard_rows WHERE scoreboard_id = ? AND is_self = 1`).get(tp.id) as { dmg: number; h: number; mit: number } | undefined : undefined;
+  const self = tp ? db.prepare(`SELECT e, dmg, h, mit FROM scoreboard_rows WHERE scoreboard_id = ? AND is_self = 1`).get(tp.id) as { e: number; dmg: number; h: number; mit: number } | undefined : undefined;
 
+  // A group can hold the pages of two games (match 4068, group 215: a second game's ALL HEROES page, 20 eliminations, replaced the right
+  // totals, 8 eliminations). With a Teams self row, only an ALL HEROES page whose ELIMINATIONS tile equals the self row's counts as the same game.
+  // A page with no readable ELIMINATIONS tile stays usable (the newest wins, as before). No page agrees: null, so the Teams values stand.
+  const elimsOf = (tiles: Tile[]): number | null => { const t = tiles.find(x => fold(x.label) === 'eliminations'); return t ? parseTileNumber(t.value) : null; };
+  const sameGame = (tiles: Tile[]) => { const e = elimsOf(tiles); return !self || e == null || e === self.e; };
+  const allHeroesTiles = [...allHeroesPages].reverse().find(sameGame) ?? null;
   const totals = allHeroesTiles ? allHeroesTotals(allHeroesTiles) : null;
   // Two readings of the same total. ALL HEROES wins: in the one disagreement on record (match 3940, group 99)
   // the Teams reader gave 4043 and the screenshot shows 4,843. All 18 other groups with both pages agree.
