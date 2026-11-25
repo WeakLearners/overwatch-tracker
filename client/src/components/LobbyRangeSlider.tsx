@@ -1,12 +1,15 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RANK_MIN, RANK_MAX, RANK_TIER_COLOR, RANK_TIER_RGB, rankLabel, rankTier, rankDivision, clampRank } from '../types';
 
 // How far either side of Sean's own rank the row reaches. Ten divisions is two
 // full tiers each way — comfortably wider than the +/-5 that ~99% of lobbies
 // fall inside, so the standard case never sits against an edge.
 const WINDOW = 10;
-// How many divisions one press of a scroll arrow moves the row.
-const SCROLL_STEP = 5;
+// Holding the bar against either edge of the lane slides the row: the first
+// step comes after EDGE_DELAY_MS, then one step every EDGE_REPEAT_MS.
+const EDGE_DELAY_MS = 400;
+const EDGE_REPEAT_MS = 150;
+const ROW_SIZE = WINDOW * 2;
 
 /**
  * The ranks the row shows. With no scroll and no bar outside the default
@@ -15,7 +18,7 @@ const SCROLL_STEP = 5;
  * default window, the row keeps its full width and slides along the ladder.
  */
 export function windowSlots(playerRank: number, scroll: number, low: number | null, high: number | null): number[] {
-  const size = WINDOW * 2;
+  const size = ROW_SIZE;
   let start = playerRank - WINDOW + scroll;
   if (low != null && high != null) {
     if (low < start) start = low;
@@ -28,6 +31,44 @@ export function windowSlots(playerRank: number, scroll: number, low: number | nu
     if (r >= RANK_MIN && r <= RANK_MAX) arr.push(r);
   }
   return arr;
+}
+
+export type EdgeSide = 'low' | 'high';
+
+/**
+ * One edge-scroll step. While a drag is held against an edge of the lane, the
+ * bar (or the handle being dragged) goes one division further and the row
+ * follows. Returns the new low and high, or null for no step: the pointer is
+ * not on the side this gesture can scroll toward, the bar is not against that
+ * edge, the row is at the end of the ladder, or the step would push the other
+ * end of the bar out of the row.
+ */
+export function edgeStep(
+  mode: 'move' | 'low' | 'high',
+  low: number,
+  high: number,
+  first: number,
+  last: number,
+  side: EdgeSide,
+): { low: number; high: number } | null {
+  if (side === 'low') {
+    if (mode === 'high' || low !== first || first <= RANK_MIN) return null;
+    if (mode === 'low') return high >= last ? null : { low: low - 1, high };
+    return { low: low - 1, high: high - 1 };
+  }
+  if (mode === 'low' || high !== last || last >= RANK_MAX) return null;
+  if (mode === 'high') return low <= first ? null : { low, high: high + 1 };
+  return { low: low + 1, high: high + 1 };
+}
+
+/**
+ * Where the row starts after it slides one division (dir -1 or +1). A row
+ * that was cut short by an end of the ladder fills out to full width instead
+ * of sliding, so the row never ends up narrower than 21 once it has moved.
+ */
+export function rowStartAfter(first: number, last: number, dir: -1 | 1): number {
+  const next = last - first < ROW_SIZE ? (dir > 0 ? RANK_MIN : RANK_MAX - ROW_SIZE) : first + dir;
+  return Math.max(RANK_MIN, Math.min(RANK_MAX - ROW_SIZE, next));
 }
 
 // The lamp's colours live in index.css, on .lobby-slider as --lamp-core and
@@ -79,14 +120,21 @@ type DragMode = 'move' | 'low' | 'high';
 export default function LobbyRangeSlider({ playerRank, low, high, width, onChange, onRememberWidth, onResize, onClear }: Props) {
   const laneRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ mode: DragMode; grabOffset: number } | null>(null);
+  const edgeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const edgeSide = useRef<EdgeSide | null>(null);
+  // Latest values for the timer, which outlives the render that started it.
+  const live = useRef({ low, high, first: 0, last: 0, playerRank, onChange });
 
   // Clamped at both ends of the real ladder, so a Bronze or Champion player
   // gets a shorter row rather than boxes for ranks that don't exist.
-  // The window can be scrolled (the arrows beside the width buttons) when a
-  // lobby reaches past the default row. `scroll` is in divisions from the
-  // default position. A recorded bar that lies outside the window pulls the
-  // window to it, so a saved range is never hidden.
+  // The row slides when the bar is held against an edge of the lane (or moved
+  // past it with the keyboard). `scroll` is in divisions from the default
+  // position; it is state so the row stays where it is after the pointer lets
+  // go. A recorded bar that lies outside the window pulls the window to it, so
+  // a saved range is never hidden. No bar (cleared, or a new match) means the
+  // default row again.
   const [scroll, setScroll] = useState(0);
+  useEffect(() => { if (low == null) setScroll(0); }, [low]);
   const slots = useMemo(
     () => windowSlots(playerRank, scroll, low, high),
     [playerRank, scroll, low, high],
@@ -94,6 +142,7 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
 
   const first = slots[0];
   const last = slots[slots.length - 1];
+  live.current = { low, high, first, last, playerRank, onChange };
   const cols = `repeat(${slots.length}, minmax(0, 1fr))`;
 
   // Consecutive runs of one tier, for the label row above the boxes.
@@ -126,6 +175,39 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
     onChange(clampRank(lo), clampRank(hi));
   }, [first, last, onChange]);
 
+  const stopEdge = useCallback(() => {
+    if (edgeTimer.current != null) clearTimeout(edgeTimer.current);
+    edgeTimer.current = null;
+    edgeSide.current = null;
+  }, []);
+  useEffect(() => stopEdge, [stopEdge]);
+
+  const edgeTick = useCallback((side: EdgeSide) => {
+    const drag = dragRef.current;
+    const v = live.current;
+    if (!drag || v.low == null || v.high == null || edgeSide.current !== side) return;
+    const step = edgeStep(drag.mode, v.low, v.high, v.first, v.last, side);
+    if (!step) { edgeTimer.current = null; return; }
+    setScroll(rowStartAfter(v.first, v.last, side === 'low' ? -1 : 1) - (v.playerRank - WINDOW));
+    v.onChange(step.low, step.high);
+    edgeTimer.current = setTimeout(() => edgeTick(side), EDGE_REPEAT_MS);
+  }, []);
+
+  // Called on every pointer position during a drag. The pointer counts as at
+  // an edge when it is over the end box of the row, or past the lane.
+  const trackEdge = useCallback((clientX: number) => {
+    const el = laneRef.current;
+    if (!el) return;
+    const box = el.getBoundingClientRect();
+    const cell = box.width / Math.max(1, live.current.last - live.current.first + 1);
+    const side: EdgeSide | null = clientX < box.left + cell ? 'low' : clientX > box.right - cell ? 'high' : null;
+    if (side === edgeSide.current) return;
+    stopEdge();
+    if (!side) return;
+    edgeSide.current = side;
+    edgeTimer.current = setTimeout(() => edgeTick(side), EDGE_DELAY_MS);
+  }, [stopEdge, edgeTick]);
+
   // The lane owns the whole gesture. The bar and its two end handles only
   // declare what they are via data-drag-role; they have no pointer handlers of
   // their own. One capture, one mover, no competing listeners.
@@ -133,6 +215,7 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
     e.preventDefault();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     const r = rankAtClientX(e.clientX);
+    trackEdge(e.clientX);
     const role = (e.target as HTMLElement).closest('[data-drag-role]')?.getAttribute('data-drag-role');
 
     if (low == null || high == null) {
@@ -155,11 +238,12 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
     const w = high - low + 1;
     place(r, w);
     dragRef.current = { mode: 'move', grabOffset: Math.floor((w - 1) / 2) };
-  }, [low, high, width, place, rankAtClientX]);
+  }, [low, high, width, place, rankAtClientX, trackEdge]);
 
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     const drag = dragRef.current;
     if (!drag || low == null || high == null) return;
+    trackEdge(e.clientX);
     const r = rankAtClientX(e.clientX);
     if (drag.mode === 'move') {
       const w = high - low + 1;
@@ -172,11 +256,12 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
       const hi = Math.min(last, Math.max(r, low));
       if (hi !== high) onChange(low, hi);
     }
-  }, [low, high, first, last, onChange, rankAtClientX]);
+  }, [low, high, first, last, onChange, rankAtClientX, trackEdge]);
 
   // The new width is recorded once, here, when the gesture ends — not on every
   // pixel of it.
   const endDrag = useCallback((e: React.PointerEvent) => {
+    stopEdge();
     const el = e.currentTarget as HTMLElement;
     if (el.hasPointerCapture?.(e.pointerId)) el.releasePointerCapture(e.pointerId);
     const drag = dragRef.current;
@@ -184,21 +269,31 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
     if (drag && (drag.mode === 'low' || drag.mode === 'high') && low != null && high != null) {
       onRememberWidth(high - low + 1);
     }
-  }, [low, high, onRememberWidth]);
+  }, [low, high, onRememberWidth, stopEdge]);
 
-  // Arrow keys slide the bar; shift+arrow stretches its right end.
+  // Arrow keys slide the bar; shift+arrow stretches its right end. Either may
+  // go one past the visible edge, and the row follows by one.
+  const followRow = (lo: number, hi: number) => {
+    if (lo < first) setScroll(rowStartAfter(first, last, -1) - (playerRank - WINDOW));
+    else if (hi > last) setScroll(rowStartAfter(first, last, 1) - (playerRank - WINDOW));
+  };
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (low == null || high == null) return;
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
     e.preventDefault();
     const d = e.key === 'ArrowRight' ? 1 : -1;
     if (e.shiftKey) {
-      const hi = Math.min(last, Math.max(low, high + d));
+      // Stretching past the right edge slides the row, so it needs room: a bar
+      // already spanning the whole row would lose its left end.
+      const roomToSlide = low > first;
+      const hi = Math.min(roomToSlide ? RANK_MAX : last, Math.max(low, high + d));
+      followRow(low, hi);
       onChange(low, hi);
       onRememberWidth(hi - low + 1);
     } else {
       const w = high - low + 1;
-      const lo = Math.max(first, Math.min(last - w + 1, low + d));
+      const lo = Math.max(RANK_MIN, Math.min(RANK_MAX - w + 1, low + d));
+      followRow(lo, lo + w - 1);
       onChange(lo, lo + w - 1);
     }
   };
@@ -206,15 +301,6 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
   const set = low != null && high != null;
   const loIdx = set ? slots.indexOf(low!) : -1;
   const hiIdx = set ? slots.indexOf(high!) : -1;
-
-  // A scroll step may not push a recorded bar out of view, and may not pass the
-  // ends of the ladder.
-  const canScrollLow = first > RANK_MIN && (!set || high! <= last - SCROLL_STEP);
-  const canScrollHigh = last < RANK_MAX && (!set || low! >= first + SCROLL_STEP);
-  const scrollBy = (d: number) => {
-    const next = Math.max(RANK_MIN, Math.min(RANK_MAX - WINDOW * 2, first + d));
-    setScroll(next - (playerRank - WINDOW));
-  };
 
   return (
     <div className="lobby-slider" data-inspect-id="lobby-range-slider">
@@ -226,24 +312,6 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
             : <span className="text-[var(--faint-2)]">— press the lane to place the bar</span>}
         </span>
         <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => scrollBy(-SCROLL_STEP)}
-            disabled={!canScrollLow}
-            data-inspect-id="lobby-range-slider-scroll-low"
-            aria-label={`Show lower ranks (${SCROLL_STEP} divisions)`}
-            title="Show lower ranks"
-            className="w-5 h-5 rounded border border-ow-border text-[var(--faint)] hover:text-[var(--ink)] disabled:border-dashed disabled:cursor-not-allowed disabled:hover:text-[var(--faint)] leading-none text-xs"
-          >‹</button>
-          <button
-            type="button"
-            onClick={() => scrollBy(SCROLL_STEP)}
-            disabled={!canScrollHigh}
-            data-inspect-id="lobby-range-slider-scroll-high"
-            aria-label={`Show higher ranks (${SCROLL_STEP} divisions)`}
-            title="Show higher ranks"
-            className="w-5 h-5 rounded border border-ow-border text-[var(--faint)] hover:text-[var(--ink)] disabled:border-dashed disabled:cursor-not-allowed disabled:hover:text-[var(--faint)] leading-none text-xs"
-          >›</button>
           <button
             type="button"
             onClick={() => onResize(Math.max(1, width - 1))}
