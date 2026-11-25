@@ -43,6 +43,17 @@ describe('import ban: lab files', () => {
   }
 });
 
+describe('import ban: advisor cache storage', () => {
+  // The cache store moves to the lab in Stage 2. It must not reach the tracker
+  // DB handle or migrations (CISO S4), and must not import any tracker module.
+  test('db/advisorCache.ts imports no tracker-side module', () => {
+    // Inside db/ the schema import is written './schema', which BANNED does not match.
+    const bad = specifiers(read('db/advisorCache.ts'))
+      .filter(s => BANNED.some(re => re.test(s)) || /(^|\/)schema$/.test(s));
+    assert.deepEqual(bad, []);
+  });
+});
+
 describe('import ban: neutral libs', () => {
   test('lib/queueMode.ts imports nothing', () => {
     assert.deepEqual(specifiers(read('lib/queueMode.ts')), []);
