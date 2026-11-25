@@ -20,7 +20,7 @@ export default function FirstRunPreset() {
   };
 
   return (
-    <div className="card mb-6 py-4 px-4" data-inspect-id="first-run-preset">
+    <div className="card mb-6" data-inspect-id="first-run-preset">
       <div className="text-sm card-title">How much do you want to track?</div>
       <div className="text-xs text-[var(--faint)] mb-3">Pick a starting point. You can change it any time in Settings.</div>
       <div className="grid gap-2 sm:grid-cols-3">

@@ -1,10 +1,34 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { RANK_MIN, RANK_MAX, RANK_TIER_COLOR, RANK_TIER_RGB, rankLabel, rankTier, rankDivision, clampRank } from '../types';
 
 // How far either side of Sean's own rank the row reaches. Ten divisions is two
 // full tiers each way — comfortably wider than the +/-5 that ~99% of lobbies
 // fall inside, so the standard case never sits against an edge.
 const WINDOW = 10;
+// How many divisions one press of a scroll arrow moves the row.
+const SCROLL_STEP = 5;
+
+/**
+ * The ranks the row shows. With no scroll and no bar outside the default
+ * window, this is the original row: WINDOW either side of the player, cut off
+ * at the ends of the ladder. Once the row is scrolled, or a bar lies outside the
+ * default window, the row keeps its full width and slides along the ladder.
+ */
+export function windowSlots(playerRank: number, scroll: number, low: number | null, high: number | null): number[] {
+  const size = WINDOW * 2;
+  let start = playerRank - WINDOW + scroll;
+  if (low != null && high != null) {
+    if (low < start) start = low;
+    if (high > start + size) start = high - size;
+  }
+  const moved = start !== playerRank - WINDOW;
+  if (moved) start = Math.max(RANK_MIN, Math.min(RANK_MAX - size, start));
+  const arr: number[] = [];
+  for (let r = start; r <= start + size; r++) {
+    if (r >= RANK_MIN && r <= RANK_MAX) arr.push(r);
+  }
+  return arr;
+}
 
 // The lamp's colours live in index.css, on .lobby-slider as --lamp-core and
 // --lamp-deep. They have to: the lamp is near-white on a dark card and
@@ -58,13 +82,15 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
 
   // Clamped at both ends of the real ladder, so a Bronze or Champion player
   // gets a shorter row rather than boxes for ranks that don't exist.
-  const slots = useMemo(() => {
-    const arr: number[] = [];
-    for (let r = playerRank - WINDOW; r <= playerRank + WINDOW; r++) {
-      if (r >= RANK_MIN && r <= RANK_MAX) arr.push(r);
-    }
-    return arr;
-  }, [playerRank]);
+  // The window can be scrolled (the arrows beside the width buttons) when a
+  // lobby reaches past the default row. `scroll` is in divisions from the
+  // default position. A recorded bar that lies outside the window pulls the
+  // window to it, so a saved range is never hidden.
+  const [scroll, setScroll] = useState(0);
+  const slots = useMemo(
+    () => windowSlots(playerRank, scroll, low, high),
+    [playerRank, scroll, low, high],
+  );
 
   const first = slots[0];
   const last = slots[slots.length - 1];
@@ -181,6 +207,15 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
   const loIdx = set ? slots.indexOf(low!) : -1;
   const hiIdx = set ? slots.indexOf(high!) : -1;
 
+  // A scroll step may not push a recorded bar out of view, and may not pass the
+  // ends of the ladder.
+  const canScrollLow = first > RANK_MIN && (!set || high! <= last - SCROLL_STEP);
+  const canScrollHigh = last < RANK_MAX && (!set || low! >= first + SCROLL_STEP);
+  const scrollBy = (d: number) => {
+    const next = Math.max(RANK_MIN, Math.min(RANK_MAX - WINDOW * 2, first + d));
+    setScroll(next - (playerRank - WINDOW));
+  };
+
   return (
     <div className="lobby-slider" data-inspect-id="lobby-range-slider">
       <div className="flex items-center justify-between mb-1.5">
@@ -191,6 +226,24 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
             : <span className="text-[var(--faint-2)]">— press the lane to place the bar</span>}
         </span>
         <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => scrollBy(-SCROLL_STEP)}
+            disabled={!canScrollLow}
+            data-inspect-id="lobby-range-slider-scroll-low"
+            aria-label={`Show lower ranks (${SCROLL_STEP} divisions)`}
+            title="Show lower ranks"
+            className="w-5 h-5 rounded border border-ow-border text-[var(--faint)] hover:text-[var(--ink)] disabled:opacity-40 disabled:hover:text-[var(--faint)] leading-none text-xs"
+          >‹</button>
+          <button
+            type="button"
+            onClick={() => scrollBy(SCROLL_STEP)}
+            disabled={!canScrollHigh}
+            data-inspect-id="lobby-range-slider-scroll-high"
+            aria-label={`Show higher ranks (${SCROLL_STEP} divisions)`}
+            title="Show higher ranks"
+            className="w-5 h-5 rounded border border-ow-border text-[var(--faint)] hover:text-[var(--ink)] disabled:opacity-40 disabled:hover:text-[var(--faint)] leading-none text-xs"
+          >›</button>
           <button
             type="button"
             onClick={() => onResize(Math.max(1, width - 1))}

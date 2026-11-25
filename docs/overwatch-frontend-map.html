@@ -1696,7 +1696,7 @@ const DATA = {
           "kind": "input",
           "description": "The lobby's rank spread, as a band on a track. The track is one cell per division, reaching 10 divisions either side of Sean's rank. The band's left edge is the lobby floor, its right edge the ceiling. Nothing is drawn until Sean presses the track \u2014 a band that appeared on its own would be a guess dressed as an observation. The bar persists across matches as of 2026-09-19 \u2014 it is no longer wiped on submit, Reset or Match Cancelled, because consecutive matches are nearly always the same lobby. It clears only via this component's own 'clear' button, or when the rank drum moves.",
           "locate": {
-            "path": "client/src/components/LobbyRangeSlider.tsx:185",
+            "path": "client/src/components/LobbyRangeSlider.tsx:220",
             "grep": "grep -n -F -- 'data-inspect-id=\"lobby-range-slider\"' client/src/components/LobbyRangeSlider.tsx"
           }
         },
@@ -1706,7 +1706,7 @@ const DATA = {
           "kind": "input",
           "description": "Left end of the bar: a triangle pointing outward, so the shape says which way to pull. Drag it to move only the lobby floor. Drawn with clip-path and lit with drop-shadow, which follows the clipped silhouette \u2014 box-shadow would draw a rectangle around a triangle. Its grab area is 24px, larger than the 10px arrowhead, so it can be hit on a trackpad. The lane owns the gesture; this element only declares its role.",
           "locate": {
-            "path": "client/src/components/LobbyRangeSlider.tsx:335",
+            "path": "client/src/components/LobbyRangeSlider.tsx:388",
             "grep": "grep -n -F -- 'data-inspect-id=\"lobby-range-slider-handle-low\"' client/src/components/LobbyRangeSlider.tsx"
           }
         },
@@ -1716,7 +1716,7 @@ const DATA = {
           "kind": "input",
           "description": "Right end of the bar: a triangle pointing outward. Drag it to move only the lobby ceiling. Same clip-path drawing, oversized grab area and role-only arrangement as the floor handle.",
           "locate": {
-            "path": "client/src/components/LobbyRangeSlider.tsx:346",
+            "path": "client/src/components/LobbyRangeSlider.tsx:399",
             "grep": "grep -n -F -- 'data-inspect-id=\"lobby-range-slider-handle-high\"' client/src/components/LobbyRangeSlider.tsx"
           }
         },
@@ -1726,8 +1726,28 @@ const DATA = {
           "kind": "display",
           "description": "Band width in divisions. Persisted to localStorage 'ow-lobby-tray-width' and reused next match; the band's POSITION is never remembered.",
           "locate": {
-            "path": "client/src/components/LobbyRangeSlider.tsx:201",
+            "path": "client/src/components/LobbyRangeSlider.tsx:254",
             "grep": "grep -n -F -- 'data-inspect-id=\"lobby-range-slider-width\"' client/src/components/LobbyRangeSlider.tsx"
+          }
+        },
+        {
+          "id": "lobby-range-slider-scroll-low",
+          "label": "Lobby range \u2014 show lower ranks",
+          "kind": "button",
+          "description": "Slides the row of rank boxes five divisions toward Bronze, so a lobby that reaches past the default row can be recorded. Disabled at the bottom of the ladder or when it would hide the bar.",
+          "locate": {
+            "path": "client/src/components/LobbyRangeSlider.tsx:233",
+            "grep": "grep -n -F -- 'data-inspect-id=\"lobby-range-slider-scroll-low\"' client/src/components/LobbyRangeSlider.tsx"
+          }
+        },
+        {
+          "id": "lobby-range-slider-scroll-high",
+          "label": "Lobby range \u2014 show higher ranks",
+          "kind": "button",
+          "description": "Slides the row of rank boxes five divisions toward Champion. Disabled at the top of the ladder or when it would hide the bar.",
+          "locate": {
+            "path": "client/src/components/LobbyRangeSlider.tsx:242",
+            "grep": "grep -n -F -- 'data-inspect-id=\"lobby-range-slider-scroll-high\"' client/src/components/LobbyRangeSlider.tsx"
           }
         },
         {
@@ -1736,7 +1756,7 @@ const DATA = {
           "kind": "button",
           "description": "Shrinks the band one division, keeping it centred where it already sits.",
           "locate": {
-            "path": "client/src/components/LobbyRangeSlider.tsx:197",
+            "path": "client/src/components/LobbyRangeSlider.tsx:250",
             "grep": "grep -n -F -- 'data-inspect-id=\"lobby-range-slider-narrow\"' client/src/components/LobbyRangeSlider.tsx"
           }
         },
@@ -1746,7 +1766,7 @@ const DATA = {
           "kind": "button",
           "description": "Grows the band one division, keeping it centred where it already sits.",
           "locate": {
-            "path": "client/src/components/LobbyRangeSlider.tsx:205",
+            "path": "client/src/components/LobbyRangeSlider.tsx:258",
             "grep": "grep -n -F -- 'data-inspect-id=\"lobby-range-slider-widen\"' client/src/components/LobbyRangeSlider.tsx"
           }
         },
@@ -1756,7 +1776,7 @@ const DATA = {
           "kind": "button",
           "description": "Removes the band, returning the range to unrecorded. Only shown once a band exists.",
           "locate": {
-            "path": "client/src/components/LobbyRangeSlider.tsx:213",
+            "path": "client/src/components/LobbyRangeSlider.tsx:266",
             "grep": "grep -n -F -- 'data-inspect-id=\"lobby-range-slider-clear\"' client/src/components/LobbyRangeSlider.tsx"
           }
         },
@@ -1766,7 +1786,7 @@ const DATA = {
           "kind": "display",
           "description": "Tier names above the boxes, each spanning its own run. Short runs near the ends of the row fall back to the tier's initial.",
           "locate": {
-            "path": "client/src/components/LobbyRangeSlider.tsx:221",
+            "path": "client/src/components/LobbyRangeSlider.tsx:274",
             "grep": "grep -n -F -- 'data-inspect-id=\"lobby-range-slider-tier-labels\"' client/src/components/LobbyRangeSlider.tsx"
           }
         },
@@ -1776,7 +1796,7 @@ const DATA = {
           "kind": "input",
           "description": "One box per division, tinted by tier, printed with the division number. The boxes are panes of tinted glass and the bar below is a near-UV lamp: a pane the bar sits under FLUORESCES \u2014 a sliver of raw violet at the contact edge, then its own tier colour taking over and carrying all the way to the top edge rather than dying halfway. Unlit panes drop to near-transparent, which is what makes the lit ones read as lit. Sean's own rank carries an inset ring. Clicking a box drops the bar centred on it.",
           "locate": {
-            "path": "client/src/components/LobbyRangeSlider.tsx:263",
+            "path": "client/src/components/LobbyRangeSlider.tsx:316",
             "grep": "grep -n -F -- 'data-inspect-id=\"lobby-range-slider-boxes\"' client/src/components/LobbyRangeSlider.tsx"
           }
         },
@@ -1786,7 +1806,7 @@ const DATA = {
           "kind": "button",
           "description": "One division. Click places the bar centred here at the remembered width. A lit pane gathers light at its left and right edges and bleeds it sideways into the gaps; the two panes at the ends of the lit run bleed twice as far, since they are the only ones with darkness beside them to bleed into.",
           "locate": {
-            "path": "client/src/components/LobbyRangeSlider.tsx:272",
+            "path": "client/src/components/LobbyRangeSlider.tsx:325",
             "grep": "grep -n -F -- 'data-inspect-id=\"lobby-range-slider-box\"' client/src/components/LobbyRangeSlider.tsx"
           }
         },
@@ -1796,7 +1816,7 @@ const DATA = {
           "kind": "input",
           "description": "The strip beneath the boxes that holds the bar, and the sole owner of the drag gesture \u2014 it captures the pointer and reads what was grabbed off the target's data-drag-role. Pressing bare lane moves the bar there, centred. Shares the boxes' CSS grid so the bar's ends land on box edges exactly.",
           "locate": {
-            "path": "client/src/components/LobbyRangeSlider.tsx:300",
+            "path": "client/src/components/LobbyRangeSlider.tsx:353",
             "grep": "grep -n -F -- 'data-inspect-id=\"lobby-range-slider-lane\"' client/src/components/LobbyRangeSlider.tsx"
           }
         },
@@ -1806,7 +1826,7 @@ const DATA = {
           "kind": "input",
           "description": "The light bar: the reading itself, sitting under the boxes the lobby spanned. A cold lamp \u2014 near-white core bleeding into the theme's secondary accent, ow.blue #29D3F2 \u2014 with three stacked blooms. Colours come from LAMP_GLOW/LAMP_CONTACT at the top of the file, so the lamp is one edit, not a dozen. The core stays near-white on purpose: a lamp saturated all the way through tints every pane its own hue and undoes what the tiers are for. Drag it to move; arrow keys move it one division, shift+arrow stretches its right end.",
           "locate": {
-            "path": "client/src/components/LobbyRangeSlider.tsx:317",
+            "path": "client/src/components/LobbyRangeSlider.tsx:370",
             "grep": "grep -n -F -- 'data-inspect-id=\"lobby-range-slider-bar\"' client/src/components/LobbyRangeSlider.tsx"
           }
         },
@@ -1816,7 +1836,7 @@ const DATA = {
           "kind": "display",
           "description": "Decorative. The light that made it through the glass and kept going, drawn one blurred segment PER LIT COLUMN and tinted by that column's tier \u2014 the colour is created by the pane, not by the lamp. Sits above the box row, fading upward. Pointer-events-none and aria-hidden.",
           "locate": {
-            "path": "client/src/components/LobbyRangeSlider.tsx:254",
+            "path": "client/src/components/LobbyRangeSlider.tsx:307",
             "grep": "grep -n -F -- 'data-inspect-id=\"lobby-range-slider-halo\"' client/src/components/LobbyRangeSlider.tsx"
           }
         },
@@ -6870,6 +6890,7 @@ const DATA = {
     }
   ]
 };
+
 
 
 
