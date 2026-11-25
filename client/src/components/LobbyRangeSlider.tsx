@@ -233,7 +233,7 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
             data-inspect-id="lobby-range-slider-scroll-low"
             aria-label={`Show lower ranks (${SCROLL_STEP} divisions)`}
             title="Show lower ranks"
-            className="w-5 h-5 rounded border border-ow-border text-[var(--faint)] hover:text-[var(--ink)] disabled:opacity-40 disabled:hover:text-[var(--faint)] leading-none text-xs"
+            className="w-5 h-5 rounded border border-ow-border text-[var(--faint)] hover:text-[var(--ink)] disabled:border-dashed disabled:cursor-not-allowed disabled:hover:text-[var(--faint)] leading-none text-xs"
           >‹</button>
           <button
             type="button"
@@ -242,7 +242,7 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
             data-inspect-id="lobby-range-slider-scroll-high"
             aria-label={`Show higher ranks (${SCROLL_STEP} divisions)`}
             title="Show higher ranks"
-            className="w-5 h-5 rounded border border-ow-border text-[var(--faint)] hover:text-[var(--ink)] disabled:opacity-40 disabled:hover:text-[var(--faint)] leading-none text-xs"
+            className="w-5 h-5 rounded border border-ow-border text-[var(--faint)] hover:text-[var(--ink)] disabled:border-dashed disabled:cursor-not-allowed disabled:hover:text-[var(--faint)] leading-none text-xs"
           >›</button>
           <button
             type="button"
