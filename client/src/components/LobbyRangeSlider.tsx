@@ -12,24 +12,22 @@ const EDGE_REPEAT_MS = 150;
 const ROW_SIZE = WINDOW * 2;
 
 /**
- * The ranks the row shows. With no scroll and no bar outside the default
- * window, this is the original row: WINDOW either side of the player, cut off
- * at the ends of the ladder. Once the row is scrolled, or a bar lies outside the
- * default window, the row keeps its full width and slides along the ladder.
+ * The ranks the row shows: always ROW_SIZE + 1 (21) pills, every one a real
+ * rank. The default row is WINDOW either side of the player, slid inside the
+ * ladder when the player is near an end (so the player sits off-centre there).
+ * `scroll` slides it further. A bar outside the row pulls the row to it.
  */
 export function windowSlots(playerRank: number, scroll: number, low: number | null, high: number | null): number[] {
   const size = ROW_SIZE;
-  let start = playerRank - WINDOW + scroll;
+  const clamp = (v: number) => Math.max(RANK_MIN, Math.min(RANK_MAX - size, v));
+  let start = clamp(playerRank - WINDOW + scroll);
   if (low != null && high != null) {
     if (low < start) start = low;
     if (high > start + size) start = high - size;
+    start = clamp(start);
   }
-  const moved = start !== playerRank - WINDOW;
-  if (moved) start = Math.max(RANK_MIN, Math.min(RANK_MAX - size, start));
   const arr: number[] = [];
-  for (let r = start; r <= start + size; r++) {
-    if (r >= RANK_MIN && r <= RANK_MAX) arr.push(r);
-  }
+  for (let r = start; r <= start + size; r++) arr.push(r);
   return arr;
 }
 
@@ -61,16 +59,6 @@ export function edgeStep(
   return { low: low + 1, high: high + 1 };
 }
 
-/**
- * Where the row starts after it slides one division (dir -1 or +1). A row
- * that was cut short by an end of the ladder fills out to full width instead
- * of sliding, so the row never ends up narrower than 21 once it has moved.
- */
-export function rowStartAfter(first: number, last: number, dir: -1 | 1): number {
-  const next = last - first < ROW_SIZE ? (dir > 0 ? RANK_MIN : RANK_MAX - ROW_SIZE) : first + dir;
-  return Math.max(RANK_MIN, Math.min(RANK_MAX - ROW_SIZE, next));
-}
-
 // The lamp's colours live in index.css, on .lobby-slider as --lamp-core and
 // --lamp-deep. They have to: the lamp is near-white on a dark card and
 // saturated cyan on a white one, and an inline style cannot carry a theme
@@ -78,6 +66,8 @@ export function rowStartAfter(first: number, last: number, dir: -1 | 1): number 
 // classes rather than style objects.
 
 type Props = {
+  /** Bumped by the match context when a match is logged; the row returns to the default window. */
+  matchLoggedSignal: number;
   /** Sean's own rank; the row is built around it. */
   playerRank: number;
   low: number | null;
@@ -117,7 +107,7 @@ type DragMode = 'move' | 'low' | 'high';
  * bar that appeared on its own would be a guess wearing the costume of an
  * observation — the same trap the old per-death axis sliders fell into.
  */
-export default function LobbyRangeSlider({ playerRank, low, high, width, onChange, onRememberWidth, onResize, onClear }: Props) {
+export default function LobbyRangeSlider({ matchLoggedSignal, playerRank, low, high, width, onChange, onRememberWidth, onResize, onClear }: Props) {
   const laneRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ mode: DragMode; grabOffset: number } | null>(null);
   const edgeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -125,8 +115,8 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
   // Latest values for the timer, which outlives the render that started it.
   const live = useRef({ low, high, first: 0, last: 0, playerRank, onChange });
 
-  // Clamped at both ends of the real ladder, so a Bronze or Champion player
-  // gets a shorter row rather than boxes for ranks that don't exist.
+  // Always 21 boxes, all real ranks: a Bronze or Champion player gets a row
+  // slid inside the ladder (off-centre), never a shorter one.
   // The row slides when the bar is held against an edge of the lane (or moved
   // past it with the keyboard). `scroll` is in divisions from the default
   // position; it is state so the row stays where it is after the pointer lets
@@ -135,6 +125,10 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
   // default row again.
   const [scroll, setScroll] = useState(0);
   useEffect(() => { if (low == null) setScroll(0); }, [low]);
+  // A match log keeps the bar on purpose, so the row goes back to the default
+  // window on the match-logged signal as well. The kept bar stays visible:
+  // windowSlots pulls the row to it.
+  useEffect(() => { setScroll(0); }, [matchLoggedSignal]);
   const slots = useMemo(
     () => windowSlots(playerRank, scroll, low, high),
     [playerRank, scroll, low, high],
@@ -188,7 +182,7 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
     if (!drag || v.low == null || v.high == null || edgeSide.current !== side) return;
     const step = edgeStep(drag.mode, v.low, v.high, v.first, v.last, side);
     if (!step) { edgeTimer.current = null; return; }
-    setScroll(rowStartAfter(v.first, v.last, side === 'low' ? -1 : 1) - (v.playerRank - WINDOW));
+    setScroll(v.first + (side === 'low' ? -1 : 1) - (v.playerRank - WINDOW));
     v.onChange(step.low, step.high);
     edgeTimer.current = setTimeout(() => edgeTick(side), EDGE_REPEAT_MS);
   }, []);
@@ -274,8 +268,8 @@ export default function LobbyRangeSlider({ playerRank, low, high, width, onChang
   // Arrow keys slide the bar; shift+arrow stretches its right end. Either may
   // go one past the visible edge, and the row follows by one.
   const followRow = (lo: number, hi: number) => {
-    if (lo < first) setScroll(rowStartAfter(first, last, -1) - (playerRank - WINDOW));
-    else if (hi > last) setScroll(rowStartAfter(first, last, 1) - (playerRank - WINDOW));
+    if (lo < first) setScroll(first - 1 - (playerRank - WINDOW));
+    else if (hi > last) setScroll(first + 1 - (playerRank - WINDOW));
   };
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (low == null || high == null) return;

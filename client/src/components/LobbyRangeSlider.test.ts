@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { windowSlots, edgeStep, rowStartAfter } from './LobbyRangeSlider';
+import { windowSlots, edgeStep } from './LobbyRangeSlider';
 import { RANK_MIN, RANK_MAX } from '../types';
 
 test('default window is 10 either side of the player', () => {
@@ -9,10 +9,13 @@ test('default window is 10 either side of the player', () => {
   assert.equal(s[s.length - 1], 30);
 });
 
-test('default window is cut at the ends of the ladder', () => {
-  const s = windowSlots(3, 0, null, null);
-  assert.equal(s[0], 1);
-  assert.equal(s.length, 13);
+test('default window is slid inside the ladder at the ends, still 21 pills', () => {
+  const lo = windowSlots(3, 0, null, null);
+  assert.equal(lo[0], RANK_MIN);
+  assert.equal(lo.length, 21);
+  const hi = windowSlots(RANK_MAX, 0, null, null);
+  assert.equal(hi[hi.length - 1], RANK_MAX);
+  assert.equal(hi.length, 21);
 });
 
 test('scrolling slides a full-width row along the ladder', () => {
@@ -79,16 +82,32 @@ test('edge step: a handle may not push the far end out of the row', () => {
   assert.equal(edgeStep('high', 20, 40, 20, 40, 'high'), null);
 });
 
-test('row slides one division, and keeps its full width', () => {
-  assert.equal(rowStartAfter(20, 40, -1), 19);
-  assert.equal(rowStartAfter(20, 40, 1), 21);
-  const s = windowSlots(20, rowStartAfter(20, 40, 1) - (20 - 10), 25, 28);
-  assert.equal(s.length, 21);
-});
-
-test('a row cut short by the ladder fills out to full width on its first step', () => {
-  assert.equal(rowStartAfter(RANK_MIN, RANK_MIN + 12, 1), RANK_MIN);
-  assert.equal(rowStartAfter(RANK_MAX - 12, RANK_MAX, -1), RANK_MAX - 20);
+test('hold at an edge: row stays 21 pills, bar stays on the edge pill, reaches the ladder end (all 45 ranks)', () => {
+  for (let player = RANK_MIN; player <= RANK_MAX; player++) {
+    for (const side of ['low', 'high'] as const) {
+      let scroll = 0;
+      // Bar of 5 pills placed on the edge pill of the default row.
+      let s0 = windowSlots(player, 0, null, null);
+      let low = side === 'low' ? s0[0] : s0[20] - 4;
+      let high = low + 4;
+      let steps = 0;
+      for (;;) {
+        const slots = windowSlots(player, scroll, low, high);
+        assert.equal(slots.length, 21, `rank ${player} ${side}`);
+        const first = slots[0], last = slots[20];
+        const step = edgeStep('move', low, high, first, last, side);
+        if (!step) break;
+        scroll = first + (side === 'low' ? -1 : 1) - (player - 10);
+        low = step.low; high = step.high;
+        const next = windowSlots(player, scroll, low, high);
+        assert.equal(next.length, 21);
+        assert.equal(side === 'low' ? low : high, side === 'low' ? next[0] : next[20], `bar left the edge: rank ${player} ${side}`);
+        assert.ok(++steps < 100);
+      }
+      const end = windowSlots(player, scroll, low, high);
+      assert.equal(side === 'low' ? end[0] : end[20], side === 'low' ? RANK_MIN : RANK_MAX);
+    }
+  }
 });
 
 test('the row stays put once scrolled and the bar comes back inside the default window', () => {

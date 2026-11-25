@@ -24,7 +24,7 @@ const TRAY_WIDTH_KEY = 'ow-lobby-tray-width';
 // Competitive only — quickplay has no rank, so the section is hidden rather
 // than sitting empty and inviting a guess.
 export default function LobbyRankSection({ className = '' }: { className?: string }) {
-  const { queueMode, playerRank, setPlayerRank, lobbyLow, lobbyHigh, setLobbyRange, clearLobbyRange, placement, setPlacement } = useMatch();
+  const { matchLoggedSignal, queueMode, playerRank, setPlayerRank, lobbyLow, lobbyHigh, setLobbyRange, clearLobbyRange, placement, setPlacement } = useMatch();
   const { isFieldEnabled } = useFieldConfig();
   // Field-registry Phase 2 (2026-09-24) — lobby_low/lobby_high's registry
   // entry (server/src/lib/fieldRegistry.ts's `lobby_range`). Gated directly
@@ -135,6 +135,7 @@ export default function LobbyRankSection({ className = '' }: { className?: strin
             </p>
           ) : (
             <LobbyRangeSlider
+              matchLoggedSignal={matchLoggedSignal}
               playerRank={playerRank}
               low={lobbyLow}
               high={lobbyHigh}
